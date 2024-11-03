@@ -39,25 +39,36 @@ for example in config["spam_examples"]:
 <конец ответа>
 """
 
+class ExtractionFailedError(Exception):
+    pass
 
 async def is_spam(comment: str):
     """
     Возвращает -100, если не спам, и 100, если спам
     """
-    messages = [{"role": "system", "text": prompt}, {"role": "user", "text": comment}]
+    MAX_RETRIES = 3
 
-    response = await get_openrouter_response(messages)
-    logger.info(f"Spam classifier response: {response}")
-
-    return extract_spam_score(response.lower())
-
+    for attempt in range(MAX_RETRIES):
+        try:
+            messages = [{"role": "system", "text": prompt}, {"role": "user", "text": comment}]
+            response = await get_openrouter_response(messages)
+            logger.info(f"Spam classifier response: {response}")
+            return extract_spam_score(response.lower())
+        except Exception as e:
+            logger.warning(f"Attempt {attempt + 1} failed: {str(e)}")
+            if attempt == MAX_RETRIES - 1:
+                raise ExtractionFailedError("Failed to extract spam score after 3 attempts") from e
 
 def extract_spam_score(response: str):
-    if "да" in response:
-        multiplier = 1
-    elif "нет" in response:
-        multiplier = -1
+    try:
+        if "да" in response:
+            multiplier = 1
+        elif "нет" in response:
+            multiplier = -1
+        else:
+            raise ValueError("Response doesn't contain 'да' or 'нет'")
 
-    conf_score = int(response.split(" ")[1].replace("%", ""))
-
-    return multiplier * conf_score
+        conf_score = int(response.split(" ")[1].replace("%", ""))
+        return multiplier * conf_score
+    except (IndexError, ValueError) as e:
+        raise ValueError(f"Failed to parse response: {response}") from e

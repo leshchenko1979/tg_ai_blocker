@@ -34,6 +34,13 @@ class Group(BaseModel):
     created_at: datetime = datetime.now()
     last_updated: datetime = datetime.now()
 
+INITIAL_CREDITS = 100
+
+# Добавляем константы цен
+NEW_USER_PRICE = 1  # Стоимость обработки сообщения от нового пользователя
+SKIP_PRICE = 0
+APPROVE_PRICE = 0
+DELETE_PRICE = 0
 
 @log_function_call(logger)
 async def save_user(user: User) -> None:
@@ -226,10 +233,6 @@ async def get_user(user_id: int) -> Optional[User]:
     )
 
 
-# Добавляем константы цен
-SKIP_PRICE = 1
-APPROVE_PRICE = 5
-DELETE_PRICE = 10
 
 
 @log_function_call(logger)
@@ -251,8 +254,29 @@ async def is_moderation_enabled(group_id: int) -> bool:
     return bool(int(enabled or 0))
 
 
-INITIAL_CREDITS = 1000
+@log_function_call(logger)
+async def initialize_new_user(user_id: int) -> bool:
+    """
+    Инициализирует нового пользователя с начальными кредитами.
 
+    Args:
+        user_id: ID пользователя
+
+    Returns:
+        bool: True если пользователь был создан, False если уже существует
+    """
+    exists = await redis.exists(f"user:{user_id}")
+    if not exists:
+        await redis.hset(
+            f"user:{user_id}",
+            values={
+                "credits": INITIAL_CREDITS,
+                "created_at": datetime.now().isoformat(),
+                "last_updated": datetime.now().isoformat(),
+            },
+        )
+        return True
+    return False
 
 @log_function_call(logger)
 async def get_user_credits(user_id: int) -> int:

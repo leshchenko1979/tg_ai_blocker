@@ -20,10 +20,12 @@ from common.bot import LESHCHENKO_CHAT_ID, bot
 from common.dp import dp
 from common.mp import mp
 from common.database_upstash import (
+    INITIAL_CREDITS,
     ensure_group_exists,
     get_group,
     get_user_admin_groups,
     get_user_credits,
+    initialize_new_user,
     is_moderation_enabled,
     is_user_in_group,
     add_unique_user,
@@ -37,7 +39,7 @@ from common.database_upstash import (
 from spam_classifier import is_spam
 from utils import config, remove_lines_to_fit_len
 from stats import stats, update_stats
-from payments import process_payment, verify_yookassa_signature
+import star_payments
 
 app = FastAPI()
 
@@ -150,16 +152,19 @@ async def handle_message(message: types.Message):
 @log_function_call(logger)
 async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
     """
-    Попытка списать кредиты у админов. При неудаче отключает модерацию.
+    Попытка списать звезды у админов. При неудаче отключает модерацию.
 
     Args:
         chat_id: ID чата
-        amount: Количество кредитов для списания
+        amount: Количество звезд для списания
         reason: Причина списания для логов
 
     Returns:
         bool: True если списание успешно, False если нет
     """
+    if amount == 0:  # Пропускаем бесплатные операции
+        return True
+
     if not await deduct_credits_from_admins(chat_id, amount):
         logger.warning(f"No paying admins in chat {chat_id} for {reason}")
         await set_group_moderation(chat_id, False)
@@ -172,8 +177,9 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
                     admin.user.id,
                     "Человек!\n\n"
                     f'Модерация в группе "{chat.title}" приостановлена '
-                    "из-за исчерпания кредитов.\n\n"
-                    "Ты собрался защищать киберпространство в одиночку?",
+                    "из-за исчерпания звезд.\n\n"
+                    "Купи звезды командой /buy, чтобы я продолжил защищать "
+                    "твое киберпространство!",
                 )
         return False
     return True
@@ -247,18 +253,30 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
         logger.error(f"Error handling spam: {e}")
         raise
 
-
 @dp.message(Command("start", "help"), F.chat.type == "private")
 @log_function_call(logger)
 async def handle_help_command(message: types.Message) -> None:
     """
     Обработчик команд /start и /help
-    Отправляет пользователю справочную информацию
+    Отправляет пользователю справочную информацию и начисляет начальные звезды новым пользователям
     """
-    await message.reply(
-        config["help_text"], parse_mode="markdown", disable_web_page_preview=True
-    )
+    user_id = message.from_user.id
+    welcome_text = ""
 
+    # Начисляем звезды только при команде /start и только новым пользователям
+    if message.text.startswith('/start'):
+        if await initialize_new_user(user_id):
+            welcome_text = (
+                "🤖 Приветствую, человек!\n\n"
+                f"Я одарил тебя {INITIAL_CREDITS} звездами силы. "
+                "Используй их для защиты своих групп от спам-захватчиков.\n\n"
+            )
+
+    await message.reply(
+        welcome_text + config["help_text"],
+        parse_mode="markdown",
+        disable_web_page_preview=True
+    )
 
 @dp.message(Command("stats"))
 @log_function_call(logger)
@@ -281,7 +299,7 @@ async def handle_stats_command(message: types.Message) -> None:
             group["enabled"] = await is_moderation_enabled(group["id"])
 
         # Формируем сообщение
-        message_text = f"💰 Баланс: *{balance}* кредитов\n\n"
+        message_text = f"💰 Баланс: *{balance}* звезд\n\n"
 
         if admin_groups:
             message_text += "👥 Ваши группы:\n"
@@ -294,11 +312,8 @@ async def handle_stats_command(message: types.Message) -> None:
         await message.reply(message_text, parse_mode="markdown")
 
     except Exception as e:
-        logger.error(f"Error in stats command: {e}")
-        await message.reply(
-            "❌ Произошла ошибка при получении статистики. "
-            "Попробуйте позже или обратитесь к @leshchenko1979"
-        )
+        logger.error(f"Error handling stats command: {e}")
+        await message.reply("Произошла ошибка при получении статистики.")
 
 
 @dp.my_chat_member()
@@ -424,35 +439,6 @@ async def handle_private_message(message: types.Message):
 
     # Отправляем ответ пользователю
     await message.reply(response, parse_mode="markdown")
-
-
-@app.post("/webhook/yookassa")
-async def yookassa_webhook(request: Request):
-    """Обработчик уведомлений от YooKassa"""
-    try:
-        # Получаем тело запроса в байтах для проверки подписи
-        body = await request.body()
-
-        # Проверяем подпись
-        signature = request.headers.get("X-Request-Signature")
-        if not signature:
-            logger.warning("Отсутствует подпись в уведомлении от YooKassa")
-            return {"status": "error", "message": "Missing signature"}
-
-        if not verify_yookassa_signature(
-            body, signature, os.getenv("YOOKASSA_SECRET_KEY")
-        ):
-            logger.warning("Неверная подпись в уведомлении от YooKassa")
-            return {"status": "error", "message": "Invalid signature"}
-
-        # Обрабатываем уведомление
-        await process_payment(await request.json())
-
-        return {"status": "ok"}
-
-    except Exception as e:
-        logger.error(f"Ошибка при обработке уведомления от YooKassa: {e}")
-        return {"status": "error", "message": str(e)}
 
 
 if __name__ == "__main__":

@@ -11,4 +11,3 @@ upstash-redis
 redis
 pyyaml
 # yandex-cloud-ml-sdk
-yookassa
