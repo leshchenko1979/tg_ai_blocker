@@ -50,7 +50,7 @@ async def is_spam(comment: str):
 
     for attempt in range(MAX_RETRIES):
         try:
-            messages = [{"role": "system", "text": prompt}, {"role": "user", "text": comment}]
+            messages = [{"role": "system", "content": prompt}, {"role": "user", "content": comment}]
             response = await get_openrouter_response(messages)
             logger.info(f"Spam classifier response: {response}")
             return extract_spam_score(response.lower())
