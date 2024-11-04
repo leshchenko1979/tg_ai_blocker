@@ -38,6 +38,7 @@ from common.database import (
 from spam_classifier import is_spam
 from utils import config, remove_lines_to_fit_len
 from stats import stats, update_stats
+from updates_filter import filter_handle_message
 import star_payments
 
 app = FastAPI()
@@ -80,18 +81,7 @@ async def handle_incoming_request(request: Request):
 
 
 # Обработчик всех текстовых сообщений, отправленных в группы и супергруппы, кроме сообщений от админов и ботов, ответов и форвардов
-@dp.message(
-    F.chat.type.in_(["group", "supergroup"])
-    & ~F.from_user.is_bot
-    & ~F.from_user.is_admin
-    & ~F.reply_to_message
-    & ~F.forward_from
-    & ~F.forward_from_chat
-    & ~F.forward_from_message_id
-    & ~F.edited_message
-    & ~F.via_bot
-    & F.text
-)
+@dp.message(filter_handle_message)
 async def handle_message(message: types.Message):
     """Обработчик всех текстовых сообщений"""
     logger.debug("handle_message called")
@@ -246,7 +236,9 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
                     # about the failure to send a message to them
 
         except Exception as e:
-            logger.error(f"Failed to notify admins in chat {chat_id}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to notify admins in chat {chat_id}: {e}", exc_info=True
+            )
             raise
 
     except Exception as e:
