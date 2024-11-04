@@ -1,18 +1,15 @@
-import functools
 import os
 from datetime import datetime
 from typing import Optional, List
 
 from pydantic import BaseModel
+from redis.asyncio import Redis
 
 from .bot import bot
 from .yandex_logging import get_yandex_logger, log_function_call
 
 
 logger = get_yandex_logger(__name__)
-
-from redis.asyncio import Redis
-
 
 redis = Redis(host=os.getenv("REDIS_HOST"), password=os.getenv("REDIS_PASSWORD"))
 
@@ -66,8 +63,10 @@ async def save_user(user: User) -> None:
 @log_function_call(logger)
 async def save_group(group: Group) -> None:
     """Сохранение группы в Redis"""
+    pipeline = redis.pipeline()
+
     # Сохраняем основные данные в hash
-    await redis.hset(
+    pipeline.hset(
         f"group:{group.group_id}",
         mapping={
             "is_moderation_enabled": int(group.is_moderation_enabled),
@@ -76,12 +75,14 @@ async def save_group(group: Group) -> None:
         },
     )
     # Сохраняем admin_ids и unique_users в отдельных sets
-    await redis.delete(f"group:{group.group_id}:admins")
-    await redis.delete(f"group:{group.group_id}:users")
+    pipeline.delete(f"group:{group.group_id}:admins")
+    pipeline.delete(f"group:{group.group_id}:users")
     if group.admin_ids:
-        await redis.sadd(f"group:{group.group_id}:admins", *group.admin_ids)
+        pipeline.sadd(f"group:{group.group_id}:admins", *group.admin_ids)
     if group.unique_users:
-        await redis.sadd(f"group:{group.group_id}:users", *group.unique_users)
+        pipeline.sadd(f"group:{group.group_id}:users", *group.unique_users)
+
+    await pipeline.exec()
 
 
 @log_function_call(logger)
@@ -92,16 +93,22 @@ async def get_group(group_id: int) -> Optional[Group]:
         return None
 
     # Получаем admin_ids и unique_users из sets
-    admin_ids = [int(x) for x in await redis.smembers(f"group:{group_id}:admins")]
-    unique_users = [int(x) for x in await redis.smembers(f"group:{group_id}:users")]
+    admin_ids = [int(x) for x in await redis.smembers(f"group:{group_id}:admins") if x]
+    unique_users = [
+        int(x) for x in await redis.smembers(f"group:{group_id}:users") if x
+    ]
 
     return Group(
         group_id=group_id,
         admin_ids=admin_ids,
-        is_moderation_enabled=bool(int(group_data["is_moderation_enabled"])),
+        is_moderation_enabled=bool(int(group_data.get("is_moderation_enabled", 0))),
         unique_users=unique_users,
-        created_at=datetime.fromisoformat(group_data["created_at"]),
-        last_updated=datetime.fromisoformat(group_data["last_updated"]),
+        created_at=datetime.fromisoformat(
+            group_data.get("created_at", datetime.now().isoformat())
+        ),
+        last_updated=datetime.fromisoformat(
+            group_data.get("last_updated", datetime.now().isoformat())
+        ),
     )
 
 
@@ -242,11 +249,20 @@ async def get_user(user_id: int) -> Optional[User]:
 @log_function_call(logger)
 async def deduct_credits_from_admins(group_id: int, amount: int) -> bool:
     """Списание кредитов у первого админа с достаточным балансом"""
-    paying_admins = await get_paying_admins(group_id)
+    pipeline = redis.pipeline()
 
-    for admin_id in paying_admins:
-        if await deduct_credits(admin_id, amount):
-            return True
+    # Получаем всех админов и их балансы за один запрос
+    admin_ids = await redis.smembers(f"group:{group_id}:admins")
+    for admin_id in admin_ids:
+        pipeline.hget(f"user:{admin_id}", "credits")
+
+    balances = await pipeline.execute()
+
+    # Находим первого админа с достаточным балансом
+    for admin_id, balance in zip(admin_ids, balances):
+        if int(balance or 0) >= amount:
+            if await deduct_credits(int(admin_id), amount):
+                return True
 
     return False
 
@@ -260,18 +276,39 @@ async def is_moderation_enabled(group_id: int) -> bool:
 
 @log_function_call(logger)
 async def initialize_new_user(user_id: int) -> bool:
-    """
-    Инициализирует нового пользователя с начальными кредитами.
+    """Инициализирует нового пользователя с начальными кредитами."""
+    pipeline = redis.pipeline()
 
-    Args:
-        user_id: ID пользователя
+    # Проверяем существование и создаем атомарно
+    pipeline.exists(f"user:{user_id}")
+    pipeline.hset(
+        f"user:{user_id}",
+        mapping={
+            "credits": INITIAL_CREDITS,
+            "created_at": datetime.now().isoformat(),
+            "last_updated": datetime.now().isoformat(),
+        },
+    )
 
-    Returns:
-        bool: True если пользователь был создан, False если уже существует
-    """
-    exists = await redis.exists(f"user:{user_id}")
+    results = await pipeline.execute()
+    return not results[0]  # Возвращаем True если пользователь был создан
+
+
+@log_function_call(logger)
+async def get_user_credits(user_id: int) -> int:
+    """Получает количество кредитов пользователя."""
+    pipeline = redis.pipeline()
+
+    # Проверяем существование и получаем кредиты одним запросом
+    pipeline.exists(f"user:{user_id}")
+    pipeline.hget(f"user:{user_id}", "credits")
+
+    exists, credits = await pipeline.execute()
+
     if not exists:
-        await redis.hset(
+        # Инициализируем нового пользователя
+        pipeline = redis.pipeline()
+        pipeline.hset(
             f"user:{user_id}",
             mapping={
                 "credits": INITIAL_CREDITS,
@@ -279,37 +316,9 @@ async def initialize_new_user(user_id: int) -> bool:
                 "last_updated": datetime.now().isoformat(),
             },
         )
-        return True
-    return False
-
-
-@log_function_call(logger)
-async def get_user_credits(user_id: int) -> int:
-    """
-    Получает количество кредитов пользователя.
-    Если пользователь новый - инициализирует его с начальным балансом.
-
-    Args:
-        user_id: ID пользователя
-
-    Returns:
-        int: Количество кредитов
-    """
-    # Проверяем существование пользователя
-    exists = await redis.exists(f"user:{user_id}")
-
-    if not exists:
-        # Инициализируем нового пользователя
-        await redis.hset(
-            f"user:{user_id}",
-            mapping={
-                "credits": INITIAL_CREDITS,
-                "created_at": datetime.now().isoformat(),
-            },
-        )
+        await pipeline.execute()
         return INITIAL_CREDITS
 
-    credits = await redis.hget(f"user:{user_id}", "credits")
     return int(credits or 0)
 
 
