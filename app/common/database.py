@@ -339,9 +339,9 @@ async def get_user_admin_groups(user_id: int):
         cursor, keys = await redis.scan(cursor, match="group:*")
         for key in keys:
             if (
-                key.count(":") == 1
-            ):  # Пропускаем ключи с дополнительными частями (group:id:admins)
-                group_id = int(key.split(":")[1])
+                key.decode().count(":") == 1
+            ):  # Декодируем bytes в строку перед подсчетом
+                group_id = int(key.decode().split(":")[1])
 
                 # Проверяем, является ли пользователь админом
                 is_admin = await redis.sismember(f"group:{group_id}:admins", user_id)
@@ -352,7 +352,9 @@ async def get_user_admin_groups(user_id: int):
                         chat = await bot.get_chat(group_id)
                         groups.append({"id": group_id, "title": chat.title})
                     except Exception as e:
-                        logger.error(f"Error getting chat {group_id}: {e}", exc_info=True)
+                        logger.error(
+                            f"Error getting chat {group_id}: {e}", exc_info=True
+                        )
                         continue
         if cursor == 0:
             break
