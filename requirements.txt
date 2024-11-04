@@ -7,7 +7,7 @@ requests
 # mixpanel
 # supabase
 # reretry
-upstash-redis
+# upstash-redis
 redis
 pyyaml
 # yandex-cloud-ml-sdk
