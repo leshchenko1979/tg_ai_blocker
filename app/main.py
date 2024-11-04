@@ -143,7 +143,7 @@ async def handle_message(message: types.Message):
             update_stats(chat_id, "processed")
 
     except Exception as e:
-        logger.error(f"Error processing message: {e}")
+        logger.error(f"Error processing message: {e}", exc_info=True)
         mp.track(chat_id, "unhandled_exception", {"exception": str(e)})
         raise
 
@@ -246,11 +246,11 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
                     # about the failure to send a message to them
 
         except Exception as e:
-            logger.error(f"Failed to notify admins in chat {chat_id}: {e}")
+            logger.error(f"Failed to notify admins in chat {chat_id}: {e}", exc_info=True)
             raise
 
     except Exception as e:
-        logger.error(f"Error handling spam: {e}")
+        logger.error(f"Error handling spam: {e}", exc_info=True)
         raise
 
 
@@ -313,7 +313,7 @@ async def handle_stats_command(message: types.Message) -> None:
         await message.reply(message_text, parse_mode="markdown")
 
     except Exception as e:
-        logger.error(f"Error handling stats command: {e}")
+        logger.error(f"Error handling stats command: {e}", exc_info=True)
         await message.reply("Произошла ошибка при получении статистики.")
 
 
@@ -390,7 +390,7 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
                         continue
 
     except Exception as e:
-        logger.error(f"Error handling bot status update: {e}")
+        logger.error(f"Error handling bot status update: {e}", exc_info=True)
         mp.track(event.chat.id, "unhandled_exception", {"exception": str(e)})
 
 

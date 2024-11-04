@@ -2,7 +2,7 @@ from aiogram import types, F
 from aiogram.filters import Command
 from common.bot import bot
 from common.dp import dp
-from common.database_upstash import add_credits, get_user_groups, set_group_moderation
+from common.database import add_credits, get_user_groups, set_group_moderation
 from common.yandex_logging import get_yandex_logger, log_function_call
 
 logger = get_yandex_logger(__name__)

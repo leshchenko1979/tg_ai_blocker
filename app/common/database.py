@@ -159,7 +159,7 @@ async def deduct_credits(user_id: int, amount: int) -> bool:
         await redis.hincrby(f"user:{user_id}", "credits", -amount)
         return True
     except Exception as e:
-        logger.error(f"Ошибка при списании кредитов: {e}")
+        logger.error(f"Ошибка при списании кредитов: {e}", exc_info=True)
         raise
 
 
@@ -352,7 +352,7 @@ async def get_user_admin_groups(user_id: int):
                         chat = await bot.get_chat(group_id)
                         groups.append({"id": group_id, "title": chat.title})
                     except Exception as e:
-                        logger.error(f"Error getting chat {group_id}: {e}")
+                        logger.error(f"Error getting chat {group_id}: {e}", exc_info=True)
                         continue
         if cursor == 0:
             break
