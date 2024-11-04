@@ -2,15 +2,25 @@
 Модуль для работы с базой данных Upstash
 """
 
+import os
+
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
-from .dp import redis
 from .bot import bot
 from .yandex_logging import get_yandex_logger, log_function_call
 
 
 logger = get_yandex_logger(__name__)
+
+from upstash_redis.asyncio.client import Redis
+
+
+redis = Redis(
+    url=os.getenv("UPSTASH_REDIS_URL"),
+    token=os.getenv("UPSTASH_REDIS_TOKEN"),
+    allow_telemetry=False,
+)
 
 
 class User(BaseModel):
@@ -34,6 +44,7 @@ class Group(BaseModel):
     created_at: datetime = datetime.now()
     last_updated: datetime = datetime.now()
 
+
 INITIAL_CREDITS = 100
 
 # Добавляем константы цен
@@ -41,6 +52,7 @@ NEW_USER_PRICE = 1  # Стоимость обработки сообщения �
 SKIP_PRICE = 0
 APPROVE_PRICE = 0
 DELETE_PRICE = 0
+
 
 @log_function_call(logger)
 async def save_user(user: User) -> None:
@@ -233,8 +245,6 @@ async def get_user(user_id: int) -> Optional[User]:
     )
 
 
-
-
 @log_function_call(logger)
 async def deduct_credits_from_admins(group_id: int, amount: int) -> bool:
     """Списание кредитов у первого админа с достаточным балансом"""
@@ -277,6 +287,7 @@ async def initialize_new_user(user_id: int) -> bool:
         )
         return True
     return False
+
 
 @log_function_call(logger)
 async def get_user_credits(user_id: int) -> int:

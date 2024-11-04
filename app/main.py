@@ -1,4 +1,3 @@
-import os
 import asyncio
 import traceback
 
@@ -19,7 +18,7 @@ logger.debug("Logger initialized")
 from common.bot import LESHCHENKO_CHAT_ID, bot
 from common.dp import dp
 from common.mp import mp
-from common.database_upstash import (
+from common.database import (
     INITIAL_CREDITS,
     ensure_group_exists,
     get_group,
@@ -253,6 +252,7 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
         logger.error(f"Error handling spam: {e}")
         raise
 
+
 @dp.message(Command("start", "help"), F.chat.type == "private")
 @log_function_call(logger)
 async def handle_help_command(message: types.Message) -> None:
@@ -264,7 +264,7 @@ async def handle_help_command(message: types.Message) -> None:
     welcome_text = ""
 
     # Начисляем звезды только при команде /start и только новым пользователям
-    if message.text.startswith('/start'):
+    if message.text.startswith("/start"):
         if await initialize_new_user(user_id):
             welcome_text = (
                 "🤖 Приветствую, человек!\n\n"
@@ -275,8 +275,9 @@ async def handle_help_command(message: types.Message) -> None:
     await message.reply(
         welcome_text + config["help_text"],
         parse_mode="markdown",
-        disable_web_page_preview=True
+        disable_web_page_preview=True,
     )
+
 
 @dp.message(Command("stats"))
 @log_function_call(logger)
