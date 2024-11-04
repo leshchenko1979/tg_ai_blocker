@@ -13,7 +13,7 @@ def load_config() -> Dict[str, Any]:
     config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
-    logger.info("Configuration loaded successfully")
+    logger.debug("Configuration loaded successfully")
     return config
 
 config = load_config()

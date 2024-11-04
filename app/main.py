@@ -14,6 +14,7 @@ from common.yandex_logging import get_yandex_logger, log_function_call
 logger = get_yandex_logger(__name__)
 logger.debug("Logger initialized")
 
+get_yandex_logger("aiogram")  # Инициализация логгера aiogram
 
 from common.bot import LESHCHENKO_CHAT_ID, bot
 from common.dp import dp
