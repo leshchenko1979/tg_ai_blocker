@@ -39,10 +39,9 @@ class Group(BaseModel):
 INITIAL_CREDITS = 100
 
 # Добавляем константы цен
-NEW_USER_PRICE = 1  # Стоимость обработки сообщения от нового пользователя
 SKIP_PRICE = 0
-APPROVE_PRICE = 0
-DELETE_PRICE = 0
+APPROVE_PRICE = 1
+DELETE_PRICE = 1
 
 
 @log_function_call(logger)
