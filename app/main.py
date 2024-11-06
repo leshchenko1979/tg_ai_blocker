@@ -219,9 +219,9 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
         try:
             admins = await bot.get_chat_administrators(chat_id)
             admin_msg = (
-                f"⚠️ ТРЕВОГА! Обнаружено вторжение в {group_name}!\n"
-                f"Нарушитель: {user_id} ({(await bot.get_chat_member(chat_id, user_id)).user.username})\n"
-                f"Содержание угрозы: {text}\n"
+                f"⚠️ ТРЕВОГА! Обнаружено вторжение в {group_name} (@{chat.username})!\n"
+                f"Нарушитель: {user_id} (@{(await bot.get_chat_member(chat_id, user_id)).user.username})\n"
+                f"Содержание угрозы:\n\n{text}\n\n"
                 f"Принятые меры: {'Вредоносное сообщение уничтожено' if config['spam_control']['delete_messages'] else ''}"
                 f"{', нарушитель дезинтегрирован' if config['spam_control']['block_users'] else ''}"
             )
