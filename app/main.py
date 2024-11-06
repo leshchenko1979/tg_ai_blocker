@@ -218,11 +218,20 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
         # Уведомление администраторов
         try:
             admins = await bot.get_chat_administrators(chat_id)
+
+            link = f"https://t.me/c/{chat_id}/{message_id}"
+            link_text = f"Ссылка на сообщение: {link}"
+            should_display_link = (
+                not config["spam_control"]["delete_messages"]
+                and not config["spam_control"]["block_users"]
+            )
+
             admin_msg = (
                 f"⚠️ ТРЕВОГА! Обнаружено вторжение в {group_name} (@{chat.username})!\n"
                 f"Нарушитель: {user_id} (@{(await bot.get_chat_member(chat_id, user_id)).user.username})\n"
                 f"Содержание угрозы:\n\n{text}\n\n"
-                f"Принятые меры: {'Вредоносное сообщение уничтожено' if config['spam_control']['delete_messages'] else ''}"
+                f"Принятые меры: {link_text if should_display_link else ''}"
+                f"{', Вредоносное сообщение уничтожено' if config['spam_control']['delete_messages'] else ''}"
                 f"{', нарушитель дезинтегрирован' if config['spam_control']['block_users'] else ''}"
             )
 

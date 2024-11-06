@@ -31,12 +31,16 @@ prompt = """
 # add spam examples to the prompt from config
 for example in config["spam_examples"]:
     prompt += f"""
-<начало запроса>
+<запрос>
+<текст сообщения>
 {example["text"]}
-<конец запроса>
-<начало ответа>
+</текст сообщения>
+{'<имя>' + example["name"] + '</имя>' if "name" in example else ''}
+{'<биография>' + example["bio"] + '</биография>' if "bio" in example else ''}
+</запрос>
+<ответ>
 {"да" if example["score"] > 0 else "нет"} {example["score"] if example["score"] > 0 else -example["score"]}%
-<конец ответа>
+</ответ>
 """
 
 class ExtractionFailedError(Exception):
