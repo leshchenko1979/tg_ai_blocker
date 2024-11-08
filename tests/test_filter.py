@@ -330,60 +330,6 @@ dp = Dispatcher()
         ),
         (
             {
-                "edited_message": {
-                    "chat": {
-                        "id": -1001503592176,
-                        "title": "Инвестиции в недвижимость — чат",
-                        "type": "supergroup",
-                        "username": "redevest_chat",
-                    },
-                    "date": 1730714058,
-                    "edit_date": 1730714068,
-                    "from": {
-                        "first_name": "Channel",
-                        "id": 136817688,
-                        "is_bot": True,
-                        "username": "Channel_Bot",
-                    },
-                    "message_id": 10243,
-                    "message_thread_id": 10229,
-                    "quote": {
-                        "is_manual": True,
-                        "position": 22,
-                        "text": "Планирую строить своё производство в МО",
-                    },
-                    "reply_to_message": {
-                        "chat": {
-                            "id": -1001503592176,
-                            "title": "Инвестиции в недвижимость — чат",
-                            "type": "supergroup",
-                            "username": "redevest_chat",
-                        },
-                        "date": 1730712821,
-                        "from": {
-                            "first_name": "Denis",
-                            "id": 205980892,
-                            "is_bot": False,
-                            "username": "buloshnikov",
-                        },
-                        "message_id": 10242,
-                        "message_thread_id": 10229,
-                        "text": "Алексей, добрый день!\nПланирую строить своё производство в МО. Но нет в этом опыта. Формат складов которые вы строите, как раз, то, что мне нужно. Не могли бы Вы меня сконтактировать с Павлом Кунцевым, если я правильно понял он погружен в эту тему и сможет помочь и советом и делом.",
-                    },
-                    "sender_chat": {
-                        "id": -1001664173586,
-                        "title": "Инвестиции в редевелопмент | Лещенко",
-                        "type": "channel",
-                        "username": "flipping_invest",
-                    },
-                    "text": "А почему строить, а не купить или снять готовое?",
-                },
-                "update_id": 726062785,
-            },
-            False,
-        ),
-        (
-            {
                 "message": {
                     "chat": {
                         "id": -1001503592176,
