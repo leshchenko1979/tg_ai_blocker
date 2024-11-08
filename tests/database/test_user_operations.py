@@ -4,9 +4,13 @@ import common.database
 import pytest
 from common.database.constants import INITIAL_CREDITS
 from common.database.models import User
-from common.database.user_operations import (add_credits, deduct_credits,
-                                             get_user, initialize_new_user,
-                                             save_user)
+from common.database.user_operations import (
+    add_credits,
+    deduct_credits,
+    get_user,
+    initialize_new_user,
+    save_user,
+)
 
 
 @pytest.fixture

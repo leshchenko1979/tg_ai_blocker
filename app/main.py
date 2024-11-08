@@ -17,13 +17,22 @@ get_yandex_logger("aiogram")  # Инициализация логгера aiogra
 
 import star_payments
 from common.bot import LESHCHENKO_CHAT_ID, bot
-from common.database import (APPROVE_PRICE, DELETE_PRICE, INITIAL_CREDITS,
-                             SKIP_PRICE, add_unique_user,
-                             deduct_credits_from_admins, ensure_group_exists,
-                             get_group, get_user_admin_groups,
-                             get_user_credits, initialize_new_user,
-                             is_moderation_enabled, is_user_in_group,
-                             set_group_moderation)
+from common.database import (
+    APPROVE_PRICE,
+    DELETE_PRICE,
+    INITIAL_CREDITS,
+    SKIP_PRICE,
+    add_unique_user,
+    deduct_credits_from_admins,
+    ensure_group_exists,
+    get_group,
+    get_user_admin_groups,
+    get_user_credits,
+    initialize_new_user,
+    is_moderation_enabled,
+    is_user_in_group,
+    set_group_moderation,
+)
 from common.dp import dp
 from common.mp import mp
 from spam_classifier import is_spam

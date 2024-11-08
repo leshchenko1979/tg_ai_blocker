@@ -1,7 +1,11 @@
 import pytest
-from common.database.group_operations import (add_unique_user, get_group,
-                                              get_paying_admins,
-                                              is_user_in_group, save_group)
+from common.database.group_operations import (
+    add_unique_user,
+    get_group,
+    get_paying_admins,
+    is_user_in_group,
+    save_group,
+)
 from common.database.models import Group, User
 from common.database.user_operations import save_user
 
