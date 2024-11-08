@@ -1,6 +1,10 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
+cd app
 isort .
+isort ../tests
+
+cd ..
 black .
 
 pytest

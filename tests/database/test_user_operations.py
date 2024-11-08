@@ -1,7 +1,8 @@
 from datetime import datetime
 
-import common.database
 import pytest
+
+import common.database
 from common.database.constants import INITIAL_CREDITS
 from common.database.models import User
 from common.database.user_operations import (

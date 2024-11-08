@@ -1,4 +1,5 @@
 import pytest
+
 from common.database.group_operations import (
     add_unique_user,
     get_group,
