@@ -1,0 +1,222 @@
+from datetime import datetime
+from typing import List, Optional
+
+from ..bot import bot
+from ..yandex_logging import get_yandex_logger, log_function_call
+from .models import Group
+from .redis_connection import redis
+
+logger = get_yandex_logger(__name__)
+
+
+@log_function_call(logger)
+async def save_group(group: Group) -> None:
+    """Save group to Redis with improved type handling"""
+    pipeline = redis.pipeline()
+
+    # Save main group data in hash
+    pipeline.hset(
+        f"group:{group.group_id}",
+        mapping={
+            "is_moderation_enabled": int(group.is_moderation_enabled),
+            "created_at": group.created_at.isoformat(),
+            "last_updated": datetime.now().isoformat(),
+        },
+    )
+
+    # Save admin_ids and unique_users in separate sets
+    pipeline.delete(f"group:{group.group_id}:admins")
+    pipeline.delete(f"group:{group.group_id}:members")
+
+    if group.admin_ids:
+        await pipeline.sadd(f"group:{group.group_id}:admins", *group.admin_ids)
+
+    if group.member_ids:
+        await pipeline.sadd(f"group:{group.group_id}:members", *group.member_ids)
+
+    await pipeline.execute()
+
+
+@log_function_call(logger)
+async def get_group(group_id: int) -> Optional[Group]:
+    """Retrieve group information"""
+    group_data = await redis.hgetall(f"group:{group_id}")
+    if not group_data:
+        return None
+
+    # Get admin_ids and unique_users from sets
+    admin_ids = [int(x) for x in await redis.smembers(f"group:{group_id}:admins") if x]
+    member_ids = [
+        int(x) for x in await redis.smembers(f"group:{group_id}:members") if x
+    ]
+
+    return Group(
+        group_id=group_id,
+        admin_ids=admin_ids,
+        is_moderation_enabled=bool(int(group_data.get("is_moderation_enabled", 0))),
+        member_ids=member_ids,
+        created_at=datetime.fromisoformat(
+            group_data.get("created_at", datetime.now().isoformat())
+        ),
+        last_updated=datetime.fromisoformat(
+            group_data.get("last_updated", datetime.now().isoformat())
+        ),
+    )
+
+
+@log_function_call(logger)
+async def set_group_moderation(group_id: int, enabled: bool) -> None:
+    """Enable/disable moderation for a group"""
+    await redis.hset(
+        f"group:{group_id}", mapping={"is_moderation_enabled": int(enabled)}
+    )
+
+
+@log_function_call(logger)
+async def is_moderation_enabled(group_id: int) -> bool:
+    """Check if moderation is enabled for a group"""
+    enabled = await redis.hget(f"group:{group_id}", "is_moderation_enabled")
+    return bool(int(enabled or 0))
+
+
+@log_function_call(logger)
+async def get_paying_admins(group_id: int) -> List[int]:
+    """Get list of admins with positive credits"""
+    admin_ids = await redis.smembers(f"group:{group_id}:admins")
+    paying_admins = []
+
+    for admin in admin_ids:
+        credits_raw = await redis.hget(f"user:{admin}", "credits")
+        credits = int(credits_raw)
+
+        if credits > 0:
+            paying_admins.append(int(admin))
+
+    return paying_admins
+
+
+@log_function_call(logger)
+async def deduct_credits_from_admins(group_id: int, amount: int) -> bool:
+    """Deduct credits from the first admin with sufficient balance"""
+    from .user_operations import deduct_credits
+
+    pipeline = redis.pipeline()
+
+    # Get all admins and their balances in one request
+    admin_ids = await redis.smembers(f"group:{group_id}:admins")
+    for admin in admin_ids:
+        pipeline.hget(f"user:{admin}", "credits")
+
+    balances = await pipeline.execute()
+
+    # Find the first admin with sufficient balance
+    for admin, balance in zip(admin_ids, balances):
+        if int(balance) >= amount:
+            if await deduct_credits(admin, amount):
+                return True
+
+    return False
+
+
+@log_function_call(logger)
+async def get_user_groups(user_id: int) -> List[int]:
+    """Get list of groups where user is an admin"""
+    groups = []
+    cursor = 0
+    pattern = "group:*:admins"
+
+    while True:
+        cursor, keys = await redis.scan(cursor, match=pattern)
+        for key in keys:
+            if await redis.sismember(key, user_id):
+                # Extract group_id from key (format: group:{id}:admins)
+                group_id = int(key.split(":")[1])
+                groups.append(group_id)
+
+        if cursor == 0:  # When cursor returns to 0, scanning is complete
+            break
+
+    return groups
+
+
+@log_function_call(logger)
+async def get_user_admin_groups(user_id: int):
+    """
+    Get list of groups where user is an admin
+
+    Args:
+        user_id: User ID
+
+    Returns:
+        list: List of dictionaries with group information (id, title)
+    """
+    groups = []
+    cursor = 0
+
+    while True:
+        cursor, keys = await redis.scan(cursor, match="group:*")
+        for key in keys:
+            if key.decode().count(":") == 1:  # Decode bytes to string before counting
+                group_id = int(key.decode().split(":")[1])
+
+                # Check if user is an admin
+                is_admin = await redis.sismember(f"group:{group_id}:admins", user_id)
+
+                if is_admin:
+                    # Get group title via Telegram API
+                    try:
+                        chat = await bot.get_chat(group_id)
+                        groups.append({"id": group_id, "title": chat.title})
+                    except Exception as e:
+                        logger.error(
+                            f"Error getting chat {group_id}: {e}", exc_info=True
+                        )
+                        continue
+        if cursor == 0:
+            break
+
+    return groups
+
+
+@log_function_call(logger)
+async def ensure_group_exists(group_id: int, admin_ids: List[int]) -> None:
+    """Create group if it doesn't exist"""
+    exists = await redis.exists(f"group:{group_id}")
+    if not exists:
+        pipeline = redis.pipeline()
+
+        pipeline.hset(
+            f"group:{group_id}",
+            mapping={
+                "is_moderation_enabled": 1,
+                "created_at": datetime.now().isoformat(),
+                "last_updated": datetime.now().isoformat(),
+            },
+        )
+        if admin_ids:
+            await pipeline.sadd(f"group:{group_id}:admins", *admin_ids)
+        await pipeline.execute()
+
+
+@log_function_call(logger)
+async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
+    """Update list of group administrators"""
+    pipeline = redis.pipeline()
+
+    pipeline.delete(f"group:{group_id}:admins")
+    if admin_ids:
+        pipeline.sadd(f"group:{group_id}:admins", *admin_ids)
+    pipeline.hset(f"group:{group_id}", "last_updated", datetime.now().isoformat())
+    await pipeline.execute()
+
+
+@log_function_call(logger)
+async def is_user_in_group(group_id: int, user_id: int) -> bool:
+    """Check if user is in group"""
+    return bool(await redis.sismember(f"group:{group_id}:members", user_id))
+
+
+@log_function_call(logger)
+async def add_unique_user(group_id: int, user_id: int) -> None:
+    """Add unique user to group"""
+    await redis.sadd(f"group:{group_id}:members", user_id)

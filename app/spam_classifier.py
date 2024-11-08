@@ -1,7 +1,5 @@
-import os
-
-from common.yandex_logging import get_yandex_logger
 from common.llms import get_openrouter_response
+from common.yandex_logging import get_yandex_logger
 from utils import config
 
 logger = get_yandex_logger(__name__)
@@ -43,8 +41,10 @@ for example in config["spam_examples"]:
 </ответ>
 """
 
+
 class ExtractionFailedError(Exception):
     pass
+
 
 async def is_spam(comment: str):
     """
@@ -54,14 +54,20 @@ async def is_spam(comment: str):
 
     for attempt in range(MAX_RETRIES):
         try:
-            messages = [{"role": "system", "content": prompt}, {"role": "user", "content": comment}]
+            messages = [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": comment},
+            ]
             response = await get_openrouter_response(messages)
             logger.info(f"Spam classifier response: {response}")
             return extract_spam_score(response.lower())
         except Exception as e:
             logger.warning(f"Attempt {attempt + 1} failed: {str(e)}")
             if attempt == MAX_RETRIES - 1:
-                raise ExtractionFailedError("Failed to extract spam score after 3 attempts") from e
+                raise ExtractionFailedError(
+                    "Failed to extract spam score after 3 attempts"
+                ) from e
+
 
 def extract_spam_score(response: str):
     try:

@@ -4,6 +4,7 @@ from typing import Dict
 # Статистика для биллинга
 stats: Dict[int, Dict[str, int]] = {}
 
+
 def update_stats(chat_id: int, action: str) -> None:
     """
     Обновляет статистику для биллинга
@@ -16,7 +17,7 @@ def update_stats(chat_id: int, action: str) -> None:
         stats[chat_id] = {
             "processed_messages": 0,
             "deleted_spam": 0,
-            "last_update": datetime.now().isoformat()
+            "last_update": datetime.now().isoformat(),
         }
 
     if action == "processed":

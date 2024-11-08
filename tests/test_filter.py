@@ -1,10 +1,11 @@
 import pytest
-
 from aiogram import Dispatcher
-from aiogram.types import TelegramObject, Message
+from aiogram.types import Message
+
 from updates_filter import filter_handle_message
 
 dp = Dispatcher()
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(

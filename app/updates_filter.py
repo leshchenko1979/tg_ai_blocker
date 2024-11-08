@@ -1,6 +1,5 @@
 from aiogram import F
-from aiogram.filters import or_f, and_f
-
+from aiogram.filters import and_f, or_f
 
 # Сообщение должно уходить в обработку handle_message, если:
 filter_handle_message = and_f(

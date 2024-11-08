@@ -1,5 +1,8 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
+isort .
+black .
+
 pytest
 if errorlevel 1 exit /b %errorlevel%
 

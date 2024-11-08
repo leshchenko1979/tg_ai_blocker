@@ -1,11 +1,10 @@
 import asyncio
 import traceback
 
-from fastapi import FastAPI, Request
-from aiogram import types, F
-from aiogram.filters import Command
-
 import dotenv
+from aiogram import F, types
+from aiogram.filters import Command
+from fastapi import FastAPI, Request
 
 dotenv.load_dotenv()
 
@@ -16,31 +15,21 @@ logger.debug("Logger initialized")
 
 get_yandex_logger("aiogram")  # Инициализация логгера aiogram
 
+import star_payments
 from common.bot import LESHCHENKO_CHAT_ID, bot
+from common.database import (APPROVE_PRICE, DELETE_PRICE, INITIAL_CREDITS,
+                             SKIP_PRICE, add_unique_user,
+                             deduct_credits_from_admins, ensure_group_exists,
+                             get_group, get_user_admin_groups,
+                             get_user_credits, initialize_new_user,
+                             is_moderation_enabled, is_user_in_group,
+                             set_group_moderation)
 from common.dp import dp
 from common.mp import mp
-from common.database import (
-    INITIAL_CREDITS,
-    ensure_group_exists,
-    get_group,
-    get_user_admin_groups,
-    get_user_credits,
-    initialize_new_user,
-    is_moderation_enabled,
-    is_user_in_group,
-    add_unique_user,
-    deduct_credits_from_admins,
-    SKIP_PRICE,
-    APPROVE_PRICE,
-    DELETE_PRICE,
-    set_group_moderation,
-)
-
 from spam_classifier import is_spam
-from utils import config, remove_lines_to_fit_len
 from stats import stats, update_stats
 from updates_filter import filter_handle_message
-import star_payments
+from utils import config, remove_lines_to_fit_len
 
 app = FastAPI()
 
@@ -165,7 +154,6 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
             if not admin.user.is_bot:
                 await bot.send_message(
                     admin.user.id,
-                    "Человек!\n\n"
                     "Внимание, органическая форма жизни!\n\n"
                     f'Моя защита группы "{chat.title}" временно приостановлена '
                     "из-за истощения звездной энергии.\n\n"

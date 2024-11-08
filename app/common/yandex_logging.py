@@ -1,5 +1,6 @@
-import logging
 import functools
+import logging
+
 from pythonjsonlogger import jsonlogger
 
 

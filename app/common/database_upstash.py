@@ -3,18 +3,17 @@
 """
 
 import os
-
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
+
 from pydantic import BaseModel
+
 from .bot import bot
 from .yandex_logging import get_yandex_logger, log_function_call
-
 
 logger = get_yandex_logger(__name__)
 
 from upstash_redis.asyncio.client import Redis
-
 
 redis = Redis(
     url=os.getenv("UPSTASH_REDIS_URL"),

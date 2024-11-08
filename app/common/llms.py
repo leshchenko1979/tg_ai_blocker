@@ -1,5 +1,6 @@
 import os
 
+
 async def get_yandex_response(messages):
     from yandex_cloud_ml_sdk import AsyncYCloudML
 
@@ -24,8 +25,9 @@ async def get_openrouter_response(messages):
 
     data = {"model": model, "messages": messages, "temperature": 0.3}
 
-    import requests
     import json
+
+    import requests
 
     response = requests.post(
         "https://openrouter.ai/api/v1/chat/completions",
