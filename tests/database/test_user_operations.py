@@ -10,6 +10,7 @@ from common.database.user_operations import (
     deduct_credits,
     get_spam_deletion_state,
     get_user,
+    get_user_credits,
     initialize_new_user,
     save_user,
     toggle_spam_deletion,
@@ -141,3 +142,35 @@ async def test_get_spam_deletion_state(patched_redis_conn, clean_redis, sample_u
     # Get state
     state = await get_spam_deletion_state(sample_user.user_id)
     assert state is False
+
+
+@pytest.mark.asyncio
+async def test_toggle_spam_deletion_non_existent_user(patched_redis_conn, clean_redis):
+    """Test toggling spam deletion setting for non-existent user""" ""
+    user_id = 999999
+
+    # Toggle spam deletion for non-existent user
+    new_state = await toggle_spam_deletion(user_id)
+
+    # Assertions
+    assert (
+        new_state is False
+    )  # Default should be True for non-existent user, and then we toggled it
+
+    # Verify the user was created with default delete_spam setting
+    user = await get_user(user_id)
+    assert user is not None
+    assert user.delete_spam is False  # Default should be True
+
+
+@pytest.mark.asyncio
+async def test_get_user_credits(patched_redis_conn, clean_redis, sample_user):
+    """Test retrieving user credits"""
+    # Save the user first
+    await save_user(sample_user)
+
+    # Retrieve user credits
+    credits = await get_user_credits(sample_user.user_id)
+
+    # Assertions
+    assert credits == sample_user.credits

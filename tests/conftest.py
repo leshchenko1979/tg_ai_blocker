@@ -75,7 +75,7 @@ async def clean_redis(patched_redis_conn, test_redis):
     """Ensure a clean Redis state before each test"""
     await test_redis.flushdb()
     print("DB flushed")
-    yield
+    yield test_redis
 
 
 @pytest.fixture(scope="session")

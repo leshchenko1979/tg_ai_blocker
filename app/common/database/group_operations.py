@@ -97,23 +97,31 @@ async def get_paying_admins(group_id: int) -> List[int]:
 
 @log_function_call(logger)
 async def deduct_credits_from_admins(group_id: int, amount: int) -> bool:
-    """Deduct credits from the first admin with sufficient balance"""
+    """Deduct credits from the admin with the highest balance"""
     from .user_operations import deduct_credits
-
-    pipeline = redis.pipeline()
 
     # Get all admins and their balances in one request
     admin_ids = await redis.smembers(f"group:{group_id}:admins")
+    pipeline = redis.pipeline()
     for admin in admin_ids:
         pipeline.hget(f"user:{admin}", "credits")
 
     balances = await pipeline.execute()
 
-    # Find the first admin with sufficient balance
+    # Find the admin with the highest balance
+    highest_balance_admin = None
+    highest_balance = 0
+
     for admin, balance in zip(admin_ids, balances):
-        if int(balance) >= amount:
-            if await deduct_credits(admin, amount):
-                return True
+        balance = int(balance)
+        if balance > highest_balance:
+            highest_balance_admin = admin
+            highest_balance = balance
+
+    # Deduct from the admin with the highest balance
+    if highest_balance_admin and highest_balance >= amount:
+        if await deduct_credits(highest_balance_admin, amount):
+            return True
 
     return False
 

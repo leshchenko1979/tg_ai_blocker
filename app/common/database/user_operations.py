@@ -30,8 +30,8 @@ async def save_user(user: User) -> None:
 async def get_user_credits(user_id: int) -> int:
     """Retrieve user credits with safe type conversion"""
     try:
-        credits_raw = await redis.hget(f"user:{user_id}", "credits")
-        return int(credits_raw.decode()) if credits_raw else INITIAL_CREDITS
+        credits = await redis.hget(f"user:{user_id}", "credits")
+        return int(credits) if credits else INITIAL_CREDITS
     except (TypeError, ValueError) as e:
         logger.error(f"Error getting user credits: {e}")
         return INITIAL_CREDITS
