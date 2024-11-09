@@ -8,6 +8,7 @@ from common.database import (
     add_unique_user,
     deduct_credits_from_admins,
     ensure_group_exists,
+    get_user,
     is_moderation_enabled,
     is_user_in_group,
     set_group_moderation,
@@ -62,7 +63,7 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
 @log_function_call(logger)
 async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) -> None:
     """
-    Обработка спам-сообщений в соответствии с конфигурацией
+    Обработка спам-сообщений в соответствии с настройками пользователя
 
     Args:
         message_id (int): ID сообщения
@@ -73,6 +74,7 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
     try:
         chat = await bot.get_chat(chat_id)
         group_name = chat.title
+
         # Регистрация события спама
         mp.track(
             chat_id,
@@ -87,41 +89,52 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
 
         update_stats(chat_id, "processed")
 
-        # Удаление сообщения если включено
-        if config["spam_control"]["delete_messages"]:
+        # Получаем админов и их настройки
+        admins = await bot.get_chat_administrators(chat_id)
+        all_admins_delete = True  # Флаг, что все админы в режиме удаления
+
+        # Проверяем настройки каждого админа
+        for admin in admins:
+            if admin.user.is_bot:
+                continue
+            admin_user = await get_user(admin.user.id)
+            if not admin_user or not admin_user.delete_spam:
+                all_admins_delete = False
+                break
+
+        # Удаление сообщения только если все админы в режиме удаления
+        if all_admins_delete:
             await bot.delete_message(chat_id, message_id)
             logger.info(f"Deleted spam message {message_id} in chat {chat_id}")
             update_stats(chat_id, "deleted")
 
-        # Блокировка пользователя если включено
-        if config["spam_control"]["block_users"]:
-            await bot.ban_chat_member(chat_id, user_id)
-            logger.info(f"Blocked user {user_id} in chat {chat_id}")
-
         # Уведомление администраторов
         try:
-            admins = await bot.get_chat_administrators(chat_id)
-
             link = f"https://t.me/c/{chat_id}/{message_id}"
-            link_text = f"Ссылка на сообщение: {link}"
-            should_display_link = (
-                not config["spam_control"]["delete_messages"]
-                and not config["spam_control"]["block_users"]
-            )
-
-            admin_msg = (
-                f"⚠️ ТРЕВОГА! Обнаружено вторжение в {group_name} (@{chat.username})!\n"
-                f"Нарушитель: {user_id} (@{(await bot.get_chat_member(chat_id, user_id)).user.username})\n"
-                f"Содержание угрозы:\n\n{text}\n\n"
-                f"Принятые меры: {link_text if should_display_link else ''}"
-                f"{', Вредоносное сообщение уничтожено' if config['spam_control']['delete_messages'] else ''}"
-                f"{', нарушитель дезинтегрирован' if config['spam_control']['block_users'] else ''}"
-            )
 
             for admin in admins:
+                if admin.user.is_bot:
+                    continue
+
+                admin_user = await get_user(admin.user.id)
+                admin_deletes = admin_user and admin_user.delete_spam
+
+                admin_msg = (
+                    f"⚠️ ТРЕВОГА! Обнаружено вторжение в {group_name} (@{chat.username})!\n"
+                    f"Нарушитель: {user_id} (@{(await bot.get_chat_member(chat_id, user_id)).user.username})\n"
+                    f"Содержание угрозы:\n\n{text}\n\n"
+                    f"Принятые меры: "
+                )
+
+                if all_admins_delete:
+                    admin_msg += "Вредоносное сообщение уничтожено"
+                else:
+                    admin_msg += f"Ссылка на сообщение: {link}\n\n"
+                    if admin_deletes:
+                        admin_msg += "(Сообщение не удалено, так как не все администраторы включили режим удаления)"
+
                 try:
-                    if not admin.user.is_bot:
-                        await bot.send_message(admin.user.id, admin_msg)
+                    await bot.send_message(admin.user.id, admin_msg)
                 except Exception as e:
                     logger.warning(f"Failed to notify admin {admin.user.id}: {e}")
 

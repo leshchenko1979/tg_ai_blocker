@@ -19,6 +19,7 @@ async def save_user(user: User) -> None:
             "username": user.username or "",
             "credits": user.credits,
             "is_active": int(user.is_active),
+            "delete_spam": int(user.delete_spam),
             "created_at": user.created_at.isoformat(),
             "last_updated": datetime.now().isoformat(),
         },
@@ -64,6 +65,7 @@ async def initialize_new_user(user_id: int) -> bool:
         f"user:{user_id}",
         mapping={
             "credits": INITIAL_CREDITS,
+            "delete_spam": 1,  # Default to True
             "created_at": datetime.now().isoformat(),
             "last_updated": datetime.now().isoformat(),
         },
@@ -98,6 +100,7 @@ async def get_user(user_id: int) -> Optional[User]:
         username=user_data.get("username"),
         credits=int(user_data.get("credits", 0)),
         is_active=bool(int(user_data.get("is_active", 1))),
+        delete_spam=bool(int(user_data.get("delete_spam", 1))),
         created_at=created_at,
         last_updated=last_updated,
     )
@@ -116,3 +119,30 @@ async def add_credits(user_id: int, amount: int) -> None:
 
     for group_id in user_groups:
         await set_group_moderation(group_id, True)
+
+
+@log_function_call(logger)
+async def toggle_spam_deletion(user_id: int) -> bool:
+    """Toggle spam deletion setting for user. Returns new state"""
+    try:
+        # Get current state
+        current_state = int(await redis.hget(f"user:{user_id}", "delete_spam") or 1)
+        # Toggle state
+        new_state = 1 - current_state  # Toggles between 0 and 1
+        # Save new state
+        await redis.hset(f"user:{user_id}", "delete_spam", new_state)
+        return bool(new_state)
+    except Exception as e:
+        logger.error(f"Error toggling spam deletion: {e}", exc_info=True)
+        raise
+
+
+@log_function_call(logger)
+async def get_spam_deletion_state(user_id: int) -> bool:
+    """Get current spam deletion state for user"""
+    try:
+        state = await redis.hget(f"user:{user_id}", "delete_spam")
+        return bool(int(state)) if state is not None else True
+    except Exception as e:
+        logger.error(f"Error getting spam deletion state: {e}")
+        return True  # Default to True if error

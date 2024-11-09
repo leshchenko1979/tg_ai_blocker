@@ -1,8 +1,5 @@
-from . import command_handlers, message_handlers, private_handlers, status_handlers
-
-__all__ = [
-    "command_handlers",
-    "message_handlers",
-    "private_handlers",
-    "status_handlers",
-]
+from .command_handlers import *
+from .message_handlers import *
+from .payment_handlers import *
+from .private_handlers import *
+from .status_handlers import *

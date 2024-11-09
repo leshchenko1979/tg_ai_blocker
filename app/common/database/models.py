@@ -11,6 +11,7 @@ class User(BaseModel):
     username: Optional[str] = None
     credits: int = Field(default=0, ge=0)
     is_active: bool = True
+    delete_spam: bool = True  # Default to True for spam message deletion
     created_at: datetime = Field(default_factory=datetime.now)
     last_updated: datetime = Field(default_factory=datetime.now)
 

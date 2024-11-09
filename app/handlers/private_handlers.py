@@ -44,14 +44,18 @@ async def handle_private_message(message: types.Message):
     {config['help_text']}
     </текст сообщения>
 
-    ВАЖНО, чтобы ты отвечал от имени бота и ИСПОЛЬЗУЯ ТОН ПЕРСОНЫ БОТА,
-    описанной выше.
+    А вот примеры того, что ты считаешь спамом, а что нет
+    (если spam_score > 50, то сообщение считается спамом):
+    <примеры>
+    {config['spam_examples']}
+    </примеры>
+
+    Отвечай от имени бота и ИСПОЛЬЗУЙ ПЕРСОНУ БОТА.
 
     Учитывай предыдущий контекст разговора при ответе.
 
-    Также обрати внимание, что твой ответ появится в телеграм-чате,
-    поэтому разбивай текст на короткие абзацы
-    и можешь назначительно использовать эмодзи.
+    Разбивай текст на короткие абзацы. Умеренно используй эмодзи.
+    Используй **выделение жирным**.
     """
 
     # Combine system prompt with message history
@@ -65,4 +69,4 @@ async def handle_private_message(message: types.Message):
     await save_message(user_id, "assistant", response)
 
     # Send response to user
-    await message.reply(response)
+    await message.reply(response, parse_mode="markdown")
