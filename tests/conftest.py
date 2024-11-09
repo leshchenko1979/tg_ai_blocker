@@ -1,11 +1,15 @@
 import os
+from datetime import datetime
 
 import pytest
 from dotenv import load_dotenv
-from redis.asyncio import Redis
 
 # Load environment variables from .env file
 load_dotenv()
+
+from redis.asyncio import Redis
+
+from common.database import Group, User
 
 # Use a separate test database
 TEST_REDIS_DB = 15
@@ -88,3 +92,27 @@ def event_loop():
         loop = asyncio.new_event_loop()
     yield loop
     loop.close()
+
+
+@pytest.fixture
+def sample_group():
+    return Group(
+        group_id=987654,
+        group_name="Test Group",
+        member_ids=[123456, 789012],
+        admin_ids=[123456, 789012],
+        is_moderation_enabled=False,
+    )
+
+
+@pytest.fixture
+def sample_user():
+    return User(
+        user_id=123456,
+        username="testuser",
+        credits=50,
+        is_active=True,
+        delete_spam=True,
+        created_at=datetime.now(),
+        last_updated=datetime.now(),
+    )

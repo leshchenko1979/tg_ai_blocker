@@ -17,19 +17,6 @@ from common.database.user_operations import (
 )
 
 
-@pytest.fixture
-def sample_user():
-    return User(
-        user_id=123456,
-        username="testuser",
-        credits=50,
-        is_active=True,
-        delete_spam=True,
-        created_at=datetime.now(),
-        last_updated=datetime.now(),
-    )
-
-
 @pytest.mark.asyncio
 async def test_save_and_get_user(patched_redis_conn, clean_redis, sample_user):
     """Test saving and retrieving a user"""

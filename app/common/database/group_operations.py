@@ -164,8 +164,8 @@ async def get_user_admin_groups(user_id: int):
     while True:
         cursor, keys = await redis.scan(cursor, match="group:*")
         for key in keys:
-            if key.decode().count(":") == 1:  # Decode bytes to string before counting
-                group_id = int(key.decode().split(":")[1])
+            if key.count(":") == 1:  # Decode bytes to string before counting
+                group_id = int(key.split(":")[1])
 
                 # Check if user is an admin
                 is_admin = await redis.sismember(f"group:{group_id}:admins", user_id)

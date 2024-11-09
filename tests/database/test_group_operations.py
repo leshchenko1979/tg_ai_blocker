@@ -1,11 +1,15 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
+from common.bot import bot
 from common.database.group_operations import (
     add_unique_user,
     deduct_credits_from_admins,
     ensure_group_exists,
     get_group,
     get_paying_admins,
+    get_user_admin_groups,
     is_moderation_enabled,
     is_user_in_group,
     save_group,
@@ -14,17 +18,6 @@ from common.database.group_operations import (
 )
 from common.database.models import Group, User
 from common.database.user_operations import get_user, save_user
-
-
-@pytest.fixture
-def sample_group():
-    return Group(
-        group_id=987654,
-        group_name="Test Group",
-        member_ids=[123456, 789012],
-        admin_ids=[123456, 789012],
-        is_moderation_enabled=False,
-    )
 
 
 @pytest.mark.asyncio
@@ -248,3 +241,25 @@ async def test_update_group_admins(patched_redis_conn, clean_redis, sample_group
     # Verify admins were updated
     admins = await clean_redis.smembers(f"group:{sample_group.group_id}:admins")
     assert set(int(admin) for admin in admins) == set(new_admin_ids)
+
+
+@pytest.mark.asyncio
+async def test_get_user_admin_groups(
+    patched_redis_conn, clean_redis, sample_group, sample_user
+):
+    """Test retrieving groups where user is an admin"""
+    # Save the group first
+    await save_group(sample_group)
+
+    # Add user as an admin to the group
+    await clean_redis.sadd(f"group:{sample_group.group_id}:admins", sample_user.user_id)
+
+    # Mock bot.get_chat to return a chat object with a title
+    with patch.object(bot, "get_chat", return_value=AsyncMock(title="Test Group")):
+        # Get groups where user is an admin
+        groups = await get_user_admin_groups(sample_user.user_id)
+
+    # Assertions
+    assert len(groups) == 1
+    assert groups[0]["id"] == sample_group.group_id
+    assert groups[0]["title"] == "Test Group"
