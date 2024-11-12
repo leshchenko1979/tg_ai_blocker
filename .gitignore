@@ -1,4 +1,6 @@
 __pycache__
 .env
 .vscode/
-app/test.ipynb
+test.ipynb
+.pytest_cache
+/__pycache__
