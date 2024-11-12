@@ -55,12 +55,8 @@ async def handle_stats_command(message: types.Message) -> None:
         # Получаем баланс пользователя
         balance = await get_user_credits(user_id)
 
-        # Получаем список групп, где пользователь админ
+        # Получаем список групп с их статусами модерации
         admin_groups = await get_user_admin_groups(user_id)
-
-        # Получаем статус модерации для каждой группы
-        for group in admin_groups:
-            group["enabled"] = await is_moderation_enabled(group["id"])
 
         # Формируем сообщение
         message_text = f"💰 Баланс: *{balance}* звезд\n\n"
@@ -68,7 +64,9 @@ async def handle_stats_command(message: types.Message) -> None:
         if admin_groups:
             message_text += "👥 Ваши группы:\n"
             for group in admin_groups:
-                status = "✅ включена" if group["enabled"] else "❌ выключена"
+                status = (
+                    "✅ включена" if group["is_moderation_enabled"] else "❌ выключена"
+                )
                 message_text += f"• {group['title']}: модерация {status}\n"
         else:
             message_text += "У вас нет групп, где вы администратор."

@@ -254,6 +254,11 @@ async def test_get_user_admin_groups(
     # Add user as an admin to the group
     await clean_redis.sadd(f"group:{sample_group.group_id}:admins", sample_user.user_id)
 
+    # Set moderation status
+    await clean_redis.hset(
+        f"group:{sample_group.group_id}", "is_moderation_enabled", "1"
+    )
+
     # Mock bot.get_chat to return a chat object with a title
     with patch.object(bot, "get_chat", return_value=AsyncMock(title="Test Group")):
         # Get groups where user is an admin
@@ -263,3 +268,4 @@ async def test_get_user_admin_groups(
     assert len(groups) == 1
     assert groups[0]["id"] == sample_group.group_id
     assert groups[0]["title"] == "Test Group"
+    assert groups[0]["is_moderation_enabled"] is True

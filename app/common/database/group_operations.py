@@ -156,30 +156,55 @@ async def get_user_admin_groups(user_id: int):
         user_id: User ID
 
     Returns:
-        list: List of dictionaries with group information (id, title)
+        list: List of dictionaries with group information (id, title, is_moderation_enabled)
     """
     groups = []
     cursor = 0
 
     while True:
         cursor, keys = await redis.scan(cursor, match="group:*")
+        if not keys:
+            if cursor == 0:
+                break
+            continue
+
+        pipeline = redis.pipeline()
+        group_ids = []
+
         for key in keys:
-            if key.count(":") == 1:  # Decode bytes to string before counting
+            if key.count(":") == 1:
                 group_id = int(key.split(":")[1])
+                group_ids.append(group_id)
+                pipeline.sismember(f"group:{group_id}:admins", user_id)
+                pipeline.hget(f"group:{group_id}", "is_moderation_enabled")
 
-                # Check if user is an admin
-                is_admin = await redis.sismember(f"group:{group_id}:admins", user_id)
+        if not group_ids:
+            if cursor == 0:
+                break
+            continue
 
-                if is_admin:
-                    # Get group title via Telegram API
-                    try:
-                        chat = await bot.get_chat(group_id)
-                        groups.append({"id": group_id, "title": chat.title})
-                    except Exception as e:
-                        logger.error(
-                            f"Error getting chat {group_id}: {e}", exc_info=True
-                        )
-                        continue
+        results = await pipeline.execute()
+
+        # Process results in pairs (is_admin, moderation_status)
+        for i in range(0, len(results), 2):
+            is_admin = results[i]
+            moderation_status = results[i + 1]
+            group_id = group_ids[i // 2]
+
+            if is_admin:
+                try:
+                    chat = await bot.get_chat(group_id)
+                    groups.append(
+                        {
+                            "id": group_id,
+                            "title": chat.title,
+                            "is_moderation_enabled": bool(int(moderation_status or 0)),
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"Error getting chat {group_id}: {e}", exc_info=True)
+                    continue
+
         if cursor == 0:
             break
 
