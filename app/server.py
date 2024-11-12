@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from common.bot import LESHCHENKO_CHAT_ID, bot
 from common.dp import dp
 from common.mp import mp
-from common.yandex_logging import get_yandex_logger
+from common.yandex_logging import get_yandex_logger, log_function_call
 from utils import remove_lines_to_fit_len
 
 logger = get_yandex_logger(__name__)
@@ -16,8 +16,8 @@ app = FastAPI()
 
 @app.post("/")
 @app.get("/")
+@log_function_call(logger)
 async def handle_incoming_request(request: Request):
-    logger.debug("handle_incoming_request called")
     if await request.body():
         json = await request.json()
         logger.info("Incoming request", extra={"update": json})

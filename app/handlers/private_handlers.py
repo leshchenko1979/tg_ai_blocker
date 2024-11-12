@@ -4,18 +4,18 @@ from aiogram.filters import Command
 from common.database.message_operations import get_message_history, save_message
 from common.dp import dp
 from common.llms import get_openrouter_response
-from common.yandex_logging import get_yandex_logger
+from common.yandex_logging import get_yandex_logger, log_function_call
 from utils import config
 
 logger = get_yandex_logger(__name__)
 
 
 @dp.message(F.chat.type == "private", ~F.text.startswith("/"))
+@log_function_call(logger)
 async def handle_private_message(message: types.Message):
     """
     Отвечает пользователю от имени бота, используя LLM модели и контекст из истории сообщений
     """
-    logger.debug("handle_private_message called")
 
     user_id = message.from_user.id
     user_message = message.text

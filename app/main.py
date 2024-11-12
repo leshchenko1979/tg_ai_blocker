@@ -8,7 +8,7 @@ dotenv.load_dotenv()
 
 # Initialize logging
 logger = get_yandex_logger(__name__)
-logger.debug("Logger initialized")
+logger.trace("Logger initialized")
 get_yandex_logger("aiogram")  # Initialize aiogram logger
 
 # Import all handlers to register them with the dispatcher
@@ -20,7 +20,7 @@ from handlers import (
     status_handlers,
 )
 
-logger.debug("Handlers imported")
+logger.trace("Handlers imported")
 
 # Start the server
 from server import app
