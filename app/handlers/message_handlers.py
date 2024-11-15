@@ -184,10 +184,21 @@ async def handle_message(message: types.Message):
             return
 
         # Для новых пользователей выполняем проверку
-        spam_score = await is_spam(message.text)
+        user = message.from_user
+        
+        # Get user's bio through API call
+        user_info = await bot.get_chat(user.id)
+        bio = user_info.bio if user_info else None
+        
+        spam_score = await is_spam(comment=message.text, name=user.full_name, bio=bio)
         logger.info(
             f"Spam score: {spam_score}",
-            extra={"chat_id": chat_id, "spam_score": spam_score},
+            extra={
+                "chat_id": chat_id,
+                "spam_score": spam_score,
+                "user_name": user.full_name,
+                "user_bio": bio,
+            },
         )
 
         if spam_score > 50:

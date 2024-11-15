@@ -1,11 +1,14 @@
+from typing import Optional
+
+from common.database.spam_examples import get_spam_examples
 from common.llms import get_openrouter_response
 from common.yandex_logging import get_yandex_logger
 from utils import config
 
 logger = get_yandex_logger(__name__)
 
-prompt = """
-Ты - классификатор спама. Пользователь подает тебе сообщения, а ты должен определить, спам это или нет, и дать оценку своей уверенности в процентах.
+base_prompt = """
+Ты - классификатор спама. Пользователь подает тебе сообщения с текстом, именем и биографией (опционально), а ты должен определить, спам это или нет, и дать оценку своей уверенности в процентах.
 
 ФОРМАТ:
 <начало ответа>
@@ -26,9 +29,17 @@ prompt = """
 
 """
 
-# add spam examples to the prompt from config
-for example in config["spam_examples"]:
-    prompt += f"""
+
+async def get_prompt():
+    """Get the full prompt with spam examples from Redis"""
+    prompt = base_prompt
+
+    # Get spam examples from Redis
+    examples = await get_spam_examples()
+
+    # Add examples to prompt
+    for example in examples:
+        prompt += f"""
 <запрос>
 <текст сообщения>
 {example["text"]}
@@ -37,30 +48,53 @@ for example in config["spam_examples"]:
 {'<биография>' + example["bio"] + '</биография>' if "bio" in example else ''}
 </запрос>
 <ответ>
-{"да" if example["score"] > 0 else "нет"} {example["score"] if example["score"] > 0 else -example["score"]}%
+{"да" if example["score"] > 0 else "нет"} {abs(example["score"])}%
 </ответ>
 """
+    return prompt
 
 
 class ExtractionFailedError(Exception):
     pass
 
 
-async def is_spam(comment: str):
+async def is_spam(comment: str, name: Optional[str] = None, bio: Optional[str] = None):
     """
-    Возвращает -100, если не спам, и 100, если спам
+    Классифицирует сообщение как спам или не спам
+
+    Args:
+        comment: Текст сообщения
+        name: Имя отправителя (опционально)
+        bio: Биография отправителя (опционально)
+
+    Returns:
+        int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
     """
+    prompt = await get_prompt()
+    
+    user_message = f"""
+<запрос>
+<текст сообщения>
+{comment}
+</текст сообщения>
+{f'<имя>{name}</имя>' if name else ''}
+{f'<биография>{bio}</биография>' if bio else ''}
+</запрос>
+<ответ>
+"""
+
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": user_message}
+    ]
+
     MAX_RETRIES = 3
 
     for attempt in range(MAX_RETRIES):
         try:
-            messages = [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": comment},
-            ]
             response = await get_openrouter_response(messages)
             logger.info(f"Spam classifier response: {response}")
-            return extract_spam_score(response.lower())
+            return extract_spam_score(response)
         except Exception as e:
             logger.warning(f"Attempt {attempt + 1} failed: {str(e)}")
             if attempt == MAX_RETRIES - 1:
@@ -70,15 +104,17 @@ async def is_spam(comment: str):
 
 
 def extract_spam_score(response: str):
-    try:
-        if "да" in response:
-            multiplier = 1
-        elif "нет" in response:
-            multiplier = -1
-        else:
-            raise ValueError("Response doesn't contain 'да' or 'нет'")
-
-        conf_score = int(response.split(" ")[1].replace("%", ""))
-        return multiplier * conf_score
-    except (IndexError, ValueError) as e:
-        raise ValueError(f"Failed to parse response: {response}") from e
+    """
+    Извлекает оценку спама из ответа LLM
+    """
+    response = response.strip().lower()
+    if response.startswith("да"):
+        score = int(response.replace("да", "").replace("%", "").strip())
+        return score
+    elif response.startswith("нет"):
+        score = -int(response.replace("нет", "").replace("%", "").strip())
+        return score
+    else:
+        raise ExtractionFailedError(
+            f"Failed to extract spam score from response: {response}"
+        )
