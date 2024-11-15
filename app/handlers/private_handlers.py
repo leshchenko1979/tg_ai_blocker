@@ -1,18 +1,18 @@
+import pathlib
 from aiogram import F, types
-from aiogram.filters import Command
 
+from common.bot import bot
 from common.database.message_operations import get_message_history, save_message
-from common.database.spam_examples import get_spam_examples
+from common.database.spam_examples import add_spam_example, get_spam_examples
 from common.dp import dp
 from common.llms import get_openrouter_response
 from common.yandex_logging import get_yandex_logger, log_function_call
-from spam_classifier import is_spam
 from utils import config
 
 logger = get_yandex_logger(__name__)
 
 
-@dp.message(F.chat.type == "private", ~F.text.startswith("/"))
+@dp.message(F.chat.type == "private", ~F.text.startswith("/"), ~F.forward)
 @log_function_call(logger)
 async def handle_private_message(message: types.Message):
     """
@@ -29,9 +29,7 @@ async def handle_private_message(message: types.Message):
     message_history = await get_message_history(user_id)
 
     # Read PRD for system context
-    with open("PRD.md") as f:
-        prd_text = f.read()
-
+    prd_text = pathlib.Path("PRD.md").read_text()
     # Get spam examples from Redis
     spam_examples = await get_spam_examples()
 
@@ -89,3 +87,103 @@ async def handle_private_message(message: types.Message):
 
     # Send response to user
     await message.reply(response, parse_mode="markdown")
+
+
+@dp.message(F.chat.type == "private", F.forward)
+@log_function_call(logger)
+async def handle_forwarded_message(message: types.Message):
+    """
+    Handle forwarded messages in private chats.
+    """
+    # Ask the user if they want to add this as a spam example
+    keyboard = types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(
+                    text="⚠️ Спам",
+                    callback_data="spam_example:spam",
+                ),
+                types.InlineKeyboardButton(
+                    text="💚 Не спам",
+                    callback_data="spam_example:not_spam",
+                ),
+            ]
+        ]
+    )
+
+    await message.reply("Добавить это сообщение в базу примеров?", reply_markup=keyboard)
+
+
+@dp.callback_query(F.data.startswith("spam_example:"))
+@log_function_call(logger)
+async def process_spam_example_callback(callback_query: types.CallbackQuery):
+    """
+    Process the user's response to the spam example prompt.
+    """
+    _, action = callback_query.data.split(":")
+
+    info = extract_original_message_info(callback_query.message)
+
+    await add_spam_example(
+        info["text"],
+        name=info["name"],
+        bio=info["bio"],
+        score=100 if action == "spam" else -100,
+    )
+
+    if action == "spam":
+        # Attempt to delete the original message if available
+        if info["chat_id"] and info["message_id"]:
+            try:
+                await bot.delete_message(info["chat_id"], info["message_id"])
+                await callback_query.answer(
+                    "Сообщение добавлено как пример спама и оригинальное сообщение удалено."
+                )
+            except Exception as e:
+                await callback_query.answer(
+                    "Сообщение добавлено как пример спама, но не удалось удалить оригинальное сообщение."
+                )
+    elif action == "not_spam":
+        await callback_query.answer("Сообщение добавлено как пример ценного сообщения.")
+
+    # Update the original message text to reflect the user's choice
+    await callback_query.message.edit_text(
+        text=f"Сообщение добавлено как пример {'спама' if action == 'spam' else 'ценного сообщения'}.",
+    )
+
+
+def extract_original_message_info(callback_message: types.Message):
+    """
+    Extracts original message name, bio, chat_id, and message_id from a callback message.
+    """
+    original_message = (
+        callback_message.reply_to_message.forward
+        if callback_message.reply_to_message
+        and callback_message.reply_to_message.forward
+        else None
+    )
+    name = (
+        original_message.from_user.full_name
+        if original_message and original_message.from_user
+        else None
+    )
+    bio = (
+        original_message.from_user.bio
+        if original_message and original_message.from_user
+        else None
+    )
+    chat_id = original_message.chat.id if original_message else None
+    message_id = original_message.message_id if original_message else None
+    text = (
+        callback_message.reply_to_message.text
+        if callback_message.reply_to_message
+        else None
+    )
+
+    return {
+        "name": name,
+        "bio": bio,
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text,
+    }

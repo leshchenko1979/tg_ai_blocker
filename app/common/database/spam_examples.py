@@ -26,6 +26,12 @@ async def add_spam_example(
 ) -> bool:
     """Add a new spam example to Redis"""
     try:
+        # First find and delete existing entry with the same name and text
+        examples = await get_spam_examples()
+        for example in examples:
+            if example["text"] == text and example.get("name") == name:
+                await redis.lrem(SPAM_EXAMPLES_KEY, 1, json.dumps(example))
+
         example = {"text": text, "score": score, "name": name, "bio": bio}
         # Remove None values
         example = {k: v for k, v in example.items() if v is not None}
