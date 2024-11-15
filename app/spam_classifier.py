@@ -3,7 +3,6 @@ from typing import Optional
 from common.database.spam_examples import get_spam_examples
 from common.llms import get_openrouter_response
 from common.yandex_logging import get_yandex_logger
-from utils import config
 
 logger = get_yandex_logger(__name__)
 
@@ -30,12 +29,12 @@ base_prompt = """
 """
 
 
-async def get_prompt():
+async def get_prompt(user_id: Optional[int] = None):
     """Get the full prompt with spam examples from Redis"""
     prompt = base_prompt
 
-    # Get spam examples from Redis
-    examples = await get_spam_examples()
+    # Get spam examples from Redis, including user-specific examples
+    examples = await get_spam_examples(user_id)
 
     # Add examples to prompt
     for example in examples:
@@ -58,7 +57,12 @@ class ExtractionFailedError(Exception):
     pass
 
 
-async def is_spam(comment: str, name: Optional[str] = None, bio: Optional[str] = None):
+async def is_spam(
+    comment: str,
+    name: Optional[str] = None,
+    bio: Optional[str] = None,
+    user_id: Optional[int] = None,
+):
     """
     Классифицирует сообщение как спам или не спам
 
@@ -66,11 +70,12 @@ async def is_spam(comment: str, name: Optional[str] = None, bio: Optional[str] =
         comment: Текст сообщения
         name: Имя отправителя (опционально)
         bio: Биография отправителя (опционально)
+        user_id: ID пользователя для получения его персональных примеров спама (опционально)
 
     Returns:
         int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
     """
-    prompt = await get_prompt()
+    prompt = await get_prompt(user_id)
 
     user_message = f"""
 <запрос>
@@ -109,11 +114,9 @@ def extract_spam_score(response: str):
     """
     response = response.strip().lower()
     if response.startswith("да"):
-        score = int(response.replace("да", "").replace("%", "").strip())
-        return score
+        return int(response.replace("да", "").replace("%", "").strip())
     elif response.startswith("нет"):
-        score = -int(response.replace("нет", "").replace("%", "").strip())
-        return score
+        return -int(response.replace("нет", "").replace("%", "").strip())
     else:
         raise ExtractionFailedError(
             f"Failed to extract spam score from response: {response}"

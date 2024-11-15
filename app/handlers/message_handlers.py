@@ -190,7 +190,9 @@ async def handle_message(message: types.Message):
         user_info = await bot.get_chat(user.id)
         bio = user_info.bio if user_info else None
 
-        spam_score = await is_spam(comment=message.text, name=user.full_name, bio=bio)
+        spam_score = await is_spam(
+            comment=message.text, name=user.full_name, bio=bio, user_id=user.id
+        )
         logger.info(
             f"Spam score: {spam_score}",
             extra={

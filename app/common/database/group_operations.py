@@ -253,3 +253,43 @@ async def is_user_in_group(group_id: int, user_id: int) -> bool:
 async def add_unique_user(group_id: int, user_id: int) -> None:
     """Add unique user to group"""
     await redis.sadd(f"group:{group_id}:members", user_id)
+
+
+@log_function_call(logger)
+async def remove_user_from_group(user_id: int, group_id: Optional[int] = None) -> None:
+    """
+    Remove a user from a group or all groups in Redis
+
+    Args:
+        user_id: ID пользователя для удаления
+        group_id: ID группы (если None, удаляет пользователя из всех групп)
+    """
+    if group_id is not None:
+        # Удаление пользователя из конкретной группы
+        pipeline = redis.pipeline()
+        pipeline.srem(f"group:{group_id}:members", user_id)
+        pipeline.hset(f"group:{group_id}", "last_updated", datetime.now().isoformat())
+        await pipeline.execute()
+    else:
+        # Удаление пользователя из всех групп
+        cursor = 0
+        pattern = "group:*:members"
+
+        while True:
+            cursor, keys = await redis.scan(cursor, match=pattern)
+
+            if keys:
+                pipeline = redis.pipeline()
+                for key in keys:
+                    # Удаление пользователя из каждой группы
+                    pipeline.srem(key, user_id)
+                    # Обновление времени последнего изменения для каждой группы
+                    group_id = key.split(":")[1]
+                    pipeline.hset(
+                        f"group:{group_id}", "last_updated", datetime.now().isoformat()
+                    )
+
+                await pipeline.execute()
+
+            if cursor == 0:
+                break

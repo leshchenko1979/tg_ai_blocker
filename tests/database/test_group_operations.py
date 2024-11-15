@@ -12,6 +12,7 @@ from common.database.group_operations import (
     get_user_admin_groups,
     is_moderation_enabled,
     is_user_in_group,
+    remove_user_from_group,
     save_group,
     set_group_moderation,
     update_group_admins,
@@ -269,3 +270,99 @@ async def test_get_user_admin_groups(
     assert groups[0]["id"] == sample_group.group_id
     assert groups[0]["title"] == "Test Group"
     assert groups[0]["is_moderation_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_remove_user_from_specific_group(
+    patched_redis_conn, clean_redis, sample_group
+):
+    """Test removing a user from a specific group"""
+    # Сохраняем группу
+    await save_group(sample_group)
+
+    # Добавляем пользователя в группу
+    user_id_to_remove = 456789
+    await add_unique_user(sample_group.group_id, user_id_to_remove)
+
+    # Проверяем, что пользователь добавлен
+    is_member_before = await is_user_in_group(sample_group.group_id, user_id_to_remove)
+    assert is_member_before is True
+
+    # Удаляем пользователя из группы
+    await remove_user_from_group(user_id_to_remove, sample_group.group_id)
+
+    # Проверяем, что пользователь удален
+    is_member_after = await is_user_in_group(sample_group.group_id, user_id_to_remove)
+    assert is_member_after is False
+
+
+@pytest.mark.asyncio
+async def test_remove_user_from_all_groups(patched_redis_conn, clean_redis):
+    """Test removing a user from all groups"""
+    # Создаем несколько групп
+    group_ids = [123, 456, 789]
+    user_id_to_remove = 456789
+
+    # Добавляем пользователя в каждую группу
+    for group_id in group_ids:
+        group = Group(
+            group_id=group_id,
+            group_name=f"Test Group {group_id}",
+            admin_ids=[],
+            member_ids=[user_id_to_remove],
+        )
+        await save_group(group)
+        await add_unique_user(group_id, user_id_to_remove)
+
+    # Проверяем, что пользователь добавлен во все группы
+    for group_id in group_ids:
+        is_member_before = await is_user_in_group(group_id, user_id_to_remove)
+        assert is_member_before is True
+
+    # Удаляем пользователя из всех групп
+    await remove_user_from_group(user_id_to_remove)
+
+    # Проверяем, что пользователь удален из всех групп
+    for group_id in group_ids:
+        is_member_after = await is_user_in_group(group_id, user_id_to_remove)
+        assert is_member_after is False
+
+
+@pytest.mark.asyncio
+async def test_remove_user_from_nonexistent_group(patched_redis_conn, clean_redis):
+    """Test removing a user from a nonexistent group"""
+    user_id_to_remove = 456789
+    nonexistent_group_id = 999999
+
+    # Попытка удаления пользователя из несуществующей группы
+    try:
+        await remove_user_from_group(user_id_to_remove, nonexistent_group_id)
+    except Exception as e:
+        pytest.fail(f"Unexpected error when removing user from nonexistent group: {e}")
+
+
+@pytest.mark.asyncio
+async def test_remove_user_from_group_multiple_times(
+    patched_redis_conn, clean_redis, sample_group
+):
+    """Test removing a user from a group multiple times"""
+    # Сохраняем группу
+    await save_group(sample_group)
+
+    # Добавляем пользователя в группу
+    user_id_to_remove = 456789
+    await add_unique_user(sample_group.group_id, user_id_to_remove)
+
+    # Первое удаление
+    await remove_user_from_group(user_id_to_remove, sample_group.group_id)
+    is_member_after_first_removal = await is_user_in_group(
+        sample_group.group_id, user_id_to_remove
+    )
+    assert is_member_after_first_removal is False
+
+    # Повторное удаление (не должно вызывать ошибку)
+    await remove_user_from_group(user_id_to_remove, sample_group.group_id)
+    is_member_after_second_removal = await is_user_in_group(
+        sample_group.group_id, user_id_to_remove
+    )
+    assert is_member_after_second_removal is False

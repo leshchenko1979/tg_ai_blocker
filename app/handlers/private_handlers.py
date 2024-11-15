@@ -1,7 +1,10 @@
 import pathlib
+from typing import Any, Dict
+
 from aiogram import F, types
 
 from common.bot import bot
+from common.database.group_operations import remove_user_from_group
 from common.database.message_operations import get_message_history, save_message
 from common.database.spam_examples import add_spam_example, get_spam_examples
 from common.dp import dp
@@ -10,6 +13,12 @@ from common.yandex_logging import get_yandex_logger, log_function_call
 from utils import config
 
 logger = get_yandex_logger(__name__)
+
+
+class OriginalMessageExtractionError(Exception):
+    """Raised when original message information cannot be extracted"""
+
+    pass
 
 
 @dp.message(F.chat.type == "private", ~F.text.startswith("/"), ~F.forward)
@@ -111,7 +120,9 @@ async def handle_forwarded_message(message: types.Message):
         ]
     )
 
-    await message.reply("Добавить это сообщение в базу примеров?", reply_markup=keyboard)
+    await message.reply(
+        "Добавить это сообщение в базу примеров?", reply_markup=keyboard
+    )
 
 
 @dp.callback_query(F.data.startswith("spam_example:"))
@@ -122,27 +133,30 @@ async def process_spam_example_callback(callback_query: types.CallbackQuery):
     """
     _, action = callback_query.data.split(":")
 
-    info = extract_original_message_info(callback_query.message)
+    try:
+        info = await extract_original_message_info(callback_query.message)
+        logger.debug(f"Extracted original message info: {info}")
+    except OriginalMessageExtractionError:
+        logger.error("Failed to extract original message info", exc_info=True)
+        await callback_query.answer(
+            "Не удалось извлечь информацию из оригинального сообщения."
+        )
+        return
 
     await add_spam_example(
         info["text"],
         name=info["name"],
         bio=info["bio"],
         score=100 if action == "spam" else -100,
+        user_id=callback_query.from_user.id,
     )
 
     if action == "spam":
-        # Attempt to delete the original message if available
-        if info["chat_id"] and info["message_id"]:
-            try:
-                await bot.delete_message(info["chat_id"], info["message_id"])
-                await callback_query.answer(
-                    "Сообщение добавлено как пример спама и оригинальное сообщение удалено."
-                )
-            except Exception as e:
-                await callback_query.answer(
-                    "Сообщение добавлено как пример спама, но не удалось удалить оригинальное сообщение."
-                )
+        await remove_user_from_group(user_id=info["chat_id"])
+        await callback_query.answer(
+            "Сообщение добавлено как пример спама, "
+            "пользователь удален из одобренных."
+        )
     elif action == "not_spam":
         await callback_query.answer("Сообщение добавлено как пример ценного сообщения.")
 
@@ -152,38 +166,49 @@ async def process_spam_example_callback(callback_query: types.CallbackQuery):
     )
 
 
-def extract_original_message_info(callback_message: types.Message):
+async def extract_original_message_info(
+    callback_message: types.Message,
+) -> Dict[str, Any]:
     """
-    Extracts original message name, bio, chat_id, and message_id from a callback message.
-    """
-    original_message = (
-        callback_message.reply_to_message.forward
-        if callback_message.reply_to_message
-        and callback_message.reply_to_message.forward
-        else None
-    )
-    name = (
-        original_message.from_user.full_name
-        if original_message and original_message.from_user
-        else None
-    )
-    bio = (
-        original_message.from_user.bio
-        if original_message and original_message.from_user
-        else None
-    )
-    chat_id = original_message.chat.id if original_message else None
-    message_id = original_message.message_id if original_message else None
-    text = (
-        callback_message.reply_to_message.text
-        if callback_message.reply_to_message
-        else None
-    )
+    Extracts original message name, bio, chat_id from a callback message.
 
-    return {
-        "name": name,
-        "bio": bio,
-        "chat_id": chat_id,
-        "message_id": message_id,
-        "text": text,
-    }
+    Raises:
+        OriginalMessageExtractionError: If original message information cannot be extracted
+    """
+    # Проверяем наличие сообщения, на которое отвечают
+    if not callback_message.reply_to_message:
+        raise OriginalMessageExtractionError("No reply message found")
+
+    original_message = callback_message.reply_to_message
+
+    if original_message.forward_from_chat:
+        raise OriginalMessageExtractionError(
+            "Cannot extract meaningful message information from forwarded channel message"
+        )
+
+    if not original_message.forward_from:
+        raise OriginalMessageExtractionError("Reply message is not a forwarded message")
+
+    name = original_message.forward_from.full_name
+    text = original_message.text or original_message.caption
+
+    if name or text:
+        # Получаем bio через прямой запрос к Telegram API
+        try:
+            user = await bot.get_chat(original_message.forward_from.id)
+            bio = user.bio
+        except Exception:
+            bio = None
+
+        chat_id = original_message.forward_from.id
+
+        return {
+            "name": name,
+            "bio": bio,
+            "chat_id": chat_id,
+            "text": text,
+        }
+
+    raise OriginalMessageExtractionError(
+        "Cannot extract meaningful message information from forwarded message"
+    )
