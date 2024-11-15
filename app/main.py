@@ -13,6 +13,7 @@ get_yandex_logger("aiogram")  # Initialize aiogram logger
 
 # Import all handlers to register them with the dispatcher
 from handlers import (
+    callback_handlers,
     command_handlers,
     message_handlers,
     payment_handlers,

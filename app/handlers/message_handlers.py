@@ -1,4 +1,5 @@
 from aiogram import types
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from common.bot import bot
 from common.database import (
@@ -74,6 +75,8 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
     try:
         chat = await bot.get_chat(chat_id)
         group_name = chat.title
+        link = f"https://t.me/{chat.username}/{message_id}"
+        spammer_username = (await bot.get_chat_member(chat_id, user_id)).user.username
 
         # Регистрация события спама
         mp.track(
@@ -110,31 +113,47 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
 
         # Уведомление администраторов
         try:
-            link = f"https://t.me/c/{chat_id}/{message_id}"
-
             for admin in admins:
                 if admin.user.is_bot:
                     continue
 
                 admin_user = await get_user(admin.user.id)
-                admin_deletes = admin_user and admin_user.delete_spam
+
+                # Создаем кнопки, если автоудаление отключено
+                if not all_admins_delete:
+                    keyboard = InlineKeyboardMarkup(
+                        inline_keyboard=[
+                            [
+                                InlineKeyboardButton(
+                                    text="🗑️ Удалить",
+                                    callback_data=f"spam_delete:{message_id}:{chat_id}",
+                                ),
+                                InlineKeyboardButton(
+                                    text="✅ Не спам",
+                                    callback_data=f"spam_ignore:{message_id}:{chat_id}",
+                                ),
+                            ]
+                        ]
+                    )
+                else:
+                    keyboard = None
 
                 admin_msg = (
                     f"⚠️ ТРЕВОГА! Обнаружено вторжение в {group_name} (@{chat.username})!\n"
-                    f"Нарушитель: {user_id} (@{(await bot.get_chat_member(chat_id, user_id)).user.username})\n"
+                    f"Нарушитель: {user_id} (@{spammer_username})\n"
                     f"Содержание угрозы:\n\n{text}\n\n"
-                    f"Принятые меры: "
                 )
 
                 if all_admins_delete:
                     admin_msg += "Вредоносное сообщение уничтожено"
                 else:
-                    admin_msg += f"Ссылка на сообщение: {link}\n\n"
-                    if admin_deletes:
-                        admin_msg += "(Сообщение не удалено, так как не все администраторы включили режим удаления)"
+                    admin_msg += f"Ссылка на сообщение: {link}"
+                    admin_msg += "\n(Выберите действие с сообщением)"
 
                 try:
-                    await bot.send_message(admin.user.id, admin_msg)
+                    await bot.send_message(
+                        admin.user.id, admin_msg, reply_markup=keyboard
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to notify admin {admin.user.id}: {e}")
 
