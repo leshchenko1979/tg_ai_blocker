@@ -185,11 +185,11 @@ async def handle_message(message: types.Message):
 
         # Для новых пользователей выполняем проверку
         user = message.from_user
-        
+
         # Get user's bio through API call
         user_info = await bot.get_chat(user.id)
         bio = user_info.bio if user_info else None
-        
+
         spam_score = await is_spam(comment=message.text, name=user.full_name, bio=bio)
         logger.info(
             f"Spam score: {spam_score}",

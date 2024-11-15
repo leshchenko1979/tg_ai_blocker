@@ -71,7 +71,7 @@ async def is_spam(comment: str, name: Optional[str] = None, bio: Optional[str] =
         int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
     """
     prompt = await get_prompt()
-    
+
     user_message = f"""
 <запрос>
 <текст сообщения>
@@ -85,7 +85,7 @@ async def is_spam(comment: str, name: Optional[str] = None, bio: Optional[str] =
 
     messages = [
         {"role": "system", "content": prompt},
-        {"role": "user", "content": user_message}
+        {"role": "user", "content": user_message},
     ]
 
     MAX_RETRIES = 3
