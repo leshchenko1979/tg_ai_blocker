@@ -1,4 +1,5 @@
 import functools
+import inspect
 import logging
 
 from pythonjsonlogger import jsonlogger
@@ -11,8 +12,8 @@ class YandexFormatter(jsonlogger.JsonFormatter):
         log_record["level"] = record.levelname.replace("WARNING", "WARN").replace(
             "CRITICAL", "FATAL"
         )
-        # del log_record["levelname"]
-        # del log_record["name"]
+        del log_record["levelname"]
+        del log_record["name"]
 
     def format(self, record):
         return super().format(record).replace("\n", "\r")
@@ -20,9 +21,6 @@ class YandexFormatter(jsonlogger.JsonFormatter):
 
 yandex_handler = logging.StreamHandler()
 yandex_handler.setFormatter(YandexFormatter("[%(levelname)s] %(name)s: %(message)s"))
-
-# root_logger = logging.getLogger()
-# root_logger.addHandler(yandex_handler)
 
 
 def get_yandex_logger(name):
@@ -87,27 +85,105 @@ def addLoggingLevel(levelName, levelNum, methodName=None):
 addLoggingLevel("TRACE", logging.DEBUG - 5)
 
 
-def log_function_call(logger: logging.Logger):
-    """Декоратор для логирования вызовов функций с возможностью передачи логгера"""
+# Настраиваем root логгер
+root_logger = logging.getLogger()
+root_logger.addHandler(yandex_handler)
+root_logger.setLevel(logging.TRACE)
+
+
+def log_function_call(logger_or_func=None):
+    """Универсальный декоратор для логирования.
+    Может использоваться:
+    1. С явно переданным logger: @log_function_call(logger)
+    2. Для методов класса: @log_function_call
+    3. Для функций без логгера: @log_function_call
+    """
+
+    def get_logger(self_or_none, explicit_logger) -> logging.Logger:
+        if explicit_logger and isinstance(explicit_logger, logging.Logger):
+            return explicit_logger
+        if self_or_none and hasattr(self_or_none, "logger"):
+            return self_or_none.logger
+        return root_logger  # Используем root логгер по умолчанию
 
     def decorator(func):
-        @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
-            logger.trace(
-                f"Calling {func.__name__} with args: {args}, {kwargs}",
-                extra={
-                    "func_name": func.__name__,
-                    "func_args": args,
-                    "func_kwargs": kwargs,
-                },
-            )
-            result = await func(*args, **kwargs)
-            logger.trace(
-                f"Function {func.__name__} returned {result}",
-                extra={"func_result": result},
-            )
-            return result
+        if inspect.iscoroutinefunction(func):
 
-        return wrapper
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                # Определяем logger
+                is_method = args and hasattr(args[0], "logger")
+                current_logger = get_logger(
+                    args[0] if is_method else None,
+                    logger_or_func
+                    if isinstance(logger_or_func, logging.Logger)
+                    else None,
+                )
 
+                current_logger.trace(
+                    f"Calling {func.__name__}",
+                    extra={
+                        "func_name": func.__name__,
+                        "func_args": args[1:] if is_method else args,
+                        "func_kwargs": kwargs,
+                    },
+                )
+                try:
+                    result = await func(*args, **kwargs)
+                    current_logger.trace(
+                        f"{func.__name__} completed successfully",
+                        extra={"func_name": func.__name__, "result": result},
+                    )
+                    return result
+                except Exception as e:
+                    current_logger.error(
+                        f"{func.__name__} failed: {str(e)}",
+                        extra={"func_name": func.__name__, "error": str(e)},
+                        exc_info=True,
+                    )
+                    raise
+
+            return async_wrapper
+        else:
+
+            @functools.wraps(func)
+            def sync_wrapper(*args, **kwargs):
+                # Определяем logger
+                is_method = args and hasattr(args[0], "logger")
+                current_logger = get_logger(
+                    args[0] if is_method else None,
+                    logger_or_func
+                    if isinstance(logger_or_func, logging.Logger)
+                    else None,
+                )
+
+                current_logger.trace(
+                    f"Calling {func.__name__}",
+                    extra={
+                        "func_name": func.__name__,
+                        "func_args": args[1:] if is_method else args,
+                        "func_kwargs": kwargs,
+                    },
+                )
+                try:
+                    result = func(*args, **kwargs)
+                    current_logger.trace(
+                        f"{func.__name__} completed successfully",
+                        extra={"func_name": func.__name__, "result": result},
+                    )
+                    return result
+                except Exception as e:
+                    current_logger.error(
+                        f"{func.__name__} failed: {str(e)}",
+                        extra={"func_name": func.__name__, "error": str(e)},
+                        exc_info=True,
+                    )
+                    raise
+
+            return sync_wrapper
+
+    if callable(logger_or_func):
+        # Используется без параметров @log_function_call
+        return decorator(logger_or_func)
+    # Используется с параметром @log_function_call(logger)
     return decorator
