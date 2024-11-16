@@ -4,7 +4,7 @@ python-json-logger
 python-dotenv
 aiogram
 requests
-# mixpanel
+mixpanel
 # supabase
 # reretry
 # upstash-redis

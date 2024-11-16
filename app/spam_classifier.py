@@ -112,11 +112,11 @@ def extract_spam_score(response: str):
     """
     Извлекает оценку спама из ответа LLM
     """
-    response = response.strip().lower()
-    if response.startswith("да"):
-        return int(response.replace("да", "").replace("%", "").strip())
-    elif response.startswith("нет"):
-        return -int(response.replace("нет", "").replace("%", "").strip())
+    parts = response.strip().lower().split()
+    if parts[0] == "да":
+        return int(parts[1].replace("%", "").strip())
+    elif parts[0] == "нет":
+        return -int(parts[1].replace("%", "").strip())
     else:
         raise ExtractionFailedError(
             f"Failed to extract spam score from response: {response}"
