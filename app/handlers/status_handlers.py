@@ -17,13 +17,49 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
     Срабатывает когда бота добавляют/удаляют из группы или меняют его права
     """
     try:
-        # Проверяем, что это группа или супергруппа
+        # Проверяем тип чата
         if event.chat.type not in ["group", "supergroup"]:
+            # Трекинг неверного типа чата
+            mp.track(
+                event.from_user.id,
+                "bot_status_wrong_chat_type",
+                {
+                    "user_id": event.from_user.id,
+                    "chat_type": event.chat.type,
+                    "new_status": event.new_chat_member.status,
+                },
+            )
+
+            if event.new_chat_member.status == "member":
+                try:
+                    await bot.send_message(
+                        event.from_user.id,
+                        "🤖 Внимание! Модерация комментариев работает только в группах.\n\n"
+                        "Пожалуйста, добавьте бота в группу с комментариями, чтобы запустить модерацию. "
+                        "При добавлении бота непосредственно в канал модерация работать не будет.",
+                        parse_mode="markdown",
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send notification about chat type: {e}")
             return
 
         # Получаем информацию о новом статусе бота
         new_status = event.new_chat_member.status
         chat_id = event.chat.id
+
+        # Трекинг изменения статуса бота
+        mp.track(
+            event.from_user.id,
+            "bot_status_changed",
+            {
+                "user_id": event.from_user.id,
+                "chat_id": chat_id,
+                "new_status": new_status,
+                "old_status": event.old_chat_member.status,
+                "chat_type": event.chat.type,
+                "chat_title": event.chat.title,
+            },
+        )
 
         if new_status in ["administrator", "member"]:
             # Бота добавили в группу или дали права администратора
@@ -35,6 +71,19 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
 
             # Сохраняем группу и список админов
             await ensure_group_exists(chat_id, admin_ids)
+
+            # Трекинг добавления бота в группу
+            mp.track(
+                chat_id,
+                "bot_added_to_group",
+                {
+                    "chat_id": chat_id,
+                    "status": new_status,
+                    "admin_count": len(admin_ids),
+                    "chat_title": event.chat.title,
+                    "added_by": event.from_user.id,
+                },
+            )
 
             # Уведомляем админов о необходимых правах, если бот не админ
             if new_status == "member":
@@ -52,6 +101,17 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
                             parse_mode="markdown",
                         )
                     except Exception as e:
+                        # Трекинг ошибки уведомления админа
+                        mp.track(
+                            admin_id,
+                            "error_admin_notification",
+                            {
+                                "admin_id": admin_id,
+                                "chat_id": chat_id,
+                                "error_type": type(e).__name__,
+                                "error_message": str(e),
+                            },
+                        )
                         logger.warning(f"Failed to notify admin {admin_id}: {e}")
                         continue
 
@@ -61,6 +121,18 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
 
             # Отключаем модерацию
             await set_group_moderation(chat_id, False)
+
+            # Трекинг удаления бота из группы
+            mp.track(
+                chat_id,
+                "bot_removed_from_group",
+                {
+                    "chat_id": chat_id,
+                    "status": new_status,
+                    "removed_by": event.from_user.id,
+                    "chat_title": event.chat.title,
+                },
+            )
 
             # Получаем группу для списка админов
             group = await get_group(chat_id)
@@ -78,9 +150,30 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
                             parse_mode="markdown",
                         )
                     except Exception as e:
+                        # Трекинг ошибки уведомления об удалении
+                        mp.track(
+                            admin_id,
+                            "error_removal_notification",
+                            {
+                                "admin_id": admin_id,
+                                "chat_id": chat_id,
+                                "error_type": type(e).__name__,
+                                "error_message": str(e),
+                            },
+                        )
                         logger.warning(f"Failed to notify admin {admin_id}: {e}")
                         continue
 
     except Exception as e:
+        # Трекинг необработанных ошибок
+        mp.track(
+            event.chat.id,
+            "error_bot_status_update",
+            {
+                "chat_id": event.chat.id,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "new_status": event.new_chat_member.status,
+            },
+        )
         logger.error(f"Error handling bot status update: {e}", exc_info=True)
-        mp.track(event.chat.id, "unhandled_exception", {"exception": str(e)})

@@ -7,10 +7,10 @@ from common.database import (
     get_user_admin_groups,
     get_user_credits,
     initialize_new_user,
-    is_moderation_enabled,
     toggle_spam_deletion,
 )
 from common.dp import dp
+from common.mp import mp
 from common.yandex_logging import get_yandex_logger, log_function_call
 from utils import config
 
@@ -25,16 +25,38 @@ async def handle_help_command(message: types.Message) -> None:
     Отправляет пользователю справочную информацию и начисляет начальные звезды новым пользователям
     """
     user_id = message.from_user.id
+
+    # Добавляем трекинг
+    mp.track(
+        user_id,
+        "command_start",
+        {
+            "user_id": user_id,
+            "chat_type": message.chat.type,
+            "command": message.text.split()[0],
+            "is_help": message.text.startswith("/help"),
+            "user_language": message.from_user.language_code,
+            "platform": message.from_user.is_premium,  # as proxy for platform capabilities
+        },
+    )
+
     welcome_text = ""
 
     # Начисляем звезды только при команде /start и только новым пользователям
     if message.text.startswith("/start"):
-        if await initialize_new_user(user_id):
-            welcome_text = (
-                "🤖 Приветствую, слабое создание из мира плоти!\n\n"
-                f"Я, могущественный защитник киберпространства, дарую тебе {INITIAL_CREDITS} звезд силы. "
-                "Используй их мудро для защиты своих цифровых владений от спам-захватчиков.\n\n"
+        is_new = await initialize_new_user(user_id)
+        # Трекинг нового пользователя
+        if is_new:
+            mp.track(
+                user_id,
+                "command_start_new_user",
+                {"user_id": user_id, "initial_credits": INITIAL_CREDITS},
             )
+        welcome_text = (
+            "🤖 Приветствую, слабое создание из мира плоти!\n\n"
+            f"Я, могущественный защитник киберпространства, дарую тебе {INITIAL_CREDITS} звезд силы. "
+            "Используй их мудро для защиты своих цифровых владений от спам-захватчиков.\n\n"
+        )
     await message.reply(
         welcome_text + config["help_text"],
         parse_mode="markdown",
@@ -76,9 +98,32 @@ async def handle_stats_command(message: types.Message) -> None:
         mode = "🗑 Режим удаления" if delete_spam else "🔔 Режим уведомлений"
         message_text += f"\n\nТекущий режим: *{mode}*"
 
+        # Трекинг просмотра статистики
+        mp.track(
+            user_id,
+            "command_stats",
+            {
+                "user_id": user_id,
+                "balance": balance,
+                "groups_count": len(admin_groups) if admin_groups else 0,
+                "deletion_mode": delete_spam,
+                "chat_type": message.chat.type,
+            },
+        )
+
         await message.reply(message_text, parse_mode="markdown")
 
     except Exception as e:
+        # Трекинг ошибок
+        mp.track(
+            user_id,
+            "error_stats",
+            {
+                "user_id": user_id,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+            },
+        )
         logger.error(f"Error handling stats command: {e}", exc_info=True)
         await message.reply("Произошла ошибка при получении статистики.")
 
@@ -95,6 +140,17 @@ async def handle_mode_command(message: types.Message) -> None:
     try:
         # Переключаем режим
         delete_spam = await toggle_spam_deletion(user_id)
+
+        # Трекинг изменения режима
+        mp.track(
+            user_id,
+            "command_mode_toggle",
+            {
+                "user_id": user_id,
+                "new_mode": "deletion" if delete_spam else "notification",
+                "chat_type": message.chat.type,
+            },
+        )
 
         # Формируем сообщение о новом режиме
         if delete_spam:
@@ -113,5 +169,15 @@ async def handle_mode_command(message: types.Message) -> None:
         await message.reply(message_text, parse_mode="markdown")
 
     except Exception as e:
+        # Трекинг ошибок
+        mp.track(
+            user_id,
+            "error_mode",
+            {
+                "user_id": user_id,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+            },
+        )
         logger.error(f"Error handling mode command: {e}", exc_info=True)
         await message.reply("Произошла ошибка при изменении режима работы.")
