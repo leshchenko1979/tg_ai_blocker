@@ -29,12 +29,12 @@ base_prompt = """
 """
 
 
-async def get_prompt(user_id: Optional[int] = None):
+async def get_prompt(admin_id: Optional[int] = None):
     """Get the full prompt with spam examples from Redis"""
     prompt = base_prompt
 
     # Get spam examples from Redis, including user-specific examples
-    examples = await get_spam_examples(user_id)
+    examples = await get_spam_examples(admin_id)
 
     # Add examples to prompt
     for example in examples:
@@ -59,9 +59,9 @@ class ExtractionFailedError(Exception):
 
 async def is_spam(
     comment: str,
-    name: Optional[str] = None,
-    bio: Optional[str] = None,
-    user_id: Optional[int] = None,
+    name: str | None = None,
+    bio: str | None = None,
+    admin_id: int | None = None,
 ):
     """
     Классифицирует сообщение как спам или не спам
@@ -70,12 +70,12 @@ async def is_spam(
         comment: Текст сообщения
         name: Имя отправителя (опционально)
         bio: Биография отправителя (опционально)
-        user_id: ID пользователя для получения его персональных примеров спама (опционально)
+        admin_id: ID пользователя для получения его персональных примеров спама (опционально)
 
     Returns:
         int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
     """
-    prompt = await get_prompt(user_id)
+    prompt = await get_prompt(admin_id)
 
     user_message = f"""
 <запрос>

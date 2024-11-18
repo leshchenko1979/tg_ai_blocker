@@ -1,3 +1,5 @@
+from pydoc import text
+
 from aiogram import types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -70,33 +72,27 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
 
 
 @log_function_call(logger)
-async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) -> None:
+async def handle_spam(message: types.Message) -> None:
     """
     Обработка спам-сообщений
     """
     try:
-        chat = await bot.get_chat(chat_id)
-        group_name = chat.title
-        link = f"https://t.me/{chat.username}/{message_id}"
-        spammer_username = (await bot.get_chat_member(chat_id, user_id)).user.username
-
         # Трекинг обнаружения спама
         mp.track(
-            chat_id,
+            message.chat.id,
             "spam_detected",
             {
-                "chat_id": chat_id,
-                "message_id": message_id,
-                "user_id": user_id,
-                "spammer_username": spammer_username,
-                "message_length": len(text),
-                "group_name": group_name,
+                "message_id": message.message_id,
+                "author_id": message.from_user.id,
+                "spammer_username": message.from_user.username,
+                "message_text": message.text,
+                "group_name": message.chat.title,
             },
         )
 
-        update_stats(chat_id, "processed")
+        update_stats(message.chat.id, "processed")
 
-        admins = await bot.get_chat_administrators(chat_id)
+        admins = await bot.get_chat_administrators(message.chat.id)
         all_admins_delete = True
 
         for admin in admins:
@@ -108,18 +104,20 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
                 break
 
         if all_admins_delete:
-            await bot.delete_message(chat_id, message_id)
-            logger.info(f"Deleted spam message {message_id} in chat {chat_id}")
-            update_stats(chat_id, "deleted")
+            await bot.delete_message(message.chat.id, message.message_id)
+            logger.info(
+                f"Deleted spam message {message.message_id} in chat {message.chat.id}"
+            )
+            update_stats(message.chat.id, "deleted")
 
             # Трекинг удаления спама
             mp.track(
-                chat_id,
+                message.chat.id,
                 "spam_message_deleted",
                 {
-                    "chat_id": chat_id,
-                    "message_id": message_id,
-                    "user_id": user_id,
+                    "chat_id": message.chat.id,
+                    "message_id": message.message_id,
+                    "user_id": message.from_user.id,
                     "auto_delete": True,
                 },
             )
@@ -132,32 +130,30 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
             try:
                 keyboard = None
                 if not all_admins_delete:
-                    keyboard = InlineKeyboardMarkup(
-                        inline_keyboard=[
-                            [
-                                InlineKeyboardButton(
-                                    text="🗑️ Удалить",
-                                    callback_data=f"spam_delete:{message_id}:{chat_id}",
-                                ),
-                                InlineKeyboardButton(
-                                    text="✅ Не спам",
-                                    callback_data=f"spam_ignore:{message_id}:{chat_id}",
-                                ),
-                            ]
-                        ]
-                    )
+                    row = [
+                        InlineKeyboardButton(
+                            text="🗑️ Удалить",
+                            callback_data=f"spam_confirm:{message.from_user.id}:{message.chat.id}:{message.message_id}",
+                        ),
+                        InlineKeyboardButton(
+                            text="✅ Не спам",
+                            callback_data=f"spam_ignore:{message.from_user.id}",
+                        ),
+                    ]
+                    keyboard = InlineKeyboardMarkup(inline_keyboard=[row])
 
                 admin_msg = (
-                    f"⚠️ ТРЕВОГА! Обнаружено вторжение в {group_name} (@{chat.username})!\n"
-                    f"Нарушитель: {user_id} (@{spammer_username})\n"
-                    f"Содержание угрозы:\n\n{text}\n\n"
+                    f"⚠️ ТРЕВОГА!\n\n"
+                    f"Обнаружено вторжение в {message.chat.title} (@{message.chat.username})!\n\n"
+                    f"Нарушитель: {message.from_user.id} (@{message.from_user.username})\n\n"
+                    f"Содержание угрозы:\n\n{message.text}\n\n"
                 )
 
                 if all_admins_delete:
                     admin_msg += "Вредоносное сообщение уничтожено"
                 else:
+                    link = f"https://t.me/{message.chat.username}/{message.message_id}"
                     admin_msg += f"Ссылка на сообщение: {link}"
-                    admin_msg += "\n(Выберите действие с сообщением)"
 
                 await bot.send_message(admin.user.id, admin_msg, reply_markup=keyboard)
 
@@ -167,8 +163,8 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
                     "admin_spam_notification",
                     {
                         "admin_id": admin.user.id,
-                        "chat_id": chat_id,
-                        "message_id": message_id,
+                        "chat_id": message.chat.id,
+                        "message_id": message.message_id,
                         "auto_delete": all_admins_delete,
                     },
                 )
@@ -190,11 +186,10 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
         logger.error(f"Error handling spam: {e}", exc_info=True)
         # Трекинг ошибки обработки спама
         mp.track(
-            chat_id,
+            message.chat.id,
             "error_spam_handling",
             {
-                "chat_id": chat_id,
-                "message_id": message_id,
+                "message_id": message.message_id,
                 "error_type": type(e).__name__,
                 "error_message": str(e),
             },
@@ -203,8 +198,8 @@ async def handle_spam(message_id: int, chat_id: int, user_id: int, text: str) ->
 
 
 @dp.message(filter_handle_message)
-async def handle_message(message: types.Message):
-    """Обработчик всех текстовых сообщений"""
+async def handle_moderated_message(message: types.Message):
+    """Обработчик всех текстовых сообщений в модерируемых группах"""
     try:
         if not message.text:
             return
@@ -212,7 +207,7 @@ async def handle_message(message: types.Message):
         chat_id = message.chat.id
         user_id = message.from_user.id
 
-        # Трекинг начала обработки сообщения
+        # Трекинг начала обработки соо��щения
         mp.track(
             chat_id,
             "message_processing_started",
@@ -239,22 +234,25 @@ async def handle_message(message: types.Message):
         is_known_user = await is_user_in_group(chat_id, user_id)
 
         if is_known_user:
-            if await try_deduct_credits(chat_id, SKIP_PRICE, "skip check"):
-                update_stats(chat_id, "processed")
-                # Трекинг пропуска известного пользователя
-                mp.track(
-                    chat_id,
-                    "message_skipped_known_user",
-                    {"chat_id": chat_id, "user_id": user_id},
-                )
+            # Трекинг пропуска известного пользователя
+            mp.track(
+                chat_id,
+                "message_skipped_known_user",
+                {"chat_id": chat_id, "user_id": user_id},
+            )
             return
 
         user = message.from_user
-        user_info = await bot.get_chat(user.id)
-        bio = user_info.bio if user_info else None
+        user_with_bio = await bot.get_chat(user.id)
+        bio = user_with_bio.bio if user_with_bio else None
+
+        # Находим первого не-бот администратора
+        admin_id = next(
+            (admin.user.id for admin in admins if not admin.user.is_bot), None
+        )
 
         spam_score = await is_spam(
-            comment=message.text, name=user.full_name, bio=bio, user_id=user.id
+            comment=message.text, name=user.full_name, bio=bio, admin_id=admin_id
         )
 
         # Трекинг результата проверки на спам
@@ -266,14 +264,14 @@ async def handle_message(message: types.Message):
                 "user_id": user_id,
                 "spam_score": spam_score,
                 "is_spam": spam_score > 50,
-                "message_length": len(message.text),
-                "has_bio": bool(bio),
+                "message_text": message.text,
+                "user_bio": bio,
             },
         )
 
         if spam_score > 50:
             if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
-                await handle_spam(message.message_id, chat_id, user_id, message.text)
+                await handle_spam(message)
             return
 
         if await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
@@ -293,7 +291,6 @@ async def handle_message(message: types.Message):
             chat_id,
             "error_message_processing",
             {
-                "chat_id": chat_id,
                 "error_type": type(e).__name__,
                 "error_message": str(e),
             },

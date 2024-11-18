@@ -11,17 +11,25 @@ USER_SPAM_EXAMPLES_KEY = "user_spam_examples"
 
 
 @log_function_call(logger)
-async def get_spam_examples(user_id: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Get spam examples from Redis, optionally filtered by user_id"""
+async def get_spam_examples(admin_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """
+    Get spam examples from Redis, including user-specific examples if admin_id is provided
+
+    Args:
+        admin_id: ID администратора для получения его персональных примеров спама
+
+    Returns:
+        List of spam examples with text, name, bio and score
+    """
     try:
         # Get common spam examples
         common_examples = await redis.lrange(SPAM_EXAMPLES_KEY, 0, -1)
 
-        # Get user-specific spam examples if user_id is provided
+        # Get user-specific spam examples if admin_id is provided
         user_examples = []
-        if user_id is not None:
+        if admin_id is not None:
             user_examples = await redis.lrange(
-                f"{USER_SPAM_EXAMPLES_KEY}:{user_id}", 0, -1
+                f"{USER_SPAM_EXAMPLES_KEY}:{admin_id}", 0, -1
             )
 
         # Combine and parse examples
@@ -38,31 +46,31 @@ async def add_spam_example(
     score: int,
     name: Optional[str] = None,
     bio: Optional[str] = None,
-    user_id: Optional[int] = None,
+    admin_id: Optional[int] = None,
 ) -> bool:
     """Add a new spam example to Redis"""
     try:
         # First find and delete existing entry with the same name and text
-        examples = await get_spam_examples(user_id)
+        examples = await get_spam_examples(admin_id)
         for example in examples:
             if example["text"] == text and example.get("name") == name:
-                if user_id is None:
+                if admin_id is None:
                     await redis.lrem(SPAM_EXAMPLES_KEY, 1, json.dumps(example))
                 else:
                     await redis.lrem(
-                        f"{USER_SPAM_EXAMPLES_KEY}:{user_id}", 1, json.dumps(example)
+                        f"{USER_SPAM_EXAMPLES_KEY}:{admin_id}", 1, json.dumps(example)
                     )
 
         example = {"text": text, "score": score, "name": name, "bio": bio}
         # Remove None values
         example = {k: v for k, v in example.items() if v is not None}
 
-        # Add to appropriate list based on user_id
-        if user_id is None:
+        # Add to appropriate list based on admin_id
+        if admin_id is None:
             await redis.lpush(SPAM_EXAMPLES_KEY, json.dumps(example))
         else:
             await redis.lpush(
-                f"{USER_SPAM_EXAMPLES_KEY}:{user_id}", json.dumps(example)
+                f"{USER_SPAM_EXAMPLES_KEY}:{admin_id}", json.dumps(example)
             )
 
         return True
