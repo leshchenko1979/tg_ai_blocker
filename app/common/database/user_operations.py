@@ -1,148 +1,262 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from ..yandex_logging import get_yandex_logger, log_function_call
 from .constants import INITIAL_CREDITS
-from .group_operations import get_admin_groups, set_group_moderation
 from .models import User
-from .redis_connection import redis
+from .postgres_connection import get_pool
 
 logger = get_yandex_logger(__name__)
 
 
 @log_function_call(logger)
 async def save_user(user: User) -> None:
-    """Save user to Redis with improved type handling"""
-    await redis.hset(
-        f"user:{user.user_id}",
-        mapping={
-            "username": user.username or "",
-            "credits": user.credits,
-            "is_active": int(user.is_active),
-            "delete_spam": int(user.delete_spam),
-            "created_at": user.created_at.isoformat(),
-            "last_updated": datetime.now().isoformat(),
-        },
-    )
+    """Save user to PostgreSQL"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO administrators (
+                admin_id, username, credits, delete_spam, created_at, last_active
+            ) VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (admin_id) DO UPDATE SET
+                username = $2,
+                credits = $3,
+                delete_spam = $4,
+                last_active = $6
+        """,
+            user.admin_id,
+            user.username,
+            user.credits,
+            user.delete_spam,
+            user.created_at,
+            user.last_updated,
+        )
 
 
 @log_function_call(logger)
-async def get_user_credits(user_id: int) -> int:
-    """Retrieve user credits with safe type conversion"""
-    try:
-        credits = await redis.hget(f"user:{user_id}", "credits")
-        return int(credits) if credits else INITIAL_CREDITS
-    except (TypeError, ValueError) as e:
-        logger.error(f"Error getting user credits: {e}")
-        return INITIAL_CREDITS
+async def get_user(admin_id: int) -> Optional[User]:
+    """Retrieve user information from PostgreSQL"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT * FROM administrators WHERE admin_id = $1
+        """,
+            admin_id,
+        )
+
+        if not row:
+            return None
+
+        return User(
+            admin_id=row["admin_id"],
+            username=row["username"],
+            credits=row["credits"],
+            is_active=True,  # Always true if record exists
+            delete_spam=row["delete_spam"],
+            created_at=row["created_at"],
+            last_updated=row["last_active"],
+        )
 
 
 @log_function_call(logger)
-async def deduct_credits(user_id: int, amount: int) -> bool:
+async def get_user_credits(admin_id: int) -> int:
+    """Retrieve user credits"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        credits = await conn.fetchval(
+            """
+            SELECT credits FROM administrators WHERE admin_id = $1
+        """,
+            admin_id,
+        )
+        return credits if credits is not None else INITIAL_CREDITS
+
+
+@log_function_call(logger)
+async def deduct_credits(admin_id: int, amount: int) -> bool:
     """Deduct credits from user. Returns True if successful"""
-    try:
-        # Get current balance
-        current_credits = int(await redis.hget(f"user:{user_id}", "credits") or 0)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            current_credits = await conn.fetchval(
+                """
+                SELECT credits FROM administrators WHERE admin_id = $1
+            """,
+                admin_id,
+            )
 
-        if current_credits < amount:
-            return False
+            if current_credits is None or current_credits < amount:
+                return False
 
-        await redis.hincrby(f"user:{user_id}", "credits", -amount)
-        return True
-    except Exception as e:
-        logger.error(f"Error deducting credits: {e}", exc_info=True)
-        raise
+            await conn.execute(
+                """
+                UPDATE administrators
+                SET credits = credits - $1, last_active = NOW()
+                WHERE admin_id = $2
+            """,
+                amount,
+                admin_id,
+            )
+
+            # Record transaction
+            await conn.execute(
+                """
+                INSERT INTO transactions (admin_id, amount, type, description)
+                VALUES ($1, $2, 'deduct', 'Credit deduction')
+            """,
+                admin_id,
+                -amount,
+            )
+
+            return True
 
 
 @log_function_call(logger)
-async def initialize_new_user(user_id: int) -> bool:
+async def initialize_new_user(admin_id: int) -> bool:
     """Initialize a new user with initial credits"""
-    pipeline = redis.pipeline()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Check if user exists
+            exists = await conn.fetchval(
+                """
+                SELECT EXISTS(SELECT 1 FROM administrators WHERE admin_id = $1)
+            """,
+                admin_id,
+            )
 
-    # Check existence and create atomically
-    pipeline.exists(f"user:{user_id}")
-    pipeline.hset(
-        f"user:{user_id}",
-        mapping={
-            "credits": INITIAL_CREDITS,
-            "delete_spam": 1,  # Default to True
-            "created_at": datetime.now().isoformat(),
-            "last_updated": datetime.now().isoformat(),
-        },
-    )
+            if exists:
+                return False
 
-    results = await pipeline.execute()
-    return not results[0]  # Return True if user was created
+            # Create new user
+            await conn.execute(
+                """
+                INSERT INTO administrators (
+                    admin_id, credits, delete_spam, created_at, last_active
+                ) VALUES ($1, $2, true, NOW(), NOW())
+            """,
+                admin_id,
+                INITIAL_CREDITS,
+            )
 
+            # Record initial credit transaction
+            await conn.execute(
+                """
+                INSERT INTO transactions (admin_id, amount, type, description)
+                VALUES ($1, $2, 'initial', 'Initial credits')
+            """,
+                admin_id,
+                INITIAL_CREDITS,
+            )
 
-@log_function_call(logger)
-async def get_user(user_id: int) -> Optional[User]:
-    """Retrieve user information"""
-    user_data = await redis.hgetall(f"user:{user_id}")
-    if not user_data:
-        return None
-
-    # Safely handle datetime fields with fallback
-    now = datetime.now()
-    created_at_str = user_data.get("created_at", now.isoformat())
-    last_updated_str = user_data.get("last_updated", now.isoformat())
-
-    try:
-        created_at = datetime.fromisoformat(created_at_str)
-        last_updated = datetime.fromisoformat(last_updated_str)
-    except (TypeError, ValueError):
-        # If parsing fails, use current time
-        created_at = now
-        last_updated = now
-
-    return User(
-        user_id=user_id,
-        username=user_data.get("username"),
-        credits=int(user_data.get("credits", 0)),
-        is_active=bool(int(user_data.get("is_active", 1))),
-        delete_spam=bool(int(user_data.get("delete_spam", 1))),
-        created_at=created_at,
-        last_updated=last_updated,
-    )
+            return True
 
 
 @log_function_call(logger)
-async def add_credits(user_id: int, amount: int) -> None:
-    """Add credits to user and enable moderation in their groups"""
-    await redis.hincrby(f"user:{user_id}", "credits", amount)
+async def add_credits(admin_id: int, amount: int) -> None:
+    """Add credits to user and enable moderation in their groups. Creates user if doesn't exist."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Check if user exists and create if not
+            exists = await conn.fetchval(
+                """
+                SELECT EXISTS(SELECT 1 FROM administrators WHERE admin_id = $1)
+            """,
+                admin_id,
+            )
 
-    # Get all groups where user is an admin
-    user_groups = await get_admin_groups(user_id)
+            if not exists:
+                await conn.execute(
+                    """
+                    INSERT INTO administrators (
+                        admin_id, credits, delete_spam, created_at, last_active
+                    ) VALUES ($1, $2, true, NOW(), NOW())
+                """,
+                    admin_id,
+                    0,
+                )  # Initialize with 0 credits before adding new amount
 
-    # Enable moderation in each group
-    pipeline = redis.pipeline()
-    for group in user_groups:
-        pipeline.hset(f"group:{group['id']}", "is_moderation_enabled", 1)
-    await pipeline.execute()
+            # Add credits to user
+            await conn.execute(
+                """
+                UPDATE administrators
+                SET credits = credits + $1, last_active = NOW()
+                WHERE admin_id = $2
+            """,
+                amount,
+                admin_id,
+            )
+
+            # Record transaction
+            await conn.execute(
+                """
+                INSERT INTO transactions (admin_id, amount, type, description)
+                VALUES ($1, $2, 'add', 'Credit addition')
+            """,
+                admin_id,
+                amount,
+            )
+
+            # Enable moderation in all user's groups
+            await conn.execute(
+                """
+                UPDATE groups g
+                SET moderation_enabled = true, last_active = NOW()
+                FROM group_administrators ga
+                WHERE g.group_id = ga.group_id AND ga.admin_id = $1
+            """,
+                admin_id,
+            )
 
 
 @log_function_call(logger)
-async def toggle_spam_deletion(user_id: int) -> bool:
+async def toggle_spam_deletion(admin_id: int) -> bool:
     """Toggle spam deletion setting for user. Returns new state"""
-    try:
-        # Get current state
-        current_state = int(await redis.hget(f"user:{user_id}", "delete_spam") or 1)
-        # Toggle state
-        new_state = 1 - current_state  # Toggles between 0 and 1
-        # Save new state
-        await redis.hset(f"user:{user_id}", "delete_spam", new_state)
-        return bool(new_state)
-    except Exception as e:
-        logger.error(f"Error toggling spam deletion: {e}", exc_info=True)
-        raise
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Get current state
+            current_state = await conn.fetchval(
+                """
+                SELECT delete_spam FROM administrators WHERE admin_id = $1
+            """,
+                admin_id,
+            )
+
+            if current_state is None:
+                return None
+
+            # Toggle state
+            new_state = not current_state
+
+            # Update state
+            await conn.execute(
+                """
+                UPDATE administrators
+                SET delete_spam = $1, last_active = NOW()
+                WHERE admin_id = $2
+            """,
+                new_state,
+                admin_id,
+            )
+
+            return new_state
 
 
 @log_function_call(logger)
-async def get_spam_deletion_state(user_id: int) -> bool:
+async def get_spam_deletion_state(admin_id: int) -> bool:
     """Get current spam deletion state for user"""
-    try:
-        state = await redis.hget(f"user:{user_id}", "delete_spam")
-        return bool(int(state)) if state is not None else True
-    except Exception as e:
-        logger.error(f"Error getting spam deletion state: {e}")
-        return True  # Default to True if error
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        state = await conn.fetchval(
+            """
+            SELECT delete_spam FROM administrators WHERE admin_id = $1
+        """,
+            admin_id,
+        )
+        return (
+            bool(state) if state is not None else True
+        )  # Default to True if not found

@@ -5,9 +5,10 @@ python-dotenv
 aiogram
 requests
 mixpanel
+pyyaml
+asyncpg
+redis
 # supabase
 # reretry
 # upstash-redis
-redis
-pyyaml
 # yandex-cloud-ml-sdk

@@ -1,5 +1,3 @@
-from pydoc import text
-
 from aiogram import types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -9,11 +7,11 @@ from common.database import (
     DELETE_PRICE,
     add_member,
     deduct_credits_from_admins,
-    ensure_group_exists,
     get_user,
     is_member_in_group,
     is_moderation_enabled,
     set_group_moderation,
+    update_group_admins,
 )
 from common.dp import dp
 from common.mp import mp
@@ -21,7 +19,6 @@ from common.yandex_logging import get_yandex_logger, log_function_call
 from handlers.updates_filter import filter_handle_message
 from spam_classifier import is_spam
 from stats import update_stats
-from utils import config
 
 logger = get_yandex_logger(__name__)
 
@@ -213,7 +210,7 @@ async def handle_moderated_message(message: types.Message):
 
         admins = await bot.get_chat_administrators(chat_id)
         admin_ids = [admin.user.id for admin in admins if not admin.user.is_bot]
-        await ensure_group_exists(chat_id, admin_ids)
+        await update_group_admins(chat_id, admin_ids)
 
         if not await is_moderation_enabled(chat_id):
             # Трекинг пропуска из-за отключенной модерации

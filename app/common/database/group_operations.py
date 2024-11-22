@@ -1,275 +1,284 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from ..bot import bot
 from ..yandex_logging import get_yandex_logger, log_function_call
+from .constants import INITIAL_CREDITS
 from .models import Group
-from .redis_connection import redis
+from .postgres_connection import get_pool
 
 logger = get_yandex_logger(__name__)
 
 
 @log_function_call(logger)
-async def save_group(group: Group) -> None:
-    """Save group to Redis with improved type handling"""
-    pipeline = redis.pipeline()
-
-    # Save main group data in hash
-    pipeline.hset(
-        f"group:{group.group_id}",
-        mapping={
-            "is_moderation_enabled": int(group.is_moderation_enabled),
-            "created_at": group.created_at.isoformat(),
-            "last_updated": datetime.now().isoformat(),
-        },
-    )
-
-    # Save admin_ids and unique_users in separate sets
-    pipeline.delete(f"group:{group.group_id}:admins")
-    pipeline.delete(f"group:{group.group_id}:members")
-
-    if group.admin_ids:
-        await pipeline.sadd(f"group:{group.group_id}:admins", *group.admin_ids)
-
-    if group.member_ids:
-        await pipeline.sadd(f"group:{group.group_id}:members", *group.member_ids)
-
-    await pipeline.execute()
-
-
-@log_function_call(logger)
 async def get_group(group_id: int) -> Optional[Group]:
     """Retrieve group information"""
-    group_data = await redis.hgetall(f"group:{group_id}")
-    if not group_data:
-        return None
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        group_data = await conn.fetchrow(
+            """
+            SELECT * FROM groups WHERE group_id = $1
+        """,
+            group_id,
+        )
 
-    # Get admin_ids and unique_users from sets
-    admin_ids = [int(x) for x in await redis.smembers(f"group:{group_id}:admins") if x]
-    member_ids = [
-        int(x) for x in await redis.smembers(f"group:{group_id}:members") if x
-    ]
+        if not group_data:
+            return None
 
-    return Group(
-        group_id=group_id,
-        admin_ids=admin_ids,
-        is_moderation_enabled=bool(int(group_data.get("is_moderation_enabled", 0))),
-        member_ids=member_ids,
-        created_at=datetime.fromisoformat(
-            group_data.get("created_at", datetime.now().isoformat())
-        ),
-        last_updated=datetime.fromisoformat(
-            group_data.get("last_updated", datetime.now().isoformat())
-        ),
-    )
+        admin_ids = [
+            row["admin_id"]
+            for row in await conn.fetch(
+                """
+            SELECT admin_id FROM group_administrators WHERE group_id = $1
+        """,
+                group_id,
+            )
+        ]
+
+        member_ids = [
+            row["member_id"]
+            for row in await conn.fetch(
+                """
+            SELECT member_id FROM approved_members WHERE group_id = $1
+        """,
+                group_id,
+            )
+        ]
+
+        return Group(
+            group_id=group_id,
+            admin_ids=admin_ids,
+            moderation_enabled=group_data["moderation_enabled"],
+            member_ids=member_ids,
+            created_at=group_data["created_at"],
+            last_updated=group_data["last_active"],
+        )
 
 
 @log_function_call(logger)
 async def set_group_moderation(group_id: int, enabled: bool) -> None:
     """Enable/disable moderation for a group"""
-    await redis.hset(
-        f"group:{group_id}", mapping={"is_moderation_enabled": int(enabled)}
-    )
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO groups (group_id, moderation_enabled, last_active)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (group_id) DO UPDATE
+            SET moderation_enabled = $2, last_active = NOW()
+        """,
+            group_id,
+            enabled,
+        )
 
 
 @log_function_call(logger)
 async def is_moderation_enabled(group_id: int) -> bool:
     """Check if moderation is enabled for a group"""
-    enabled = await redis.hget(f"group:{group_id}", "is_moderation_enabled")
-    return bool(int(enabled or 0))
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        enabled = await conn.fetchval(
+            """
+            SELECT moderation_enabled FROM groups WHERE group_id = $1
+        """,
+            group_id,
+        )
+        return bool(enabled)
 
 
 @log_function_call(logger)
 async def get_paying_admins(group_id: int) -> List[int]:
     """Get list of admins with positive credits"""
-    admin_ids = await redis.smembers(f"group:{group_id}:admins")
-    paying_admins = []
-
-    for admin in admin_ids:
-        credits_raw = await redis.hget(f"user:{admin}", "credits")
-        credits = int(credits_raw)
-
-        if credits > 0:
-            paying_admins.append(int(admin))
-
-    return paying_admins
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT a.admin_id
+            FROM administrators a
+            JOIN group_administrators ga ON a.admin_id = ga.admin_id
+            WHERE ga.group_id = $1 AND a.credits > 0
+        """,
+            group_id,
+        )
+        return [row["admin_id"] for row in rows]
 
 
 @log_function_call(logger)
 async def deduct_credits_from_admins(group_id: int, amount: int) -> bool:
     """Deduct credits from the admin with the highest balance"""
-    from .user_operations import deduct_credits
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Find admin with highest balance
+            admin_row = await conn.fetchrow(
+                """
+                SELECT a.admin_id, a.credits
+                FROM administrators a
+                JOIN group_administrators ga ON a.admin_id = ga.admin_id
+                WHERE ga.group_id = $1
+                ORDER BY a.credits DESC
+                LIMIT 1
+            """,
+                group_id,
+            )
 
-    # Get all admins and their balances in one request
-    admin_ids = await redis.smembers(f"group:{group_id}:admins")
-    pipeline = redis.pipeline()
-    for admin in admin_ids:
-        pipeline.hget(f"user:{admin}", "credits")
+            if not admin_row or admin_row["credits"] < amount:
+                return False
 
-    balances = await pipeline.execute()
+            # Deduct credits and record transaction
+            await conn.execute(
+                """
+                UPDATE administrators
+                SET credits = credits - $1, last_active = NOW()
+                WHERE admin_id = $2
+            """,
+                amount,
+                admin_row["admin_id"],
+            )
 
-    # Find the admin with the highest balance
-    highest_balance_admin = None
-    highest_balance = 0
+            await conn.execute(
+                """
+                INSERT INTO transactions (admin_id, amount, type, description)
+                VALUES ($1, $2, 'deduct', 'Group moderation credit deduction')
+            """,
+                admin_row["admin_id"],
+                -amount,
+            )
 
-    for admin, balance in zip(admin_ids, balances):
-        balance = int(balance)
-        if balance > highest_balance:
-            highest_balance_admin = admin
-            highest_balance = balance
-
-    # Deduct from the admin with the highest balance
-    if (
-        highest_balance_admin
-        and highest_balance >= amount
-        and await deduct_credits(highest_balance_admin, amount)
-    ):
-        return True
-
-    return False
-
-
-@log_function_call(logger)
-async def get_admin_groups(admin_id: int):
-    """
-    Get list of groups where user is an admin
-
-    Args:
-        admin_id: Admin ID
-
-    Returns:
-        list: List of dictionaries with group information (id, title, is_moderation_enabled)
-    """
-    groups = []
-    cursor = 0
-
-    while True:
-        cursor, keys = await redis.scan(cursor, match="group:*")
-        if not keys:
-            if cursor == 0:
-                break
-            continue
-
-        pipeline = redis.pipeline()
-        group_ids = []
-
-        for key in keys:
-            if key.count(":") == 1:
-                group_id = int(key.split(":")[1])
-                group_ids.append(group_id)
-                pipeline.sismember(f"group:{group_id}:admins", admin_id)
-                pipeline.hget(f"group:{group_id}", "is_moderation_enabled")
-
-        if not group_ids:
-            if cursor == 0:
-                break
-            continue
-
-        results = await pipeline.execute()
-
-        zipped = zip(results[::2], results[1::2], group_ids)
-        for is_admin, moderation_status, group_id in zipped:
-            if is_admin:
-                try:
-                    chat = await bot.get_chat(group_id)
-                    groups.append(
-                        {
-                            "id": group_id,
-                            "title": chat.title,
-                            "is_moderation_enabled": bool(int(moderation_status or 0)),
-                        }
-                    )
-                except Exception as e:
-                    logger.error(f"Error getting chat {group_id}: {e}", exc_info=True)
-                    continue
-
-        if cursor == 0:
-            break
-
-    return groups
+            return True
 
 
 @log_function_call(logger)
-async def ensure_group_exists(group_id: int, admin_ids: List[int]) -> None:
-    """Create group if it doesn't exist"""
-    exists = await redis.exists(f"group:{group_id}")
-    if not exists:
-        pipeline = redis.pipeline()
-
-        pipeline.hset(
-            f"group:{group_id}",
-            mapping={
-                "is_moderation_enabled": 1,
-                "created_at": datetime.now().isoformat(),
-                "last_updated": datetime.now().isoformat(),
-            },
+async def get_admin_groups(admin_id: int) -> List[Dict]:
+    """Get list of groups where user is an admin"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT g.group_id, g.title, g.moderation_enabled
+            FROM groups g
+            JOIN group_administrators ga ON g.group_id = ga.group_id
+            WHERE ga.admin_id = $1
+        """,
+            admin_id,
         )
-        if admin_ids:
-            await pipeline.sadd(f"group:{group_id}:admins", *admin_ids)
-        await pipeline.execute()
 
+        groups = []
+        for row in rows:
+            try:
+                chat = await bot.get_chat(row["group_id"])
+                groups.append(
+                    {
+                        "id": row["group_id"],
+                        "title": chat.title,
+                        "is_moderation_enabled": row["moderation_enabled"],
+                    }
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error getting chat {row['group_id']}: {e}", exc_info=True
+                )
+                continue
 
-@log_function_call(logger)
-async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
-    """Update list of group administrators"""
-    pipeline = redis.pipeline()
-
-    pipeline.delete(f"group:{group_id}:admins")
-    if admin_ids:
-        pipeline.sadd(f"group:{group_id}:admins", *admin_ids)
-    pipeline.hset(f"group:{group_id}", "last_updated", datetime.now().isoformat())
-    await pipeline.execute()
+        return groups
 
 
 @log_function_call(logger)
 async def is_member_in_group(group_id: int, member_id: int) -> bool:
     """Check if member is in group"""
-    return bool(await redis.sismember(f"group:{group_id}:members", member_id))
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        exists = await conn.fetchval(
+            """
+            SELECT EXISTS(
+                SELECT 1 FROM approved_members
+                WHERE group_id = $1 AND member_id = $2
+            )
+        """,
+            group_id,
+            member_id,
+        )
+        return bool(exists)
 
 
 @log_function_call(logger)
 async def add_member(group_id: int, member_id: int) -> None:
     """Add unique member to group"""
-    await redis.sadd(f"group:{group_id}:members", member_id)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO approved_members (group_id, member_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING
+        """,
+            group_id,
+            member_id,
+        )
 
 
 @log_function_call(logger)
 async def remove_member_from_group(
     member_id: int, group_id: Optional[int] = None
 ) -> None:
-    """
-    Remove a member from a group or all groups in Redis
+    """Remove a member from a group or all groups"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            if group_id is not None:
+                # Remove from specific group
+                await conn.execute(
+                    """
+                    DELETE FROM approved_members
+                    WHERE group_id = $1 AND member_id = $2
+                """,
+                    group_id,
+                    member_id,
+                )
 
-    Args:
-        member_id: ID member for removing
-        group_id: ID group for removing (if None, removes member from all groups)
-    """
-    if group_id is not None:
-        # Удаление пользователя из конкретной группы
-        pipeline = redis.pipeline()
-        pipeline.srem(f"group:{group_id}:members", member_id)
-        pipeline.hset(f"group:{group_id}", "last_updated", datetime.now().isoformat())
-        await pipeline.execute()
-    else:
-        # Удаление пользователя из всех групп
-        cursor = 0
-        pattern = "group:*:members"
+                await conn.execute(
+                    """
+                    UPDATE groups SET last_active = NOW()
+                    WHERE group_id = $1
+                """,
+                    group_id,
+                )
+            else:
+                # Remove from all groups
+                groups = await conn.fetch(
+                    """
+                    SELECT DISTINCT group_id
+                    FROM approved_members
+                    WHERE member_id = $1
+                """,
+                    member_id,
+                )
 
-        while True:
-            cursor, keys = await redis.scan(cursor, match=pattern)
+                await conn.execute(
+                    """
+                    DELETE FROM approved_members WHERE member_id = $1
+                """,
+                    member_id,
+                )
 
-            if keys:
-                pipeline = redis.pipeline()
-                for key in keys:
-                    # Удаление пользователя из каждой группы
-                    pipeline.srem(key, member_id)
-                    # Обновление времени последнего изменения для каждой группы
-                    group_id = key.split(":")[1]
-                    pipeline.hset(
-                        f"group:{group_id}", "last_updated", datetime.now().isoformat()
+                if groups:
+                    await conn.execute(
+                        """
+                        UPDATE groups SET last_active = NOW()
+                        WHERE group_id = ANY($1::bigint[])
+                    """,
+                        [g["group_id"] for g in groups],
                     )
 
-                await pipeline.execute()
 
-            if cursor == 0:
-                break
+@log_function_call(logger)
+async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
+    """Update group administrators and create group if it doesn't exist"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "CALL update_group_admins($1, $2::bigint[], $3)",
+            group_id,
+            admin_ids,
+            INITIAL_CREDITS,
+        )

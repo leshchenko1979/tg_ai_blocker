@@ -1,7 +1,7 @@
 from aiogram import types
 
 from common.bot import bot
-from common.database import ensure_group_exists, get_group, set_group_moderation
+from common.database import get_group, set_group_moderation, update_group_admins
 from common.dp import dp
 from common.mp import mp
 from common.yandex_logging import get_yandex_logger, log_function_call
@@ -68,7 +68,7 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
             admin_ids = [admin.user.id for admin in admins if not admin.user.is_bot]
 
             # Сохраняем группу и список админов
-            await ensure_group_exists(chat_id, admin_ids)
+            await update_group_admins(chat_id, admin_ids)
 
             # Трекинг добавления бота в группу
             mp.track(

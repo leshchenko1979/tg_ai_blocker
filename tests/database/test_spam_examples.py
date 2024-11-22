@@ -1,158 +1,199 @@
-import json
-from unittest.mock import MagicMock, patch
-
 import pytest
 
 from common.database.spam_examples import (
-    SPAM_EXAMPLES_KEY,
-    USER_SPAM_EXAMPLES_KEY,
     add_spam_example,
     get_spam_examples,
     remove_spam_example,
 )
 
 
-@pytest.fixture(autouse=True)
-def mock_logger():
-    with patch("common.database.spam_examples.get_yandex_logger") as mock:
-        logger_mock = MagicMock()
-        mock.return_value = logger_mock
-        yield logger_mock
+@pytest.mark.asyncio
+async def test_get_spam_examples_common(patched_db_conn, clean_db):
+    """Test getting common spam examples (without admin_id)"""
+    async with clean_db.acquire() as conn:
+        # Add test example
+        example_data = {"text": "spam text", "score": 80}
+        await add_spam_example(text=example_data["text"], score=example_data["score"])
 
+        # Get examples without admin_id
+        result = await get_spam_examples()
 
-@pytest.fixture
-def example_data():
-    return {
-        "text": "Buy cheap products!",
-        "score": 90,
-        "name": "Spammer",
-        "bio": "Professional marketer",
-    }
-
-
-@pytest.fixture
-def redis_mock():
-    with patch("common.database.spam_examples.redis") as mock:
-        yield mock
+        # Verify
+        assert len(result) == 1
+        assert result[0]["text"] == "spam text"
+        assert result[0]["score"] == 80
 
 
 @pytest.mark.asyncio
-async def test_get_spam_examples_common(redis_mock):
-    # Setup mock data
-    example = {"text": "spam text", "score": 80}
-    redis_mock.lrange.return_value = [json.dumps(example)]
+async def test_get_spam_examples_with_admin(patched_db_conn, clean_db):
+    """Test getting both common and admin-specific spam examples"""
+    async with clean_db.acquire() as conn:
+        admin_id = 12345
 
-    # Get examples without admin_id
-    result = await get_spam_examples()
+        # First ensure admin exists in administrators table
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, 'testadmin', 100)
+            ON CONFLICT DO NOTHING
+        """,
+            admin_id,
+        )
 
-    # Verify
-    assert len(result) == 1
-    assert result[0]["text"] == "spam text"
-    assert result[0]["score"] == 80
-    redis_mock.lrange.assert_called_once_with(SPAM_EXAMPLES_KEY, 0, -1)
+        # Add common example
+        common_example = {"text": "common spam", "score": 80}
+        await add_spam_example(
+            text=common_example["text"], score=common_example["score"]
+        )
 
+        # Add user-specific example
+        user_example = {"text": "user spam", "score": 90}
+        await add_spam_example(
+            text=user_example["text"], score=user_example["score"], admin_id=admin_id
+        )
 
-@pytest.mark.asyncio
-async def test_get_spam_examples_with_admin(redis_mock):
-    # Setup mock data
-    common_example = {"text": "common spam", "score": 80}
-    user_example = {"text": "user spam", "score": 90}
+        # Get all examples for the admin
+        result = await get_spam_examples(admin_id)
 
-    redis_mock.lrange.side_effect = [
-        [json.dumps(common_example)],  # Common examples
-        [json.dumps(user_example)],  # User examples
-    ]
-
-    # Get examples with admin_id
-    admin_id = 12345
-    result = await get_spam_examples(admin_id)
-
-    # Verify
-    assert len(result) == 2
-    assert any(ex["text"] == "common spam" for ex in result)
-    assert any(ex["text"] == "user spam" for ex in result)
-    redis_mock.lrange.assert_any_call(SPAM_EXAMPLES_KEY, 0, -1)
-    redis_mock.lrange.assert_any_call(f"{USER_SPAM_EXAMPLES_KEY}:{admin_id}", 0, -1)
+        # Verify
+        assert len(result) == 2
+        assert any(ex["text"] == "common spam" for ex in result)
+        assert any(ex["text"] == "user spam" for ex in result)
 
 
 @pytest.mark.asyncio
-async def test_add_spam_example_common(redis_mock, example_data):
-    # Add example without admin_id
-    result = await add_spam_example(
-        text=example_data["text"],
-        score=example_data["score"],
-        name=example_data["name"],
-        bio=example_data["bio"],
-    )
+async def test_add_spam_example_common(patched_db_conn, clean_db):
+    """Test adding a common spam example"""
+    async with clean_db.acquire() as conn:
+        example_data = {
+            "text": "Buy cheap products!",
+            "score": 90,
+            "name": "Spammer",
+            "bio": "Professional marketer",
+        }
 
-    # Verify
-    assert result is True
-    redis_mock.lpush.assert_called_once_with(
-        SPAM_EXAMPLES_KEY, json.dumps(example_data)
-    )
+        # Add example without admin_id
+        result = await add_spam_example(
+            text=example_data["text"],
+            score=example_data["score"],
+            name=example_data["name"],
+            bio=example_data["bio"],
+        )
 
+        # Verify
+        assert result is True
 
-@pytest.mark.asyncio
-async def test_add_spam_example_user_specific(redis_mock, example_data):
-    admin_id = 12345
-
-    # Add example with admin_id
-    result = await add_spam_example(
-        text=example_data["text"],
-        score=example_data["score"],
-        name=example_data["name"],
-        bio=example_data["bio"],
-        admin_id=admin_id,
-    )
-
-    # Verify
-    assert result is True
-    redis_mock.lpush.assert_called_once_with(
-        f"{USER_SPAM_EXAMPLES_KEY}:{admin_id}", json.dumps(example_data)
-    )
+        # Check if example was added
+        examples = await get_spam_examples()
+        assert len(examples) == 1
+        assert examples[0]["text"] == example_data["text"]
+        assert examples[0]["score"] == example_data["score"]
+        assert examples[0]["name"] == example_data["name"]
+        assert examples[0]["bio"] == example_data["bio"]
 
 
 @pytest.mark.asyncio
-async def test_add_spam_example_duplicate(redis_mock, example_data):
-    # Setup existing example
-    redis_mock.lrange.return_value = [json.dumps(example_data)]
+async def test_add_spam_example_user_specific(patched_db_conn, clean_db):
+    """Test adding an admin-specific spam example"""
+    async with clean_db.acquire() as conn:
+        admin_id = 12345
 
-    # Add duplicate example
-    result = await add_spam_example(
-        text=example_data["text"],
-        score=95,  # Different score
-        name=example_data["name"],
-    )
+        # First ensure admin exists in administrators table
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, 'testadmin', 100)
+            ON CONFLICT DO NOTHING
+        """,
+            admin_id,
+        )
 
-    # Verify old example was removed and new one added
-    assert result is True
-    redis_mock.lrem.assert_called_once()
-    redis_mock.lpush.assert_called_once()
+        example_data = {
+            "text": "Buy cheap products!",
+            "score": 90,
+            "name": "Spammer",
+            "bio": "Professional marketer",
+        }
+
+        # Add example with admin_id
+        result = await add_spam_example(
+            text=example_data["text"],
+            score=example_data["score"],
+            name=example_data["name"],
+            bio=example_data["bio"],
+            admin_id=admin_id,
+        )
+
+        # Verify
+        assert result is True
+
+        # Check if example was added
+        examples = await get_spam_examples(admin_id)
+        assert len(examples) == 1
+        assert examples[0]["text"] == example_data["text"]
 
 
 @pytest.mark.asyncio
-async def test_remove_spam_example(redis_mock, example_data):
-    # Setup existing example
-    redis_mock.lrange.return_value = [json.dumps(example_data)]
+async def test_add_spam_example_duplicate(patched_db_conn, clean_db):
+    """Test adding a duplicate spam example"""
+    async with clean_db.acquire() as conn:
+        example_data = {
+            "text": "Buy cheap products!",
+            "score": 90,
+            "name": "Spammer",
+        }
 
-    # Remove example
-    result = await remove_spam_example(example_data["text"])
+        # Add first example
+        await add_spam_example(
+            text=example_data["text"],
+            score=example_data["score"],
+            name=example_data["name"],
+        )
 
-    # Verify
-    assert result is True
-    redis_mock.lrem.assert_called_once_with(
-        SPAM_EXAMPLES_KEY, 1, json.dumps(example_data)
-    )
+        # Add duplicate with different score
+        result = await add_spam_example(
+            text=example_data["text"],
+            score=95,
+            name=example_data["name"],
+        )
+
+        # Verify old example was updated
+        assert result is True
+        examples = await get_spam_examples()
+        assert len(examples) == 1
+        assert examples[0]["score"] == 95
 
 
 @pytest.mark.asyncio
-async def test_remove_spam_example_not_found(redis_mock):
-    # Setup empty redis
-    redis_mock.lrange.return_value = []
+async def test_remove_spam_example(patched_db_conn, clean_db):
+    """Test removing a spam example"""
+    async with clean_db.acquire() as conn:
+        example_data = {
+            "text": "Buy cheap products!",
+            "score": 90,
+        }
 
-    # Try to remove non-existent example
-    result = await remove_spam_example("nonexistent")
+        # Add example
+        await add_spam_example(
+            text=example_data["text"],
+            score=example_data["score"],
+        )
 
-    # Verify
-    assert result is False
-    redis_mock.lrem.assert_not_called()
+        # Remove example
+        result = await remove_spam_example(example_data["text"])
+
+        # Verify
+        assert result is True
+        examples = await get_spam_examples()
+        assert len(examples) == 0
+
+
+@pytest.mark.asyncio
+async def test_remove_spam_example_not_found(patched_db_conn, clean_db):
+    """Test removing a non-existent spam example"""
+    async with clean_db.acquire() as conn:
+        # Try to remove non-existent example
+        result = await remove_spam_example("nonexistent")
+
+        # Verify
+        assert result is False

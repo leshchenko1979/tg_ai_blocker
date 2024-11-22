@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from common.database import Group, get_group, get_user_credits, save_group
+from common.database import get_user_credits
 from handlers.payment_handlers import process_successful_payment
 
 
@@ -21,153 +21,204 @@ def payment_message():
     message.from_user.id = 123456
     message.successful_payment = MagicMock()
     message.successful_payment.total_amount = 100
-
     return message
 
 
 @pytest.mark.asyncio
 async def test_process_successful_payment_basic(
-    patched_redis_conn, clean_redis, payment_message
+    patched_db_conn, clean_db, payment_message
 ):
     """Test basic payment processing with credits addition"""
+    async with clean_db.acquire() as conn:
+        group_id = -1001234567890
+        admin_id = payment_message.from_user.id
 
-    # Setup test data
+        # Create test admin directly in database
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, $2, $3)
+        """,
+            admin_id,
+            "TestAdmin",
+            0,
+        )
 
-    group_id = -1001234567890
+        # Create test group directly in database
+        await conn.execute(
+            """
+            INSERT INTO groups (group_id, title, moderation_enabled)
+            VALUES ($1, $2, $3)
+        """,
+            group_id,
+            "Test Group",
+            False,
+        )
 
-    admin_id = payment_message.from_user.id
+        # Add admin to group
+        await conn.execute(
+            """
+            INSERT INTO group_administrators (group_id, admin_id)
+            VALUES ($1, $2)
+        """,
+            group_id,
+            admin_id,
+        )
 
-    # Create test group with the admin
+        with patch("handlers.payment_handlers.bot.get_chat") as get_chat_mock:
+            get_chat_mock.return_value.title = "Test Group"
 
-    group = Group(group_id=group_id, admin_ids=[admin_id], is_moderation_enabled=False)
-    await save_group(group)
+            with patch(
+                "handlers.payment_handlers.bot.send_message"
+            ) as send_message_mock:
+                await process_successful_payment(payment_message)
 
-    with patch("handlers.payment_handlers.bot.get_chat") as get_chat_mock:
-        get_chat_mock.return_value.title = "Test Group"
+                # Verify credits were added
+                user_credits = await get_user_credits(admin_id)
+                assert user_credits == 100
 
-        with patch("handlers.payment_handlers.bot.send_message") as send_message_mock:
-            # Process payment
-            await process_successful_payment(payment_message)
+                # Verify moderation was enabled
+                async with clean_db.acquire() as conn:
+                    result = await conn.fetchval(
+                        """
+                        SELECT moderation_enabled FROM groups WHERE group_id = $1
+                    """,
+                        group_id,
+                    )
+                    assert result is True
 
-            # Verify credits were added
-
-            user_credits = await get_user_credits(admin_id)
-
-            assert int(user_credits) == 100
-
-            # Verify moderation was enabled
-
-            group = await get_group(group_id)
-
-            assert group.is_moderation_enabled
-
-            # Verify success message was sent
-
-            send_message_mock.assert_called_once()
-
-            success_msg = send_message_mock.call_args[0][1]
-
-            assert "100 звезд" in success_msg
+                # Verify success message was sent
+                send_message_mock.assert_called_once()
+                success_msg = send_message_mock.call_args[0][1]
+                assert "100 звезд" in success_msg
 
 
 @pytest.mark.asyncio
 async def test_process_successful_payment_multiple_groups(
-    patched_redis_conn, clean_redis, payment_message
+    patched_db_conn, clean_db, payment_message
 ):
     """Test payment processing with multiple groups"""
+    async with clean_db.acquire() as conn:
+        admin_id = payment_message.from_user.id
+        group_ids = [-1001234567890, -1001234567891]
 
-    admin_id = payment_message.from_user.id
-
-    group_ids = [-1001234567890, -1001234567891]
-
-    # Create test groups
-
-    for group_id in group_ids:
-        group = Group(
-            group_id=group_id, admin_ids=[admin_id], is_moderation_enabled=False
+        # Create admins first
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, $2, $3)
+        """,
+            admin_id,
+            "TestAdmin",
+            0,
         )
-        await save_group(group)
 
-    # Mock bot.get_chat method
-    with patch("handlers.payment_handlers.bot.get_chat") as get_chat_mock:
-        get_chat_mock.return_value.title = "Test Group"
+        # Create test groups directly in database
+        for group_id in group_ids:
+            await conn.execute(
+                """
+                INSERT INTO groups (group_id, title, moderation_enabled)
+                VALUES ($1, $2, $3)
+            """,
+                group_id,
+                "Test Group",
+                False,
+            )
 
-        with patch("handlers.payment_handlers.bot.send_message") as send_message_mock:
-            await process_successful_payment(payment_message)
+            # Add admin to group
+            await conn.execute(
+                """
+                INSERT INTO group_administrators (group_id, admin_id)
+                VALUES ($1, $2)
+            """,
+                group_id,
+                admin_id,
+            )
 
-            # Verify moderation was enabled for all groups
+        with patch("handlers.payment_handlers.bot.get_chat") as get_chat_mock:
+            get_chat_mock.return_value.title = "Test Group"
 
-            for group_id in group_ids:
-                group = await get_group(group_id)
-                assert group.is_moderation_enabled
+            with patch(
+                "handlers.payment_handlers.bot.send_message"
+            ) as send_message_mock:
+                await process_successful_payment(payment_message)
+
+                # Verify moderation was enabled for all groups
+                for group_id in group_ids:
+                    result = await conn.fetchval(
+                        """
+                        SELECT moderation_enabled FROM groups WHERE group_id = $1
+                    """,
+                        group_id,
+                    )
+                    assert result is True
 
 
 @pytest.mark.asyncio
 async def test_process_successful_payment_existing_credits(
-    patched_redis_conn, clean_redis, payment_message
+    patched_db_conn, clean_db, payment_message
 ):
     """Test payment processing with existing credits"""
+    async with clean_db.acquire() as conn:
+        admin_id = payment_message.from_user.id
 
-    admin_id = payment_message.from_user.id
+        # Setup existing credits
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, 'testuser', $2)
+            ON CONFLICT (admin_id) DO UPDATE SET credits = $2
+        """,
+            admin_id,
+            50,
+        )
 
-    # Setup existing credits
+        with patch("handlers.payment_handlers.bot.send_message") as send_message_mock:
+            await process_successful_payment(payment_message)
 
-    await clean_redis.hset(f"user:{admin_id}", "credits", "50")
-
-    with patch("handlers.payment_handlers.bot.send_message") as send_message_mock:
-        await process_successful_payment(payment_message)
-
-        # Verify credits were added to existing amount
-
-        user_credits = await get_user_credits(admin_id)
-
-        assert int(user_credits) == 150  # 50 existing + 100 new
+            # Verify credits were added to existing amount
+            user_credits = await get_user_credits(admin_id)
+            assert user_credits == 150  # 50 existing + 100 new
 
 
 @pytest.mark.asyncio
 async def test_process_successful_payment_no_groups(
-    patched_redis_conn, clean_redis, payment_message
+    patched_db_conn, clean_db, payment_message
 ):
     """Test payment processing when user has no groups"""
+    async with clean_db.acquire() as conn:
+        admin_id = payment_message.from_user.id
 
-    admin_id = payment_message.from_user.id
+        with patch("handlers.payment_handlers.bot.send_message") as send_message_mock:
+            await process_successful_payment(payment_message)
 
-    with patch("handlers.payment_handlers.bot.send_message") as send_message_mock:
-        await process_successful_payment(payment_message)
-
-        # Verify credits were still added
-
-        user_credits = await get_user_credits(admin_id)
-
-        assert int(user_credits) == 100
+            # Verify credits were still added
+            user_credits = await get_user_credits(admin_id)
+            assert user_credits == 100
 
 
 @pytest.mark.asyncio
 async def test_process_successful_payment_zero_amount(
-    patched_redis_conn, clean_redis, payment_message
+    patched_db_conn, clean_db, payment_message
 ):
     """Test payment processing with zero amount"""
+    async with clean_db.acquire() as conn:
+        admin_id = payment_message.from_user.id
+        payment_message.successful_payment.total_amount = 0
 
-    admin_id = payment_message.from_user.id
+        with patch("handlers.payment_handlers.bot.send_message") as send_message_mock:
+            await process_successful_payment(payment_message)
 
-    payment_message.successful_payment.total_amount = 0
-
-    with patch("handlers.payment_handlers.bot.send_message") as send_message_mock:
-        await process_successful_payment(payment_message)
-
-        # Verify no credits were added
-
-        user_credits = await get_user_credits(admin_id)
-
-        assert int(user_credits) == 0
+            # Verify no credits were added
+            user_credits = await get_user_credits(admin_id)
+            assert user_credits == 0
 
 
 @pytest.mark.asyncio
 async def test_process_successful_payment_error_handling(
-    patched_redis_conn, clean_redis, payment_message
+    patched_db_conn, clean_db, payment_message
 ):
     """Test error handling during payment processing"""
-
     with patch("handlers.payment_handlers.add_credits") as add_credits_mock:
         add_credits_mock.side_effect = Exception("Database error")
 

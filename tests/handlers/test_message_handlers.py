@@ -57,54 +57,51 @@ def message_mock(user_mock):
 
 
 @pytest.mark.asyncio
-async def test_handle_moderated_message_disabled_moderation(message_mock):
-    with patch("handlers.message_handlers.ensure_group_exists") as ensure_mock, patch(
-        "handlers.message_handlers.is_moderation_enabled"
-    ) as mod_mock, patch("handlers.message_handlers.is_member_in_group") as member_mock:
+async def test_handle_moderated_message_disabled_moderation(
+    patched_db_conn, clean_db, message_mock
+):
+    with patch("handlers.message_handlers.is_moderation_enabled") as mod_mock, patch(
+        "handlers.message_handlers.is_member_in_group"
+    ) as member_mock:
         mod_mock.return_value = False
-        ensure_mock.return_value = True
+
+        # Insert group directly into database
+        async with clean_db.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO groups (group_id, moderation_enabled)
+                VALUES ($1, $2)
+            """,
+                message_mock.chat.id,
+                True,
+            )
 
         await handle_moderated_message(message_mock)
-
-        ensure_mock.assert_called_once()
         member_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_handle_spam_auto_delete(message_mock):
-    with patch("handlers.message_handlers.get_user") as get_user_mock, patch(
-        "handlers.message_handlers.bot.delete_message"
-    ) as delete_mock:
-        admin1 = {
-            "user_id": 111111,
-            "username": "admin1",
-            "first_name": "Admin1",
-            "delete_spam": True,
-            "credits": 100,
-            "is_active": True,
-            "groups": [],
-        }
-        admin2 = {
-            "user_id": 222222,
-            "username": "admin2",
-            "first_name": "Admin2",
-            "delete_spam": True,
-            "credits": 100,
-            "is_active": True,
-            "groups": [],
-        }
+async def test_handle_spam_auto_delete(patched_db_conn, clean_db, message_mock):
+    async with clean_db.acquire() as conn:
+        # Create test admins
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, delete_spam, credits)
+            VALUES ($1, 'admin1', true, 100), ($2, 'admin2', true, 100)
+        """,
+            111111,
+            222222,
+        )
 
-        get_user_mock.side_effect = [User(**admin1), User(**admin2)]
-
+    with patch("handlers.message_handlers.bot.delete_message") as delete_mock:
         await handle_spam(message_mock)
-
         delete_mock.assert_called_once_with(
             message_mock.chat.id, message_mock.message_id
         )
 
 
 @pytest.mark.asyncio
-async def test_try_deduct_credits_failure():
+async def test_try_deduct_credits_failure(patched_db_conn, clean_db):
     with patch(
         "handlers.message_handlers.deduct_credits_from_admins"
     ) as deduct_mock, patch(

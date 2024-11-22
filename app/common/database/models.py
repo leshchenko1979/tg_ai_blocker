@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 class User(BaseModel):
     """Enhanced User model with validation"""
 
-    user_id: int
+    admin_id: int
     username: Optional[str] = None
     credits: int = Field(default=0, ge=0)
     is_active: bool = True
@@ -28,7 +28,7 @@ class Group(BaseModel):
 
     group_id: int
     admin_ids: List[int]
-    is_moderation_enabled: bool = True
+    moderation_enabled: bool = True
     member_ids: List[int] = []
     created_at: datetime = Field(default_factory=datetime.now)
     last_updated: datetime = Field(default_factory=datetime.now)

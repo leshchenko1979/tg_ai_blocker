@@ -1,9 +1,9 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 from ..yandex_logging import get_yandex_logger, log_function_call
-from .redis_connection import redis
+from .postgres_connection import get_pool
 
 logger = get_yandex_logger(__name__)
 
@@ -15,47 +15,83 @@ MESSAGE_TTL = 60 * 60 * 24  # 24 hours in seconds
 @log_function_call(logger)
 async def save_message(admin_id: int, role: str, content: str) -> None:
     """Save a message to the admin's conversation history"""
-    history_key = f"message_history:{admin_id}"
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Insert new message
+            await conn.execute(
+                """
+                INSERT INTO message_history (admin_id, role, content, created_at)
+                VALUES ($1, $2, $3, NOW())
+            """,
+                admin_id,
+                role,
+                content,
+            )
 
-    pipeline = redis.pipeline()
-    pipeline.lpush(
-        history_key,
-        json.dumps(
-            {
-                "role": role,
-                "content": content,
-                "timestamp": datetime.now().isoformat(),
-            }
-        ),
-    )
-    pipeline.ltrim(history_key, 0, MESSAGE_HISTORY_SIZE - 1)
-    pipeline.expire(history_key, MESSAGE_TTL)
-    await pipeline.execute()
+            # Get count of messages for this admin
+            count = await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM message_history
+                WHERE admin_id = $1
+            """,
+                admin_id,
+            )
+
+            # Remove oldest messages if exceeding limit
+            if count > MESSAGE_HISTORY_SIZE:
+                await conn.execute(
+                    """
+                    DELETE FROM message_history
+                    WHERE id IN (
+                        SELECT id FROM message_history
+                        WHERE admin_id = $1
+                        ORDER BY created_at ASC
+                        LIMIT $2
+                    )
+                """,
+                    admin_id,
+                    count - MESSAGE_HISTORY_SIZE,
+                )
+
+            # Remove messages older than TTL
+            expire_time = datetime.now() - timedelta(seconds=MESSAGE_TTL)
+            await conn.execute(
+                """
+                DELETE FROM message_history
+                WHERE admin_id = $1 AND created_at < $2
+            """,
+                admin_id,
+                expire_time,
+            )
 
 
 @log_function_call(logger)
 async def get_message_history(admin_id: int) -> List[dict]:
     """Retrieve admin's conversation history"""
-    history_key = f"message_history:{admin_id}"
-    raw_messages = await redis.lrange(history_key, 0, -1)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT role, content
+            FROM message_history
+            WHERE admin_id = $1
+            ORDER BY created_at ASC
+        """,
+            admin_id,
+        )
 
-    messages = []
-    for raw_message in raw_messages:
-        try:
-            message_data = json.loads(raw_message)
-            messages.append(
-                {"role": message_data["role"], "content": message_data["content"]}
-            )
-        except Exception as e:
-            logger.error(f"Error parsing message history: {e}")
-            continue
-
-    # Return messages in chronological order
-    return list(reversed(messages))
+        return [{"role": row["role"], "content": row["content"]} for row in rows]
 
 
 @log_function_call(logger)
 async def clear_message_history(admin_id: int) -> None:
     """Clear admin's conversation history"""
-    history_key = f"message_history:{admin_id}"
-    await redis.delete(history_key)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            DELETE FROM message_history WHERE admin_id = $1
+        """,
+            admin_id,
+        )

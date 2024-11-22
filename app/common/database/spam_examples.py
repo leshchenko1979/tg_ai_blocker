@@ -2,42 +2,47 @@ import json
 from typing import Any, Dict, List, Optional
 
 from ..yandex_logging import get_yandex_logger, log_function_call
-from .redis_connection import redis
+from .postgres_connection import get_pool
 
 logger = get_yandex_logger(__name__)
-
-SPAM_EXAMPLES_KEY = "spam_examples"
-USER_SPAM_EXAMPLES_KEY = "user_spam_examples"
 
 
 @log_function_call(logger)
 async def get_spam_examples(admin_id: Optional[int] = None) -> List[Dict[str, Any]]:
-    """
-    Get spam examples from Redis, including user-specific examples if admin_id is provided
-
-    Args:
-        admin_id: ID администратора для получения его персональных примеров спама
-
-    Returns:
-        List of spam examples with text, name, bio and score
-    """
-    try:
-        # Get common spam examples
-        common_examples = await redis.lrange(SPAM_EXAMPLES_KEY, 0, -1)
-
-        # Get user-specific spam examples if admin_id is provided
-        user_examples = []
+    """Get spam examples from PostgreSQL, including user-specific examples if admin_id is provided"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         if admin_id is not None:
-            user_examples = await redis.lrange(
-                f"{USER_SPAM_EXAMPLES_KEY}:{admin_id}", 0, -1
+            # Get both common and user-specific examples
+            rows = await conn.fetch(
+                """
+                SELECT text, name, bio, score
+                FROM spam_examples
+                WHERE admin_id IS NULL OR admin_id = $1
+                ORDER BY created_at DESC
+            """,
+                admin_id,
+            )
+        else:
+            # Get only common examples
+            rows = await conn.fetch(
+                """
+                SELECT text, name, bio, score
+                FROM spam_examples
+                WHERE admin_id IS NULL
+                ORDER BY created_at DESC
+            """
             )
 
-        # Combine and parse examples
-        all_examples = common_examples + user_examples
-        return [json.loads(example) for example in all_examples]
-    except Exception as e:
-        logger.error(f"Error getting spam examples: {e}")
-        return []
+        return [
+            {
+                "text": row["text"],
+                "name": row["name"],
+                "bio": row["bio"],
+                "score": row["score"],
+            }
+            for row in rows
+        ]
 
 
 @log_function_call(logger)
@@ -48,68 +53,55 @@ async def add_spam_example(
     bio: Optional[str] = None,
     admin_id: Optional[int] = None,
 ) -> bool:
-    """Add a new spam example to Redis"""
-    try:
-        # First find and delete existing entry with the same name and text
-        examples = await get_spam_examples(admin_id)
-        for example in examples:
-            if example["text"] == text and example.get("name") == name:
-                if admin_id is None:
-                    await redis.lrem(SPAM_EXAMPLES_KEY, 1, json.dumps(example))
-                else:
-                    await redis.lrem(
-                        f"{USER_SPAM_EXAMPLES_KEY}:{admin_id}", 1, json.dumps(example)
-                    )
+    """Add a new spam example to PostgreSQL"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            try:
+                # Remove existing example with same text and name if exists
+                await conn.execute(
+                    """
+                    DELETE FROM spam_examples
+                    WHERE text = $1 AND (name = $2 OR (name IS NULL AND $2 IS NULL))
+                    AND (admin_id = $3 OR (admin_id IS NULL AND $3 IS NULL))
+                """,
+                    text,
+                    name,
+                    admin_id,
+                )
 
-        example = {"text": text, "score": score, "name": name, "bio": bio}
-        # Remove None values
-        example = {k: v for k, v in example.items() if v is not None}
-
-        # Add to appropriate list based on admin_id
-        if admin_id is None:
-            await redis.lpush(SPAM_EXAMPLES_KEY, json.dumps(example))
-        else:
-            await redis.lpush(
-                f"{USER_SPAM_EXAMPLES_KEY}:{admin_id}", json.dumps(example)
-            )
-
-        return True
-    except Exception as e:
-        logger.error(f"Error adding spam example: {e}")
-        return False
+                # Add new example
+                await conn.execute(
+                    """
+                    INSERT INTO spam_examples (text, name, bio, score, admin_id, created_at)
+                    VALUES ($1, $2, $3, $4, $5, NOW())
+                """,
+                    text,
+                    name,
+                    bio,
+                    score,
+                    admin_id,
+                )
+                return True
+            except Exception as e:
+                logger.error(f"Error adding spam example: {e}")
+                return False
 
 
 @log_function_call(logger)
 async def remove_spam_example(text: str) -> bool:
-    """Remove a spam example from Redis by its text"""
-    try:
-        examples = await get_spam_examples()
-        for example in examples:
-            if example["text"] == text:
-                await redis.lrem(SPAM_EXAMPLES_KEY, 1, json.dumps(example))
-                return True
-        return False
-    except Exception as e:
-        logger.error(f"Error removing spam example: {e}")
-        return False
-
-
-@log_function_call(logger)
-async def initialize_spam_examples(examples: List[Dict[str, Any]]) -> bool:
-    """Initialize spam examples in Redis from a list"""
-    try:
-        # Clear existing examples
-        await redis.delete(SPAM_EXAMPLES_KEY)
-
-        # Add new examples
-        if examples:
-            pipeline = redis.pipeline()
-            for example in examples:
-                # Ensure we only store non-None values
-                example = {k: v for k, v in example.items() if v is not None}
-                pipeline.rpush(SPAM_EXAMPLES_KEY, json.dumps(example))
-            await pipeline.execute()
-        return True
-    except Exception as e:
-        logger.error(f"Error initializing spam examples: {e}")
-        return False
+    """Remove a spam example from PostgreSQL by its text"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            result = await conn.execute(
+                """
+                DELETE FROM spam_examples
+                WHERE text = $1 AND admin_id IS NULL
+            """,
+                text,
+            )
+            return result != "DELETE 0"
+        except Exception as e:
+            logger.error(f"Error removing spam example: {e}")
+            return False
