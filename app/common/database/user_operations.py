@@ -3,7 +3,7 @@ from typing import Optional
 
 from ..yandex_logging import get_yandex_logger, log_function_call
 from .constants import INITIAL_CREDITS
-from .group_operations import get_user_groups
+from .group_operations import get_admin_groups, set_group_moderation
 from .models import User
 from .redis_connection import redis
 
@@ -112,13 +112,13 @@ async def add_credits(user_id: int, amount: int) -> None:
     await redis.hincrby(f"user:{user_id}", "credits", amount)
 
     # Get all groups where user is an admin
-    user_groups = await get_user_groups(user_id)
+    user_groups = await get_admin_groups(user_id)
 
     # Enable moderation in each group
-    from .group_operations import set_group_moderation
-
-    for group_id in user_groups:
-        await set_group_moderation(group_id, True)
+    pipeline = redis.pipeline()
+    for group in user_groups:
+        pipeline.hset(f"group:{group['id']}", "is_moderation_enabled", 1)
+    await pipeline.execute()
 
 
 @log_function_call(logger)

@@ -32,13 +32,3 @@ class Group(BaseModel):
     member_ids: List[int] = []
     created_at: datetime = Field(default_factory=datetime.now)
     last_updated: datetime = Field(default_factory=datetime.now)
-
-
-class Message(BaseModel):
-    """Model for tracking conversation history"""
-
-    message_id: str
-    user_id: int
-    role: str  # "user" or "assistant"
-    content: str
-    timestamp: datetime = Field(default_factory=datetime.now)

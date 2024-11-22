@@ -14,6 +14,10 @@ from common.database import Group, User
 # Use a separate test database
 TEST_REDIS_DB = 15
 
+from common.mp import mute_mp_for_tests
+
+mute_mp_for_tests()
+
 
 def validate_redis_env_vars():
     """Validate required Redis environment variables"""

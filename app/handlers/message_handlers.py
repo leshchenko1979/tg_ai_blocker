@@ -7,13 +7,12 @@ from common.bot import bot
 from common.database import (
     APPROVE_PRICE,
     DELETE_PRICE,
-    SKIP_PRICE,
-    add_unique_user,
+    add_member,
     deduct_credits_from_admins,
     ensure_group_exists,
     get_user,
+    is_member_in_group,
     is_moderation_enabled,
-    is_user_in_group,
     set_group_moderation,
 )
 from common.dp import dp
@@ -115,7 +114,6 @@ async def handle_spam(message: types.Message) -> None:
                 message.chat.id,
                 "spam_message_deleted",
                 {
-                    "chat_id": message.chat.id,
                     "message_id": message.message_id,
                     "user_id": message.from_user.id,
                     "auto_delete": True,
@@ -162,7 +160,6 @@ async def handle_spam(message: types.Message) -> None:
                     admin.user.id,
                     "admin_spam_notification",
                     {
-                        "admin_id": admin.user.id,
                         "chat_id": message.chat.id,
                         "message_id": message.message_id,
                         "auto_delete": all_admins_delete,
@@ -176,7 +173,6 @@ async def handle_spam(message: types.Message) -> None:
                     admin.user.id,
                     "error_admin_notification",
                     {
-                        "admin_id": admin.user.id,
                         "error_type": type(e).__name__,
                         "error_message": str(e),
                     },
@@ -198,6 +194,7 @@ async def handle_spam(message: types.Message) -> None:
 
 
 @dp.message(filter_handle_message)
+@log_function_call(logger)
 async def handle_moderated_message(message: types.Message):
     """Обработчик всех текстовых сообщений в модерируемых группах"""
     try:
@@ -211,11 +208,7 @@ async def handle_moderated_message(message: types.Message):
         mp.track(
             chat_id,
             "message_processing_started",
-            {
-                "chat_id": chat_id,
-                "user_id": user_id,
-                "message_length": len(message.text),
-            },
+            {"user_id": user_id, "message_text": message.text},
         )
 
         admins = await bot.get_chat_administrators(chat_id)
@@ -227,18 +220,17 @@ async def handle_moderated_message(message: types.Message):
             mp.track(
                 chat_id,
                 "message_skipped_moderation_disabled",
-                {"chat_id": chat_id, "user_id": user_id},
             )
             return
 
-        is_known_user = await is_user_in_group(chat_id, user_id)
+        is_known_member = await is_member_in_group(chat_id, user_id)
 
-        if is_known_user:
+        if is_known_member:
             # Трекинг пропуска известного пользователя
             mp.track(
                 chat_id,
-                "message_skipped_known_user",
-                {"chat_id": chat_id, "user_id": user_id},
+                "message_skipped_known_member",
+                {"user_id": user_id},
             )
             return
 
@@ -275,7 +267,7 @@ async def handle_moderated_message(message: types.Message):
             return
 
         if await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
-            await add_unique_user(chat_id, user_id)
+            await add_member(chat_id, user_id)
             update_stats(chat_id, "processed")
             # Трекинг одобрения пользователя
             mp.track(

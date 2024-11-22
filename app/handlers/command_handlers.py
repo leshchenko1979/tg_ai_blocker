@@ -3,8 +3,8 @@ from aiogram.filters import Command
 
 from common.database import (
     INITIAL_CREDITS,
+    get_admin_groups,
     get_spam_deletion_state,
-    get_user_admin_groups,
     get_user_credits,
     initialize_new_user,
     toggle_spam_deletion,
@@ -78,7 +78,7 @@ async def handle_stats_command(message: types.Message) -> None:
         balance = await get_user_credits(user_id)
 
         # Получаем список групп с их статусами модерации
-        admin_groups = await get_user_admin_groups(user_id)
+        admin_groups = await get_admin_groups(user_id)
 
         # Формируем сообщение
         message_text = f"💰 Баланс: *{balance}* звезд\n\n"

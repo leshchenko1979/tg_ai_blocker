@@ -4,3 +4,4 @@ __pycache__
 test.ipynb
 .pytest_cache
 /__pycache__
+.coverage

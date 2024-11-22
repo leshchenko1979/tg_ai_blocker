@@ -4,16 +4,16 @@ from mixpanel import Mixpanel
 
 
 class SilentMixpanel:
-    def __init__(self, token: str):
+    def __init__(self, token: str = None):
         pass
 
-    def track(self, user_id: int, event: str, properties: dict):
+    def track(self, user_id: int, event: str, properties: dict = None):
         pass
 
 
-# silent if pytest is running
-mp = (
-    Mixpanel(os.getenv("MIXPANEL_PROJECT_TOKEN"))
-    if not os.environ.get("PYTEST_CURRENT_TEST")
-    else SilentMixpanel()
-)
+mp = Mixpanel(os.getenv("MIXPANEL_PROJECT_TOKEN"))
+
+
+def mute_mp_for_tests():
+    global mp
+    mp = SilentMixpanel()

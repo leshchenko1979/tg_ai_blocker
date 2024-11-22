@@ -1,3 +1,6 @@
+import asyncio
+
+from aiogram import F
 from aiogram.types import CallbackQuery
 
 from common.bot import bot
@@ -9,7 +12,7 @@ from common.yandex_logging import get_yandex_logger, log_function_call
 logger = get_yandex_logger(__name__)
 
 
-@dp.callback_query(lambda c: c.data.startswith("spam_ignore:"))
+@dp.callback_query(F.data.startswith("spam_ignore:"))
 @log_function_call(logger)
 async def handle_spam_ignore_callback(callback: CallbackQuery):
     """
@@ -21,7 +24,36 @@ async def handle_spam_ignore_callback(callback: CallbackQuery):
         author_info = await bot.get_chat(author_id)
         admin_id = callback.from_user.id
 
-        # Трекинг начала обработки колбэка
+        add_safe_example_task = asyncio.create_task(
+            add_spam_example(
+                text=callback.message.text,
+                score=-100,  # Безопасное сообщение с отрицательным score
+                name=author_info.full_name if author_info else None,
+                bio=author_info.bio if author_info else None,
+                user_id=admin_id,
+            )
+        )
+
+        delete_message_task = asyncio.create_task(
+            bot.delete_message(callback.message.chat.id, callback.message.message_id)
+        )
+
+        answer_callback_task = asyncio.create_task(
+            bot(
+                callback.answer(
+                    "✅ Сообщение добавлено как безопасный пример",
+                    show_alert=False,
+                )
+            )
+        )
+
+        await asyncio.gather(
+            add_safe_example_task,
+            delete_message_task,
+            answer_callback_task,
+        )
+
+        # Трекинг обработки колбэка
         mp.track(
             admin_id,
             "callback_spam_ignore",
@@ -31,22 +63,6 @@ async def handle_spam_ignore_callback(callback: CallbackQuery):
                 "name": author_info.full_name,
                 "bio": author_info.bio,
             },
-        )
-
-        # Добавляем сообщение как безопасный пример
-        await add_spam_example(
-            text=callback.message.text,
-            score=-100,  # Безопасное сообщение с отрицательным score
-            name=author_info.full_name if author_info else None,
-            bio=author_info.bio if author_info else None,
-            user_id=admin_id,
-        )
-
-        # Удаляем сообщение с кнопками
-        await callback.message.delete()
-
-        await callback.answer(
-            "✅ Сообщение добавлено как безопасный пример", show_alert=False
         )
 
     except Exception as e:
@@ -61,10 +77,9 @@ async def handle_spam_ignore_callback(callback: CallbackQuery):
             },
         )
         logger.error(f"Error in spam ignore callback: {e}", exc_info=True)
-        await callback.answer("Произошла ошибка при обработке", show_alert=True)
 
 
-@dp.callback_query(lambda c: c.data == "spam_confirm")
+@dp.callback_query(F.data.startswith("spam_confirm"))
 @log_function_call(logger)
 async def handle_spam_confirm_callback(callback: CallbackQuery):
     """
@@ -72,6 +87,20 @@ async def handle_spam_confirm_callback(callback: CallbackQuery):
     """
     _, author_id, chat_id, message_id = callback.data.split(":")
     try:
+        delete_message_task = asyncio.create_task(
+            bot.delete_message(chat_id, message_id)
+        )
+        edit_message_task = asyncio.create_task(
+            bot.edit_message_reply_markup(chat_id, message_id, reply_markup=None)
+        )
+        answer_callback_task = asyncio.create_task(
+            bot(callback.answer("✅ Принято", show_alert=False))
+        )
+
+        await asyncio.gather(
+            delete_message_task, edit_message_task, answer_callback_task
+        )
+
         # Трекинг подтверждения спама
         mp.track(
             callback.from_user.id,
@@ -82,14 +111,6 @@ async def handle_spam_confirm_callback(callback: CallbackQuery):
                 "message_id": message_id,
             },
         )
-
-        # Удаляем сообщение
-        await bot.delete_message(chat_id, message_id)
-
-        # Редактируем сообщение, убирая клавиатуру
-        await callback.message.edit_reply_markup(reply_markup=None)
-
-        await callback.answer("✅ Принято", show_alert=False)
 
     except Exception as e:
         # Трекинг ошибок
@@ -102,4 +123,3 @@ async def handle_spam_confirm_callback(callback: CallbackQuery):
             },
         )
         logger.error(f"Error in spam confirm callback: {e}", exc_info=True)
-        await callback.answer("Произошла ошибка при обработке", show_alert=True)

@@ -1,10 +1,11 @@
+import asyncio
 import pathlib
 from typing import Any, Dict
 
 from aiogram import F, types
 
 from common.bot import bot
-from common.database.group_operations import remove_user_from_group
+from common.database.group_operations import remove_member_from_group
 from common.database.message_operations import get_message_history, save_message
 from common.database.spam_examples import add_spam_example, get_spam_examples
 from common.dp import dp
@@ -29,35 +30,26 @@ async def handle_private_message(message: types.Message):
     Отвечает пользователю от имени бота, используя LLM модели и контекст из истории сообщений
     """
 
-    user_id = message.from_user.id
-    user_message = message.text
+    admin_id = message.from_user.id
+    admin_message = message.text
 
     # Трекинг получения приватного сообщения
-    mp.track(
-        user_id,
-        "private_message_received",
-        {
-            "user_id": user_id,
-            "message_length": len(user_message),
-            "user_language": message.from_user.language_code,
-        },
-    )
+    mp.track(admin_id, "private_message_received", {"message_text": admin_message})
 
     # Save user message to history
-    await save_message(user_id, "user", user_message)
+    await save_message(admin_id, "user", admin_message)
 
     try:
         # Get conversation history
-        message_history = await get_message_history(user_id)
+        message_history = await get_message_history(admin_id)
 
         # Трекинг запроса к LLM
         mp.track(
-            user_id,
+            admin_id,
             "llm_request_started",
             {
-                "user_id": user_id,
                 "history_length": len(message_history),
-                "message_length": len(user_message),
+                "message_text": admin_message,
             },
         )
 
@@ -77,7 +69,7 @@ async def handle_private_message(message: types.Message):
             if "bio" in example:
                 example_str += f"\n<биография>{example['bio']}</биография>"
             example_str += "\n</запрос>\n<ответ>\n"
-            example_str += f"{'да' if example['score'] > 0 else 'нет'} {abs(example['score'])}%\n</ответ>"
+            example_str += f"{'да' if example['score'] > 0 else 'нет'} {abs(example['score'])}%\n</отве��>"
             formatted_examples.append(example_str)
 
         system_prompt = f"""
@@ -117,26 +109,25 @@ async def handle_private_message(message: types.Message):
 
         # Трекинг успешного ответа LLM
         mp.track(
-            user_id,
+            admin_id,
             "llm_response_received",
-            {"user_id": user_id, "response_length": len(response)},
+            {"response_text": response},
         )
 
         # Save bot's response to history
-        await save_message(user_id, "assistant", response)
+        await save_message(admin_id, "assistant", response)
 
         await message.reply(response, parse_mode="markdown")
 
     except Exception as e:
         # Трекинг ошибок
         mp.track(
-            user_id,
+            admin_id,
             "error_private_message",
             {
-                "user_id": user_id,
                 "error_type": type(e).__name__,
                 "error_message": str(e),
-                "message_length": len(user_message),
+                "message_text": admin_message,
             },
         )
         logger.error(f"Error in private message handler: {e}", exc_info=True)
@@ -149,35 +140,27 @@ async def handle_forwarded_message(message: types.Message):
     """
     Handle forwarded messages in private chats.
     """
-    user_id = message.from_user.id
+    admin_id = message.from_user.id
 
     # Трекинг получения пересланного сообщения
     mp.track(
-        user_id,
+        admin_id,
         "forwarded_message_received",
         {
-            "user_id": user_id,
             "forward_from_id": message.forward_from.id,
             "forward_date": str(message.forward_date),
-            "has_text": bool(message.text),
+            "message_text": message.text or message.caption,
         },
     )
 
     # Ask the user if they want to add this as a spam example
-    keyboard = types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                types.InlineKeyboardButton(
-                    text="⚠️ Спам",
-                    callback_data="spam_example:spam",
-                ),
-                types.InlineKeyboardButton(
-                    text="💚 Не спам",
-                    callback_data="spam_example:not_spam",
-                ),
-            ]
-        ]
-    )
+    row = [
+        types.InlineKeyboardButton(text="⚠️ Спам", callback_data="spam_example:spam"),
+        types.InlineKeyboardButton(
+            text="💚 Не спам", callback_data="spam_example:not_spam"
+        ),
+    ]
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=[row])
 
     await message.reply(
         "Добавить это сообщение в базу примеров?", reply_markup=keyboard
@@ -186,80 +169,88 @@ async def handle_forwarded_message(message: types.Message):
 
 @dp.callback_query(F.data.startswith("spam_example:"))
 @log_function_call(logger)
-async def process_spam_example_callback(callback_query: types.CallbackQuery):
+async def process_spam_example_callback(callback: types.CallbackQuery):
     """
     Process the user's response to the spam example prompt.
     """
-    user_id = callback_query.from_user.id
-    _, action = callback_query.data.split(":")
-
-    # Трекинг начала обработки примера
-    mp.track(
-        user_id,
-        "spam_example_processing_started",
-        {"user_id": user_id, "action": action},
-    )
+    admin_id = callback.from_user.id
+    _, action = callback.data.split(":")
 
     try:
-        info = await extract_original_message_info(callback_query.message)
+        info = await extract_original_message_info(callback.message)
 
-        await add_spam_example(
-            info["text"],
-            name=info["name"],
-            bio=info["bio"],
-            score=100 if action == "spam" else -100,
-            user_id=callback_query.from_user.id,
+        callback_answer_task = asyncio.create_task(
+            bot(
+                callback.answer(
+                    (
+                        "Сообщение добавлено как пример спама, пользователь удален из одобренных."
+                        if action == "spam"
+                        else "Сообщение добавлено как пример ценного сообщения."
+                    ),
+                )
+            )
         )
 
-        if action == "spam":
-            await remove_user_from_group(user_id=info["chat_id"])
+        add_spam_example_task = asyncio.create_task(
+            add_spam_example(
+                info["text"],
+                name=info["name"],
+                bio=info["bio"],
+                score=100 if action == "spam" else -100,
+                admin_id=admin_id,
+            )
+        )
+
+        remove_member_from_group_task = (
+            asyncio.create_task(remove_member_from_group(member_id=info["user_id"]))
+            if action == "spam"
+            else None
+        )
+
+        edit_message_task = asyncio.create_task(
+            bot.edit_message_text(
+                chat_id=callback.message.chat.id,
+                message_id=callback.message.message_id,
+                text=f"Сообщение добавлено как пример {'спама' if action == 'spam' else 'ценного сообщения'}.",
+            )
+        )
+
+        await asyncio.gather(
+            callback_answer_task,
+            add_spam_example_task,
+            remove_member_from_group_task,
+            edit_message_task,
+        )
 
         # Трекинг успешного добавления примера
         mp.track(
-            user_id,
+            admin_id,
             "spam_example_added",
             {
-                "user_id": user_id,
+                "message_text": info["text"],
+                "name": info["name"],
+                "bio": info["bio"],
                 "action": action,
-                "message_length": len(info["text"]) if info["text"] else 0,
-                "has_bio": bool(info["bio"]),
-                "target_user_id": info["chat_id"],
             },
-        )
-
-        await callback_query.answer(
-            "Сообщение добавлено как пример спама, пользователь удален из одобренных."
-            if action == "spam"
-            else "Сообщение добавлено как пример ценного сообщения."
-        )
-
-        await callback_query.message.edit_text(
-            text=f"Сообщение добавлено как пример {'спама' if action == 'spam' else 'ценного сообщения'}.",
         )
 
     except OriginalMessageExtractionError:
         # Трекинг ошибки извлечения информации
-        mp.track(
-            user_id, "error_message_extraction", {"user_id": user_id, "action": action}
-        )
+        mp.track(admin_id, "error_message_extraction", {"action": action})
         logger.error("Failed to extract original message info", exc_info=True)
-        await callback_query.answer(
-            "Не удалось извлечь информацию из оригинального сообщения."
-        )
+
     except Exception as e:
         # Трекинг других ошибок
         mp.track(
-            user_id,
+            admin_id,
             "error_spam_example_processing",
             {
-                "user_id": user_id,
                 "error_type": type(e).__name__,
                 "error_message": str(e),
                 "action": action,
             },
         )
         logger.error(f"Error processing spam example: {e}", exc_info=True)
-        await callback_query.answer("Произошла ошибка при обработке примера.")
 
 
 async def extract_original_message_info(
@@ -291,17 +282,16 @@ async def extract_original_message_info(
     if name or text:
         # Получаем bio через прямой запрос к Telegram API
         try:
-            user = await bot.get_chat(original_message.forward_from.id)
+            user_id = original_message.forward_from.id
+            user = await bot.get_chat(user_id)
             bio = user.bio
         except Exception:
             bio = None
 
-        chat_id = original_message.forward_from.id
-
         return {
+            "user_id": user_id,
             "name": name,
             "bio": bio,
-            "chat_id": chat_id,
             "text": text,
         }
 

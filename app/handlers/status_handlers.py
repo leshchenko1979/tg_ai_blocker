@@ -24,7 +24,6 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
                 event.from_user.id,
                 "bot_status_wrong_chat_type",
                 {
-                    "user_id": event.from_user.id,
                     "chat_type": event.chat.type,
                     "new_status": event.new_chat_member.status,
                 },
@@ -52,7 +51,6 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
             event.from_user.id,
             "bot_status_changed",
             {
-                "user_id": event.from_user.id,
                 "chat_id": chat_id,
                 "new_status": new_status,
                 "old_status": event.old_chat_member.status,
@@ -77,7 +75,6 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
                 chat_id,
                 "bot_added_to_group",
                 {
-                    "chat_id": chat_id,
                     "status": new_status,
                     "admin_count": len(admin_ids),
                     "chat_title": event.chat.title,
@@ -106,7 +103,6 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
                             admin_id,
                             "error_admin_notification",
                             {
-                                "admin_id": admin_id,
                                 "chat_id": chat_id,
                                 "error_type": type(e).__name__,
                                 "error_message": str(e),
@@ -127,7 +123,6 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
                 chat_id,
                 "bot_removed_from_group",
                 {
-                    "chat_id": chat_id,
                     "status": new_status,
                     "removed_by": event.from_user.id,
                     "chat_title": event.chat.title,
@@ -155,7 +150,6 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
                             admin_id,
                             "error_removal_notification",
                             {
-                                "admin_id": admin_id,
                                 "chat_id": chat_id,
                                 "error_type": type(e).__name__,
                                 "error_message": str(e),
@@ -170,7 +164,6 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
             event.chat.id,
             "error_bot_status_update",
             {
-                "chat_id": event.chat.id,
                 "error_type": type(e).__name__,
                 "error_message": str(e),
                 "new_status": event.new_chat_member.status,

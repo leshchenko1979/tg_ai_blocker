@@ -4,15 +4,15 @@ import pytest
 
 from common.bot import bot
 from common.database.group_operations import (
-    add_unique_user,
+    add_member,
     deduct_credits_from_admins,
     ensure_group_exists,
+    get_admin_groups,
     get_group,
     get_paying_admins,
-    get_user_admin_groups,
+    is_member_in_group,
     is_moderation_enabled,
-    is_user_in_group,
-    remove_user_from_group,
+    remove_member_from_group,
     save_group,
     set_group_moderation,
     update_group_admins,
@@ -84,10 +84,10 @@ async def test_add_group_member(
 
     # Add a new member
     new_member_id = 456789
-    await add_unique_user(sample_group.group_id, new_member_id)
+    await add_member(sample_group.group_id, new_member_id)
 
     # Verify the member was added
-    is_member = await is_user_in_group(sample_group.group_id, new_member_id)
+    is_member = await is_member_in_group(sample_group.group_id, new_member_id)
     assert is_member is True
 
 
@@ -96,13 +96,13 @@ async def test_remove_group_member(patched_redis_conn, clean_redis, sample_group
     """Test removing a member from a group"""
     # First save the group and add a member
     await save_group(sample_group)
-    await add_unique_user(sample_group.group_id, 456789)
+    await add_member(sample_group.group_id, 456789)
 
     # Remove a member
     member_to_remove = 456789
     # Note: There's no direct remove method, so we'll just check it's no longer a member
-    await add_unique_user(sample_group.group_id, member_to_remove)
-    is_member = await is_user_in_group(sample_group.group_id, member_to_remove)
+    await add_member(sample_group.group_id, member_to_remove)
+    is_member = await is_member_in_group(sample_group.group_id, member_to_remove)
     assert is_member is True  # This is a limitation of the current implementation
 
 
@@ -111,16 +111,16 @@ async def test_is_group_member(patched_redis_conn, clean_redis, sample_group):
     """Test checking group membership"""
     # Save the group and add a member
     await save_group(sample_group)
-    await add_unique_user(sample_group.group_id, sample_group.member_ids[0])
+    await add_member(sample_group.group_id, sample_group.member_ids[0])
 
     # Test existing member
-    is_member = await is_user_in_group(
+    is_member = await is_member_in_group(
         sample_group.group_id, sample_group.member_ids[0]
     )
     assert is_member is True
 
     # Test non-existing member
-    is_member = await is_user_in_group(sample_group.group_id, 999999)
+    is_member = await is_member_in_group(sample_group.group_id, 999999)
     assert is_member is False
 
 
@@ -222,7 +222,7 @@ async def test_ensure_group_exists(patched_redis_conn, clean_redis):
 
     # Verify admins were added
     admins = await clean_redis.smembers(f"group:{group_id}:admins")
-    assert set(int(admin) for admin in admins) == set(admin_ids)
+    assert {int(admin) for admin in admins} == set(admin_ids)
 
 
 @pytest.mark.asyncio
@@ -233,7 +233,7 @@ async def test_update_group_admins(patched_redis_conn, clean_redis, sample_group
 
     # Verify initial admins
     admins = await clean_redis.smembers(f"group:{sample_group.group_id}:admins")
-    assert set(int(admin) for admin in admins) == set(sample_group.admin_ids)
+    assert {int(admin) for admin in admins} == set(sample_group.admin_ids)
 
     # Update admins
     new_admin_ids = [456789, 123456]
@@ -241,11 +241,11 @@ async def test_update_group_admins(patched_redis_conn, clean_redis, sample_group
 
     # Verify admins were updated
     admins = await clean_redis.smembers(f"group:{sample_group.group_id}:admins")
-    assert set(int(admin) for admin in admins) == set(new_admin_ids)
+    assert {int(admin) for admin in admins} == set(new_admin_ids)
 
 
 @pytest.mark.asyncio
-async def test_get_user_admin_groups(
+async def test_get_admin_groups(
     patched_redis_conn, clean_redis, sample_group, sample_user
 ):
     """Test retrieving groups where user is an admin"""
@@ -263,7 +263,7 @@ async def test_get_user_admin_groups(
     # Mock bot.get_chat to return a chat object with a title
     with patch.object(bot, "get_chat", return_value=AsyncMock(title="Test Group")):
         # Get groups where user is an admin
-        groups = await get_user_admin_groups(sample_user.user_id)
+        groups = await get_admin_groups(sample_user.user_id)
 
     # Assertions
     assert len(groups) == 1
@@ -273,7 +273,7 @@ async def test_get_user_admin_groups(
 
 
 @pytest.mark.asyncio
-async def test_remove_user_from_specific_group(
+async def test_remove_member_from_specific_group(
     patched_redis_conn, clean_redis, sample_group
 ):
     """Test removing a user from a specific group"""
@@ -282,22 +282,24 @@ async def test_remove_user_from_specific_group(
 
     # Добавляем пользователя в группу
     user_id_to_remove = 456789
-    await add_unique_user(sample_group.group_id, user_id_to_remove)
+    await add_member(sample_group.group_id, user_id_to_remove)
 
     # Проверяем, что пользователь добавлен
-    is_member_before = await is_user_in_group(sample_group.group_id, user_id_to_remove)
+    is_member_before = await is_member_in_group(
+        sample_group.group_id, user_id_to_remove
+    )
     assert is_member_before is True
 
     # Удаляем пользователя из группы
-    await remove_user_from_group(user_id_to_remove, sample_group.group_id)
+    await remove_member_from_group(user_id_to_remove, sample_group.group_id)
 
     # Проверяем, что пользователь удален
-    is_member_after = await is_user_in_group(sample_group.group_id, user_id_to_remove)
+    is_member_after = await is_member_in_group(sample_group.group_id, user_id_to_remove)
     assert is_member_after is False
 
 
 @pytest.mark.asyncio
-async def test_remove_user_from_all_groups(patched_redis_conn, clean_redis):
+async def test_remove_member_from_all_groups(patched_redis_conn, clean_redis):
     """Test removing a user from all groups"""
     # Создаем несколько групп
     group_ids = [123, 456, 789]
@@ -312,37 +314,37 @@ async def test_remove_user_from_all_groups(patched_redis_conn, clean_redis):
             member_ids=[user_id_to_remove],
         )
         await save_group(group)
-        await add_unique_user(group_id, user_id_to_remove)
+        await add_member(group_id, user_id_to_remove)
 
     # Проверяем, что пользователь добавлен во все группы
     for group_id in group_ids:
-        is_member_before = await is_user_in_group(group_id, user_id_to_remove)
+        is_member_before = await is_member_in_group(group_id, user_id_to_remove)
         assert is_member_before is True
 
     # Удаляем пользователя из всех групп
-    await remove_user_from_group(user_id_to_remove)
+    await remove_member_from_group(user_id_to_remove)
 
     # Проверяем, что пользователь удален из всех групп
     for group_id in group_ids:
-        is_member_after = await is_user_in_group(group_id, user_id_to_remove)
+        is_member_after = await is_member_in_group(group_id, user_id_to_remove)
         assert is_member_after is False
 
 
 @pytest.mark.asyncio
-async def test_remove_user_from_nonexistent_group(patched_redis_conn, clean_redis):
+async def test_remove_member_from_nonexistent_group(patched_redis_conn, clean_redis):
     """Test removing a user from a nonexistent group"""
     user_id_to_remove = 456789
     nonexistent_group_id = 999999
 
     # Попытка удаления пользователя из несуществующей группы
     try:
-        await remove_user_from_group(user_id_to_remove, nonexistent_group_id)
+        await remove_member_from_group(user_id_to_remove, nonexistent_group_id)
     except Exception as e:
         pytest.fail(f"Unexpected error when removing user from nonexistent group: {e}")
 
 
 @pytest.mark.asyncio
-async def test_remove_user_from_group_multiple_times(
+async def test_remove_member_from_group_multiple_times(
     patched_redis_conn, clean_redis, sample_group
 ):
     """Test removing a user from a group multiple times"""
@@ -351,18 +353,18 @@ async def test_remove_user_from_group_multiple_times(
 
     # Добавляем пользователя в группу
     user_id_to_remove = 456789
-    await add_unique_user(sample_group.group_id, user_id_to_remove)
+    await add_member(sample_group.group_id, user_id_to_remove)
 
     # Первое удаление
-    await remove_user_from_group(user_id_to_remove, sample_group.group_id)
-    is_member_after_first_removal = await is_user_in_group(
+    await remove_member_from_group(user_id_to_remove, sample_group.group_id)
+    is_member_after_first_removal = await is_member_in_group(
         sample_group.group_id, user_id_to_remove
     )
     assert is_member_after_first_removal is False
 
     # Повторное удаление (не должно вызывать ошибку)
-    await remove_user_from_group(user_id_to_remove, sample_group.group_id)
-    is_member_after_second_removal = await is_user_in_group(
+    await remove_member_from_group(user_id_to_remove, sample_group.group_id)
+    is_member_after_second_removal = await is_member_in_group(
         sample_group.group_id, user_id_to_remove
     )
     assert is_member_after_second_removal is False

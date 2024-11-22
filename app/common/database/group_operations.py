@@ -119,41 +119,23 @@ async def deduct_credits_from_admins(group_id: int, amount: int) -> bool:
             highest_balance = balance
 
     # Deduct from the admin with the highest balance
-    if highest_balance_admin and highest_balance >= amount:
-        if await deduct_credits(highest_balance_admin, amount):
-            return True
+    if (
+        highest_balance_admin
+        and highest_balance >= amount
+        and await deduct_credits(highest_balance_admin, amount)
+    ):
+        return True
 
     return False
 
 
 @log_function_call(logger)
-async def get_user_groups(user_id: int) -> List[int]:
-    """Get list of groups where user is an admin"""
-    groups = []
-    cursor = 0
-    pattern = "group:*:admins"
-
-    while True:
-        cursor, keys = await redis.scan(cursor, match=pattern)
-        for key in keys:
-            if await redis.sismember(key, user_id):
-                # Extract group_id from key (format: group:{id}:admins)
-                group_id = int(key.split(":")[1])
-                groups.append(group_id)
-
-        if cursor == 0:  # When cursor returns to 0, scanning is complete
-            break
-
-    return groups
-
-
-@log_function_call(logger)
-async def get_user_admin_groups(user_id: int):
+async def get_admin_groups(admin_id: int):
     """
     Get list of groups where user is an admin
 
     Args:
-        user_id: User ID
+        admin_id: Admin ID
 
     Returns:
         list: List of dictionaries with group information (id, title, is_moderation_enabled)
@@ -175,7 +157,7 @@ async def get_user_admin_groups(user_id: int):
             if key.count(":") == 1:
                 group_id = int(key.split(":")[1])
                 group_ids.append(group_id)
-                pipeline.sismember(f"group:{group_id}:admins", user_id)
+                pipeline.sismember(f"group:{group_id}:admins", admin_id)
                 pipeline.hget(f"group:{group_id}", "is_moderation_enabled")
 
         if not group_ids:
@@ -185,12 +167,8 @@ async def get_user_admin_groups(user_id: int):
 
         results = await pipeline.execute()
 
-        # Process results in pairs (is_admin, moderation_status)
-        for i in range(0, len(results), 2):
-            is_admin = results[i]
-            moderation_status = results[i + 1]
-            group_id = group_ids[i // 2]
-
+        zipped = zip(results[::2], results[1::2], group_ids)
+        for is_admin, moderation_status, group_id in zipped:
             if is_admin:
                 try:
                     chat = await bot.get_chat(group_id)
@@ -244,30 +222,32 @@ async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
 
 
 @log_function_call(logger)
-async def is_user_in_group(group_id: int, user_id: int) -> bool:
-    """Check if user is in group"""
-    return bool(await redis.sismember(f"group:{group_id}:members", user_id))
+async def is_member_in_group(group_id: int, member_id: int) -> bool:
+    """Check if member is in group"""
+    return bool(await redis.sismember(f"group:{group_id}:members", member_id))
 
 
 @log_function_call(logger)
-async def add_unique_user(group_id: int, user_id: int) -> None:
-    """Add unique user to group"""
-    await redis.sadd(f"group:{group_id}:members", user_id)
+async def add_member(group_id: int, member_id: int) -> None:
+    """Add unique member to group"""
+    await redis.sadd(f"group:{group_id}:members", member_id)
 
 
 @log_function_call(logger)
-async def remove_user_from_group(user_id: int, group_id: Optional[int] = None) -> None:
+async def remove_member_from_group(
+    member_id: int, group_id: Optional[int] = None
+) -> None:
     """
-    Remove a user from a group or all groups in Redis
+    Remove a member from a group or all groups in Redis
 
     Args:
-        user_id: ID пользователя для удаления
-        group_id: ID группы (если None, удаляет пользователя из всех групп)
+        member_id: ID member for removing
+        group_id: ID group for removing (if None, removes member from all groups)
     """
     if group_id is not None:
         # Удаление пользователя из конкретной группы
         pipeline = redis.pipeline()
-        pipeline.srem(f"group:{group_id}:members", user_id)
+        pipeline.srem(f"group:{group_id}:members", member_id)
         pipeline.hset(f"group:{group_id}", "last_updated", datetime.now().isoformat())
         await pipeline.execute()
     else:
@@ -282,7 +262,7 @@ async def remove_user_from_group(user_id: int, group_id: Optional[int] = None) -
                 pipeline = redis.pipeline()
                 for key in keys:
                     # Удаление пользователя из каждой группы
-                    pipeline.srem(key, user_id)
+                    pipeline.srem(key, member_id)
                     # Обновление времени последнего изменения для каждой группы
                     group_id = key.split(":")[1]
                     pipeline.hset(
