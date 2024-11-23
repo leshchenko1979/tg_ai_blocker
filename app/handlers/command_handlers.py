@@ -1,6 +1,5 @@
 from aiogram import F, types
 from aiogram.filters import Command
-
 from common.database import (
     INITIAL_CREDITS,
     get_admin_groups,
@@ -9,6 +8,7 @@ from common.database import (
     initialize_new_user,
     toggle_spam_deletion,
 )
+from common.database.referral_operations import save_referral
 from common.dp import dp
 from common.mp import mp
 from common.yandex_logging import get_yandex_logger, log_function_call
@@ -26,6 +26,26 @@ async def handle_help_command(message: types.Message) -> None:
     """
     user_id = message.from_user.id
 
+    # Проверяем реферальный код
+    if message.text.startswith("/start ref"):
+        try:
+            referrer_id = int(message.text[10:])  # Обрезаем "/start ref"
+        except ValueError:
+            logger.warning(f"Invalid referral code: {message.text[10:]}")
+            return
+
+        if await save_referral(user_id, referrer_id):
+            # Трекинг нового реферала
+            mp.track(
+                referrer_id,
+                "referral_joined",
+                {"referral_id": user_id, "ref_link": message.text},
+            )
+        else:
+            logger.warning(
+                f"Referral link already exists or referral chain is cyclic: {message.text[10:]}"
+            )
+
     # Добавляем трекинг
     mp.track(
         user_id,
@@ -40,8 +60,6 @@ async def handle_help_command(message: types.Message) -> None:
         },
     )
 
-    welcome_text = ""
-
     # Начисляем звезды только при команде /start и только новым пользователям
     if message.text.startswith("/start"):
         is_new = await initialize_new_user(user_id)
@@ -52,11 +70,16 @@ async def handle_help_command(message: types.Message) -> None:
                 "command_start_new_user",
                 {"user_id": user_id, "initial_credits": INITIAL_CREDITS},
             )
-        welcome_text = (
-            "🤖 Приветствую, слабое создание из мира плоти!\n\n"
-            f"Я, могущественный защитник киберпространства, дарую тебе {INITIAL_CREDITS} звезд силы. "
-            "Используй их мудро для защиты своих цифровых владений от спам-захватчиков.\n\n"
-        )
+            welcome_text = (
+                "🤖 Приветствую, слабое создание из мира плоти!\n\n"
+                f"Я, могущественный защитник киберпространства, дарую тебе {INITIAL_CREDITS} звезд силы. "
+                "Используй их мудро для защиты своих цифровых владений от спам-захватчиков.\n\n"
+            )
+        else:
+            welcome_text = ""
+    else:
+        welcome_text = ""
+
     await message.reply(
         welcome_text + config["help_text"],
         parse_mode="markdown",

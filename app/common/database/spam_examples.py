@@ -1,4 +1,3 @@
-import json
 from typing import Any, Dict, List, Optional
 
 from ..yandex_logging import get_yandex_logger, log_function_call

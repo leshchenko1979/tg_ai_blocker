@@ -1,22 +1,13 @@
-from datetime import datetime
-from unittest.mock import AsyncMock, patch
-
 import pytest
-
-from common.bot import bot
 from common.database.group_operations import (
     add_member,
-    deduct_credits_from_admins,
-    get_admin_groups,
     get_paying_admins,
     is_member_in_group,
     is_moderation_enabled,
     remove_member_from_group,
     set_group_moderation,
-    update_group_admins,
 )
 from common.database.models import User
-from common.database.user_operations import get_user, save_user
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,6 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from common.database import get_user_credits
 from handlers.payment_handlers import process_successful_payment
 
@@ -212,17 +211,3 @@ async def test_process_successful_payment_zero_amount(
             # Verify no credits were added
             user_credits = await get_user_credits(admin_id)
             assert user_credits == 0
-
-
-@pytest.mark.asyncio
-async def test_process_successful_payment_error_handling(
-    patched_db_conn, clean_db, payment_message
-):
-    """Test error handling during payment processing"""
-    with patch("handlers.payment_handlers.add_credits") as add_credits_mock:
-        add_credits_mock.side_effect = Exception("Database error")
-
-        with pytest.raises(Exception) as exc_info:
-            await process_successful_payment(payment_message)
-
-        assert "Database error" in str(exc_info.value)

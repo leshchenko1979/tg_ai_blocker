@@ -1,5 +1,4 @@
-from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from ..yandex_logging import get_yandex_logger, log_function_call
 from .constants import INITIAL_CREDITS
@@ -75,45 +74,6 @@ async def get_user_credits(admin_id: int) -> int:
 
 
 @log_function_call(logger)
-async def deduct_credits(admin_id: int, amount: int) -> bool:
-    """Deduct credits from user. Returns True if successful"""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            current_credits = await conn.fetchval(
-                """
-                SELECT credits FROM administrators WHERE admin_id = $1
-            """,
-                admin_id,
-            )
-
-            if current_credits is None or current_credits < amount:
-                return False
-
-            await conn.execute(
-                """
-                UPDATE administrators
-                SET credits = credits - $1, last_active = NOW()
-                WHERE admin_id = $2
-            """,
-                amount,
-                admin_id,
-            )
-
-            # Record transaction
-            await conn.execute(
-                """
-                INSERT INTO transactions (admin_id, amount, type, description)
-                VALUES ($1, $2, 'deduct', 'Credit deduction')
-            """,
-                admin_id,
-                -amount,
-            )
-
-            return True
-
-
-@log_function_call(logger)
 async def initialize_new_user(admin_id: int) -> bool:
     """Initialize a new user with initial credits"""
     pool = await get_pool()
@@ -152,64 +112,6 @@ async def initialize_new_user(admin_id: int) -> bool:
             )
 
             return True
-
-
-@log_function_call(logger)
-async def add_credits(admin_id: int, amount: int) -> None:
-    """Add credits to user and enable moderation in their groups. Creates user if doesn't exist."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            # Check if user exists and create if not
-            exists = await conn.fetchval(
-                """
-                SELECT EXISTS(SELECT 1 FROM administrators WHERE admin_id = $1)
-            """,
-                admin_id,
-            )
-
-            if not exists:
-                await conn.execute(
-                    """
-                    INSERT INTO administrators (
-                        admin_id, credits, delete_spam, created_at, last_active
-                    ) VALUES ($1, $2, true, NOW(), NOW())
-                """,
-                    admin_id,
-                    0,
-                )  # Initialize with 0 credits before adding new amount
-
-            # Add credits to user
-            await conn.execute(
-                """
-                UPDATE administrators
-                SET credits = credits + $1, last_active = NOW()
-                WHERE admin_id = $2
-            """,
-                amount,
-                admin_id,
-            )
-
-            # Record transaction
-            await conn.execute(
-                """
-                INSERT INTO transactions (admin_id, amount, type, description)
-                VALUES ($1, $2, 'add', 'Credit addition')
-            """,
-                admin_id,
-                amount,
-            )
-
-            # Enable moderation in all user's groups
-            await conn.execute(
-                """
-                UPDATE groups g
-                SET moderation_enabled = true, last_active = NOW()
-                FROM group_administrators ga
-                WHERE g.group_id = ga.group_id AND ga.admin_id = $1
-            """,
-                admin_id,
-            )
 
 
 @log_function_call(logger)

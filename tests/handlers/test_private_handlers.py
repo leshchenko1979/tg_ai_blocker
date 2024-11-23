@@ -2,7 +2,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram import types
-
 from handlers.private_handlers import (
     OriginalMessageExtractionError,
     extract_original_message_info,

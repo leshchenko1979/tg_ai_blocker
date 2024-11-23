@@ -2,7 +2,6 @@ import asyncio
 
 from aiogram import F
 from aiogram.types import CallbackQuery
-
 from common.bot import bot
 from common.database.spam_examples import add_spam_example
 from common.dp import dp

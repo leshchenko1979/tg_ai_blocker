@@ -1,6 +1,7 @@
+# autoflake: skip_file
+
 import dotenv
 import uvicorn
-
 from common.yandex_logging import get_yandex_logger
 
 # Initialize environment variables
@@ -12,7 +13,7 @@ logger.trace("Logger initialized")
 get_yandex_logger("aiogram")  # Initialize aiogram logger
 
 # Import all handlers to register them with the dispatcher
-from handlers import (
+from handlers import (  # noqa
     callback_handlers,
     command_handlers,
     message_handlers,

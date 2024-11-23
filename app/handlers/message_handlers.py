@@ -1,6 +1,5 @@
 from aiogram import types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
 from common.bot import bot
 from common.database import (
     APPROVE_PRICE,

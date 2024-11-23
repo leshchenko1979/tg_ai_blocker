@@ -1,12 +1,11 @@
 import asyncio
 import traceback
 
-from fastapi import FastAPI, Request
-
 from common.bot import LESHCHENKO_CHAT_ID, bot
 from common.dp import dp
 from common.mp import mp
 from common.yandex_logging import get_yandex_logger, log_function_call
+from fastapi import FastAPI, Request
 from utils import remove_lines_to_fit_len
 
 logger = get_yandex_logger(__name__)

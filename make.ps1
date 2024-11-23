@@ -2,12 +2,13 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# Start timing
+$startTime = Get-Date
+
 # Format code
 Write-Host "Formatting code..." -ForegroundColor Cyan
-Push-Location app
-& isort .
-& isort ../tests
-Pop-Location
+& autoflake --remove-all-unused-imports --ignore-init-module-imports --in-place --recursive --exclude main.py .
+& isort . --profile black
 & black .
 
 # Run tests
@@ -34,4 +35,7 @@ if ($LASTEXITCODE -ne 0) { throw "Docker push failed" }
     --service-account-id aje5p7k2njcs6pml41ji
 if ($LASTEXITCODE -ne 0) { throw "Deployment failed" }
 
-Write-Host "Build and deployment completed successfully" -ForegroundColor Green
+# Calculate and display total time
+$endTime = Get-Date
+$duration = $endTime - $startTime
+Write-Host "Build and deployment completed successfully in $($duration.ToString('hh\:mm\:ss'))" -ForegroundColor Green

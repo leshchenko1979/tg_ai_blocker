@@ -1,5 +1,4 @@
 import pytest
-
 from common.database.spam_examples import (
     add_spam_example,
     get_spam_examples,

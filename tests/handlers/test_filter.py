@@ -1,7 +1,6 @@
 import pytest
 from aiogram import Dispatcher
 from aiogram.types import Message
-
 from handlers.updates_filter import filter_handle_message
 
 dp = Dispatcher()

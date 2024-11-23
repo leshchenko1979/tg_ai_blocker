@@ -3,11 +3,13 @@ import pytest
 # Mark async tests with session scope
 from pytest_asyncio import is_async_test
 
+
 def pytest_collection_modifyitems(items):
     pytest_asyncio_tests = (item for item in items if is_async_test(item))
     session_scope_marker = pytest.mark.asyncio(loop_scope="session")
     for async_test in pytest_asyncio_tests:
         async_test.add_marker(session_scope_marker, append=False)
+
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -19,9 +21,9 @@ import os
 from datetime import datetime
 
 import asyncpg
-
 from common.database import User, postgres_connection
 from common.database.database_schema import (
+    create_schema,
     drop_and_create_database,
     truncate_all_tables,
 )
@@ -56,16 +58,18 @@ async def create_test_database():
     )
 
     try:
-        # Check if database exists
-        exists = await system_conn.fetchval(
-            "SELECT 1 FROM pg_database WHERE datname = $1", TEST_PG_DB
-        )
-
-        if not exists:
-            await drop_and_create_database(system_conn, TEST_PG_DB)
-
+        await drop_and_create_database(system_conn, TEST_PG_DB)
     finally:
         await system_conn.close()
+
+    test_db_conn = await asyncpg.connect(
+        host=PG_HOST, port=PG_PORT, user=PG_USER, password=PG_PASS, database=TEST_PG_DB
+    )
+
+    try:
+        await create_schema(test_db_conn)
+    finally:
+        await test_db_conn.close()
 
 
 @pytest.fixture(scope="session")
@@ -109,6 +113,10 @@ def patched_db_conn(test_pool):
 async def clean_db(patched_db_conn, test_pool):
     """Ensure a clean database state before each test"""
     async with test_pool.acquire() as conn:
+        # Ensure that database name is TEST_PG_DB
+        db_name = await conn.fetchval("SELECT current_database()")
+        assert db_name == TEST_PG_DB
+
         await truncate_all_tables(conn)
 
     print("DB cleaned")

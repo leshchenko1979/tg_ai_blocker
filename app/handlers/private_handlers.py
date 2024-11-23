@@ -3,11 +3,14 @@ import pathlib
 from typing import Any, Dict
 
 from aiogram import F, types
-
 from common.bot import bot
-from common.database.group_operations import remove_member_from_group
-from common.database.message_operations import get_message_history, save_message
-from common.database.spam_examples import add_spam_example, get_spam_examples
+from common.database import (
+    add_spam_example,
+    get_message_history,
+    get_spam_examples,
+    remove_member_from_group,
+    save_message,
+)
 from common.dp import dp
 from common.llms import get_openrouter_response
 from common.mp import mp
@@ -19,8 +22,6 @@ logger = get_yandex_logger(__name__)
 
 class OriginalMessageExtractionError(Exception):
     """Raised when original message information cannot be extracted"""
-
-    pass
 
 
 @dp.message(F.chat.type == "private", ~F.text.startswith("/"), ~F.forward_from)
@@ -92,7 +93,7 @@ async def handle_private_message(message: types.Message):
         {'\n'.join(formatted_examples)}
         </примеры>
 
-        Отвечай от имени бота и ИСПОЛЬЗУЙ ПЕРСОНУ БОТА.
+        Отвечай от имени бота и используй указанный стиль ответа.
 
         Учитывай предыдущий контекст разговора при ответе.
 

@@ -1,8 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from common.database.models import User
 from handlers.message_handlers import (
     handle_moderated_message,
     handle_spam,

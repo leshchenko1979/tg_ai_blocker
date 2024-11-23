@@ -1,15 +1,18 @@
 from aiogram import F, types
 from aiogram.filters import Command
-
 from common.bot import bot
-from common.database import add_credits, get_admin_groups, set_group_moderation
+from common.database import get_pool, get_referrer
 from common.dp import dp
 from common.mp import mp
 from common.yandex_logging import get_yandex_logger, log_function_call
+from utils import config
 
 logger = get_yandex_logger(__name__)
 
 STARS_AMOUNT = 100  # Количество звезд за одну покупку
+REFERRAL_COMMISSION = (
+    config["referral_program"]["rewards"]["commission"] / 100
+)  # Конвертируем проценты в долю
 
 
 @dp.message(Command("buy"))
@@ -48,11 +51,36 @@ async def process_successful_payment(message: types.Message):
     stars_amount = message.successful_payment.total_amount
 
     try:
-        # Начисляем звезды
-        await add_credits(admin_id, stars_amount)
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            # Выполняем всю логику в одной процедуре
+            await conn.execute(
+                "CALL process_successful_payment($1, $2, $3)",
+                admin_id,
+                stars_amount,
+                REFERRAL_COMMISSION,
+            )
 
         # Трекинг успешного платежа
         mp.track(admin_id, "payment_successful", {"stars_amount": stars_amount})
+
+        # Проверяем был ли начислен реферальный бонус
+        referrer_id = await get_referrer(admin_id)
+        if referrer_id:
+            commission = int(stars_amount * REFERRAL_COMMISSION)
+            # Трекинг реферальной комиссии
+            mp.track(
+                referrer_id,
+                "referral_commission",
+                {
+                    "referral_id": admin_id,
+                    "payment_amount": stars_amount,
+                    "commission_amount": commission,
+                    "commission_percentage": config["referral_program"]["rewards"][
+                        "commission"
+                    ],
+                },
+            )
 
         await bot.send_message(
             admin_id,
