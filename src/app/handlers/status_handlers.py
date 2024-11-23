@@ -3,7 +3,7 @@ from aiogram import types
 from ..common.bot import bot
 from ..common.mp import mp
 from ..common.yandex_logging import get_yandex_logger, log_function_call
-from ..database import get_group, set_group_moderation, update_group_admins
+from ..database import get_admin, get_group, set_group_moderation, update_group_admins
 from .dp import dp
 
 logger = get_yandex_logger(__name__)
@@ -110,6 +110,39 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
                         )
                         logger.warning(f"Failed to notify admin {admin_id}: {e}")
                         continue
+
+            # Отправляем рекламное сообщение в группу
+            try:
+                # Находим админа с наименьшим количеством звезд
+                min_credits_admin_id = (
+                    event.from_user.id
+                )  # По умолчанию берем добавившего бота
+                min_credits = float("inf")
+
+                for admin_id in admin_ids:
+                    admin_data = await get_admin(admin_id)
+                    if admin_data:
+                        if admin_data.credits < min_credits:
+                            min_credits = admin_data.credits
+                            min_credits_admin_id = admin_id
+
+                admin = await get_admin(min_credits_admin_id)
+                if admin:
+                    ref_link = f"https://t.me/{(await bot.me).username}?start={min_credits_admin_id}"
+
+                    await bot.send_message(
+                        chat_id,
+                        "🛡️ *Нейромодератор активирован!*\n\n"
+                        "Теперь эта группа под защитой искусственного интеллекта:\n"
+                        "• Автоматическое обнаружение спама\n"
+                        "• Защита от рекламы и мошенников\n"
+                        "• Умная модерация новых участников\n\n"
+                        f"🚀 [Получить такого же модератора для своей группы]({ref_link})",
+                        parse_mode="markdown",
+                        disable_web_page_preview=True,
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send promo message: {e}")
 
         elif new_status == "left" or new_status == "kicked":
             # Бота удалили из группы или кикнули

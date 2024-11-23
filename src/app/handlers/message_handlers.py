@@ -43,25 +43,73 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
         logger.warning(f"No paying admins in chat {chat_id} for {reason}")
         await set_group_moderation(chat_id, False)
 
-        # Трекинг отключения модерации
-        mp.track(
-            chat_id,
-            "moderation_disabled_no_credits",
-            {"chat_id": chat_id, "reason": reason, "required_amount": amount},
-        )
-
         chat = await bot.get_chat(chat_id)
         admins = await bot.get_chat_administrators(chat_id)
+
+        # Находим админа с наименьшим количеством звезд
+        min_credits_admin = None
+        min_credits = float("inf")
+
         for admin in admins:
-            if not admin.user.is_bot:
+            if admin.user.is_bot:
+                continue
+            admin_data = await get_admin(admin.user.id)
+            if admin_data:
+                if admin_data.credits < min_credits:
+                    min_credits = admin_data.credits
+                    min_credits_admin = admin
+
+        if min_credits_admin:
+            ref_link = f"https://t.me/{(await bot.me).username}?start={min_credits_admin.user.id}"
+
+            # Отправляем сообщение в группу
+            try:
                 await bot.send_message(
-                    admin.user.id,
-                    "Внимание, органическая форма жизни!\n\n"
-                    f'Моя защита группы "{chat.title}" временно приостановлена '
-                    "из-за истощения звездной энергии.\n\n"
-                    "Пополни запас звезд командой /buy, чтобы я продолжил охранять "
-                    "твоё киберпространство от цифровых паразитов!",
+                    chat_id,
+                    "⚠️ *Внимание! Защита группы деактивирована*\n\n"
+                    "Нейромодератор приостановил работу из-за нехватки звезд.\n"
+                    "Группа осталась без защиты от:\n"
+                    "• Спама и рекламы\n"
+                    "• Мошенников\n"
+                    "• Нежелательных сообщений\n\n"
+                    "👉 Администраторы могут восстановить защиту через личные сообщения с ботом\n\n"
+                    f"🤖 [Хотите такого же модератора в свою группу? Подключить]({ref_link})",
+                    parse_mode="markdown",
+                    disable_web_page_preview=True,
                 )
+
+                # Трекинг отправки рекламного сообщения
+                mp.track(
+                    chat_id,
+                    "promo_message_sent",
+                    {
+                        "type": "no_credits_group",
+                        "admin_id": min_credits_admin.user.id,
+                        "admin_credits": min_credits,
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send group promo message: {e}")
+
+            # Уведомляем админов персонально
+            for admin in admins:
+                if admin.user.is_bot:
+                    continue
+                try:
+                    await bot.send_message(
+                        admin.user.id,
+                        "Внимание, органическая форма жизни!\n\n"
+                        f'Моя защита группы "{chat.title}" временно приостановлена '
+                        "из-за истощения звездной энергии.\n\n"
+                        "Пополни запас звезд командой /buy, чтобы я продолжил охранять "
+                        "твоё киберпространство от цифровых паразитов!\n\n"
+                        f"Или пригласи других администраторов: {ref_link}",
+                        disable_web_page_preview=True,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to notify admin {admin.user.id}: {e}")
+                    continue
+
         return False
     return True
 
@@ -197,7 +245,7 @@ async def handle_moderated_message(message: types.Message):
         chat_id = message.chat.id
         user_id = message.from_user.id
 
-        # Трекинг начала обработки соо��щения
+        # Трекинг начала обработки соощения
         mp.track(
             chat_id,
             "message_processing_started",
