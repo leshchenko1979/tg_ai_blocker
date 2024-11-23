@@ -1,3 +1,8 @@
+# Add parameter (must be at the very beginning)
+param(
+    [switch]$SkipTests
+)
+
 # Enable strict mode and stop on errors
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -12,9 +17,13 @@ Write-Host "Formatting code..." -ForegroundColor Cyan
 & black .
 
 # Run tests
-Write-Host "Running tests..." -ForegroundColor Cyan
-& pytest
-if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
+if (-not $SkipTests) {
+    Write-Host "Running tests..." -ForegroundColor Cyan
+    & pytest
+    if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
+} else {
+    Write-Host "Skipping tests..." -ForegroundColor Yellow
+}
 
 # Build and deploy
 Write-Host "Building and deploying..." -ForegroundColor Cyan
