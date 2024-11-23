@@ -33,7 +33,7 @@ async def get_prompt(admin_id: Optional[int] = None):
     """Get the full prompt with spam examples from Redis"""
     prompt = base_prompt
 
-    # Get spam examples from Redis, including user-specific examples
+    # Get spam examples, including user-specific examples
     examples = await get_spam_examples(admin_id)
 
     # Add examples to prompt
@@ -43,8 +43,8 @@ async def get_prompt(admin_id: Optional[int] = None):
 <текст сообщения>
 {example["text"]}
 </текст сообщения>
-{'<имя>' + example["name"] + '</имя>' if "name" in example else ''}
-{'<биография>' + example["bio"] + '</биография>' if "bio" in example else ''}
+{'<имя>' + example["name"] + '</имя>' if example.get("name") else ''}
+{'<биография>' + example["bio"] + '</биография>' if example.get("bio") else ''}
 </запрос>
 <ответ>
 {"да" if example["score"] > 0 else "нет"} {abs(example["score"])}%
