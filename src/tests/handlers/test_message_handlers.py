@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.handlers.message_handlers import (
+from ...app.handlers.message_handlers import (
     handle_moderated_message,
     handle_spam,
     try_deduct_credits,
@@ -10,16 +10,8 @@ from app.handlers.message_handlers import (
 
 
 @pytest.fixture(autouse=True)
-def mock_logger():
-    with patch("app.handlers.message_handlers.get_yandex_logger") as mock:
-        logger_mock = MagicMock()
-        mock.return_value = logger_mock
-        yield logger_mock
-
-
-@pytest.fixture(autouse=True)
 def mock_bot():
-    with patch("app.handlers.message_handlers.bot") as mock:
+    with patch("src.app.handlers.message_handlers.bot") as mock:
         mock.get_chat = AsyncMock()
         mock.get_chat.return_value = MagicMock(title="Test Group")
 
@@ -60,9 +52,9 @@ async def test_handle_moderated_message_disabled_moderation(
     patched_db_conn, clean_db, message_mock
 ):
     with patch(
-        "app.handlers.message_handlers.is_moderation_enabled"
+        "src.app.handlers.message_handlers.is_moderation_enabled"
     ) as mod_mock, patch(
-        "app.handlers.message_handlers.is_member_in_group"
+        "src.app.handlers.message_handlers.is_member_in_group"
     ) as member_mock:
         mod_mock.return_value = False
 
@@ -94,7 +86,7 @@ async def test_handle_spam_auto_delete(patched_db_conn, clean_db, message_mock):
             222222,
         )
 
-    with patch("app.handlers.message_handlers.bot.delete_message") as delete_mock:
+    with patch("src.app.handlers.message_handlers.bot.delete_message") as delete_mock:
         await handle_spam(message_mock)
         delete_mock.assert_called_once_with(
             message_mock.chat.id, message_mock.message_id
@@ -104,9 +96,9 @@ async def test_handle_spam_auto_delete(patched_db_conn, clean_db, message_mock):
 @pytest.mark.asyncio
 async def test_try_deduct_credits_failure(patched_db_conn, clean_db):
     with patch(
-        "app.handlers.message_handlers.deduct_credits_from_admins"
+        "src.app.handlers.message_handlers.deduct_credits_from_admins"
     ) as deduct_mock, patch(
-        "app.handlers.message_handlers.set_group_moderation"
+        "src.app.handlers.message_handlers.set_group_moderation"
     ) as set_mod_mock:
         deduct_mock.return_value = False
         chat_id = -1001234567890

@@ -3,21 +3,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aiogram import types
 
-from app.handlers.private_handlers import (
+from ...app.handlers.private_handlers import (
     OriginalMessageExtractionError,
     extract_original_message_info,
     handle_forwarded_message,
     handle_private_message,
     process_spam_example_callback,
 )
-
-
-@pytest.fixture(autouse=True)
-def mock_logger():
-    with patch("app.handlers.private_handlers.get_yandex_logger") as mock:
-        logger_mock = MagicMock()
-        mock.return_value = logger_mock
-        yield logger_mock
 
 
 @pytest.fixture
@@ -83,12 +75,14 @@ async def test_handle_private_message(patched_db_conn, clean_db, private_message
             private_message_mock.from_user.username,
         )
 
-        with patch("app.handlers.private_handlers.save_message") as save_mock, patch(
-            "app.handlers.private_handlers.get_message_history"
+        with patch(
+            "src.app.handlers.private_handlers.save_message"
+        ) as save_mock, patch(
+            "src.app.handlers.private_handlers.get_message_history"
         ) as history_mock, patch(
-            "app.handlers.private_handlers.get_openrouter_response"
+            "src.app.handlers.private_handlers.get_openrouter_response"
         ) as llm_mock, patch(
-            "app.handlers.private_handlers.get_spam_examples"
+            "src.app.handlers.private_handlers.get_spam_examples"
         ) as examples_mock, patch(
             "pathlib.Path.read_text"
         ) as read_mock:
@@ -158,13 +152,13 @@ async def test_process_spam_example_callback(
         )
 
         with patch(
-            "app.handlers.private_handlers.extract_original_message_info"
+            "src.app.handlers.private_handlers.extract_original_message_info"
         ) as extract_mock, patch(
-            "app.handlers.private_handlers.add_spam_example"
+            "src.app.handlers.private_handlers.add_spam_example"
         ) as add_mock, patch(
-            "app.handlers.private_handlers.remove_member_from_group"
+            "src.app.handlers.private_handlers.remove_member_from_group"
         ) as remove_mock, patch(
-            "app.handlers.private_handlers.bot"
+            "src.app.handlers.private_handlers.bot"
         ) as bot_mock:
             # Setup mocks
             message_info = {
@@ -275,7 +269,7 @@ async def test_extract_original_message_info(patched_db_conn, clean_db):
     callback_message.reply_to_message.forward_from.full_name = "Original User"
     callback_message.reply_to_message.text = "Original message"
 
-    with patch("app.handlers.private_handlers.bot.get_chat") as get_chat_mock:
+    with patch("src.app.handlers.private_handlers.bot.get_chat") as get_chat_mock:
         get_chat_mock.return_value = MagicMock(bio="User bio")
 
         result = await extract_original_message_info(callback_message)

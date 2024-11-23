@@ -4,10 +4,10 @@ from aiogram import F
 from aiogram.types import CallbackQuery
 
 from ..common.bot import bot
-from ..common.database.spam_examples import add_spam_example
-from ..common.dp import dp
 from ..common.mp import mp
 from ..common.yandex_logging import get_yandex_logger, log_function_call
+from ..database.spam_examples import add_spam_example
+from .dp import dp
 
 logger = get_yandex_logger(__name__)
 

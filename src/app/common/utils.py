@@ -2,7 +2,7 @@ from typing import Any, Dict
 
 import yaml
 
-from .common.yandex_logging import get_yandex_logger
+from .yandex_logging import get_yandex_logger
 
 logger = get_yandex_logger(__name__)
 

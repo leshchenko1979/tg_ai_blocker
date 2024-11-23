@@ -2,7 +2,10 @@ from aiogram import types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
-from ..common.database import (
+from ..common.mp import mp
+from ..common.spam_classifier import is_spam
+from ..common.yandex_logging import get_yandex_logger, log_function_call
+from ..database import (
     APPROVE_PRICE,
     DELETE_PRICE,
     add_member,
@@ -13,10 +16,7 @@ from ..common.database import (
     set_group_moderation,
     update_group_admins,
 )
-from ..common.dp import dp
-from ..common.mp import mp
-from ..common.yandex_logging import get_yandex_logger, log_function_call
-from ..spam_classifier import is_spam
+from .dp import dp
 from .updates_filter import filter_handle_message
 
 logger = get_yandex_logger(__name__)

@@ -1,4 +1,4 @@
-from app.common.mp import SilentMixpanel, mp
+from ..app.common.mp import SilentMixpanel, mp
 
 
 def test_mp_is_silent():

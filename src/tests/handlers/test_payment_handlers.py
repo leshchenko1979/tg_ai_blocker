@@ -2,16 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.common.database import get_admin_credits
-from app.handlers.payment_handlers import process_successful_payment
-
-
-@pytest.fixture(autouse=True)
-def mock_logger():
-    with patch("app.handlers.payment_handlers.get_yandex_logger") as mock:
-        logger_mock = MagicMock()
-        mock.return_value = logger_mock
-        yield logger_mock
+from ...app.database import get_admin_credits
+from ...app.handlers.payment_handlers import process_successful_payment
 
 
 @pytest.fixture
@@ -65,11 +57,11 @@ async def test_process_successful_payment_basic(
             admin_id,
         )
 
-        with patch("app.handlers.payment_handlers.bot.get_chat") as get_chat_mock:
+        with patch("src.app.handlers.payment_handlers.bot.get_chat") as get_chat_mock:
             get_chat_mock.return_value.title = "Test Group"
 
             with patch(
-                "app.handlers.payment_handlers.bot.send_message"
+                "src.app.handlers.payment_handlers.bot.send_message"
             ) as send_message_mock:
                 await process_successful_payment(payment_message)
 
@@ -135,11 +127,11 @@ async def test_process_successful_payment_multiple_groups(
                 admin_id,
             )
 
-        with patch("app.handlers.payment_handlers.bot.get_chat") as get_chat_mock:
+        with patch("src.app.handlers.payment_handlers.bot.get_chat") as get_chat_mock:
             get_chat_mock.return_value.title = "Test Group"
 
             with patch(
-                "app.handlers.payment_handlers.bot.send_message"
+                "src.app.handlers.payment_handlers.bot.send_message"
             ) as send_message_mock:
                 await process_successful_payment(payment_message)
 
@@ -174,7 +166,7 @@ async def test_process_successful_payment_existing_credits(
         )
 
         with patch(
-            "app.handlers.payment_handlers.bot.send_message"
+            "src.app.handlers.payment_handlers.bot.send_message"
         ) as send_message_mock:
             await process_successful_payment(payment_message)
 
@@ -192,7 +184,7 @@ async def test_process_successful_payment_no_groups(
         admin_id = payment_message.from_user.id
 
         with patch(
-            "app.handlers.payment_handlers.bot.send_message"
+            "src.app.handlers.payment_handlers.bot.send_message"
         ) as send_message_mock:
             await process_successful_payment(payment_message)
 
@@ -211,7 +203,7 @@ async def test_process_successful_payment_zero_amount(
         payment_message.successful_payment.total_amount = 0
 
         with patch(
-            "app.handlers.payment_handlers.bot.send_message"
+            "src.app.handlers.payment_handlers.bot.send_message"
         ) as send_message_mock:
             await process_successful_payment(payment_message)
 

@@ -1,6 +1,6 @@
 import pytest
 
-from app.common.database.referral_operations import (
+from ...app.database import (
     get_referrals,
     get_referrer,
     get_total_earnings,

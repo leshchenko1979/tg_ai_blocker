@@ -1,6 +1,7 @@
 import pytest
 
-from app.common.database.group_operations import (
+from ...app.database import (
+    Administrator,
     add_member,
     get_paying_admins,
     is_member_in_group,
@@ -8,7 +9,6 @@ from app.common.database.group_operations import (
     remove_member_from_group,
     set_group_moderation,
 )
-from app.common.database.models import Administrator
 
 
 @pytest.mark.asyncio

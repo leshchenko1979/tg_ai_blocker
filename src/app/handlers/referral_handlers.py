@@ -4,11 +4,11 @@ from aiogram import F, types
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from ..common.database.referral_operations import get_referrals, get_total_earnings
-from ..common.dp import dp
 from ..common.mp import mp
+from ..common.utils import config
 from ..common.yandex_logging import get_yandex_logger, log_function_call
-from ..utils import config
+from ..database.referral_operations import get_referrals, get_total_earnings
+from .dp import dp
 
 logger = get_yandex_logger(__name__)
 

@@ -2,11 +2,11 @@ from aiogram import F, types
 from aiogram.filters import Command
 
 from ..common.bot import bot
-from ..common.database import get_pool, get_referrer
-from ..common.dp import dp
 from ..common.mp import mp
+from ..common.utils import config
 from ..common.yandex_logging import get_yandex_logger, log_function_call
-from ..utils import config
+from ..database import get_pool, get_referrer
+from .dp import dp
 
 logger = get_yandex_logger(__name__)
 

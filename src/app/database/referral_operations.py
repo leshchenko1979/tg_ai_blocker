@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from ..yandex_logging import get_yandex_logger, log_function_call
+from ..common.yandex_logging import get_yandex_logger, log_function_call
 from .postgres_connection import get_pool
 
 logger = get_yandex_logger(__name__)

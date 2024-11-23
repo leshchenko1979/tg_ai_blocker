@@ -3,7 +3,7 @@ from typing import Optional
 
 import asyncpg
 
-from ..yandex_logging import get_yandex_logger
+from ..common.yandex_logging import get_yandex_logger
 
 logger = get_yandex_logger(__name__)
 

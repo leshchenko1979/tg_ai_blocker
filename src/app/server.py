@@ -4,10 +4,10 @@ import traceback
 from fastapi import FastAPI, Request
 
 from .common.bot import LESHCHENKO_CHAT_ID, bot
-from .common.dp import dp
 from .common.mp import mp
+from .common.utils import remove_lines_to_fit_len
 from .common.yandex_logging import get_yandex_logger, log_function_call
-from .utils import remove_lines_to_fit_len
+from .handlers.dp import dp
 
 logger = get_yandex_logger(__name__)
 

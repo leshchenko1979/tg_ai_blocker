@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional
 
-from ..bot import bot
-from ..yandex_logging import get_yandex_logger, log_function_call
+from ..common.bot import bot
+from ..common.yandex_logging import get_yandex_logger, log_function_call
 from .constants import INITIAL_CREDITS
 from .models import Group
 from .postgres_connection import get_pool

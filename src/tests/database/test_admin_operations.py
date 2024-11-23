@@ -1,6 +1,6 @@
 import pytest
 
-from app.common.database.admin_operations import (
+from ...app.database import (
     get_admin,
     get_admin_credits,
     get_spam_deletion_state,
@@ -8,7 +8,7 @@ from app.common.database.admin_operations import (
     save_admin,
     toggle_spam_deletion,
 )
-from app.common.database.constants import INITIAL_CREDITS
+from ...app.database.constants import INITIAL_CREDITS
 
 
 @pytest.mark.asyncio

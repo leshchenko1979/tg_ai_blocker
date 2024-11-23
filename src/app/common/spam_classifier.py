@@ -1,8 +1,8 @@
 from typing import Optional
 
-from .common.database.spam_examples import get_spam_examples
-from .common.llms import get_openrouter_response
-from .common.yandex_logging import get_yandex_logger
+from ..database.spam_examples import get_spam_examples
+from .llms import get_openrouter_response
+from .yandex_logging import get_yandex_logger
 
 logger = get_yandex_logger(__name__)
 

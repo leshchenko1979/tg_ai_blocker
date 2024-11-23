@@ -5,18 +5,18 @@ from typing import Any, Dict
 from aiogram import F, types
 
 from ..common.bot import bot
-from ..common.database import (
+from ..common.llms import get_openrouter_response
+from ..common.mp import mp
+from ..common.utils import config
+from ..common.yandex_logging import get_yandex_logger, log_function_call
+from ..database import (
     add_spam_example,
     get_message_history,
     get_spam_examples,
     remove_member_from_group,
     save_message,
 )
-from ..common.dp import dp
-from ..common.llms import get_openrouter_response
-from ..common.mp import mp
-from ..common.yandex_logging import get_yandex_logger, log_function_call
-from ..utils import config
+from .dp import dp
 
 logger = get_yandex_logger(__name__)
 

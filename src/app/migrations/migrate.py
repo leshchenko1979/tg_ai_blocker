@@ -5,7 +5,7 @@ from typing import Any, List
 from dotenv import load_dotenv
 
 load_dotenv()
-from ..common.database import create_procedures, get_pool
+from ..database import create_procedures, get_pool
 
 
 async def migrate(conn: Any) -> List[str]:

@@ -7,7 +7,6 @@ requests
 mixpanel
 pyyaml
 asyncpg
-redis
 # supabase
 # reretry
 # upstash-redis

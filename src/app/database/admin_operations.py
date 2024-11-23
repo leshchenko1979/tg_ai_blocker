@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ..yandex_logging import get_yandex_logger, log_function_call
+from ..common.yandex_logging import get_yandex_logger, log_function_call
 from .constants import INITIAL_CREDITS
 from .models import Administrator
 from .postgres_connection import get_pool

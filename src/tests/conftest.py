@@ -19,18 +19,18 @@ import os
 from datetime import datetime
 
 # Mute Yandex logging
-from app.common.yandex_logging import mute_yandex_logging_for_tests
+from ..app.common.yandex_logging import mute_yandex_logging_for_tests
 
 mute_yandex_logging_for_tests()
 
 # Mute mp for tests
-from app.common.mp import mute_mp_for_tests
+from ..app.common.mp import mute_mp_for_tests
 
 mute_mp_for_tests()
 
 import asyncpg
 
-from app.common.database import (
+from ..app.database import (
     Administrator,
     create_schema,
     drop_and_create_database,

@@ -1,10 +1,10 @@
 from aiogram import types
 
 from ..common.bot import bot
-from ..common.database import get_group, set_group_moderation, update_group_admins
-from ..common.dp import dp
 from ..common.mp import mp
 from ..common.yandex_logging import get_yandex_logger, log_function_call
+from ..database import get_group, set_group_moderation, update_group_admins
+from .dp import dp
 
 logger = get_yandex_logger(__name__)
 

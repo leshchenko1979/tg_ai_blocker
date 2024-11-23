@@ -1,7 +1,10 @@
 from aiogram import F, types
 from aiogram.filters import Command
 
-from ..common.database import (
+from ..common.mp import mp
+from ..common.utils import config
+from ..common.yandex_logging import get_yandex_logger, log_function_call
+from ..database import (
     INITIAL_CREDITS,
     get_admin_credits,
     get_admin_groups,
@@ -11,10 +14,7 @@ from ..common.database import (
     save_referral,
     toggle_spam_deletion,
 )
-from ..common.dp import dp
-from ..common.mp import mp
-from ..common.yandex_logging import get_yandex_logger, log_function_call
-from ..utils import config
+from .dp import dp
 
 logger = get_yandex_logger(__name__)
 
