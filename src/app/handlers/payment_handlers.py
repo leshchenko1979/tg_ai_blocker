@@ -1,5 +1,6 @@
 from aiogram import F, types
 from aiogram.filters import Command
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
 from ..common.mp import mp
@@ -10,10 +11,7 @@ from .dp import dp
 
 logger = get_yandex_logger(__name__)
 
-STARS_AMOUNT = 100  # Количество звезд за одну покупку
-REFERRAL_COMMISSION = (
-    config["referral_program"]["rewards"]["commission"] / 100
-)  # Конвертируем проценты в долю
+REFERRAL_COMMISSION = config["referral_program"]["rewards"]["commission"]
 
 
 @dp.message(Command("buy"))
@@ -21,21 +19,64 @@ REFERRAL_COMMISSION = (
 async def handle_buy_command(message: types.Message) -> None:
     """
     Обрабатывает команду покупки звезд
+    Показывает меню с разными пакетами звезд
     """
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="100 звезд 💫", callback_data="buy_stars:100"),
+                InlineKeyboardButton(text="500 звезд ⭐", callback_data="buy_stars:500"),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="1000 звезд 🌟", callback_data="buy_stars:1000"
+                ),
+                InlineKeyboardButton(
+                    text="5000 звезд 🌠", callback_data="buy_stars:5000"
+                ),
+            ],
+        ]
+    )
 
     # Трекинг начала покупки
+    mp.track(message.from_user.id, "payment_menu_opened")
+
+    await message.reply(
+        "🛒 Выберите количество звезд для покупки:\n\n"
+        "• 100 звезд - базовый пакет\n"
+        "• 500 звезд - популярный выбор\n"
+        "• 1000 звезд - для активных групп\n"
+        "• 5000 звезд - максимальная защита\n\n"
+        "💡 Чем больше звезд вы покупаете, тем дольше сможете защищать свои группы!",
+        reply_markup=keyboard,
+    )
+
+
+@dp.callback_query(F.data.startswith("buy_stars:"))
+@log_function_call(logger)
+async def handle_buy_stars_callback(callback: types.CallbackQuery):
+    """
+    Обрабатывает выбор количества звезд для покупки
+    """
+    await callback.answer()
+
+    stars_amount = int(callback.data.split(":")[1])
+
+    # Трекинг выбора пакета
     mp.track(
-        message.from_user.id, "payment_buy_initiated", {"stars_amount": STARS_AMOUNT}
+        callback.from_user.id,
+        "payment_package_selected",
+        {"stars_amount": stars_amount},
     )
 
     await bot.send_invoice(
-        chat_id=message.chat.id,
+        chat_id=callback.message.chat.id,
         title="Звезды для защиты от спама",
-        description=f"Покупка {STARS_AMOUNT} звезд для защиты ваших групп от спама",
-        payload="Stars purchase",
+        description=f"Покупка {stars_amount} звезд для защиты ваших групп от спама",
+        payload=f"Stars purchase:{stars_amount}",
         provider_token="",
         currency="XTR",
-        prices=[types.LabeledPrice(label=f"{STARS_AMOUNT} звезд", amount=STARS_AMOUNT)],
+        prices=[types.LabeledPrice(label=f"{stars_amount} звезд", amount=stars_amount)],
     )
 
 
@@ -54,22 +95,20 @@ async def process_successful_payment(message: types.Message):
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
-            # Выполняем всю логику в одной процедуре
             await conn.execute(
                 "CALL process_successful_payment($1, $2, $3)",
                 admin_id,
                 stars_amount,
-                REFERRAL_COMMISSION,
+                REFERRAL_COMMISSION / 100,
             )
 
         # Трекинг успешного платежа
         mp.track(admin_id, "payment_successful", {"stars_amount": stars_amount})
 
-        # Проверяем был ли начислен реферальный бонус
+        # Проверяем реферальный бонус
         referrer_id = await get_referrer(admin_id)
         if referrer_id:
-            commission = int(stars_amount * REFERRAL_COMMISSION)
-            # Трекинг реферальной комиссии
+            commission = int(stars_amount * REFERRAL_COMMISSION / 100)
             mp.track(
                 referrer_id,
                 "referral_commission",
@@ -77,9 +116,7 @@ async def process_successful_payment(message: types.Message):
                     "referral_id": admin_id,
                     "payment_amount": stars_amount,
                     "commission_amount": commission,
-                    "commission_percentage": config["referral_program"]["rewards"][
-                        "commission"
-                    ],
+                    "commission_percentage": REFERRAL_COMMISSION,
                 },
             )
 

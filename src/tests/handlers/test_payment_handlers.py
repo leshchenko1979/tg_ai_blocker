@@ -1,19 +1,90 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aiogram.types import CallbackQuery, Chat, Message
 
 from ...app.database import get_admin_credits
-from ...app.handlers.payment_handlers import process_successful_payment
+from ...app.handlers.payment_handlers import (
+    handle_buy_command,
+    handle_buy_stars_callback,
+    process_successful_payment,
+)
 
 
 @pytest.fixture
 def payment_message():
-    message = MagicMock()
+    message = MagicMock(spec=Message)
     message.from_user = MagicMock()
     message.from_user.id = 123456
     message.successful_payment = MagicMock()
     message.successful_payment.total_amount = 100
     return message
+
+
+@pytest.fixture
+def callback_query():
+    callback = MagicMock(spec=CallbackQuery)
+    callback.from_user = MagicMock()
+    callback.from_user.id = 123456
+    callback.message = MagicMock(spec=Message)
+    callback.message.chat = MagicMock(spec=Chat)
+    callback.message.chat.id = 123456
+    callback.data = "buy_stars:100"
+    callback.answer = AsyncMock()
+    return callback
+
+
+@pytest.mark.asyncio
+async def test_handle_buy_command(payment_message):
+    """Test buy command shows payment menu"""
+    # Create a coroutine mock for the reply method
+    reply_mock = MagicMock()
+    reply_mock.return_value = None  # or whatever your reply method should return
+    payment_message.reply = AsyncMock(return_value=reply_mock)
+
+    with patch("src.app.handlers.payment_handlers.mp.track") as track_mock:
+        await handle_buy_command(payment_message)
+
+        # Verify tracking was called
+        track_mock.assert_called_once_with(
+            payment_message.from_user.id, "payment_menu_opened"
+        )
+
+        # Verify reply was called with correct keyboard
+        payment_message.reply.assert_called_once()
+        call_args = payment_message.reply.call_args
+        reply_text = call_args[0][0]
+        reply_markup = call_args[1]["reply_markup"]
+
+        assert "100 звезд" in reply_text
+        assert "500 звезд" in reply_text
+        assert "1000 звезд" in reply_text
+        assert "5000 звезд" in reply_text
+        assert len(reply_markup.inline_keyboard) == 2
+        assert len(reply_markup.inline_keyboard[0]) == 2
+
+
+@pytest.mark.asyncio
+async def test_handle_buy_stars_callback(callback_query):
+    """Test callback handling for star package selection"""
+    callback_query.data = "buy_stars:500"
+
+    with patch("src.app.handlers.payment_handlers.mp.track") as track_mock:
+        with patch(
+            "src.app.handlers.payment_handlers.bot.send_invoice"
+        ) as invoice_mock:
+            await handle_buy_stars_callback(callback_query)
+
+            # Verify tracking was called
+            track_mock.assert_called_once_with(
+                callback_query.from_user.id,
+                "payment_package_selected",
+                {"stars_amount": 500},
+            )
+
+            # Verify invoice was sent with correct amount
+            invoice_mock.assert_called_once()
+            assert invoice_mock.call_args[1]["prices"][0].amount == 500
 
 
 @pytest.mark.asyncio
@@ -210,3 +281,85 @@ async def test_process_successful_payment_zero_amount(
             # Verify no credits were added
             user_credits = await get_admin_credits(admin_id)
             assert user_credits == 0
+
+
+@pytest.mark.asyncio
+async def test_process_successful_payment_large_amount(
+    patched_db_conn, clean_db, payment_message
+):
+    """Test payment processing with large amount (5000 stars)"""
+    payment_message.successful_payment.total_amount = 5000
+    async with clean_db.acquire() as conn:
+        admin_id = payment_message.from_user.id
+
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, $2, $3)
+        """,
+            admin_id,
+            "TestAdmin",
+            0,
+        )
+
+        with patch(
+            "src.app.handlers.payment_handlers.bot.send_message"
+        ) as send_message_mock:
+            await process_successful_payment(payment_message)
+
+            # Verify correct amount of credits were added
+            user_credits = await get_admin_credits(admin_id)
+            assert user_credits == 5000
+
+            # Verify success message contains correct amount
+            send_message_mock.assert_called_once()
+            success_msg = send_message_mock.call_args[0][1]
+            assert "5000 звезд" in success_msg
+
+
+@pytest.mark.asyncio
+async def test_process_successful_payment_with_referral(
+    patched_db_conn, clean_db, payment_message
+):
+    """Test payment processing with referral commission"""
+    async with clean_db.acquire() as conn:
+        admin_id = payment_message.from_user.id
+        referrer_id = 654321
+        payment_message.successful_payment.total_amount = 1000
+
+        # Create referrer and referral in database
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, $2, $3), ($4, $5, $6)
+        """,
+            admin_id,
+            "TestUser",
+            0,
+            referrer_id,
+            "Referrer",
+            0,
+        )
+
+        # Add referral link
+        await conn.execute(
+            """
+            INSERT INTO referral_links (referrer_id, referral_id)
+            VALUES ($1, $2)
+        """,
+            referrer_id,
+            admin_id,
+        )
+
+        with patch(
+            "src.app.handlers.payment_handlers.bot.send_message"
+        ) as send_message_mock:
+            await process_successful_payment(payment_message)
+
+            # Verify referrer received commission
+            referrer_credits = await get_admin_credits(referrer_id)
+            assert referrer_credits == 100  # 10% of 1000
+
+            # Verify referral received full amount
+            referral_credits = await get_admin_credits(admin_id)
+            assert referral_credits == 1000
