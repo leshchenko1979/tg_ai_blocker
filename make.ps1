@@ -19,7 +19,7 @@ Write-Host "Formatting code..." -ForegroundColor Cyan
 # Run tests
 if (-not $SkipTests) {
     Write-Host "Running tests..." -ForegroundColor Cyan
-    & pytest
+    & pytest -x --ff
     if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
 } else {
     Write-Host "Skipping tests..." -ForegroundColor Yellow

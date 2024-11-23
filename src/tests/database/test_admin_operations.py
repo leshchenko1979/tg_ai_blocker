@@ -4,6 +4,7 @@ from ...app.database import (
     get_admin,
     get_admin_credits,
     get_spam_deletion_state,
+    get_spent_credits_last_week,
     initialize_new_admin,
     save_admin,
     toggle_spam_deletion,
@@ -116,3 +117,63 @@ async def test_get_user_credits(patched_db_conn, clean_db, sample_user):
 
     # Assertions
     assert credits == sample_user.credits
+
+
+@pytest.mark.asyncio
+async def test_get_spent_credits_last_week(patched_db_conn, clean_db):
+    """Test tracking spent credits over the last week"""
+    admin_id = 12345
+    group_id = 98765
+
+    async with clean_db.acquire() as conn:
+        # Create test admin and group
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, credits)
+            VALUES ($1, $2)
+            """,
+            admin_id,
+            100,
+        )
+
+        await conn.execute(
+            """
+            INSERT INTO groups (group_id)
+            VALUES ($1)
+            """,
+            group_id,
+        )
+
+        await conn.execute(
+            """
+            INSERT INTO group_administrators (group_id, admin_id)
+            VALUES ($1, $2)
+            """,
+            group_id,
+            admin_id,
+        )
+
+        # Add some transactions with different scenarios
+        await conn.execute(
+            """
+            INSERT INTO transactions (admin_id, amount, type, description, created_at)
+            VALUES
+                -- Recent deductions that should be counted
+                ($1, -10, 'deduct', 'Group moderation credit deduction', NOW()),
+                ($1, -5, 'deduct', 'Group moderation credit deduction', NOW() - INTERVAL '3 days'),
+                ($1, -15, 'deduct', 'Group moderation credit deduction', NOW() - INTERVAL '6 days'),
+                ($1, -25, 'payment', 'Stars purchase', NOW()),
+                -- Transactions that should NOT be counted:
+                -- Too old
+                ($1, -20, 'deduct', 'Group moderation credit deduction', NOW() - INTERVAL '8 days'),
+                -- Positive amount
+                ($1, 50, 'deduct', 'Group moderation credit deduction', NOW())
+            """,
+            admin_id,
+        )
+
+        # Get spent credits
+        spent_credits = await get_spent_credits_last_week(admin_id)
+
+        # Should sum up only transactions with negative amounts from last 7 days
+        assert spent_credits == 55

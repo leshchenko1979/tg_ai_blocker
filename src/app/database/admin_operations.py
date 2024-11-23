@@ -174,7 +174,7 @@ async def get_spent_credits_last_week(admin_id: int) -> int:
             SELECT COALESCE(SUM(ABS(amount)), 0)
             FROM transactions
             WHERE admin_id = $1
-            AND type = 'moderation'
+            AND amount < 0
             AND created_at >= NOW() - INTERVAL '7 days'
         """,
             admin_id,
