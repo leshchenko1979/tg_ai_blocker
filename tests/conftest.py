@@ -1,19 +1,32 @@
+import pytest
+
+# Mark async tests with session scope
+from pytest_asyncio import is_async_test
+
+def pytest_collection_modifyitems(items):
+    pytest_asyncio_tests = (item for item in items if is_async_test(item))
+    session_scope_marker = pytest.mark.asyncio(loop_scope="session")
+    for async_test in pytest_asyncio_tests:
+        async_test.add_marker(session_scope_marker, append=False)
+
+# Load environment variables
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Other imports
 import os
 from datetime import datetime
 
 import asyncpg
-import pytest
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
-
-from common.database import Group, User, postgres_connection
+from common.database import User, postgres_connection
 from common.database.database_schema import (
-    create_tables_and_indexes,
     drop_and_create_database,
     truncate_all_tables,
 )
+
+# Mute mp for tests
 from common.mp import mute_mp_for_tests
 
 mute_mp_for_tests()
@@ -56,7 +69,7 @@ async def create_test_database():
 
 
 @pytest.fixture(scope="session")
-async def test_pool(event_loop):
+async def test_pool():
     """Create a test database pool that can be cleaned between tests"""
     validate_postgres_env_vars()
 
@@ -100,32 +113,6 @@ async def clean_db(patched_db_conn, test_pool):
 
     print("DB cleaned")
     yield test_pool
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create and provide a new event loop for each test session"""
-    import asyncio
-
-    policy = asyncio.WindowsSelectorEventLoopPolicy()  # Use selector policy for Windows
-    asyncio.set_event_loop_policy(policy)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
-
-
-@pytest.fixture
-def sample_group():
-    return Group(
-        group_id=987654,
-        title="Test Group",
-        moderation_enabled=False,
-        created_at=datetime.now(),
-        last_active=datetime.now(),
-        admin_ids=[123456],
-        member_ids=[789012, 345678],
-    )
 
 
 @pytest.fixture
