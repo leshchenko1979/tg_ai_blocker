@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.common.database import get_user_credits
+from app.common.database import get_admin_credits
 from app.handlers.payment_handlers import process_successful_payment
 
 
@@ -74,7 +74,7 @@ async def test_process_successful_payment_basic(
                 await process_successful_payment(payment_message)
 
                 # Verify credits were added
-                user_credits = await get_user_credits(admin_id)
+                user_credits = await get_admin_credits(admin_id)
                 assert user_credits == 100
 
                 # Verify moderation was enabled
@@ -179,7 +179,7 @@ async def test_process_successful_payment_existing_credits(
             await process_successful_payment(payment_message)
 
             # Verify credits were added to existing amount
-            user_credits = await get_user_credits(admin_id)
+            user_credits = await get_admin_credits(admin_id)
             assert user_credits == 150  # 50 existing + 100 new
 
 
@@ -197,7 +197,7 @@ async def test_process_successful_payment_no_groups(
             await process_successful_payment(payment_message)
 
             # Verify credits were still added
-            user_credits = await get_user_credits(admin_id)
+            user_credits = await get_admin_credits(admin_id)
             assert user_credits == 100
 
 
@@ -216,5 +216,5 @@ async def test_process_successful_payment_zero_amount(
             await process_successful_payment(payment_message)
 
             # Verify no credits were added
-            user_credits = await get_user_credits(admin_id)
+            user_credits = await get_admin_credits(admin_id)
             assert user_credits == 0

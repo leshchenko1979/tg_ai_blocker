@@ -4,8 +4,8 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 
-class User(BaseModel):
-    """Enhanced User model with validation"""
+class Administrator(BaseModel):
+    """Enhanced administrator model with validation"""
 
     admin_id: int
     username: Optional[str] = None

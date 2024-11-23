@@ -1,14 +1,14 @@
 import pytest
 
-from app.common.database.constants import INITIAL_CREDITS
-from app.common.database.user_operations import (
+from app.common.database.admin_operations import (
+    get_admin,
+    get_admin_credits,
     get_spam_deletion_state,
-    get_user,
-    get_user_credits,
-    initialize_new_user,
-    save_user,
+    initialize_new_admin,
+    save_admin,
     toggle_spam_deletion,
 )
+from app.common.database.constants import INITIAL_CREDITS
 
 
 @pytest.mark.asyncio
@@ -16,10 +16,10 @@ async def test_save_and_get_user(patched_db_conn, clean_db, sample_user):
     """Test saving and retrieving a user"""
     async with clean_db.acquire() as conn:
         # Save the user
-        await save_user(sample_user)
+        await save_admin(sample_user)
 
         # Retrieve the user
-        retrieved_user = await get_user(sample_user.admin_id)
+        retrieved_user = await get_admin(sample_user.admin_id)
 
         # Assertions
         assert retrieved_user is not None
@@ -35,13 +35,13 @@ async def test_initialize_new_user(patched_db_conn, clean_db):
     user_id = 789012
 
     # Initialize new user
-    result = await initialize_new_user(user_id)
+    result = await initialize_new_admin(user_id)
 
     # Assertions
     assert result is True
 
     # Verify the user was created with initial credits
-    user = await get_user(user_id)
+    user = await get_admin(user_id)
     assert user is not None
     assert user.credits == INITIAL_CREDITS
     assert user.delete_spam is True
@@ -51,7 +51,7 @@ async def test_initialize_new_user(patched_db_conn, clean_db):
 async def test_toggle_spam_deletion(patched_db_conn, clean_db, sample_user):
     """Test toggling spam deletion setting"""
     # Save the user first
-    await save_user(sample_user)
+    await save_admin(sample_user)
 
     # Initial state should be True
     initial_state = await get_spam_deletion_state(sample_user.admin_id)
@@ -87,7 +87,7 @@ async def test_get_spam_deletion_state(patched_db_conn, clean_db, sample_user):
     """Test getting spam deletion state"""
     # Save user with delete_spam=False
     sample_user.delete_spam = False
-    await save_user(sample_user)
+    await save_admin(sample_user)
 
     # Get state
     state = await get_spam_deletion_state(sample_user.admin_id)
@@ -109,10 +109,10 @@ async def test_toggle_spam_deletion_non_existent_admin(patched_db_conn, clean_db
 async def test_get_user_credits(patched_db_conn, clean_db, sample_user):
     """Test retrieving user credits"""
     # Save the user first
-    await save_user(sample_user)
+    await save_admin(sample_user)
 
     # Retrieve user credits
-    credits = await get_user_credits(sample_user.admin_id)
+    credits = await get_admin_credits(sample_user.admin_id)
 
     # Assertions
     assert credits == sample_user.credits

@@ -8,7 +8,7 @@ from app.common.database.group_operations import (
     remove_member_from_group,
     set_group_moderation,
 )
-from app.common.database.models import User
+from app.common.database.models import Administrator
 
 
 @pytest.mark.asyncio
@@ -19,9 +19,13 @@ async def test_get_paying_admins(patched_db_conn, clean_db):
 
         # Create users with different credit amounts
         users = [
-            User(admin_id=111, username="admin1", credits=50),  # Paying admin
-            User(admin_id=222, username="admin2", credits=0),  # Non-paying admin
-            User(admin_id=333, username="admin3", credits=20),  # Another paying admin
+            Administrator(admin_id=111, username="admin1", credits=50),  # Paying admin
+            Administrator(
+                admin_id=222, username="admin2", credits=0
+            ),  # Non-paying admin
+            Administrator(
+                admin_id=333, username="admin3", credits=20
+            ),  # Another paying admin
         ]
 
         # Save users to administrators table

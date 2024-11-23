@@ -31,7 +31,7 @@ mute_mp_for_tests()
 import asyncpg
 
 from app.common.database import (
-    User,
+    Administrator,
     create_schema,
     drop_and_create_database,
     postgres_connection,
@@ -130,7 +130,7 @@ async def clean_db(patched_db_conn, test_pool):
 
 @pytest.fixture
 def sample_user():
-    return User(
+    return Administrator(
         admin_id=123456,
         username="testuser",
         credits=50,

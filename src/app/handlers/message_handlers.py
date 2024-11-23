@@ -7,7 +7,7 @@ from ..common.database import (
     DELETE_PRICE,
     add_member,
     deduct_credits_from_admins,
-    get_user,
+    get_admin,
     is_member_in_group,
     is_moderation_enabled,
     set_group_moderation,
@@ -17,7 +17,6 @@ from ..common.dp import dp
 from ..common.mp import mp
 from ..common.yandex_logging import get_yandex_logger, log_function_call
 from ..spam_classifier import is_spam
-from ..stats import update_stats
 from .updates_filter import filter_handle_message
 
 logger = get_yandex_logger(__name__)
@@ -86,15 +85,13 @@ async def handle_spam(message: types.Message) -> None:
             },
         )
 
-        update_stats(message.chat.id, "processed")
-
         admins = await bot.get_chat_administrators(message.chat.id)
         all_admins_delete = True
 
         for admin in admins:
             if admin.user.is_bot:
                 continue
-            admin_user = await get_user(admin.user.id)
+            admin_user = await get_admin(admin.user.id)
             if not admin_user or not admin_user.delete_spam:
                 all_admins_delete = False
                 break
@@ -104,7 +101,6 @@ async def handle_spam(message: types.Message) -> None:
             logger.info(
                 f"Deleted spam message {message.message_id} in chat {message.chat.id}"
             )
-            update_stats(message.chat.id, "deleted")
 
             # Трекинг удаления спама
             mp.track(
@@ -265,7 +261,7 @@ async def handle_moderated_message(message: types.Message):
 
         if await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
             await add_member(chat_id, user_id)
-            update_stats(chat_id, "processed")
+
             # Трекинг одобрения пользователя
             mp.track(
                 chat_id,

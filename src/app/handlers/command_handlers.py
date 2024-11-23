@@ -3,13 +3,13 @@ from aiogram.filters import Command
 
 from ..common.database import (
     INITIAL_CREDITS,
+    get_admin_credits,
     get_admin_groups,
     get_spam_deletion_state,
-    get_user_credits,
-    initialize_new_user,
+    get_spent_credits_last_week,
+    initialize_new_admin,
     save_referral,
     toggle_spam_deletion,
-    get_spent_credits_last_week,
 )
 from ..common.dp import dp
 from ..common.mp import mp
@@ -64,7 +64,7 @@ async def handle_help_command(message: types.Message) -> None:
 
     # Начисляем звезды только при команде /start и только новым пользователям
     if message.text.startswith("/start"):
-        is_new = await initialize_new_user(user_id)
+        is_new = await initialize_new_admin(user_id)
         # Трекинг нового пользователя
         if is_new:
             mp.track(
@@ -100,7 +100,7 @@ async def handle_stats_command(message: types.Message) -> None:
 
     try:
         # Получаем баланс пользователя
-        balance = await get_user_credits(user_id)
+        balance = await get_admin_credits(user_id)
 
         # Получаем потраченные звезды за неделю
         spent_week = await get_spent_credits_last_week(user_id)

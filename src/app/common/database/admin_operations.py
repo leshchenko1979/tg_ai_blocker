@@ -9,8 +9,8 @@ logger = get_yandex_logger(__name__)
 
 
 @log_function_call(logger)
-async def save_user(user: Administrator) -> None:
-    """Save user to PostgreSQL"""
+async def save_admin(admin: Administrator) -> None:
+    """Save administrator to PostgreSQL"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
@@ -24,18 +24,18 @@ async def save_user(user: Administrator) -> None:
                 delete_spam = $4,
                 last_active = $6
         """,
-            user.admin_id,
-            user.username,
-            user.credits,
-            user.delete_spam,
-            user.created_at,
-            user.last_updated,
+            admin.admin_id,
+            admin.username,
+            admin.credits,
+            admin.delete_spam,
+            admin.created_at,
+            admin.last_updated,
         )
 
 
 @log_function_call(logger)
-async def get_user(admin_id: int) -> Optional[Administrator]:
-    """Retrieve user information from PostgreSQL"""
+async def get_admin(admin_id: int) -> Optional[Administrator]:
+    """Retrieve administrator information from PostgreSQL"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -60,8 +60,8 @@ async def get_user(admin_id: int) -> Optional[Administrator]:
 
 
 @log_function_call(logger)
-async def get_user_credits(admin_id: int) -> int:
-    """Retrieve user credits"""
+async def get_admin_credits(admin_id: int) -> int:
+    """Retrieve administrator credits"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         credits = await conn.fetchval(
@@ -74,8 +74,8 @@ async def get_user_credits(admin_id: int) -> int:
 
 
 @log_function_call(logger)
-async def initialize_new_user(admin_id: int) -> bool:
-    """Initialize a new user with initial credits"""
+async def initialize_new_admin(admin_id: int) -> bool:
+    """Initialize a new administrator with initial credits"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -116,7 +116,7 @@ async def initialize_new_user(admin_id: int) -> bool:
 
 @log_function_call(logger)
 async def toggle_spam_deletion(admin_id: int) -> bool:
-    """Toggle spam deletion setting for user. Returns new state"""
+    """Toggle spam deletion setting for administrator. Returns new state"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -150,7 +150,7 @@ async def toggle_spam_deletion(admin_id: int) -> bool:
 
 @log_function_call(logger)
 async def get_spam_deletion_state(admin_id: int) -> bool:
-    """Get current spam deletion state for user"""
+    """Get current spam deletion state for administrator"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         state = await conn.fetchval(
