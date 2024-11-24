@@ -2,6 +2,8 @@ FROM python:3-alpine
 
 LABEL Name=tg-ai-blocker Version=0.0.1
 
+WORKDIR /app
+
 COPY requirements.txt .
 RUN pip install -r requirements.txt --no-cache
 
@@ -10,6 +12,8 @@ COPY src/app ./app
 
 # Test imports during build
 RUN PYTHONPATH=/app python -c "from app import main"
+
+COPY aiogram_types.cache .
 
 EXPOSE 8080
 

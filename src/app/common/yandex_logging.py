@@ -31,10 +31,12 @@ def mute_yandex_logging_for_tests():
     debug = True
 
 
+root_logger = logging.getLogger()
+
+
 def setup_yandex_logging():
     if not debug:
         # Настраиваем root логгер
-        root_logger = logging.getLogger()
         root_logger.addHandler(yandex_handler)
         root_logger.setLevel(logging.TRACE)
 
