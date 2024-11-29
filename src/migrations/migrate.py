@@ -1,83 +1,76 @@
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
 import asyncio
 from typing import Any, List
+
+import asyncpg
 
 # Load environment variables
 from dotenv import load_dotenv
 
 load_dotenv()
-from ..app.database import create_procedures, get_pool
+from src.app.database import get_pool
+from src.app.database.database_schema import create_schema
+
+
+async def create_database():
+    # Connect to default database to create new one
+    system_conn = await asyncpg.connect(
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASSWORD"),
+        host=os.getenv("PG_HOST"),
+        port=int(os.getenv("PG_PORT", "5432")),
+        database="postgres",  # Connect to default database
+    )
+
+    try:
+        # Check if database exists
+        exists = await system_conn.fetchval(
+            "SELECT 1 FROM pg_database WHERE datname = $1", os.getenv("PG_DB")
+        )
+
+        if not exists:
+            print(f"Creating database {os.getenv('PG_DB')}...")
+            # Create new database
+            await system_conn.execute(f"CREATE DATABASE {os.getenv('PG_DB')}")
+            print("Database created successfully!")
+        else:
+            print(f"Database {os.getenv('PG_DB')} already exists.")
+
+    finally:
+        await system_conn.close()
 
 
 async def migrate(conn: Any) -> List[str]:
     """
-    Создает таблицы для реферальной системы
-    Возвращает список выполненных операций
+    Perform database migration operations.
+
+    Args:
+        conn (Any): The database connection object.
+
+    Returns:
+        List[str]: A list of operations performed during the migration process.
     """
     operations = []
     print("Starting database migration...")
 
     # Start transaction
     async with conn.transaction():
-        print("Dropping existing stored procedures...")
-        # Drop existing stored procedures first
-        await conn.execute(
-            """
-            DO $$
-            DECLARE
-                proc record;
-            BEGIN
-                FOR proc IN (SELECT proname, oidvectortypes(proargtypes) as args
-                            FROM pg_proc
-                            WHERE pronamespace = 'public'::regnamespace)
-                LOOP
-                    EXECUTE 'DROP PROCEDURE IF EXISTS ' || proc.proname || '(' || proc.args || ') CASCADE';
-                END LOOP;
-            END $$;
-            """
-        )
-        operations.append("Dropped existing stored procedures")
-        print("✓ Dropped existing stored procedures")
-
-        print("Creating referral_links table...")
-        # Создаем таблицу для реферальных связей
-        await conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS referral_links (
-                id SERIAL PRIMARY KEY,
-                referral_id BIGINT REFERENCES administrators(admin_id) ON DELETE CASCADE,
-                referrer_id BIGINT REFERENCES administrators(admin_id) ON DELETE CASCADE,
-                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                UNIQUE(referral_id)
-            );
-        """
-        )
-        operations.append("Created table referral_links")
-        print("✓ Created referral_links table")
-
-        print("Creating indexes...")
-        # Создаем индексы
-        await conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_referral_links_referrer
-            ON referral_links(referrer_id);
-
-            CREATE INDEX IF NOT EXISTS idx_referral_links_created
-            ON referral_links(created_at);
-        """
-        )
-        operations.append("Created referral indexes")
-        print("✓ Created indexes")
-
-        print("Creating procedures...")
-        await create_procedures(conn)
-        operations.append("Created procedures")
-        print("✓ Created procedures")
+        print("Creating schema...")
+        await create_schema(conn)
+        operations.append("Created schema")
+        print("✓ Created schema")
 
     print(f"Migration completed successfully. {len(operations)} operations performed.")
     return operations
 
 
 async def main():
+    print("Creating database if it doesn't exist...")
+    await create_database()
     print("Getting database pool...")
     pool = await get_pool()
     print("Migrating database...")
