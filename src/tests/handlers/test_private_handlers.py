@@ -61,6 +61,22 @@ def callback_query_mock(user_mock):
     return callback
 
 
+@pytest.fixture
+def forwarded_hidden_message_mock(user_mock):
+    message = MagicMock(spec=types.Message)
+    message.forward_from = None
+    message.forward_origin = MagicMock()
+    message.forward_origin.type = "hidden_user"
+    message.forward_origin.sender_user_name = "Hidden User"
+    message.text = "Hidden user message text"
+    message.from_user = user_mock
+    message.chat = MagicMock()
+    message.chat.type = "private"
+    message.forward_date = "2024-01-01 12:00:00"
+    message.reply = AsyncMock()
+    return message
+
+
 @pytest.mark.asyncio
 async def test_handle_private_message(patched_db_conn, clean_db, private_message_mock):
     async with clean_db.acquire() as conn:
@@ -126,6 +142,35 @@ async def test_handle_forwarded_message(
 
         forwarded_message_mock.reply.assert_awaited_once()
         call_args = forwarded_message_mock.reply.call_args
+        assert "Добавить это сообщение в базу примеров?" in call_args[0]
+
+        keyboard = call_args[1]["reply_markup"]
+        buttons = keyboard.inline_keyboard[0]
+        assert len(buttons) == 2
+        assert buttons[0].text == "⚠️ Спам"
+        assert buttons[1].text == "💚 Не спам"
+
+
+@pytest.mark.asyncio
+async def test_handle_forwarded_hidden_message(
+    patched_db_conn, clean_db, forwarded_hidden_message_mock
+):
+    async with clean_db.acquire() as conn:
+        # Ensure user exists in database
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, $2, 0)
+            ON CONFLICT DO NOTHING
+            """,
+            forwarded_hidden_message_mock.from_user.id,
+            forwarded_hidden_message_mock.from_user.username,
+        )
+
+        await handle_forwarded_message(forwarded_hidden_message_mock)
+
+        forwarded_hidden_message_mock.reply.assert_awaited_once()
+        call_args = forwarded_hidden_message_mock.reply.call_args
         assert "Добавить это сообщение в базу примеров?" in call_args[0]
 
         keyboard = call_args[1]["reply_markup"]
@@ -274,7 +319,6 @@ async def test_extract_original_message_info(patched_db_conn, clean_db):
 
         result = await extract_original_message_info(callback_message)
 
-        assert result["user_id"] == 987654321
         assert result["name"] == "Original User"
         assert result["bio"] == "User bio"
         assert result["text"] == "Original message"

@@ -3,6 +3,7 @@ import pathlib
 from typing import Any, Dict
 
 from aiogram import F, types
+from aiogram.filters import or_f
 
 from ..common.bot import bot
 from ..common.llms import get_openrouter_response
@@ -25,7 +26,12 @@ class OriginalMessageExtractionError(Exception):
     """Raised when original message information cannot be extracted"""
 
 
-@dp.message(F.chat.type == "private", ~F.text.startswith("/"), ~F.forward_from)
+@dp.message(
+    F.chat.type == "private",
+    ~F.text.startswith("/"),
+    ~F.forward_from,
+    ~F.forward_origin,
+)
 @log_function_call(logger)
 async def handle_private_message(message: types.Message):
     """
@@ -71,7 +77,7 @@ async def handle_private_message(message: types.Message):
             if "bio" in example:
                 example_str += f"\n<биография>{example['bio']}</биография>"
             example_str += "\n</запрос>\n<ответ>\n"
-            example_str += f"{'да' if example['score'] > 0 else 'нет'} {abs(example['score'])}%\n</отве��>"
+            example_str += f"{'да' if example['score'] > 0 else 'нет'} {abs(example['score'])}%\n</ответ>"
             formatted_examples.append(example_str)
 
         system_prompt = f"""
@@ -136,7 +142,7 @@ async def handle_private_message(message: types.Message):
         raise
 
 
-@dp.message(F.chat.type == "private", F.forward_from)
+@dp.message(F.chat.type == "private", or_f(F.forward_from, F.forward_origin))
 @log_function_call(logger)
 async def handle_forwarded_message(message: types.Message):
     """
@@ -145,14 +151,22 @@ async def handle_forwarded_message(message: types.Message):
     admin_id = message.from_user.id
 
     # Трекинг получения пересланного сообщения
+    track_data = {
+        "forward_date": str(message.forward_date),
+        "message_text": message.text or message.caption,
+    }
+
+    if message.forward_from:
+        track_data["forward_from_id"] = message.forward_from.id
+    elif message.forward_origin:
+        track_data["forward_origin_type"] = message.forward_origin.type
+        if hasattr(message.forward_origin, "sender_user_name"):
+            track_data["forward_sender_name"] = message.forward_origin.sender_user_name
+
     mp.track(
         admin_id,
         "forwarded_message_received",
-        {
-            "forward_from_id": message.forward_from.id,
-            "forward_date": str(message.forward_date),
-            "message_text": message.text or message.caption,
-        },
+        track_data,
     )
 
     # Ask the user if they want to add this as a spam example
@@ -181,7 +195,7 @@ async def process_spam_example_callback(callback: types.CallbackQuery):
     try:
         info = await extract_original_message_info(callback.message)
 
-        callback_answer_task = asyncio.create_task(
+        tasks = [
             bot(
                 callback.answer(
                     (
@@ -190,51 +204,56 @@ async def process_spam_example_callback(callback: types.CallbackQuery):
                         else "Сообщение добавлено как пример ценного сообщения."
                     ),
                 )
-            )
-        )
-
-        add_spam_example_task = asyncio.create_task(
+            ),
             add_spam_example(
                 info["text"],
                 name=info["name"],
                 bio=info["bio"],
                 score=100 if action == "spam" else -100,
                 admin_id=admin_id,
-            )
-        )
-
-        remove_member_from_group_task = (
-            asyncio.create_task(remove_member_from_group(member_id=info["user_id"]))
-            if action == "spam"
-            else None
-        )
-
-        edit_message_task = asyncio.create_task(
+            ),
             bot.edit_message_text(
                 chat_id=callback.message.chat.id,
                 message_id=callback.message.message_id,
                 text=f"Сообщение добавлено как пример {'спама' if action == 'spam' else 'ценного сообщения'}.",
-            )
+            ),
+        ]
+
+        if action == "spam":
+            if info.get("user_id"):
+                tasks.append(remove_member_from_group(member_id=info["user_id"]))
+
+            # Добавляем удаление сообщения из группы, если есть информация о нем
+            if info.get("group_chat_id") and info.get("group_message_id"):
+                tasks.append(
+                    bot.delete_message(
+                        chat_id=info["group_chat_id"],
+                        message_id=info["group_message_id"],
+                    )
+                )
+
+        results = await asyncio.gather(
+            *(asyncio.create_task(task) for task in tasks), return_exceptions=True
         )
 
-        await asyncio.gather(
-            callback_answer_task,
-            add_spam_example_task,
-            remove_member_from_group_task,
-            edit_message_task,
-        )
+        # Check if there are exceptions in results
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error(
+                    f"Error in spam example processing: {result}", exc_info=True
+                )
 
         # Трекинг успешного добавления примера
-        mp.track(
-            admin_id,
-            "spam_example_added",
-            {
-                "message_text": info["text"],
-                "name": info["name"],
-                "bio": info["bio"],
-                "action": action,
-            },
-        )
+        track_data = {
+            "message_text": info["text"],
+            "name": info["name"],
+            "bio": info["bio"],
+            "action": action,
+        }
+        if info.get("group_chat_id"):
+            track_data["group_chat_id"] = info["group_chat_id"]
+
+        mp.track(admin_id, "spam_example_added", track_data)
 
     except OriginalMessageExtractionError:
         # Трекинг ошибки извлечения информации
@@ -259,10 +278,7 @@ async def extract_original_message_info(
     callback_message: types.Message,
 ) -> Dict[str, Any]:
     """
-    Extracts original message name, bio, chat_id from a callback message.
-
-    Raises:
-        OriginalMessageExtractionError: If original message information cannot be extracted
+    Extracts original message name, bio, chat_id and message info from a callback message.
     """
     # Проверяем наличие сообщения, на которое отвечают
     if not callback_message.reply_to_message:
@@ -275,27 +291,44 @@ async def extract_original_message_info(
             "Cannot extract meaningful message information from forwarded channel message"
         )
 
-    if not original_message.forward_from:
-        raise OriginalMessageExtractionError("Reply message is not a forwarded message")
-
-    name = original_message.forward_from.full_name
     text = original_message.text or original_message.caption
 
-    if name or text:
-        # Получаем bio через прямой запрос к Telegram API
+    if original_message.forward_from:
+        # Обычное пересланное сообщение
+        name = original_message.forward_from.full_name
         try:
-            user_id = original_message.forward_from.id
-            user = await bot.get_chat(user_id)
+            user = await bot.get_chat(original_message.forward_from.id)
             bio = user.bio
         except Exception:
             bio = None
+    elif (
+        original_message.forward_origin
+        and original_message.forward_origin.type == "hidden_user"
+    ):
+        # Сообщение от скрытого пользователя
+        name = original_message.forward_sender_name
+        bio = None
+    else:
+        raise OriginalMessageExtractionError("Reply message is not a forwarded message")
 
-        return {
-            "user_id": user_id,
+    if name or text:
+        result = {
+            "user_id": original_message.forward_from.id
+            if original_message.forward_from
+            else None,
             "name": name,
             "bio": bio,
             "text": text,
         }
+
+        # Добавляем информацию о сообщении из группы, если она есть
+        if hasattr(original_message.forward_origin, "chat_id") and hasattr(
+            original_message.forward_origin, "message_id"
+        ):
+            result["group_chat_id"] = original_message.forward_origin.chat_id
+            result["group_message_id"] = original_message.forward_origin.message_id
+
+        return result
 
     raise OriginalMessageExtractionError(
         "Cannot extract meaningful message information from forwarded message"
