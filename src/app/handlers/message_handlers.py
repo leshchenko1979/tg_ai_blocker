@@ -54,10 +54,9 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
             if admin.user.is_bot:
                 continue
             admin_data = await get_admin(admin.user.id)
-            if admin_data:
-                if admin_data.credits < min_credits:
-                    min_credits = admin_data.credits
-                    min_credits_admin = admin
+            if admin_data and admin_data.credits < min_credits:
+                min_credits = admin_data.credits
+                min_credits_admin = admin
 
         if min_credits_admin:
             ref_link = f"https://t.me/{(await bot.me).username}?start={min_credits_admin.user.id}"
