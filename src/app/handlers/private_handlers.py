@@ -222,6 +222,8 @@ async def process_spam_example_callback(callback: types.CallbackQuery):
         if action == "spam":
             if info.get("user_id"):
                 tasks.append(remove_member_from_group(member_id=info["user_id"]))
+            else:
+                logger.warning("User ID not found in info, skipping removal from group")
 
             # Добавляем удаление сообщения из группы, если есть информация о нем
             if info.get("group_chat_id") and info.get("group_message_id"):
@@ -230,6 +232,10 @@ async def process_spam_example_callback(callback: types.CallbackQuery):
                         chat_id=info["group_chat_id"],
                         message_id=info["group_message_id"],
                     )
+                )
+            else:
+                logger.warning(
+                    "Group chat ID or message ID not found in info, skipping message deletion"
                 )
 
         results = await asyncio.gather(

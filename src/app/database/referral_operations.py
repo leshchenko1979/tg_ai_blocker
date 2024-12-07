@@ -11,20 +11,32 @@ async def save_referral(user_id: int, referrer_id: int) -> bool:
     """Сохраняет связь реферала с реферером"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        try:
-            success = await conn.fetchval(
-                "CALL save_referral($1, $2, NULL)",
-                user_id,
-                referrer_id,
-            )
-            return success
-        except Exception as e:
-            logger.error(
-                f"Error saving referral link: user_id={user_id}, "
-                f"referrer_id={referrer_id}, error={str(e)}",
-                exc_info=True,
-            )
-            raise
+        async with conn.transaction():
+            try:
+                # First ensure both users exist in administrators table
+                await conn.execute(
+                    """
+                    INSERT INTO administrators (admin_id, credits)
+                    VALUES ($1, 0), ($2, 0)
+                    ON CONFLICT (admin_id) DO NOTHING
+                    """,
+                    user_id,
+                    referrer_id,
+                )
+
+                # Then try to save the referral link
+                success = await conn.fetchval(
+                    "CALL save_referral($1, $2, NULL)",
+                    user_id,
+                    referrer_id,
+                )
+                return bool(success)
+            except Exception as e:
+                logger.error(
+                    f"Error saving referral link {user_id} -> {referrer_id}: {e}",
+                    exc_info=True,
+                )
+                return False
 
 
 @log_function_call(logger)
@@ -49,7 +61,7 @@ async def get_referrals(user_id: int) -> List[Dict]:
     pool = await get_pool()
     async with pool.acquire() as conn:
         try:
-            referrals = await conn.fetch(
+            return await conn.fetch(
                 """
                 SELECT
                     rl.referral_id,
@@ -66,7 +78,6 @@ async def get_referrals(user_id: int) -> List[Dict]:
                 """,
                 user_id,
             )
-            return referrals
         except Exception as e:
             logger.error(
                 f"Error getting referrals for user {user_id}: {e}", exc_info=True
@@ -80,7 +91,7 @@ async def get_total_earnings(user_id: int) -> int:
     pool = await get_pool()
     async with pool.acquire() as conn:
         try:
-            total = await conn.fetchval(
+            return await conn.fetchval(
                 """
                 SELECT COALESCE(SUM(amount), 0)
                 FROM transactions
@@ -88,7 +99,6 @@ async def get_total_earnings(user_id: int) -> int:
                 """,
                 user_id,
             )
-            return total
         except Exception as e:
             logger.error(
                 f"Error getting total earnings for user {user_id}: {e}", exc_info=True

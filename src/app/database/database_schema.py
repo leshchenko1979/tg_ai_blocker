@@ -35,7 +35,7 @@ async def drop_and_create_database(system_conn: asyncpg.Connection, db_name: str
         assert encoding == "UTF8"
 
     except Exception as e:
-        raise Exception(f"Failed to recreate database: {e}")
+        raise RuntimeError(f"Failed to recreate database: {e}") from e
 
 
 async def create_schema(conn: asyncpg.Connection):
@@ -127,7 +127,7 @@ async def create_schema(conn: asyncpg.Connection):
         """
         )
     except Exception as e:
-        raise Exception(f"Failed to create tables: {e}")
+        raise RuntimeError(f"Failed to create tables: {e}") from e
 
     try:
         # Create indexes
@@ -164,7 +164,7 @@ async def create_schema(conn: asyncpg.Connection):
         """
         )
     except Exception as e:
-        raise Exception(f"Failed to create indexes: {e}")
+        raise RuntimeError(f"Failed to create indexes: {e}") from e
 
     await create_procedures(conn)
 
@@ -344,7 +344,7 @@ async def create_procedures(conn: asyncpg.Connection):
         """
         )
     except Exception as e:
-        raise Exception(f"Failed to create stored procedures: {e}")
+        raise RuntimeError(f"Failed to create stored procedures: {e}") from e
 
 
 async def truncate_all_tables(conn: asyncpg.Connection):
