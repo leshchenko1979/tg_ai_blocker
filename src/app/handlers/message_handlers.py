@@ -59,7 +59,8 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
                 min_credits_admin = admin
 
         if min_credits_admin:
-            ref_link = f"https://t.me/{(await bot.me).username}?start={min_credits_admin.user.id}"
+            bot_info = await bot.me
+            ref_link = f"https://t.me/{bot_info.username}?start={min_credits_admin.user.id}"
 
             # Отправляем сообщение в группу
             try:
