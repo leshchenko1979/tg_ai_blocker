@@ -12,15 +12,15 @@ from .dp import dp
 logger = get_yandex_logger(__name__)
 
 
-@dp.callback_query(F.data.startswith("spam_ignore:"))
+@dp.callback_query(F.data.startswith("mark_as_not_spam:"))
 @log_function_call(logger)
 async def handle_spam_ignore_callback(callback: CallbackQuery):
     """
-    Обработчик колбэка для игнорирования спам-сообщения и добавления в базу безопасных примеров
+    Обработчик колбэка для добавления сообщения в базу безопасных примеров
     """
     try:
         # Разбираем callback_data
-        author_id = callback.data.split()[1]
+        author_id = int(callback.data.split(":")[1])
         author_info = await bot.get_chat(author_id)
         admin_id = callback.from_user.id
 
@@ -30,7 +30,7 @@ async def handle_spam_ignore_callback(callback: CallbackQuery):
                 score=-100,  # Безопасное сообщение с отрицательным score
                 name=author_info.full_name if author_info else None,
                 bio=author_info.bio if author_info else None,
-                user_id=admin_id,
+                admin_id=admin_id,
             )
         )
 
@@ -77,13 +77,14 @@ async def handle_spam_ignore_callback(callback: CallbackQuery):
             },
         )
         logger.error(f"Error in spam ignore callback: {e}", exc_info=True)
+        await callback.answer("❌ Произошла ошибка", show_alert=True)
 
 
-@dp.callback_query(F.data.startswith("spam_confirm"))
+@dp.callback_query(F.data.startswith("delete_spam_message:"))
 @log_function_call(logger)
 async def handle_spam_confirm_callback(callback: CallbackQuery):
     """
-    Обработчик колбэка для подтверждения спам-сообщения
+    Обработчик колбэка для удаления спам-сообщения
     """
     _, author_id, chat_id, message_id = callback.data.split(":")
     try:
@@ -123,3 +124,4 @@ async def handle_spam_confirm_callback(callback: CallbackQuery):
             },
         )
         logger.error(f"Error in spam confirm callback: {e}", exc_info=True)
+        await callback.answer("❌ Произошла ошибка", show_alert=True)

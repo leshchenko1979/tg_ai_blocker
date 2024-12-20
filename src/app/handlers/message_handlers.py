@@ -174,15 +174,21 @@ async def handle_spam(message: types.Message) -> None:
                     row = [
                         InlineKeyboardButton(
                             text="🗑️ Удалить",
-                            callback_data=f"spam_confirm:{message.from_user.id}:{message.chat.id}:{message.message_id}",
+                            callback_data=f"delete_spam_message:{message.from_user.id}:{message.chat.id}:{message.message_id}",
                         ),
                         InlineKeyboardButton(
                             text="✅ Не спам",
-                            callback_data=f"spam_ignore:{message.from_user.id}",
+                            callback_data=f"mark_as_not_spam:{message.from_user.id}",
                         ),
                     ]
-                    keyboard = InlineKeyboardMarkup(inline_keyboard=[row])
-
+                else:
+                    row = [
+                        InlineKeyboardButton(
+                            text="✅ Это не спам",
+                            callback_data=f"mark_as_not_spam:{message.from_user.id}",
+                        ),
+                    ]
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[row])
                 admin_msg = (
                     f"⚠️ ТРЕВОГА!\n\n"
                     f"Обнаружено вторжение в {message.chat.title} (@{message.chat.username})!\n\n"
@@ -241,7 +247,7 @@ async def handle_spam(message: types.Message) -> None:
 async def handle_moderated_message(message: types.Message):
     """Обработчик всех текстовых сообщений в модерируемых группах"""
     try:
-        if not message.text:
+        if not message.text or not message.from_user:
             return
 
         chat_id = message.chat.id
@@ -289,6 +295,10 @@ async def handle_moderated_message(message: types.Message):
         spam_score = await is_spam(
             comment=message.text, name=user.full_name, bio=bio, admin_id=admin_id
         )
+
+        if spam_score is None:
+            logger.warning("Failed to get spam score")
+            return
 
         # Трекинг результата проверки на спам
         mp.track(
