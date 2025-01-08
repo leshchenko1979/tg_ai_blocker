@@ -38,15 +38,12 @@ def cached_import():
 
 def test_cache_file():
     cache_path = Path("aiogram_types.cache")
-    if cache_path.exists():
-        size = os.path.getsize(cache_path)
-        with open(cache_path, "rb") as f:
-            data = pickle.load(f)
-        print(f"Cache file size: {size/1024:.1f}KB")
-        print(f"Cached types: {len([k for k in data.keys() if not k.startswith('_')])}")
-        return True
-    print("Cache file not found!")
-    assert False
+    assert cache_path.exists(), "Cache file not found!"
+    size = os.path.getsize(cache_path)
+    with open(cache_path, "rb") as f:
+        data = pickle.load(f)
+    print(f"Cache file size: {size/1024:.1f}KB")
+    print(f"Cached types: {len([k for k in data.keys() if not k.startswith('_')])}")
 
 
 if __name__ == "__main__":
