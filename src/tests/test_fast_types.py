@@ -1,17 +1,27 @@
 import os
 import pickle
+import sys
 import time
 from pathlib import Path
 
+ROOT_DIR = Path(__file__).parent.parent
+APP_DIR = ROOT_DIR / "app"
 
-def test_original_import():
+assert APP_DIR.exists()
+
+sys.path.append(str(APP_DIR))
+
+
+def original_import():
     start = time.time()
+    import aiogram.types  # noqa
+
     end = time.time()
     print(f"Original import took: {end - start:.2f} seconds")
     return end - start
 
 
-def test_cached_import():
+def cached_import():
     # Clear modules
     import sys
 
@@ -19,7 +29,7 @@ def test_cached_import():
         del sys.modules["aiogram.types"]
 
     start = time.time()
-    from ..app.faster_aiogram import bootstrap  # noqa
+    from faster_aiogram import bootstrap  # noqa
 
     end = time.time()
     print(f"Fast import took: {end - start:.2f} seconds")
@@ -36,14 +46,14 @@ def test_cache_file():
         print(f"Cached types: {len([k for k in data.keys() if not k.startswith('_')])}")
         return True
     print("Cache file not found!")
-    return False
+    assert False
 
 
 if __name__ == "__main__":
     print("Testing aiogram types loading...")
-    original_time = test_original_import()
+    original_time = original_import()
     cache_exists = test_cache_file()
-    cached_time = test_cached_import()
+    cached_time = cached_import()
 
     if cached_time < original_time:
         print(
