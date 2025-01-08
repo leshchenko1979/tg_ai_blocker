@@ -253,7 +253,7 @@ async def handle_moderated_message(message: types.Message):
         chat_id = message.chat.id
         user_id = message.from_user.id
 
-        # Трекинг начала обработки соощения
+        # Трекинг начала обработки сообщения
         mp.track(
             chat_id,
             "message_processing_started",
