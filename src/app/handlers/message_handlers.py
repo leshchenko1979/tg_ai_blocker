@@ -122,6 +122,10 @@ async def handle_spam(message: types.Message) -> None:
     Обработка спам-сообщений
     """
     try:
+        if not message.from_user:
+            logger.warning("Message without user info, skipping spam handling")
+            return
+
         # Трекинг обнаружения спама
         mp.track(
             message.chat.id,
@@ -130,7 +134,7 @@ async def handle_spam(message: types.Message) -> None:
                 "message_id": message.message_id,
                 "author_id": message.from_user.id,
                 "spammer_username": message.from_user.username,
-                "message_text": message.text,
+                "message_text": message.text or message.caption or "[MEDIA_MESSAGE]",
                 "group_name": message.chat.title,
             },
         )
@@ -189,11 +193,14 @@ async def handle_spam(message: types.Message) -> None:
                         ),
                     ]
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[row])
+
+                # Формируем текст сообщения с учетом типа контента
+                content_text = message.text or message.caption or "[MEDIA_MESSAGE]"
                 admin_msg = (
                     f"⚠️ ТРЕВОГА!\n\n"
                     f"Обнаружено вторжение в {message.chat.title} (@{message.chat.username})!\n\n"
                     f"Нарушитель: {message.from_user.id} (@{message.from_user.username})\n\n"
-                    f"Содержание угрозы:\n\n{message.text}\n\n"
+                    f"Содержание угрозы:\n\n{content_text}\n\n"
                 )
 
                 if all_admins_delete:
@@ -245,19 +252,25 @@ async def handle_spam(message: types.Message) -> None:
 @dp.message(filter_handle_message)
 @log_function_call(logger)
 async def handle_moderated_message(message: types.Message):
-    """Обработчик всех текстовых сообщений в модерируемых группах"""
+    """Обработчик всех сообщений в модерируемых группах"""
     try:
-        if not message.text or not message.from_user:
+        if not message.from_user:
             return
 
         chat_id = message.chat.id
         user_id = message.from_user.id
 
+        # Получаем текст сообщения или описание медиа
+        message_text = message.text or message.caption or "[MEDIA_MESSAGE]"
+
         # Трекинг начала обработки сообщения
         mp.track(
             chat_id,
             "message_processing_started",
-            {"user_id": user_id, "message_text": message.text},
+            {
+                "user_id": user_id,
+                "message_text": message_text,
+            },
         )
 
         admins = await bot.get_chat_administrators(chat_id)
@@ -293,7 +306,7 @@ async def handle_moderated_message(message: types.Message):
         )
 
         spam_score = await is_spam(
-            comment=message.text, name=user.full_name, bio=bio, admin_id=admin_id
+            comment=message_text, name=user.full_name, bio=bio, admin_id=admin_id
         )
 
         if spam_score is None:
@@ -309,7 +322,7 @@ async def handle_moderated_message(message: types.Message):
                 "user_id": user_id,
                 "spam_score": spam_score,
                 "is_spam": spam_score > 50,
-                "message_text": message.text,
+                "message_text": message_text,
                 "user_bio": bio,
             },
         )
@@ -317,7 +330,7 @@ async def handle_moderated_message(message: types.Message):
         if spam_score > 50:
             if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
                 await handle_spam(message)
-            return
+                return
 
         if await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
             await add_member(chat_id, user_id)

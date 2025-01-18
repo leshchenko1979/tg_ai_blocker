@@ -15,5 +15,4 @@ filter_handle_message = and_f(
     ~F.forward_from_message_id,
     ~F.edited_message,
     ~F.via_bot,
-    F.text,
 )

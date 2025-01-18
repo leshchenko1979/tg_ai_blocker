@@ -40,11 +40,32 @@ def user_mock():
 def message_mock(user_mock):
     message = MagicMock()
     message.text = "Test message"
+    message.caption = None
     message.chat.id = -1001234567890
     message.chat.title = "Test Group"
     message.from_user = user_mock
     message.message_id = 1
+    message.photo = None
+    message.video = None
+    message.animation = None
+    message.document = None
+    message.sticker = None
+    message.voice = None
+    message.video_note = None
     return message
+
+
+@pytest.fixture
+def photo_message_mock(message_mock):
+    message_mock.text = None
+    message_mock.photo = [MagicMock()]  # Telegram sends array of PhotoSize
+    return message_mock
+
+
+@pytest.fixture
+def photo_with_caption_mock(photo_message_mock):
+    photo_message_mock.caption = "Test photo caption"
+    return photo_message_mock
 
 
 @pytest.mark.asyncio
@@ -71,6 +92,50 @@ async def test_handle_moderated_message_disabled_moderation(
 
         await handle_moderated_message(message_mock)
         member_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_moderated_message_photo_no_caption(
+    patched_db_conn, clean_db, photo_message_mock
+):
+    with patch(
+        "src.app.handlers.message_handlers.is_moderation_enabled"
+    ) as mod_mock, patch(
+        "src.app.handlers.message_handlers.is_member_in_group"
+    ) as member_mock, patch(
+        "src.app.handlers.message_handlers.is_spam"
+    ) as spam_mock:
+        mod_mock.return_value = True
+        member_mock.return_value = False
+        spam_mock.return_value = 0
+
+        await handle_moderated_message(photo_message_mock)
+
+        # Проверяем, что для проверки спама использовался маркер [MEDIA_MESSAGE]
+        spam_mock.assert_called_once()
+        assert spam_mock.call_args[1]["comment"] == "[MEDIA_MESSAGE]"
+
+
+@pytest.mark.asyncio
+async def test_handle_moderated_message_photo_with_caption(
+    patched_db_conn, clean_db, photo_with_caption_mock
+):
+    with patch(
+        "src.app.handlers.message_handlers.is_moderation_enabled"
+    ) as mod_mock, patch(
+        "src.app.handlers.message_handlers.is_member_in_group"
+    ) as member_mock, patch(
+        "src.app.handlers.message_handlers.is_spam"
+    ) as spam_mock:
+        mod_mock.return_value = True
+        member_mock.return_value = False
+        spam_mock.return_value = 0
+
+        await handle_moderated_message(photo_with_caption_mock)
+
+        # Проверяем, что для проверки спама использовалась подпись к фото
+        spam_mock.assert_called_once()
+        assert spam_mock.call_args[1]["comment"] == "Test photo caption"
 
 
 @pytest.mark.asyncio
