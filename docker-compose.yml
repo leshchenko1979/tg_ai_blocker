@@ -1,0 +1,33 @@
+services:
+  tg-ai-blocker:
+    build:
+      context: .
+      dockerfile: .dockerfile
+    container_name: tg-ai-blocker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    networks:
+      - traefik-public
+    volumes:
+      - ${LOGS_DIR:-/home/$${REMOTE_USER}/logs}:/app/logs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tg-ai-blocker.rule=Host(`tg-ai-blocker.redevest.ru`)"
+      - "traefik.http.routers.tg-ai-blocker.entrypoints=websecure"
+      - "traefik.http.routers.tg-ai-blocker.tls=true"
+      - "traefik.http.routers.tg-ai-blocker.tls.certresolver=cloudflare"
+      - "traefik.http.services.tg-ai-blocker.loadbalancer.server.port=8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  traefik-public:
+    external: true
