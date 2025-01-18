@@ -1,7 +1,9 @@
 import functools
 import inspect
 import logging
+import os
 
+import logfire
 from pythonjsonlogger import jsonlogger
 
 
@@ -36,7 +38,11 @@ root_logger = logging.getLogger()
 
 def setup_yandex_logging():
     if not debug:
-        # Настраиваем root логгер
+        # Initialize Logfire
+        if os.getenv("LOGFIRE_TOKEN"):
+            logfire.configure()
+            root_logger.addHandler(logfire.LogfireLoggingHandler())
+
         root_logger.addHandler(yandex_handler)
         root_logger.setLevel(logging.TRACE)
 
@@ -47,6 +53,7 @@ def get_yandex_logger(name):
     if not debug:
         logger.setLevel(logging.TRACE)
         logger.propagate = False
+        logger.addHandler(logfire.LogfireLoggingHandler())
         logger.addHandler(yandex_handler)
 
     return logger
@@ -113,7 +120,19 @@ def log_function_call(logger_or_func=None):
     2. Для методов класса: @log_function_call
     3. Для функций без логгера: @log_function_call
     """
+    logfire_enabled = bool(os.getenv("LOGFIRE_TOKEN"))
 
+    # If Logfire is enabled, use its built-in instrumentation
+    if logfire_enabled:
+        if callable(logger_or_func):
+            return logfire.instrument()(logger_or_func)
+
+        def wrapper(func):
+            return logfire.instrument()(func)
+
+        return wrapper
+
+    # Otherwise use traditional logging
     def get_logger(self_or_none, explicit_logger) -> logging.Logger:
         if explicit_logger and isinstance(explicit_logger, logging.Logger):
             return explicit_logger
@@ -197,8 +216,10 @@ def log_function_call(logger_or_func=None):
 
             return sync_wrapper
 
-    if callable(logger_or_func):
-        # Используется без параметров @log_function_call
-        return decorator(logger_or_func)
-    # Используется с параметром @log_function_call(logger)
-    return decorator
+    return decorator(logger_or_func) if callable(logger_or_func) else decorator
+
+
+# Silence known chatty loggers
+CHATTY_LOGGERS = ["hpack.hpack", "httpcore.http2", "httpcore.connection"]
+for logger_name in CHATTY_LOGGERS:
+    logging.getLogger(logger_name).setLevel(logging.WARNING)
