@@ -1,7 +1,7 @@
 import asyncio
 import traceback
 
-from fastapi import FastAPI, Request
+from aiohttp import web
 
 from .common.bot import LESHCHENKO_CHAT_ID, bot
 from .common.mp import mp
@@ -11,22 +11,23 @@ from .handlers.dp import dp
 
 logger = get_yandex_logger(__name__)
 
-app = FastAPI()
+routes = web.RouteTableDef()
+app = web.Application()
 
 
-@app.post("/")
-@app.get("/")
+@routes.post("/")
+@routes.get("/")
 @log_function_call(logger)
-async def handle_incoming_request(request: Request):
-    if not await request.body():
-        return
+async def handle_incoming_request(request: web.Request):
+    if not await request.read():
+        return web.Response()
 
     json = await request.json()
     logger.info("Incoming request", extra={"update": json})
 
     try:
         await dp.feed_raw_update(bot, json)
-        return {"message": "Processed successfully"}
+        return web.json_response({"message": "Processed successfully"})
 
     except Exception as e:
         # Extract chat_id from any part of the incoming json by iterating its keys
@@ -49,4 +50,7 @@ async def handle_incoming_request(request: Request):
             )
         )
 
-        return {"message": "Error processing request"}
+        return web.json_response({"message": "Error processing request"})
+
+
+app.add_routes(routes)

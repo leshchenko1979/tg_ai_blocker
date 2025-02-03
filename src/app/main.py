@@ -36,9 +36,11 @@ from .handlers import (  # noqa
 logger.trace("Handlers imported")
 
 # Start the server
+from aiohttp import web
+
 from .server import app  # noqa
 
 logger.trace("Server imported")
 
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
+if __name__ == "__main__":
+    web.run_app(app, host="0.0.0.0", port=8080)

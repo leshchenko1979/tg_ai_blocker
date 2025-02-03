@@ -17,4 +17,4 @@ COPY aiogram_types.cache .
 
 EXPOSE 8080
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--log-level", "warning"]
+CMD ["python", "-m", "app.main"]

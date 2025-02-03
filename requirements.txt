@@ -1,5 +1,4 @@
-fastapi
-uvicorn
+aiohttp
 python-json-logger
 python-dotenv
 aiogram
