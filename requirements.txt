@@ -2,7 +2,6 @@ aiohttp
 python-json-logger
 python-dotenv
 aiogram
-requests
 mixpanel
 pyyaml
 asyncpg

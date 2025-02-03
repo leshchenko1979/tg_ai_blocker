@@ -1,4 +1,5 @@
 import os
+import aiohttp
 
 
 async def get_yandex_response(messages):
@@ -10,9 +11,7 @@ async def get_yandex_response(messages):
 
     model = sdk.models.completions("yandexgpt")
     result = await model.configure(temperature=0.3).run(messages)
-    response = result.alternatives[0].text
-
-    return response
+    return result.alternatives[0].text
 
 
 async def get_openrouter_response(messages):
@@ -25,17 +24,12 @@ async def get_openrouter_response(messages):
 
     data = {"model": model, "messages": messages, "temperature": 0.3}
 
-    import json
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=data,
+        ) as response:
+            result = await response.json()
 
-    import requests
-
-    response = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers=headers,
-        data=json.dumps(data),
-    )
-    result = response.json()
-
-    response_text = result["choices"][0]["message"]["content"]
-
-    return response_text
+    return result["choices"][0]["message"]["content"]
