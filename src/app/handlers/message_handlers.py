@@ -1,10 +1,11 @@
+import logging
+
 from aiogram import types
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
 from ..common.mp import mp
 from ..common.spam_classifier import is_spam
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from ..database import (
     APPROVE_PRICE,
     DELETE_PRICE,
@@ -19,10 +20,9 @@ from ..database import (
 from .dp import dp
 from .updates_filter import filter_handle_message
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-@log_function_call(logger)
 async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
     """
     Попытка списать звезды у админов. При неудаче отключает модерацию.
@@ -116,7 +116,6 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
     return True
 
 
-@log_function_call(logger)
 async def handle_spam(message: types.Message) -> None:
     """
     Обработка спам-сообщений
@@ -250,7 +249,6 @@ async def handle_spam(message: types.Message) -> None:
 
 
 @dp.message(filter_handle_message)
-@log_function_call(logger)
 async def handle_moderated_message(message: types.Message):
     """Обработчик всех сообщений в модерируемых группах"""
     try:

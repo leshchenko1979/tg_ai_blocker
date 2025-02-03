@@ -1,10 +1,10 @@
+import logging
 from typing import Optional
 
 from ..database.spam_examples import get_spam_examples
 from .llms import get_openrouter_response
-from .yandex_logging import get_yandex_logger
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 base_prompt = """
 Ты - классификатор спама. Пользователь подает тебе сообщения с текстом, именем и биографией (опционально), а ты должен определить, спам это или нет, и дать оценку своей уверенности в процентах.

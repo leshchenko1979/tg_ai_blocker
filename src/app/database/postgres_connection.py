@@ -1,11 +1,10 @@
+import logging
 import os
 from typing import Optional
 
 import asyncpg
 
-from ..common.yandex_logging import get_yandex_logger
-
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 _pool: Optional[asyncpg.Pool] = None
 

@@ -1,17 +1,16 @@
+import logging
 from datetime import datetime, timedelta
 from typing import List
 
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from .postgres_connection import get_pool
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Constants
 MESSAGE_HISTORY_SIZE = 30  # Number of messages to keep in history
 MESSAGE_TTL = 60 * 60 * 24  # 24 hours in seconds
 
 
-@log_function_call(logger)
 async def save_message(admin_id: int, role: str, content: str) -> None:
     """Save a message to the admin's conversation history"""
     pool = await get_pool()
@@ -65,7 +64,6 @@ async def save_message(admin_id: int, role: str, content: str) -> None:
             )
 
 
-@log_function_call(logger)
 async def get_message_history(admin_id: int) -> List[dict]:
     """Retrieve admin's conversation history"""
     pool = await get_pool()
@@ -83,7 +81,6 @@ async def get_message_history(admin_id: int) -> List[dict]:
         return [{"role": row["role"], "content": row["content"]} for row in rows]
 
 
-@log_function_call(logger)
 async def clear_message_history(admin_id: int) -> None:
     """Clear admin's conversation history"""
     pool = await get_pool()

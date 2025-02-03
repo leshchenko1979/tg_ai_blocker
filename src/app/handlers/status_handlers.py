@@ -1,16 +1,16 @@
+import logging
+
 from aiogram import types
 
 from ..common.bot import bot
 from ..common.mp import mp
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from ..database import get_admin, get_group, update_group_admins
 from .dp import dp
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dp.my_chat_member()
-@log_function_call(logger)
 async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
     """
     Обработчик изменения статуса бота в чате

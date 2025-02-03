@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import F, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -5,17 +7,15 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from ..common.bot import bot
 from ..common.mp import mp
 from ..common.utils import config
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from ..database import get_pool, get_referrer
 from .dp import dp
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 REFERRAL_COMMISSION = config["referral_program"]["rewards"]["commission"]
 
 
 @dp.message(Command("buy"))
-@log_function_call(logger)
 async def handle_buy_command(message: types.Message) -> None:
     """
     Обрабатывает команду покупки звезд
@@ -53,7 +53,6 @@ async def handle_buy_command(message: types.Message) -> None:
 
 
 @dp.callback_query(F.data.startswith("buy_stars:"))
-@log_function_call(logger)
 async def handle_buy_stars_callback(callback: types.CallbackQuery):
     """
     Обрабатывает выбор количества звезд для покупки

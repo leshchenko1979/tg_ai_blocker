@@ -1,15 +1,16 @@
 import asyncio
+import logging
 import traceback
 
+import logfire
 from aiohttp import web
 
 from .common.bot import LESHCHENKO_CHAT_ID, bot
 from .common.mp import mp
 from .common.utils import remove_lines_to_fit_len
-from .common.yandex_logging import get_yandex_logger, log_function_call
 from .handlers.dp import dp
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 routes = web.RouteTableDef()
 app = web.Application()
@@ -17,7 +18,7 @@ app = web.Application()
 
 @routes.post("/")
 @routes.get("/")
-@log_function_call(logger)
+@logfire.instrument()
 async def handle_incoming_request(request: web.Request):
     if not await request.read():
         return web.Response()

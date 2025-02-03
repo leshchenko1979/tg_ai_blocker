@@ -1,3 +1,4 @@
+import logging
 import urllib.parse
 
 from aiogram import F, types
@@ -6,11 +7,10 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from ..common.mp import mp
 from ..common.utils import config
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from ..database.referral_operations import get_referrals, get_total_earnings
 from .dp import dp
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 SHARE_MESSAGE = """
 🤖 Познакомься с моим цифровым защитником!
@@ -27,7 +27,6 @@ SHARE_MESSAGE = """
 
 
 @dp.message(Command("ref"), F.chat.type == "private")
-@log_function_call(logger)
 async def cmd_ref(message: types.Message):
     """Генерирует реферальную ссылку и кнопку для шаринга"""
     user_id = message.from_user.id
@@ -68,7 +67,6 @@ async def cmd_ref(message: types.Message):
 
 
 @dp.message(Command("refs"), F.chat.type == "private")
-@log_function_call(logger)
 async def cmd_refs(message: types.Message):
     """Показывает статистику по рефералам"""
     user_id = message.from_user.id

@@ -69,9 +69,9 @@ tar \
     --exclude='.dockerignore' \
     -czf "$TEMP_DIR/app.tar.gz" src/app/
 
-# Create project directory
-echo "Creating project directory..."
-ssh ${REMOTE_USER}@${REMOTE_HOST} "mkdir -p ~/tg-ai-blocker"
+# Clean and recreate project directory
+echo "Cleaning and recreating project directory..."
+ssh ${REMOTE_USER}@${REMOTE_HOST} "rm -rf ~/tg-ai-blocker && mkdir -p ~/tg-ai-blocker"
 
 # Copy and extract Python package
 echo "Copying and extracting Python package..."
@@ -81,7 +81,7 @@ rm -rf "$TEMP_DIR"
 
 # Copy configuration files
 echo "Copying configuration files..."
-scp .dockerfile docker-compose.yml .env requirements.txt config.yaml PRD.md aiogram_types.cache ${REMOTE_USER}@${REMOTE_HOST}:~/tg-ai-blocker/
+scp .dockerfile docker-compose.yml .env requirements.txt config.yaml PRD.md ${REMOTE_USER}@${REMOTE_HOST}:~/tg-ai-blocker/
 
 # Deploy container
 echo "Deploying container..."

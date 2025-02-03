@@ -19,9 +19,9 @@ import os
 from datetime import datetime
 
 # Mute Yandex logging
-from ..app.common.yandex_logging import mute_yandex_logging_for_tests
+from ..app.logging_setup import mute_logging_for_tests
 
-mute_yandex_logging_for_tests()
+mute_logging_for_tests()
 
 # Mute mp for tests
 from ..app.common.mp import mute_mp_for_tests

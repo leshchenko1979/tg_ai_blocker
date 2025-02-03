@@ -1,15 +1,14 @@
+import logging
 from typing import Dict, List, Optional
 
 from ..common.bot import bot
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from .constants import INITIAL_CREDITS
 from .models import Group
 from .postgres_connection import get_pool
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-@log_function_call(logger)
 async def get_group(group_id: int) -> Optional[Group]:
     """Retrieve group information"""
     pool = await get_pool()
@@ -54,7 +53,6 @@ async def get_group(group_id: int) -> Optional[Group]:
         )
 
 
-@log_function_call(logger)
 async def set_group_moderation(group_id: int, enabled: bool) -> None:
     """Enable/disable moderation for a group"""
     pool = await get_pool()
@@ -71,7 +69,6 @@ async def set_group_moderation(group_id: int, enabled: bool) -> None:
         )
 
 
-@log_function_call(logger)
 async def is_moderation_enabled(group_id: int) -> bool:
     """Check if moderation is enabled for a group"""
     pool = await get_pool()
@@ -85,7 +82,6 @@ async def is_moderation_enabled(group_id: int) -> bool:
         return bool(enabled)
 
 
-@log_function_call(logger)
 async def get_paying_admins(group_id: int) -> List[int]:
     """Get list of admins with positive credits"""
     pool = await get_pool()
@@ -102,7 +98,6 @@ async def get_paying_admins(group_id: int) -> List[int]:
         return [row["admin_id"] for row in rows]
 
 
-@log_function_call(logger)
 async def deduct_credits_from_admins(group_id: int, amount: int) -> bool:
     """Deduct credits from the admin with the highest balance"""
     pool = await get_pool()
@@ -147,7 +142,6 @@ async def deduct_credits_from_admins(group_id: int, amount: int) -> bool:
             return True
 
 
-@log_function_call(logger)
 async def get_admin_groups(admin_id: int) -> List[Dict]:
     """Get list of groups where user is an admin"""
     pool = await get_pool()
@@ -182,7 +176,6 @@ async def get_admin_groups(admin_id: int) -> List[Dict]:
         return groups
 
 
-@log_function_call(logger)
 async def is_member_in_group(group_id: int, member_id: int) -> bool:
     """Check if member is in group"""
     pool = await get_pool()
@@ -200,7 +193,6 @@ async def is_member_in_group(group_id: int, member_id: int) -> bool:
         return bool(exists)
 
 
-@log_function_call(logger)
 async def add_member(group_id: int, member_id: int) -> None:
     """Add unique member to group"""
     pool = await get_pool()
@@ -216,7 +208,6 @@ async def add_member(group_id: int, member_id: int) -> None:
         )
 
 
-@log_function_call(logger)
 async def remove_member_from_group(
     member_id: int, group_id: Optional[int] = None
 ) -> None:
@@ -270,7 +261,6 @@ async def remove_member_from_group(
                     )
 
 
-@log_function_call(logger)
 async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
     """Update group administrators and create group if it doesn't exist"""
     pool = await get_pool()

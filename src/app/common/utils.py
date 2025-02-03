@@ -1,10 +1,9 @@
+import logging
 from typing import Any, Dict
 
 import yaml
 
-from .yandex_logging import get_yandex_logger
-
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def load_config() -> Dict[str, Any]:
@@ -13,7 +12,7 @@ def load_config() -> Dict[str, Any]:
     """
     with open("config.yaml", "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
-    logger.trace("Configuration loaded successfully")
+    logger.debug("Configuration loaded successfully")
     return config
 
 

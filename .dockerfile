@@ -13,8 +13,6 @@ COPY src/app ./app
 # Test imports during build
 RUN PYTHONPATH=/app python -c "from app import main"
 
-COPY aiogram_types.cache .
-
 EXPOSE 8080
 
 CMD ["python", "-m", "app.main"]

@@ -1,12 +1,7 @@
 aiohttp
-python-json-logger
 python-dotenv
 aiogram
 mixpanel
 pyyaml
 asyncpg
-logfire
-# supabase
-# reretry
-# upstash-redis
-# yandex-cloud-ml-sdk
+logfire[aiohttp]

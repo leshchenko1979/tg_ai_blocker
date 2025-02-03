@@ -1,19 +1,18 @@
 import asyncio
+import logging
 
 from aiogram import F
 from aiogram.types import CallbackQuery
 
 from ..common.bot import bot
 from ..common.mp import mp
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from ..database.spam_examples import add_spam_example
 from .dp import dp
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dp.callback_query(F.data.startswith("mark_as_not_spam:"))
-@log_function_call(logger)
 async def handle_spam_ignore_callback(callback: CallbackQuery):
     """
     Обработчик колбэка для добавления сообщения в базу безопасных примеров
@@ -81,7 +80,6 @@ async def handle_spam_ignore_callback(callback: CallbackQuery):
 
 
 @dp.callback_query(F.data.startswith("delete_spam_message:"))
-@log_function_call(logger)
 async def handle_spam_confirm_callback(callback: CallbackQuery):
     """
     Обработчик колбэка для удаления спам-сообщения

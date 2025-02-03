@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import pathlib
 from typing import Any, Dict
 
@@ -9,7 +10,6 @@ from ..common.bot import bot
 from ..common.llms import get_openrouter_response
 from ..common.mp import mp
 from ..common.utils import config
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from ..database import (
     add_spam_example,
     get_message_history,
@@ -19,7 +19,7 @@ from ..database import (
 )
 from .dp import dp
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class OriginalMessageExtractionError(Exception):
@@ -32,7 +32,6 @@ class OriginalMessageExtractionError(Exception):
     ~F.forward_from,
     ~F.forward_origin,
 )
-@log_function_call(logger)
 async def handle_private_message(message: types.Message):
     """
     Отвечает пользователю от имени бота, используя LLM модели и контекст из истории сообщений
@@ -143,7 +142,6 @@ async def handle_private_message(message: types.Message):
 
 
 @dp.message(F.chat.type == "private", or_f(F.forward_from, F.forward_origin))
-@log_function_call(logger)
 async def handle_forwarded_message(message: types.Message):
     """
     Handle forwarded messages in private chats.
@@ -184,7 +182,6 @@ async def handle_forwarded_message(message: types.Message):
 
 
 @dp.callback_query(F.data.startswith("spam_example:"))
-@log_function_call(logger)
 async def process_spam_example_callback(callback: types.CallbackQuery):
     """
     Process the user's response to the spam example prompt.

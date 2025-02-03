@@ -1,12 +1,11 @@
+import logging
 from typing import Any, Dict, List, Optional
 
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from .postgres_connection import get_pool
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-@log_function_call(logger)
 async def get_spam_examples(admin_id: Optional[int] = None) -> List[Dict[str, Any]]:
     """Get spam examples from PostgreSQL, including user-specific examples if admin_id is provided"""
     pool = await get_pool()
@@ -44,7 +43,6 @@ async def get_spam_examples(admin_id: Optional[int] = None) -> List[Dict[str, An
         ]
 
 
-@log_function_call(logger)
 async def add_spam_example(
     text: str,
     score: int,
@@ -87,7 +85,6 @@ async def add_spam_example(
                 return False
 
 
-@log_function_call(logger)
 async def remove_spam_example(text: str) -> bool:
     """Remove a spam example from PostgreSQL by its text"""
     pool = await get_pool()

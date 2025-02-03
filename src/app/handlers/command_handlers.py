@@ -1,9 +1,10 @@
+import logging
+
 from aiogram import F, types
 from aiogram.filters import Command
 
 from ..common.mp import mp
 from ..common.utils import config
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from ..database import (
     INITIAL_CREDITS,
     get_admin_credits,
@@ -16,11 +17,10 @@ from ..database import (
 )
 from .dp import dp
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dp.message(Command("start", "help"), F.chat.type == "private")
-@log_function_call(logger)
 async def handle_help_command(message: types.Message) -> None:
     """
     Обработчик команд /start и /help
@@ -90,7 +90,6 @@ async def handle_help_command(message: types.Message) -> None:
 
 
 @dp.message(Command("stats"))
-@log_function_call(logger)
 async def handle_stats_command(message: types.Message) -> None:
     """
     Обработчик команды /stats
@@ -161,7 +160,6 @@ async def handle_stats_command(message: types.Message) -> None:
 
 
 @dp.message(Command("mode"))
-@log_function_call(logger)
 async def handle_mode_command(message: types.Message) -> None:
     """
     Обработчик команды /mode

@@ -1,14 +1,13 @@
+import logging
 from typing import Optional
 
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from .constants import INITIAL_CREDITS
 from .models import Administrator
 from .postgres_connection import get_pool
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-@log_function_call(logger)
 async def save_admin(admin: Administrator) -> None:
     """Save administrator to PostgreSQL"""
     pool = await get_pool()
@@ -33,7 +32,6 @@ async def save_admin(admin: Administrator) -> None:
         )
 
 
-@log_function_call(logger)
 async def get_admin(admin_id: int) -> Optional[Administrator]:
     """Retrieve administrator information from PostgreSQL"""
     pool = await get_pool()
@@ -59,7 +57,6 @@ async def get_admin(admin_id: int) -> Optional[Administrator]:
         )
 
 
-@log_function_call(logger)
 async def get_admin_credits(admin_id: int) -> int:
     """Retrieve administrator credits"""
     pool = await get_pool()
@@ -73,7 +70,6 @@ async def get_admin_credits(admin_id: int) -> int:
         return credits if credits is not None else INITIAL_CREDITS
 
 
-@log_function_call(logger)
 async def initialize_new_admin(admin_id: int) -> bool:
     """Initialize a new administrator with initial credits"""
     pool = await get_pool()
@@ -114,7 +110,6 @@ async def initialize_new_admin(admin_id: int) -> bool:
             return True
 
 
-@log_function_call(logger)
 async def toggle_spam_deletion(admin_id: int) -> bool:
     """Toggle spam deletion setting for administrator. Returns new state"""
     pool = await get_pool()
@@ -148,7 +143,6 @@ async def toggle_spam_deletion(admin_id: int) -> bool:
             return new_state
 
 
-@log_function_call(logger)
 async def get_spam_deletion_state(admin_id: int) -> bool:
     """Get current spam deletion state for administrator"""
     pool = await get_pool()
@@ -164,12 +158,11 @@ async def get_spam_deletion_state(admin_id: int) -> bool:
         )  # Default to True if not found
 
 
-@log_function_call(logger)
 async def get_spent_credits_last_week(admin_id: int) -> int:
     """Get total spent credits for the last 7 days"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        spent_credits = await conn.fetchval(
+        return await conn.fetchval(
             """
             SELECT COALESCE(SUM(ABS(amount)), 0)
             FROM transactions
@@ -179,4 +172,3 @@ async def get_spent_credits_last_week(admin_id: int) -> int:
         """,
             admin_id,
         )
-        return spent_credits

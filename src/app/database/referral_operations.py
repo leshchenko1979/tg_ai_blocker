@@ -1,12 +1,11 @@
+import logging
 from typing import Dict, List, Optional
 
-from ..common.yandex_logging import get_yandex_logger, log_function_call
 from .postgres_connection import get_pool
 
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-@log_function_call(logger)
 async def save_referral(user_id: int, referrer_id: int) -> bool:
     """Сохраняет связь реферала с реферером"""
     pool = await get_pool()
@@ -39,7 +38,6 @@ async def save_referral(user_id: int, referrer_id: int) -> bool:
                 return False
 
 
-@log_function_call(logger)
 async def get_referrer(user_id: int) -> Optional[int]:
     """Возвращает ID реферера для пользователя"""
     pool = await get_pool()
@@ -55,7 +53,6 @@ async def get_referrer(user_id: int) -> Optional[int]:
             raise
 
 
-@log_function_call(logger)
 async def get_referrals(user_id: int) -> List[Dict]:
     """Возвращает список рефералов пользователя с информацией о заработке"""
     pool = await get_pool()
@@ -85,7 +82,6 @@ async def get_referrals(user_id: int) -> List[Dict]:
             raise
 
 
-@log_function_call(logger)
 async def get_total_earnings(user_id: int) -> int:
     """Возвращает общую сумму заработанных звезд от рефералов"""
     pool = await get_pool()

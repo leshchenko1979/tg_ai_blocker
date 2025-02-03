@@ -1,11 +1,10 @@
 import functools
+import logging
 import os
 
 from mixpanel import Mixpanel
 
-from .yandex_logging import get_yandex_logger
-
-logger = get_yandex_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SilentMixpanel:
