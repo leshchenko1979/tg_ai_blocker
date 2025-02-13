@@ -3,12 +3,14 @@ import os
 from typing import Optional
 
 import asyncpg
+import logfire
 
 logger = logging.getLogger(__name__)
 
 _pool: Optional[asyncpg.Pool] = None
 
 
+@logfire.no_auto_trace
 async def get_pool() -> asyncpg.Pool:
     """Get or create PostgreSQL connection pool"""
     global _pool
@@ -29,7 +31,7 @@ async def get_pool() -> asyncpg.Pool:
     return _pool
 
 
-def get_pool_sync() -> asyncpg.Pool:
+def get_pool_sync() -> asyncpg.Pool | None:
     """Get the current database pool (synchronous version for testing)"""
     return _pool
 

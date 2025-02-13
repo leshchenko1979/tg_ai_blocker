@@ -1,6 +1,8 @@
 import logging
 from typing import Optional
 
+import logfire
+
 from ..database.spam_examples import get_spam_examples
 from .llms import get_openrouter_response
 
@@ -99,7 +101,9 @@ async def is_spam(
         try:
             response = await get_openrouter_response(messages)
             logger.info(f"Spam classifier response: {response}")
-            return extract_spam_score(response)
+            score = extract_spam_score(response)
+            logfire.metric_gauge("spam_score").set(score)
+            return score
         except Exception as e:
             logger.warning(f"Attempt {attempt + 1} failed: {str(e)}")
             if attempt == MAX_RETRIES - 1:

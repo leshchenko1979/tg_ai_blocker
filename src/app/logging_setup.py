@@ -15,15 +15,14 @@ def setup_logging():
 
         logfire.configure()
 
-        # Instrument aiohttp and other libraries
-        logfire.instrument_aiohttp_client()
         logging.basicConfig(
             handlers=[logfire.LogfireLoggingHandler()], level=logging.DEBUG
         )
         logfire.install_auto_tracing(
-            modules=["app"], min_duration=0.01, check_imported_modules="ignore"
+            modules=["app.database", "app.handlers"],
+            min_duration=0.01,
+            check_imported_modules="ignore",
         )
-
 
 
 # Silence known chatty loggers

@@ -4,4 +4,4 @@ aiogram
 mixpanel
 pyyaml
 asyncpg
-logfire[aiohttp]
+logfire

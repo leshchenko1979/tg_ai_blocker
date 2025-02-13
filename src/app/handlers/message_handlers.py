@@ -253,7 +253,7 @@ async def handle_moderated_message(message: types.Message):
     """Обработчик всех сообщений в модерируемых группах"""
     try:
         if not message.from_user:
-            return
+            return "no_user"
 
         chat_id = message.chat.id
         user_id = message.from_user.id
@@ -281,7 +281,7 @@ async def handle_moderated_message(message: types.Message):
                 chat_id,
                 "message_skipped_moderation_disabled",
             )
-            return
+            return "moderation_disabled"
 
         is_known_member = await is_member_in_group(chat_id, user_id)
 
@@ -292,7 +292,7 @@ async def handle_moderated_message(message: types.Message):
                 "message_skipped_known_member",
                 {"user_id": user_id},
             )
-            return
+            return "known_member"
 
         user = message.from_user
         user_with_bio = await bot.get_chat(user.id)
@@ -309,7 +309,7 @@ async def handle_moderated_message(message: types.Message):
 
         if spam_score is None:
             logger.warning("Failed to get spam score")
-            return
+            return "failed_to_get_spam_score"
 
         # Трекинг результата проверки на спам
         mp.track(
@@ -328,9 +328,9 @@ async def handle_moderated_message(message: types.Message):
         if spam_score > 50:
             if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
                 await handle_spam(message)
-                return
+                return "spam"
 
-        if await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
+        elif await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
             await add_member(chat_id, user_id)
 
             # Трекинг одобрения пользователя
@@ -339,6 +339,9 @@ async def handle_moderated_message(message: types.Message):
                 "user_approved",
                 {"chat_id": chat_id, "user_id": user_id, "spam_score": spam_score},
             )
+            return "not_spam"
+
+        return "failed_to_deduct_credits"
 
     except Exception as e:
         logger.error(f"Error processing message: {e}", exc_info=True)
