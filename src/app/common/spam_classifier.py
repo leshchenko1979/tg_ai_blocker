@@ -105,8 +105,18 @@ async def is_spam(
             logfire.metric_gauge("spam_score").set(score)
             return score
         except Exception as e:
-            logger.warning(f"Attempt {attempt + 1} failed: {str(e)}")
             if attempt == MAX_RETRIES - 1:
+                logfire.exception(
+                    "Spam classifier failed",
+                    response=response,
+                    error=e,
+                    comment=comment,
+                    name=name,
+                    bio=bio,
+                    admin_id=admin_id,
+                    prompt=prompt,
+                    _tags=["spam_classifier_failed"],
+                )
                 raise ExtractionFailedError(
                     "Failed to extract spam score after 3 attempts"
                 ) from e
