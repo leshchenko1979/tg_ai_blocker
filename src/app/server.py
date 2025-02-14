@@ -47,10 +47,7 @@ async def handle_update(request: web.Request):
                 mp.track(
                     admin_id,
                     "unhandled_exception",
-                    {
-                        "chat_id": chat_id,
-                        "exception": str(e)
-                    },
+                    {"chat_id": chat_id, "exception": str(e)},
                 )
 
             span.record_exception(e)

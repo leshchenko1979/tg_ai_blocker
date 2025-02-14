@@ -96,20 +96,24 @@ async def is_spam(
     ]
 
     MAX_RETRIES = 3
+    last_error = None
+    last_response = None
 
     for attempt in range(MAX_RETRIES):
         try:
             response = await get_openrouter_response(messages)
+            last_response = response
             logger.info(f"Spam classifier response: {response}")
             score = extract_spam_score(response)
             logfire.metric_gauge("spam_score").set(score)
             return score
         except Exception as e:
+            last_error = e
             if attempt == MAX_RETRIES - 1:
                 logfire.exception(
                     "Spam classifier failed",
-                    response=response,
-                    error=e,
+                    response=last_response,
+                    error=str(last_error),
                     comment=comment,
                     name=name,
                     bio=bio,
@@ -118,8 +122,9 @@ async def is_spam(
                     _tags=["spam_classifier_failed"],
                 )
                 raise ExtractionFailedError(
-                    "Failed to extract spam score after 3 attempts"
-                ) from e
+                    f"Failed to classify message after {MAX_RETRIES} attempts: {str(last_error)}"
+                ) from last_error
+            continue
 
 
 def extract_spam_score(response: str):

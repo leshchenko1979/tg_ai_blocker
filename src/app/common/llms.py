@@ -1,6 +1,7 @@
 import os
 
 import aiohttp
+import logfire
 
 
 async def get_yandex_response(messages):
@@ -21,7 +22,7 @@ async def get_openrouter_response(messages):
         "Content-Type": "application/json",
     }
 
-    model = "qwen/qwen-2-7b-instruct:free"
+    model = "qwen/qwen-vl-plus:free"
 
     data = {"model": model, "messages": messages, "temperature": 0.3}
 
@@ -33,4 +34,26 @@ async def get_openrouter_response(messages):
         ) as response:
             result = await response.json()
 
-    return result["choices"][0]["message"]["content"]
+            if response.status != 200:
+                error = result.get("error", "Unknown error")
+                logfire.exception("OpenRouter API error", response=result, error=error)
+                raise RuntimeError(f"OpenRouter API error: {error}")
+
+            if not result.get("choices"):
+                logfire.exception(
+                    "Invalid OpenRouter API response format",
+                    response=result,
+                )
+                raise RuntimeError(f"Invalid OpenRouter API response format: {result}")
+
+            try:
+                return result["choices"][0]["message"]["content"]
+            except (KeyError, IndexError) as e:
+                logfire.exception(
+                    "Failed to extract content from OpenRouter response",
+                    response=result,
+                    error=str(e),
+                )
+                raise RuntimeError(
+                    f"Failed to extract content from OpenRouter response: {e}. Response: {result}"
+                ) from e
