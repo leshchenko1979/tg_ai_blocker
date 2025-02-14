@@ -16,6 +16,7 @@ async def get_yandex_response(messages):
     return result.alternatives[0].text
 
 
+@logfire.instrument()
 async def get_openrouter_response(messages):
     headers = {
         "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
@@ -33,6 +34,8 @@ async def get_openrouter_response(messages):
             json=data,
         ) as response:
             result = await response.json()
+
+            logfire.debug("OpenRouter response", result=result)
 
             if response.status != 200:
                 error = result.get("error", "Unknown error")
