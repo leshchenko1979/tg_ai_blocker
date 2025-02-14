@@ -14,6 +14,7 @@ from ..database import (
     add_spam_example,
     get_message_history,
     get_spam_examples,
+    initialize_new_admin,
     remove_member_from_group,
     save_message,
 )
@@ -42,6 +43,9 @@ async def handle_private_message(message: types.Message):
 
     # Трекинг получения приватного сообщения
     mp.track(admin_id, "private_message_received", {"message_text": admin_message})
+
+    # Initialize new administrator if needed
+    await initialize_new_admin(admin_id)
 
     # Save user message to history
     await save_message(admin_id, "user", admin_message)

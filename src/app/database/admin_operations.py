@@ -110,7 +110,7 @@ async def initialize_new_admin(admin_id: int) -> bool:
             return True
 
 
-async def toggle_spam_deletion(admin_id: int) -> bool:
+async def toggle_spam_deletion(admin_id: int) -> bool | None:
     """Toggle spam deletion setting for administrator. Returns new state"""
     pool = await get_pool()
     async with pool.acquire() as conn:
