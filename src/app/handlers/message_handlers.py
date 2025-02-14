@@ -30,16 +30,34 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
     if amount == 0:
         return True
 
-    success = await deduct_credits_from_admins(chat_id, amount)
+    admin_id = await deduct_credits_from_admins(chat_id, amount)
 
     # Трекинг списания звезд
-    mp.track(
-        chat_id,
-        "credits_deduction_attempt",
-        {"chat_id": chat_id, "amount": amount, "reason": reason, "success": success},
-    )
+    if admin_id:
+        mp.track(
+            admin_id,
+            "credits_deduction_attempt",
+            {"chat_id": chat_id, "amount": amount, "reason": reason, "success": True},
+        )
+    else:
+        # Получаем любого админа для трекинга неудачного списания
+        admins = await bot.get_chat_administrators(chat_id)
+        tracking_admin_id = next(
+            (admin.user.id for admin in admins if not admin.user.is_bot), None
+        )
+        if tracking_admin_id:
+            mp.track(
+                tracking_admin_id,
+                "credits_deduction_attempt",
+                {
+                    "chat_id": chat_id,
+                    "amount": amount,
+                    "reason": reason,
+                    "success": False,
+                },
+            )
 
-    if not success:
+    if not admin_id:
         logger.warning(f"No paying admins in chat {chat_id} for {reason}")
         await set_group_moderation(chat_id, False)
 
@@ -83,11 +101,11 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
 
                 # Трекинг отправки рекламного сообщения
                 mp.track(
-                    chat_id,
+                    min_credits_admin.user.id,
                     "promo_message_sent",
                     {
                         "type": "no_credits_group",
-                        "admin_id": min_credits_admin.user.id,
+                        "chat_id": chat_id,
                         "admin_credits": min_credits,
                     },
                 )

@@ -98,8 +98,12 @@ async def get_paying_admins(group_id: int) -> List[int]:
         return [row["admin_id"] for row in rows]
 
 
-async def deduct_credits_from_admins(group_id: int, amount: int) -> bool:
-    """Deduct credits from the admin with the highest balance"""
+async def deduct_credits_from_admins(group_id: int, amount: int) -> int:
+    """
+    Deduct credits from the admin with the highest balance
+    Returns:
+        int: admin_id if credits were successfully deducted, 0 if deduction failed
+    """
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -117,7 +121,7 @@ async def deduct_credits_from_admins(group_id: int, amount: int) -> bool:
             )
 
             if not admin_row or admin_row["credits"] < amount:
-                return False
+                return 0
 
             # Deduct credits and record transaction
             await conn.execute(
@@ -139,7 +143,7 @@ async def deduct_credits_from_admins(group_id: int, amount: int) -> bool:
                 -amount,
             )
 
-            return True
+            return admin_row["admin_id"]
 
 
 async def get_admin_groups(admin_id: int) -> List[Dict]:

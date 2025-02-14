@@ -31,15 +31,27 @@ async def handle_update(request: web.Request):
             return web.json_response({"message": "Processed successfully"})
 
         except Exception as e:
-            # Extract chat_id from any part of the incoming json by iterating its keys
+            # Extract chat_id and admin_id from any part of the incoming json by iterating its keys
+            chat_id = None
+            admin_id = None
             for key in json:
-                if isinstance(json[key], dict) and "chat" in json[key]:
-                    mp.track(
-                        json[key]["chat"]["id"],
-                        "unhandled_exception",
-                        {"exception": str(e)},
-                    )
-                    break
+                if isinstance(json[key], dict):
+                    if "chat" in json[key]:
+                        chat_id = json[key]["chat"]["id"]
+                    if "from" in json[key]:
+                        admin_id = json[key]["from"]["id"]
+                    if chat_id and admin_id:
+                        break
+
+            if admin_id:
+                mp.track(
+                    admin_id,
+                    "unhandled_exception",
+                    {
+                        "chat_id": chat_id,
+                        "exception": str(e)
+                    },
+                )
 
             span.record_exception(e)
 

@@ -165,7 +165,7 @@ async def test_try_deduct_credits_failure(patched_db_conn, clean_db):
     ) as deduct_mock, patch(
         "src.app.handlers.message_handlers.set_group_moderation"
     ) as set_mod_mock:
-        deduct_mock.return_value = False
+        deduct_mock.return_value = 0  # Return 0 instead of False to indicate failure
         chat_id = -1001234567890
 
         result = await try_deduct_credits(chat_id, 10, "test deduction")
