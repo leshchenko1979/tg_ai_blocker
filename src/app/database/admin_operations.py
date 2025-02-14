@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Optional, List
 
 from .constants import INITIAL_CREDITS
 from .models import Administrator
@@ -172,3 +172,28 @@ async def get_spent_credits_last_week(admin_id: int) -> int:
         """,
             admin_id,
         )
+
+
+async def get_all_admins() -> List[Administrator]:
+    """Get list of all administrators"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT * FROM administrators
+            ORDER BY created_at DESC
+            """
+        )
+
+        return [
+            Administrator(
+                admin_id=row["admin_id"],
+                username=row["username"],
+                credits=row["credits"],
+                is_active=True,  # Always true if record exists
+                delete_spam=row["delete_spam"],
+                created_at=row["created_at"],
+                last_updated=row["last_active"],
+            )
+            for row in rows
+        ]
