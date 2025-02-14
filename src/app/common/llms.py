@@ -23,7 +23,7 @@ async def get_openrouter_response(messages):
         "Content-Type": "application/json",
     }
 
-    model = "qwen/qwen-vl-plus:free"
+    model = "qwen/qwen2.5-vl-72b-instruct:free"
 
     data = {"model": model, "messages": messages, "temperature": 0.3}
 
