@@ -72,15 +72,14 @@ async def handle_private_message(message: types.Message):
         # Format spam examples for prompt
         formatted_examples = []
         for example in spam_examples:
-            example_str = (
-                f"<запрос>\n<текст сообщения>\n{example['text']}\n</текст сообщения>"
-            )
+            example_str = f"<пример>\n<запрос>\n<текст сообщения>\n{example['text']}\n</текст сообщения>"
             if "name" in example:
                 example_str += f"\n<имя>{example['name']}</имя>"
             if "bio" in example:
                 example_str += f"\n<биография>{example['bio']}</биография>"
             example_str += "\n</запрос>\n<ответ>\n"
-            example_str += f"{'да' if example['score'] > 0 else 'нет'} {abs(example['score'])}%\n</ответ>"
+            example_str += f"{'да' if example['score'] > 50 else 'нет'} {abs(example['score'])}%\n</ответ>"
+            example_str += "\n</пример>"
             formatted_examples.append(example_str)
 
         system_prompt = f"""
@@ -299,6 +298,18 @@ async def extract_original_message_info(
         )
 
     text = original_message.text or original_message.caption
+
+    # Очищаем текст от обертки тревоги
+    if text and "⚠️ ТРЕВОГА!" in text:
+        try:
+            # Находим содержание угрозы
+            start_idx = text.find("Содержание угрозы:") + len("Содержание угрозы:")
+            end_idx = text.find("Вредоносное сообщение уничтожено")
+            if start_idx > 0 and end_idx > 0:
+                text = text[start_idx:end_idx].strip()
+        except Exception:
+            # Если не удалось очистить, оставляем как есть
+            pass
 
     if original_message.forward_from:
         # Обычное пересланное сообщение
