@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, List
+from typing import List, Optional
 
 from .constants import INITIAL_CREDITS
 from .models import Administrator
