@@ -1,10 +1,15 @@
+"""Handlers for bot status updates in chats."""
+
 import logging
+from datetime import datetime, timezone
+from typing import List
 
 from aiogram import types
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
 from ..common.mp import mp
-from ..database import get_admin, get_group, update_group_admins
+from ..database import get_group, update_group_admins
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -13,219 +18,284 @@ logger = logging.getLogger(__name__)
 @dp.my_chat_member()
 async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
     """
-    Обработчик изменения статуса бота в чате
-    Срабатывает когда бота добавляют/удаляют из группы или меняют его права
+    Handle updates to bot's status in chats.
+    Called when bot is added to or removed from a chat.
     """
+    chat_id = event.chat.id
+    admin_id = event.from_user.id
+    new_status = event.new_chat_member.status
+    old_status = event.old_chat_member.status
+    chat_title = event.chat.title or "Unnamed Group"
+
     try:
-        if event.chat.type not in ["group", "supergroup"]:
-            await _handle_wrong_chat_type(event)
+        if new_status == old_status:
+            await _handle_permission_update(event, chat_id, admin_id, chat_title)
             return
 
-        new_status = event.new_chat_member.status
-        chat_id = event.chat.id
-
-        mp.track(
-            event.from_user.id,
-            "bot_status_changed",
-            {
-                "chat_id": chat_id,
-                "new_status": new_status,
-                "old_status": event.old_chat_member.status,
-                "chat_type": event.chat.type,
-                "chat_title": event.chat.title,
-            },
-        )
-
         if new_status in ["administrator", "member", "restricted"]:
-            logger.info(f"Bot added to group {chat_id} with status {new_status}")
-
-            admins = await bot.get_chat_administrators(chat_id)
-            admin_ids = [admin.user.id for admin in admins if not admin.user.is_bot]
-            await update_group_admins(chat_id, admin_ids)
-
-            has_admin_rights = (
-                new_status == "administrator"
-                and event.new_chat_member.can_delete_messages
-                and event.new_chat_member.can_restrict_members
-            )
-
-            mp.track(
-                chat_id,
-                "bot_added_to_group",
-                {
-                    "status": new_status,
-                    "admin_count": len(admin_ids),
-                    "chat_title": event.chat.title,
-                    "added_by": event.from_user.id,
-                    "has_admin_rights": has_admin_rights,
-                },
-            )
-
-            if not has_admin_rights:
-                await _notify_admins_about_rights(
-                    chat_id, event.chat.title, event.chat.username, admin_ids
-                )
-
-            await _send_promo_message(
-                chat_id,
-                event.chat.title,
-                event.chat.username,
-                admin_ids,
-                event.from_user.id,
-            )
-
+            await _handle_bot_added(event, chat_id, admin_id, chat_title, new_status)
         elif new_status in ["left", "kicked"]:
-            logger.info(f"Bot removed from group {chat_id}")
-
-            mp.track(
-                chat_id,
-                "bot_removed_from_group",
-                {
-                    "status": new_status,
-                    "removed_by": event.from_user.id,
-                    "chat_title": event.chat.title,
-                },
-            )
-
-            group = await get_group(chat_id)
-            if group and group.admin_ids:
-                await _notify_admins_about_removal(
-                    chat_id, event.chat.title, event.chat.username, group.admin_ids
-                )
+            await _handle_bot_removed(event, chat_id, admin_id, chat_title, new_status)
 
     except Exception as e:
+        logger.error(f"Error handling bot status update: {e}", exc_info=True)
         mp.track(
-            event.chat.id,
-            "error_bot_status_update",
+            admin_id,
+            "error_status_update",
             {
+                "group_id": chat_id,
                 "error_type": type(e).__name__,
                 "error_message": str(e),
-                "new_status": event.new_chat_member.status,
+                "new_status": new_status,
+                "timestamp": event.date.isoformat(),
             },
         )
-        logger.error(f"Error handling bot status update: {e}", exc_info=True)
+        raise
 
 
-async def _handle_wrong_chat_type(event: types.ChatMemberUpdated) -> None:
-    """Обработка добавления бота в неподдерживаемый тип чата"""
-    mp.track(
-        event.from_user.id,
-        "bot_status_wrong_chat_type",
-        {
-            "chat_type": event.chat.type,
-            "new_status": event.new_chat_member.status,
-        },
+async def _handle_permission_update(
+    event: types.ChatMemberUpdated,
+    chat_id: int,
+    admin_id: int,
+    chat_title: str,
+) -> None:
+    """Handle updates to bot's permissions."""
+    if not (
+        isinstance(event.old_chat_member, types.ChatMemberAdministrator)
+        and isinstance(event.new_chat_member, types.ChatMemberAdministrator)
+    ):
+        return
+
+    old_rights = {
+        "can_delete_messages": event.old_chat_member.can_delete_messages,
+        "can_restrict_members": event.old_chat_member.can_restrict_members,
+    }
+    new_rights = {
+        "can_delete_messages": event.new_chat_member.can_delete_messages,
+        "can_restrict_members": event.new_chat_member.can_restrict_members,
+    }
+
+    if old_rights != new_rights:
+        has_all_rights = all(new_rights.values())
+
+        # Получаем группу для проверки времени добавления
+        group = await get_group(chat_id)
+        added_at = group.created_at if group else event.date
+        time_since_added = (event.date - added_at).total_seconds()
+
+        mp.track(
+            admin_id,
+            "bot_permissions_updated",
+            {
+                "group_id": chat_id,
+                "chat_title": chat_title,
+                "old_rights": old_rights,
+                "new_rights": new_rights,
+                "has_all_required_rights": has_all_rights,
+                "timestamp": event.date.isoformat(),
+                "setup_step": "grant_permissions" if has_all_rights else "add_bot",
+                "time_since_added": time_since_added,
+                "time_since_added_minutes": time_since_added / 60,
+                "time_since_added_hours": time_since_added / 3600,
+            },
+        )
+
+        # Если после обновления прав все еще не хватает необходимых прав
+        if not has_all_rights:
+            # Получаем список админов группы
+            admins = await bot.get_chat_administrators(chat_id)
+            admin_ids = [admin.user.id for admin in admins if not admin.user.is_bot]
+            await _notify_admins_about_rights(
+                chat_id, chat_title, event.chat.username, admin_ids
+            )
+
+
+async def _handle_bot_added(
+    event: types.ChatMemberUpdated,
+    chat_id: int,
+    admin_id: int,
+    chat_title: str,
+    new_status: str,
+) -> None:
+    """Handle bot being added to a group."""
+    logger.info(f"Bot added to group {chat_id} with status {new_status}")
+
+    # Get and update admins
+    admins = await bot.get_chat_administrators(chat_id)
+    admin_ids = [admin.user.id for admin in admins if not admin.user.is_bot]
+    await update_group_admins(chat_id, admin_ids)
+
+    # Track initial interaction for all admins
+    for current_admin_id in admin_ids:
+        mp.track(
+            current_admin_id,
+            "bot_added_to_group",
+            {
+                "group_id": chat_id,
+                "chat_title": chat_title,
+                "admin_count": len(admin_ids),
+                "status": new_status,
+                "has_admin_rights": new_status == "administrator",
+                "is_group_creator": current_admin_id == admin_id,
+                "timestamp": event.date.isoformat(),
+                "setup_step": "add_bot",
+                "time_since_added": 0,
+                "time_since_added_minutes": 0,
+                "time_since_added_hours": 0,
+            },
+        )
+
+    has_admin_rights = (
+        new_status == "administrator"
+        and isinstance(event.new_chat_member, types.ChatMemberAdministrator)
+        and event.new_chat_member.can_delete_messages
+        and event.new_chat_member.can_restrict_members
     )
 
-    if event.new_chat_member.status == "member":
-        try:
-            await bot.send_message(
-                event.from_user.id,
-                "🤖 Внимание! Модерация комментариев работает только в группах.\n\n"
-                "Пожалуйста, добавьте бота в группу с комментариями, чтобы запустить модерацию. "
-                "При добавлении бота непосредственно в канал модерация работать не будет.",
-                parse_mode="markdown",
+    if not has_admin_rights:
+        await _notify_admins_about_rights(
+            chat_id, chat_title, event.chat.username, admin_ids
+        )
+
+    await _send_promo_message(
+        chat_id,
+        chat_title,
+        event.chat.username,
+        admin_ids,
+        admin_id,
+    )
+
+
+async def _handle_bot_removed(
+    event: types.ChatMemberUpdated,
+    chat_id: int,
+    admin_id: int,
+    chat_title: str,
+    new_status: str,
+) -> None:
+    """Handle bot being removed from a group."""
+    logger.info(f"Bot removed from group {chat_id}")
+
+    group = await get_group(chat_id)
+    if group and group.admin_ids:
+        for current_admin_id in group.admin_ids:
+            mp.track(
+                current_admin_id,
+                "bot_removed_from_group",
+                {
+                    "group_id": chat_id,
+                    "chat_title": chat_title,
+                    "removed_by": admin_id,
+                    "status": new_status,
+                    "timestamp": event.date.isoformat(),
+                    "setup_step": "removed",
+                },
             )
-        except Exception as e:
-            logger.warning(f"Failed to send notification about chat type: {e}")
+
+        await _notify_admins_about_removal(
+            chat_id, chat_title, event.chat.username, group.admin_ids
+        )
 
 
 async def _notify_admins_about_rights(
-    chat_id: int, chat_title: str, username: str | None, admin_ids: list[int]
+    chat_id: int, chat_title: str, username: str | None, admin_ids: List[int]
 ) -> None:
-    """Уведомление админов о необходимости выдать права боту"""
+    """Notify admins about required bot permissions."""
     for admin_id in admin_ids:
         try:
             await bot.send_message(
                 admin_id,
-                "🤖 Приветствую, органическая форма жизни!\n\n"
-                f"Я был добавлен в группу *{chat_title}*"
-                f"{f' (@{username})' if username else ''}, "
-                "но для полноценной работы мне нужны права администратора:\n"
-                "• Удаление сообщений\n"
-                "• Блокировка пользователей\n\n"
-                "Предоставь мне необходимые полномочия, и я установлю непроницаемый щит "
-                "вокруг твоего цифрового пространства! 🛡",
+                "🤖 Приветствую! Для защиты группы мне нужны права администратора.\n\n"
+                f"Группа: *{chat_title}*"
+                f"{f' (@{username})' if username else ''}\n\n"
+                "📱 Как настроить права:\n"
+                "1. Откройте настройки группы (три точки ⋮ сверху)\n"
+                "2. Выберите пункт 'Управление группой'\n"
+                "3. Нажмите 'Администраторы'\n"
+                "4. Найдите меня в списке администраторов\n"
+                "5. Включите два права:\n"
+                "   • *Удаление сообщений* - чтобы удалять спам\n"
+                "   • *Блокировка пользователей* - чтобы блокировать спамеров\n\n"
+                "После настройки прав я смогу защищать группу! 🛡",
                 parse_mode="markdown",
             )
         except Exception as e:
+            # Отправляем ошибку с ID админа, которому не удалось отправить сообщение
             mp.track(
                 admin_id,
                 "error_admin_notification",
                 {
-                    "chat_id": chat_id,
+                    "group_id": chat_id,
                     "error_type": type(e).__name__,
                     "error_message": str(e),
+                    "timestamp": datetime.now().isoformat(),
                 },
             )
             logger.warning(f"Failed to notify admin {admin_id}: {e}")
+
+
+async def _notify_admins_about_removal(
+    chat_id: int, chat_title: str, username: str | None, admin_ids: List[int]
+) -> None:
+    """Notify admins when bot is removed from a group."""
+    for admin_id in admin_ids:
+        try:
+            await bot.send_message(
+                admin_id,
+                f"🔔 Я был удален из группы *{chat_title}*"
+                f"{f' (@{username})' if username else ''}\n\n"
+                "Если это произошло случайно, вы можете добавить меня обратно "
+                "и восстановить защиту группы.",
+                parse_mode="markdown",
+            )
+        except Exception as e:
+            logger.warning(f"Failed to notify admin {admin_id} about removal: {e}")
 
 
 async def _send_promo_message(
     chat_id: int,
     chat_title: str,
     username: str | None,
-    admin_ids: list[int],
-    added_by_id: int,
+    admin_ids: List[int],
+    added_by: int,
 ) -> None:
-    """Отправка рекламного сообщения в группу"""
+    """Send promotional message to the group when bot is added."""
     try:
-        min_credits_admin_id = added_by_id
-        min_credits = float("inf")
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="🔰 Начать настройку",
+                        url=f"https://t.me/{(await bot.get_me()).username}?start=setup_{chat_id}",
+                    )
+                ]
+            ]
+        )
 
-        for admin_id in admin_ids:
-            admin_data = await get_admin(admin_id)
-            if admin_data and admin_data.credits < min_credits:
-                min_credits = admin_data.credits
-                min_credits_admin_id = admin_id
-
-        admin = await get_admin(min_credits_admin_id)
-        if admin:
-            bot_info = await bot.get_me()
-            ref_link = f"https://t.me/{bot_info.username}?start={min_credits_admin_id}"
-
-            await bot.send_message(
-                chat_id,
-                "🛡️ *Нейромодератор активирован!*\n\n"
-                f"Группа *{chat_title}*"
-                f"{f' (@{username})' if username else ''} "
-                "теперь под защитой искусственного интеллекта:\n"
-                "• Автоматическое обнаружение спама\n"
-                "• Защита от рекламы и мошенников\n"
-                "• Умная модерация новых участников\n\n"
-                f"🚀 [Получить такого же модератора для своей группы]({ref_link})",
-                parse_mode="markdown",
-                disable_web_page_preview=True,
-            )
+        await bot.send_message(
+            chat_id,
+            "👋 Приветствую всех обитателей этого цифрового пространства!\n\n"
+            "Я - искусственный интеллект, созданный для защиты групп от спама "
+            "и нежелательного контента.\n\n"
+            "🛡 Мои возможности:\n"
+            "• Мгновенное определение спамеров\n"
+            "• Автоматическое удаление спама\n"
+            "• Ведение белого списка участников\n"
+            "• Обучение на ваших примерах\n\n"
+            "ℹ️ [Узнайте, как работает определение спама](https://t.me/ai_antispam/7)\n"
+            "📢 Следите за обновлениями в [канале проекта](https://t.me/ai_antispam)\n\n"
+            "Нажмите на кнопку ниже, чтобы начать настройку защиты.",
+            reply_markup=keyboard,
+        )
     except Exception as e:
-        logger.warning(f"Failed to send promo message: {e}")
-
-
-async def _notify_admins_about_removal(
-    chat_id: int, chat_title: str, username: str | None, admin_ids: list[int]
-) -> None:
-    """Уведомление админов об удалении бота из группы"""
-    for admin_id in admin_ids:
-        try:
-            await bot.send_message(
-                admin_id,
-                "⚠️ КРИТИЧЕСКАЯ ОШИБКА!\n\n"
-                f"Моё присутствие в группе *{chat_title}*"
-                f"{f' (@{username})' if username else ''} "
-                "было прервано.\n"
-                "Защитный периметр нарушен. Киберпространство осталось беззащитным!\n\n"
-                "Если это ошибка, верни меня обратно и предоставь права администратора "
-                "для восстановления защитного поля.",
-                parse_mode="markdown",
-            )
-        except Exception as e:
-            mp.track(
-                admin_id,
-                "error_removal_notification",
-                {
-                    "chat_id": chat_id,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                },
-            )
-            logger.warning(f"Failed to notify admin {admin_id}: {e}")
+        logger.warning(f"Failed to send promo message to group {chat_id}: {e}")
+        mp.track(
+            added_by,
+            "error_promo_message",
+            {
+                "group_id": chat_id,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "timestamp": datetime.now().isoformat(),
+            },
+        )
