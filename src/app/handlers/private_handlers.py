@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import pathlib
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 from aiogram import F, types
 from aiogram.filters import or_f
@@ -33,13 +33,19 @@ class OriginalMessageExtractionError(Exception):
     ~F.forward_from,
     ~F.forward_origin,
 )
-async def handle_private_message(message: types.Message):
+async def handle_private_message(message: types.Message) -> str:
     """
     Отвечает пользователю от имени бота, используя LLM модели и контекст из истории сообщений
     """
+    if not message.from_user:
+        return "private_no_user_info"
 
-    admin_id = message.from_user.id
+    user = cast(types.User, message.from_user)
+    admin_id = user.id
     admin_message = message.text
+
+    if not admin_message:
+        return "private_no_message_text"
 
     # Трекинг получения приватного сообщения
     mp.track(admin_id, "private_message_received", {"message_text": admin_message})
@@ -128,6 +134,7 @@ async def handle_private_message(message: types.Message):
         await save_message(admin_id, "assistant", response)
 
         await message.reply(response, parse_mode="markdown")
+        return "private_message_replied"
 
     except Exception as e:
         # Трекинг ошибок
@@ -145,11 +152,15 @@ async def handle_private_message(message: types.Message):
 
 
 @dp.message(F.chat.type == "private", or_f(F.forward_from, F.forward_origin))
-async def handle_forwarded_message(message: types.Message):
+async def handle_forwarded_message(message: types.Message) -> str:
     """
     Handle forwarded messages in private chats.
     """
-    admin_id = message.from_user.id
+    if not message.from_user:
+        return "private_forward_no_user_info"
+
+    user = cast(types.User, message.from_user)
+    admin_id = user.id
 
     # Трекинг получения пересланного сообщения
     track_data = {
@@ -161,8 +172,6 @@ async def handle_forwarded_message(message: types.Message):
         track_data["forward_from_id"] = message.forward_from.id
     elif message.forward_origin:
         track_data["forward_origin_type"] = message.forward_origin.type
-        if hasattr(message.forward_origin, "sender_user_name"):
-            track_data["forward_sender_name"] = message.forward_origin.sender_user_name
 
     mp.track(
         admin_id,
@@ -182,17 +191,25 @@ async def handle_forwarded_message(message: types.Message):
     await message.reply(
         "Добавить это сообщение в базу примеров?", reply_markup=keyboard
     )
+    return "private_forward_prompt_sent"
 
 
 @dp.callback_query(F.data.startswith("spam_example:"))
-async def process_spam_example_callback(callback: types.CallbackQuery):
+async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
     """
     Process the user's response to the spam example prompt.
     """
-    admin_id = callback.from_user.id
+    if not callback.from_user or not callback.data or not callback.message:
+        return "spam_example_invalid_callback"
+
+    user = cast(types.User, callback.from_user)
+    admin_id = user.id
     _, action = callback.data.split(":")
 
     try:
+        if not isinstance(callback.message, types.Message):
+            return "spam_example_invalid_message_type"
+
         info = await extract_original_message_info(callback.message)
 
         tasks = [
@@ -238,116 +255,58 @@ async def process_spam_example_callback(callback: types.CallbackQuery):
                     "Group chat ID or message ID not found in info, skipping message deletion"
                 )
 
-        results = await asyncio.gather(
-            *(asyncio.create_task(task) for task in tasks), return_exceptions=True
+        await asyncio.gather(*tasks)
+        return "spam_example_processed"
+
+    except OriginalMessageExtractionError as e:
+        logger.error(f"Failed to extract original message info: {e}")
+        await callback.answer(
+            "❌ Не удалось получить информацию об исходном сообщении", show_alert=True
         )
-
-        # Check if there are exceptions in results
-        for result in results:
-            if isinstance(result, Exception):
-                logger.error(
-                    f"Error in spam example processing: {result}", exc_info=True
-                )
-
-        # Трекинг успешного добавления примера
-        track_data = {
-            "message_text": info["text"],
-            "name": info["name"],
-            "bio": info["bio"],
-            "action": action,
-        }
-        if info.get("group_chat_id"):
-            track_data["group_chat_id"] = info["group_chat_id"]
-
-        mp.track(admin_id, "spam_example_added", track_data)
-
-    except OriginalMessageExtractionError:
-        # Трекинг ошибки извлечения информации
-        mp.track(admin_id, "error_message_extraction", {"action": action})
-        logger.error("Failed to extract original message info", exc_info=True)
-
+        return "spam_example_extraction_error"
     except Exception as e:
-        # Трекинг других ошибок
-        mp.track(
-            admin_id,
-            "error_spam_example_processing",
-            {
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-                "action": action,
-            },
-        )
         logger.error(f"Error processing spam example: {e}", exc_info=True)
+        await callback.answer("❌ Произошла ошибка", show_alert=True)
+        return "spam_example_error"
 
 
 async def extract_original_message_info(
     callback_message: types.Message,
 ) -> Dict[str, Any]:
     """
-    Extracts original message name, bio, chat_id and message info from a callback message.
+    Извлекает информацию об исходном сообщении из пересланного сообщения
     """
-    # Проверяем наличие сообщения, на которое отвечают
     if not callback_message.reply_to_message:
-        raise OriginalMessageExtractionError("No reply message found")
+        raise OriginalMessageExtractionError("No reply_to_message found")
 
     original_message = callback_message.reply_to_message
+    if not original_message.forward_from and not original_message.forward_origin:
+        raise OriginalMessageExtractionError("No forward information found")
 
-    if original_message.forward_from_chat:
-        raise OriginalMessageExtractionError(
-            "Cannot extract meaningful message information from forwarded channel message"
-        )
-
-    text = original_message.text or original_message.caption
-
-    # Очищаем текст от обертки тревоги
-    if text and "⚠️ ТРЕВОГА!" in text:
-        try:
-            # Находим содержание угрозы
-            start_idx = text.find("Содержание угрозы:") + len("Содержание угрозы:")
-            end_idx = text.find("Вредоносное сообщение уничтожено")
-            if start_idx > 0 and end_idx > 0:
-                text = text[start_idx:end_idx].strip()
-        except Exception:
-            # Если не удалось очистить, оставляем как есть
-            pass
+    info: Dict[str, Any] = {
+        "text": original_message.text or original_message.caption or "[MEDIA_MESSAGE]",
+        "name": None,
+        "bio": None,
+        "user_id": None,
+        "group_chat_id": None,
+        "group_message_id": None,
+    }
 
     if original_message.forward_from:
-        # Обычное пересланное сообщение
-        name = original_message.forward_from.full_name
-        try:
-            user = await bot.get_chat(original_message.forward_from.id)
-            bio = user.bio
-        except Exception:
-            bio = None
-    elif (
-        original_message.forward_origin
-        and original_message.forward_origin.type == "hidden_user"
-    ):
-        # Сообщение от скрытого пользователя
-        name = original_message.forward_sender_name
-        bio = None
-    else:
-        raise OriginalMessageExtractionError("Reply message is not a forwarded message")
+        # Если есть прямая информация о пользователе
+        user = original_message.forward_from
+        info["name"] = user.full_name
+        info["user_id"] = user.id
+        user_info = await bot.get_chat(user.id)
+        info["bio"] = user_info.bio if user_info else None
+    elif original_message.forward_origin:
+        # Если есть информация о происхождении сообщения
+        origin = original_message.forward_origin
+        if isinstance(origin, types.MessageOriginUser):
+            info["name"] = origin.sender_user.full_name
+        elif isinstance(origin, types.MessageOriginChannel):
+            info["name"] = origin.chat.title
+            info["group_chat_id"] = origin.chat.id
+            info["group_message_id"] = origin.message_id
 
-    if name or text:
-        result = {
-            "user_id": original_message.forward_from.id
-            if original_message.forward_from
-            else None,
-            "name": name,
-            "bio": bio,
-            "text": text,
-        }
-
-        # Добавляем информацию о сообщении из группы, если она есть
-        if hasattr(original_message.forward_origin, "chat_id") and hasattr(
-            original_message.forward_origin, "message_id"
-        ):
-            result["group_chat_id"] = original_message.forward_origin.chat_id
-            result["group_message_id"] = original_message.forward_origin.message_id
-
-        return result
-
-    raise OriginalMessageExtractionError(
-        "Cannot extract meaningful message information from forwarded message"
-    )
+    return info

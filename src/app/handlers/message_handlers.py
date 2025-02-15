@@ -135,14 +135,14 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
     return True
 
 
-async def handle_spam(message: types.Message) -> None:
+async def handle_spam(message: types.Message) -> str:
     """
     Обработка спам-сообщений
     """
     try:
         if not message.from_user:
             logger.warning("Message without user info, skipping spam handling")
-            return
+            return "spam_no_user_info"
 
         # Трекинг обнаружения спама
         mp.track(
@@ -184,8 +184,10 @@ async def handle_spam(message: types.Message) -> None:
                     "auto_delete": True,
                 },
             )
+            return "spam_auto_deleted"
 
         # Уведомление администраторов...
+        notification_sent = False
         for admin in admins:
             if admin.user.is_bot:
                 continue
@@ -229,6 +231,7 @@ async def handle_spam(message: types.Message) -> None:
                     admin_msg += f"Ссылка на сообщение: {link}"
 
                 await bot.send_message(admin.user.id, admin_msg, reply_markup=keyboard)
+                notification_sent = True
 
                 # Трекинг уведомления админа
                 mp.track(
@@ -253,6 +256,10 @@ async def handle_spam(message: types.Message) -> None:
                     },
                 )
 
+        return (
+            "spam_admins_notified" if notification_sent else "spam_notification_failed"
+        )
+
     except Exception as e:
         logger.error(f"Error handling spam: {e}", exc_info=True)
         # Трекинг ошибки обработки спама
@@ -273,7 +280,7 @@ async def handle_moderated_message(message: types.Message):
     """Обработчик всех сообщений в модерируемых группах"""
     try:
         if not message.from_user:
-            return "no_user"
+            return "message_no_user_info"
 
         chat_id = message.chat.id
         user_id = message.from_user.id
@@ -301,7 +308,7 @@ async def handle_moderated_message(message: types.Message):
                 chat_id,
                 "message_skipped_moderation_disabled",
             )
-            return "moderation_disabled"
+            return "message_moderation_disabled"
 
         is_known_member = await is_member_in_group(chat_id, user_id)
 
@@ -312,7 +319,7 @@ async def handle_moderated_message(message: types.Message):
                 "message_skipped_known_member",
                 {"user_id": user_id},
             )
-            return "known_member"
+            return "message_known_member_skipped"
 
         user = message.from_user
         user_with_bio = await bot.get_chat(user.id)
@@ -329,7 +336,7 @@ async def handle_moderated_message(message: types.Message):
 
         if spam_score is None:
             logger.warning("Failed to get spam score")
-            return "failed_to_get_spam_score"
+            return "message_spam_check_failed"
 
         # Трекинг результата проверки на спам
         mp.track(
@@ -348,7 +355,7 @@ async def handle_moderated_message(message: types.Message):
         if spam_score > 50:
             if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
                 await handle_spam(message)
-                return "spam"
+                return "message_spam_deleted"
 
         elif await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
             await add_member(chat_id, user_id)
@@ -359,9 +366,9 @@ async def handle_moderated_message(message: types.Message):
                 "user_approved",
                 {"chat_id": chat_id, "user_id": user_id, "spam_score": spam_score},
             )
-            return "not_spam"
+            return "message_user_approved"
 
-        return "failed_to_deduct_credits"
+        return "message_insufficient_credits"
 
     except Exception as e:
         logger.error(f"Error processing message: {e}", exc_info=True)

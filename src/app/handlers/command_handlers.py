@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 
 from aiogram import F, types
 from aiogram.filters import Command
@@ -21,12 +22,19 @@ logger = logging.getLogger(__name__)
 
 
 @dp.message(Command("start", "help"), F.chat.type == "private")
-async def handle_help_command(message: types.Message) -> None:
+async def handle_help_command(message: types.Message) -> str:
     """
     Обработчик команд /start и /help
     Отправляет пользователю справочную информацию и начисляет начальные звезды новым пользователям
     """
-    user_id = message.from_user.id
+    if not message.from_user:
+        return "command_no_user_info"
+
+    if not message.text:
+        return "command_no_text"
+
+    user = cast(types.User, message.from_user)  # Cast to ensure proper type hints
+    user_id = user.id
 
     # Проверяем реферальный код
     if message.text.startswith("/start ref"):
@@ -34,7 +42,7 @@ async def handle_help_command(message: types.Message) -> None:
             referrer_id = int(message.text[10:])  # Обрезаем "/start ref"
         except ValueError:
             logger.warning(f"Invalid referral code: {message.text[10:]}")
-            return
+            return "command_invalid_referral_code"
 
         if await save_referral(user_id, referrer_id):
             # Трекинг нового реферала
@@ -47,6 +55,7 @@ async def handle_help_command(message: types.Message) -> None:
             logger.warning(
                 f"Referral link already exists or referral chain is cyclic: {message.text[10:]}"
             )
+            return "command_referral_link_exists"
 
     # Добавляем трекинг
     mp.track(
@@ -57,8 +66,8 @@ async def handle_help_command(message: types.Message) -> None:
             "chat_type": message.chat.type,
             "command": message.text.split()[0],
             "is_help": message.text.startswith("/help"),
-            "user_language": message.from_user.language_code,
-            "platform": message.from_user.is_premium,  # as proxy for platform capabilities
+            "user_language": user.language_code,
+            "platform": user.is_premium,  # as proxy for platform capabilities
         },
     )
 
@@ -88,15 +97,24 @@ async def handle_help_command(message: types.Message) -> None:
         parse_mode="markdown",
         disable_web_page_preview=True,
     )
+    return (
+        "command_help_sent"
+        if message.text.startswith("/help")
+        else "command_start_completed"
+    )
 
 
 @dp.message(Command("stats"))
-async def handle_stats_command(message: types.Message) -> None:
+async def handle_stats_command(message: types.Message) -> str:
     """
     Обработчик команды /stats
     Показывает баланс пользователя и статус модерации в его группах
     """
-    user_id = message.from_user.id
+    if not message.from_user:
+        return "command_no_user_info"
+
+    user = cast(types.User, message.from_user)  # Cast to ensure proper type hints
+    user_id = user.id
 
     try:
         # Получаем баланс пользователя
@@ -144,6 +162,7 @@ async def handle_stats_command(message: types.Message) -> None:
         )
 
         await message.reply(message_text, parse_mode="markdown")
+        return "command_stats_sent"
 
     except Exception as e:
         # Трекинг ошибок
@@ -158,15 +177,20 @@ async def handle_stats_command(message: types.Message) -> None:
         )
         logger.error(f"Error handling stats command: {e}", exc_info=True)
         await message.reply("Произошла ошибка при получении статистики.")
+        return "command_stats_error"
 
 
 @dp.message(Command("mode"))
-async def handle_mode_command(message: types.Message) -> None:
+async def handle_mode_command(message: types.Message) -> str:
     """
     Обработчик команды /mode
     Переключает режим между удалением спама и уведомлениями
     """
-    user_id = message.from_user.id
+    if not message.from_user:
+        return "command_no_user_info"
+
+    user = cast(types.User, message.from_user)  # Cast to ensure proper type hints
+    user_id = user.id
 
     try:
         # Переключаем режим
@@ -198,6 +222,11 @@ async def handle_mode_command(message: types.Message) -> None:
             )
 
         await message.reply(message_text, parse_mode="markdown")
+        return (
+            "command_mode_changed_to_deletion"
+            if delete_spam
+            else "command_mode_changed_to_notification"
+        )
 
     except Exception as e:
         # Трекинг ошибок
@@ -212,3 +241,4 @@ async def handle_mode_command(message: types.Message) -> None:
         )
         logger.error(f"Error handling mode command: {e}", exc_info=True)
         await message.reply("Произошла ошибка при изменении режима работы.")
+        return "command_mode_error"
