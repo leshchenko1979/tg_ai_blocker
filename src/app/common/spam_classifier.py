@@ -4,7 +4,7 @@ from typing import Optional
 import logfire
 
 from ..database.spam_examples import get_spam_examples
-from .llms import get_openrouter_response
+from .llms import RateLimitExceeded, get_openrouter_response
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,8 @@ base_prompt = """
 ПРИМЕРЫ:
 
 """
+
+MAX_RETRIES = 3
 
 
 async def get_prompt(admin_id: Optional[int] = None):
@@ -95,11 +97,11 @@ async def is_spam(
         {"role": "user", "content": user_message},
     ]
 
-    MAX_RETRIES = 3
-    last_error = None
     last_response = None
+    last_error = None
+    attempt = 0
 
-    for attempt in range(MAX_RETRIES):
+    while attempt < MAX_RETRIES:
         try:
             response = await get_openrouter_response(messages)
             last_response = response
@@ -107,9 +109,20 @@ async def is_spam(
             score = extract_spam_score(response)
             logfire.metric_gauge("spam_score").set(score)
             return score
+        except RateLimitExceeded as e:
+            # Don't count rate limit errors towards retry attempts
+            # Just log and continue the loop
+            logfire.info(
+                "Rate limit exceeded in spam classifier",
+                reset_time=e.reset_time,
+                attempt=attempt,
+                admin_id=admin_id,
+            )
+            continue
         except Exception as e:
             last_error = e
-            if attempt == MAX_RETRIES - 1:
+            attempt += 1
+            if attempt == MAX_RETRIES:
                 logfire.exception(
                     "Spam classifier failed",
                     response=last_response,

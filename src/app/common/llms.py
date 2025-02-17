@@ -1,4 +1,5 @@
 import os
+from typing import cast
 
 import aiohttp
 import logfire
@@ -7,13 +8,22 @@ import logfire
 async def get_yandex_response(messages):
     from yandex_cloud_ml_sdk import AsyncYCloudML
 
-    sdk = AsyncYCloudML(
-        folder_id=os.getenv("YANDEX_FOLDER_ID"), auth=os.getenv("YANDEX_GPT_API_KEY")
-    )
+    folder_id = cast(str, os.getenv("YANDEX_FOLDER_ID"))
+    auth = cast(str, os.getenv("YANDEX_GPT_API_KEY"))
+
+    sdk = AsyncYCloudML(folder_id=folder_id, auth=auth)
 
     model = sdk.models.completions("yandexgpt")
     result = await model.configure(temperature=0.3).run(messages)
     return result.alternatives[0].text
+
+
+class RateLimitExceeded(Exception):
+    """Raised when OpenRouter rate limit is exceeded"""
+
+    def __init__(self, reset_time: int):
+        self.reset_time = reset_time
+        super().__init__(f"Rate limit exceeded, reset at {reset_time}")
 
 
 @logfire.instrument()
@@ -38,9 +48,27 @@ async def get_openrouter_response(messages):
             logfire.debug("OpenRouter response", result=result)
 
             if response.status != 200:
-                error = result.get("error", "Unknown error")
-                logfire.exception("OpenRouter API error", response=result, error=error)
-                raise RuntimeError(f"OpenRouter API error: {error}")
+                error = result.get("error", {})
+                if isinstance(error, dict) and error.get("code") == 429:
+                    reset_time = (
+                        error.get("metadata", {})
+                        .get("headers", {})
+                        .get("X-RateLimit-Reset", 0)
+                    )
+                    logfire.info(
+                        "OpenRouter rate limit exceeded",
+                        reset_time=reset_time,
+                        response=result,
+                    )
+                    raise RateLimitExceeded(reset_time)
+
+                error_msg = (
+                    error.get("message") if isinstance(error, dict) else str(error)
+                )
+                logfire.exception(
+                    "OpenRouter API error", response=result, error=error_msg
+                )
+                raise RuntimeError(f"OpenRouter API error: {error_msg}")
 
             if not result.get("choices"):
                 logfire.exception(
