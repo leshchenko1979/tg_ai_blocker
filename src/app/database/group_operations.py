@@ -2,6 +2,7 @@ import logging
 from typing import Dict, List, Optional
 
 from ..common.bot import bot
+from ..common.mp import mp
 from .constants import INITIAL_CREDITS
 from .models import Group
 from .postgres_connection import get_pool
@@ -177,6 +178,9 @@ async def get_admin_groups(admin_id: int) -> List[Dict]:
                 )
                 continue
 
+        # Update Mixpanel profile with current group count
+        mp.people_set(admin_id, {"managed_groups_count": len(groups)})
+
         return groups
 
 
@@ -266,12 +270,72 @@ async def remove_member_from_group(
 
 
 async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
-    """Update group administrators and create group if it doesn't exist"""
+    """Update list of group administrators"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            "CALL update_group_admins($1, $2::bigint[], $3)",
-            group_id,
-            admin_ids,
-            INITIAL_CREDITS,
-        )
+        async with conn.transaction():
+            # Get current admins
+            current_admins = [
+                row["admin_id"]
+                for row in await conn.fetch(
+                    """
+                    SELECT admin_id FROM group_administrators WHERE group_id = $1
+                """,
+                    group_id,
+                )
+            ]
+
+            # Remove admins not in the new list
+            removed_admins = set(current_admins) - set(admin_ids)
+            if removed_admins:
+                await conn.execute(
+                    """
+                    DELETE FROM group_administrators
+                    WHERE group_id = $1 AND admin_id = ANY($2)
+                """,
+                    group_id,
+                    list(removed_admins),
+                )
+
+            # Add new admins
+            new_admins = set(admin_ids) - set(current_admins)
+            if new_admins:
+                await conn.executemany(
+                    """
+                    INSERT INTO group_administrators (group_id, admin_id)
+                    VALUES ($1, $2)
+                """,
+                    [(group_id, admin_id) for admin_id in new_admins],
+                )
+
+            # Update group last_active
+            await conn.execute(
+                """
+                UPDATE groups SET last_active = NOW()
+                WHERE group_id = $1
+            """,
+                group_id,
+            )
+
+            # Update Mixpanel profiles for affected admins
+            for admin_id in removed_admins | new_admins:
+                # Get updated count of managed groups
+                managed_groups_count = await conn.fetchval(
+                    """
+                    SELECT COUNT(*) FROM group_administrators
+                    WHERE admin_id = $1
+                """,
+                    admin_id,
+                )
+
+                # Update Mixpanel profile
+                mp.people_set(
+                    admin_id,
+                    {
+                        "managed_groups_count": managed_groups_count,
+                        "$last_group_change": "removed"
+                        if admin_id in removed_admins
+                        else "added",
+                        "$last_group_change_date": "NOW()",
+                    },
+                )

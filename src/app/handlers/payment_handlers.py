@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from ..common.bot import bot
 from ..common.mp import mp
 from ..common.utils import config
-from ..database import get_pool, get_referrer
+from ..database import get_admin_credits, get_pool, get_referrer
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -102,6 +102,17 @@ async def process_successful_payment(message: types.Message):
                 REFERRAL_COMMISSION / 100,
             )
 
+        # Update Mixpanel profile with new credit balance
+        new_balance = await get_admin_credits(admin_id)
+        mp.people_set(
+            admin_id,
+            {
+                "credits": new_balance,
+                "$last_transaction_amount": stars_amount,
+                "$last_transaction_date": str(message.date),
+            },
+        )
+
         # Трекинг успешного платежа
         mp.track(admin_id, "payment_successful", {"stars_amount": stars_amount})
 
@@ -109,6 +120,17 @@ async def process_successful_payment(message: types.Message):
         referrer_id = await get_referrer(admin_id)
         if referrer_id:
             commission = int(stars_amount * REFERRAL_COMMISSION / 100)
+            # Update referrer's profile
+            referrer_balance = await get_admin_credits(referrer_id)
+            mp.people_set(
+                referrer_id,
+                {
+                    "credits": referrer_balance,
+                    "$last_commission_amount": commission,
+                    "$last_commission_date": str(message.date),
+                },
+            )
+
             mp.track(
                 referrer_id,
                 "referral_commission",

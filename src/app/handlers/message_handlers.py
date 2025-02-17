@@ -168,24 +168,6 @@ async def handle_spam(message: types.Message) -> str:
                 all_admins_delete = False
                 break
 
-        if all_admins_delete:
-            await bot.delete_message(message.chat.id, message.message_id)
-            logger.info(
-                f"Deleted spam message {message.message_id} in chat {message.chat.id}"
-            )
-
-            # Трекинг удаления спама
-            mp.track(
-                message.chat.id,
-                "spam_message_deleted",
-                {
-                    "message_id": message.message_id,
-                    "user_id": message.from_user.id,
-                    "auto_delete": True,
-                },
-            )
-            return "spam_auto_deleted"
-
         # Уведомление администраторов...
         notification_sent = False
         for admin in admins:
@@ -256,8 +238,29 @@ async def handle_spam(message: types.Message) -> str:
                     },
                 )
 
+        if all_admins_delete:
+            await bot.delete_message(message.chat.id, message.message_id)
+            logger.info(
+                f"Deleted spam message {message.message_id} in chat {message.chat.id}"
+            )
+
+            # Трекинг удаления спама
+            mp.track(
+                message.chat.id,
+                "spam_message_deleted",
+                {
+                    "message_id": message.message_id,
+                    "user_id": message.from_user.id,
+                    "auto_delete": True,
+                },
+            )
+
         return (
-            "spam_admins_notified" if notification_sent else "spam_notification_failed"
+            "spam_auto_deleted"
+            if all_admins_delete
+            else "spam_admins_notified"
+            if notification_sent
+            else "spam_notification_failed"
         )
 
     except Exception as e:

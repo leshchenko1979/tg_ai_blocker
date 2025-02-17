@@ -12,12 +12,14 @@ from ..common.mp import mp
 from ..common.utils import config
 from ..database import (
     add_spam_example,
+    get_admin_credits,
     get_message_history,
     get_spam_examples,
     initialize_new_admin,
     remove_member_from_group,
     save_message,
 )
+from ..database.constants import INITIAL_CREDITS
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -51,7 +53,20 @@ async def handle_private_message(message: types.Message) -> str:
     mp.track(admin_id, "private_message_received", {"message_text": admin_message})
 
     # Initialize new administrator if needed
-    await initialize_new_admin(admin_id)
+    is_new = await initialize_new_admin(admin_id)
+
+    # Update Mixpanel profile with Telegram data
+    mp.people_set(
+        admin_id,
+        {
+            "$distinct_id": admin_id,
+            "$first_name": user.first_name,
+            "$last_name": user.last_name or "",
+            "$name": user.username or user.first_name,
+            "delete_spam_enabled": True,
+            "credits": INITIAL_CREDITS if is_new else await get_admin_credits(admin_id),
+        },
+    )
 
     # Save user message to history
     await save_message(admin_id, "user", admin_message)
