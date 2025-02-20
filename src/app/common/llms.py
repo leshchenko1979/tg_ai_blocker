@@ -26,6 +26,14 @@ class RateLimitExceeded(Exception):
         super().__init__(f"Rate limit exceeded, reset at {reset_time}")
 
 
+class LocationNotSupported(Exception):
+    """Raised when user location is not supported by the provider"""
+
+    def __init__(self, provider: str):
+        self.provider = provider
+        super().__init__(f"Location not supported for provider: {provider}")
+
+
 @logfire.instrument()
 async def get_openrouter_response(messages):
     headers = {
@@ -49,18 +57,35 @@ async def get_openrouter_response(messages):
 
             if response.status != 200:
                 error = result.get("error", {})
-                if isinstance(error, dict) and error.get("code") == 429:
-                    reset_time = (
-                        error.get("metadata", {})
-                        .get("headers", {})
-                        .get("X-RateLimit-Reset", 0)
-                    )
-                    logfire.info(
-                        "OpenRouter rate limit exceeded",
-                        reset_time=reset_time,
-                        response=result,
-                    )
-                    raise RateLimitExceeded(reset_time)
+                if isinstance(error, dict):
+                    if error.get("code") == 429:
+                        reset_time = (
+                            error.get("metadata", {})
+                            .get("headers", {})
+                            .get("X-RateLimit-Reset", 0)
+                        )
+                        logfire.info(
+                            "OpenRouter rate limit exceeded",
+                            reset_time=reset_time,
+                            response=result,
+                        )
+                        raise RateLimitExceeded(reset_time)
+
+                    # Handle location not supported error
+                    metadata = error.get("metadata", {})
+                    if metadata.get("raw"):
+                        try:
+                            raw_error = metadata["raw"]
+                            if "User location is not supported" in raw_error:
+                                provider = metadata.get("provider_name", "unknown")
+                                logfire.info(
+                                    "Location not supported",
+                                    provider=provider,
+                                    response=result,
+                                )
+                                raise LocationNotSupported(provider)
+                        except (KeyError, TypeError):
+                            pass
 
                 error_msg = (
                     error.get("message") if isinstance(error, dict) else str(error)

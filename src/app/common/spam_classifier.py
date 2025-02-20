@@ -4,7 +4,7 @@ from typing import Optional
 import logfire
 
 from ..database.spam_examples import get_spam_examples
-from .llms import RateLimitExceeded, get_openrouter_response
+from .llms import LocationNotSupported, RateLimitExceeded, get_openrouter_response
 
 logger = logging.getLogger(__name__)
 
@@ -109,15 +109,23 @@ async def is_spam(
             score = extract_spam_score(response)
             logfire.metric_gauge("spam_score").set(score)
             return score
-        except RateLimitExceeded as e:
-            # Don't count rate limit errors towards retry attempts
+        except (RateLimitExceeded, LocationNotSupported) as e:
+            # Don't count these errors towards retry attempts
             # Just log and continue the loop
-            logfire.info(
-                "Rate limit exceeded in spam classifier",
-                reset_time=e.reset_time,
-                attempt=attempt,
-                admin_id=admin_id,
-            )
+            if isinstance(e, RateLimitExceeded):
+                logfire.info(
+                    "Rate limit exceeded in spam classifier",
+                    reset_time=e.reset_time,
+                    attempt=attempt,
+                    admin_id=admin_id,
+                )
+            else:  # LocationNotSupported
+                logfire.info(
+                    "Provider location not supported in spam classifier",
+                    provider=e.provider,
+                    attempt=attempt,
+                    admin_id=admin_id,
+                )
             continue
         except Exception as e:
             last_error = e
