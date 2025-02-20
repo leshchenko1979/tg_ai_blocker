@@ -3,8 +3,9 @@ from typing import Dict, List, Optional
 
 from ..common.bot import bot
 from ..common.mp import mp
+from . import admin_operations
 from .constants import INITIAL_CREDITS
-from .models import Group
+from .models import Administrator, Group
 from .postgres_connection import get_pool
 
 logger = logging.getLogger(__name__)
@@ -274,6 +275,17 @@ async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            # Ensure group exists
+            await conn.execute(
+                """
+                INSERT INTO groups (group_id, moderation_enabled, created_at, last_active)
+                VALUES ($1, TRUE, NOW(), NOW())
+                ON CONFLICT (group_id) DO UPDATE
+                SET last_active = NOW()
+                """,
+                group_id,
+            )
+
             # Get current admins
             current_admins = [
                 row["admin_id"]
@@ -300,11 +312,17 @@ async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
             # Add new admins
             new_admins = set(admin_ids) - set(current_admins)
             if new_admins:
+                # First ensure all admins exist in administrators table
+                for admin_id in new_admins:
+                    # Initialize new admin if doesn't exist
+                    await admin_operations.initialize_new_admin(admin_id)
+
+                # Then add them as group administrators
                 await conn.executemany(
                     """
                     INSERT INTO group_administrators (group_id, admin_id)
                     VALUES ($1, $2)
-                """,
+                    """,
                     [(group_id, admin_id) for admin_id in new_admins],
                 )
 
@@ -313,7 +331,7 @@ async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
                 """
                 UPDATE groups SET last_active = NOW()
                 WHERE group_id = $1
-            """,
+                """,
                 group_id,
             )
 
@@ -324,7 +342,7 @@ async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
                     """
                     SELECT COUNT(*) FROM group_administrators
                     WHERE admin_id = $1
-                """,
+                    """,
                     admin_id,
                 )
 
