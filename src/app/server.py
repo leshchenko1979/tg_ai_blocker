@@ -6,8 +6,8 @@ from asyncio import TimeoutError
 from typing import Optional, Tuple, Union
 
 import logfire
-from aiohttp import web
 from aiogram.dispatcher.event.bases import UNHANDLED
+from aiohttp import web
 
 from .common.bot import LESHCHENKO_CHAT_ID, bot
 from .common.llms import LocationNotSupported, RateLimitExceeded
@@ -47,7 +47,7 @@ async def handle_update(request: web.Request) -> web.Response:
             if result == UNHANDLED:
                 span.tags = ["unhandled"]
             elif result:
-                span.tags = [f"handler_{result}"]
+                span.tags = [result]
             return web.json_response({"message": "Processed successfully"})
 
         except TimeoutError:
