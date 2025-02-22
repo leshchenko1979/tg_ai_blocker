@@ -1,6 +1,8 @@
 import logging
+from datetime import datetime
 from typing import List, Optional
 
+from ..common.mp import mp
 from .constants import INITIAL_CREDITS
 from .models import Administrator
 from .postgres_connection import get_pool
@@ -197,3 +199,28 @@ async def get_all_admins() -> List[Administrator]:
             )
             for row in rows
         ]
+
+
+async def remove_admin(admin_id: int) -> None:
+    """Remove administrator from database"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Remove from administrators (all related records will be deleted automatically)
+            await conn.execute(
+                """
+                DELETE FROM administrators
+                WHERE admin_id = $1
+                """,
+                admin_id,
+            )
+
+            # Track removal in Mixpanel
+            mp.track(
+                admin_id,
+                "admin_removed",
+                {
+                    "reason": "bot_blocked",
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )

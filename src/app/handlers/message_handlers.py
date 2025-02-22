@@ -21,6 +21,7 @@ from ..database import (
     get_admin,
     is_member_in_group,
     is_moderation_enabled,
+    remove_admin,
     set_group_moderation,
     update_group_admins,
 )
@@ -54,8 +55,6 @@ async def handle_moderated_message(message: types.Message):
         )
 
         admins = await bot.get_chat_administrators(chat_id)
-        admin_ids = [admin.user.id for admin in admins if not admin.user.is_bot]
-        await update_group_admins(chat_id, admin_ids)
 
         if not await is_moderation_enabled(chat_id):
             # Трекинг пропуска из-за отключенной модерации
@@ -555,7 +554,18 @@ async def notify_admins(
             )
 
         except Exception as e:
-            logger.warning(f"Failed to notify admin {admin.user.id}: {e}")
+            error_msg = str(e).lower()
+            if (
+                "bot was blocked by the user" in error_msg
+                or "bot can't initiate conversation with a user" in error_msg
+            ):
+                await remove_admin(admin.user.id)
+                logger.info(
+                    f"Removed admin {admin.user.id} from database (bot blocked or no chat started)"
+                )
+            else:
+                logger.warning(f"Failed to notify admin {admin.user.id}: {e}")
+
             mp.track(
                 admin.user.id,
                 "error_admin_notification",

@@ -9,7 +9,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
 from ..common.mp import mp
-from ..database import get_group, update_group_admins
+from ..database import get_group, remove_admin, update_group_admins
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -120,30 +120,26 @@ async def _handle_bot_added(
     """Handle bot being added to a group."""
     logger.info(f"Bot added to group {chat_id} with status {new_status}")
 
-    # Get and update admins
-    admins = await bot.get_chat_administrators(chat_id)
-    admin_ids = [admin.user.id for admin in admins if not admin.user.is_bot]
-    await update_group_admins(chat_id, admin_ids)
+    # Add only the admin who added the bot
+    await update_group_admins(chat_id, [admin_id])
 
-    # Track initial interaction for all admins
-    for current_admin_id in admin_ids:
-        mp.track(
-            current_admin_id,
-            "bot_added_to_group",
-            {
-                "group_id": chat_id,
-                "chat_title": chat_title,
-                "admin_count": len(admin_ids),
-                "status": new_status,
-                "has_admin_rights": new_status == "administrator",
-                "is_group_creator": current_admin_id == admin_id,
-                "timestamp": event.date.isoformat(),
-                "setup_step": "add_bot",
-                "time_since_added": 0,
-                "time_since_added_minutes": 0,
-                "time_since_added_hours": 0,
-            },
-        )
+    # Track initial interaction
+    mp.track(
+        admin_id,
+        "bot_added_to_group",
+        {
+            "group_id": chat_id,
+            "chat_title": chat_title,
+            "status": new_status,
+            "has_admin_rights": new_status == "administrator",
+            "is_group_creator": True,  # Since this admin added the bot
+            "timestamp": event.date.isoformat(),
+            "setup_step": "add_bot",
+            "time_since_added": 0,
+            "time_since_added_minutes": 0,
+            "time_since_added_hours": 0,
+        },
+    )
 
     has_admin_rights = (
         new_status == "administrator"
@@ -154,14 +150,14 @@ async def _handle_bot_added(
 
     if not has_admin_rights:
         await _notify_admins_about_rights(
-            chat_id, chat_title, event.chat.username, admin_ids
+            chat_id, chat_title, event.chat.username, [admin_id]
         )
 
     await _send_promo_message(
         chat_id,
         chat_title,
         event.chat.username,
-        admin_ids,
+        [admin_id],
         admin_id,
     )
 
@@ -220,7 +216,18 @@ async def _notify_admins_about_rights(
                 parse_mode="markdown",
             )
         except Exception as e:
-            # Отправляем ошибку с ID админа, которому не удалось отправить сообщение
+            error_msg = str(e).lower()
+            if (
+                "bot was blocked by the user" in error_msg
+                or "bot can't initiate conversation with a user" in error_msg
+            ):
+                await remove_admin(admin_id)
+                logger.info(
+                    f"Removed admin {admin_id} from database (bot blocked or no chat started)"
+                )
+            else:
+                logger.warning(f"Failed to notify admin {admin_id}: {e}")
+
             mp.track(
                 admin_id,
                 "error_admin_notification",
@@ -231,7 +238,6 @@ async def _notify_admins_about_rights(
                     "timestamp": datetime.now().isoformat(),
                 },
             )
-            logger.warning(f"Failed to notify admin {admin_id}: {e}")
 
 
 async def _notify_admins_about_removal(
@@ -249,7 +255,17 @@ async def _notify_admins_about_removal(
                 parse_mode="markdown",
             )
         except Exception as e:
-            logger.warning(f"Failed to notify admin {admin_id} about removal: {e}")
+            error_msg = str(e).lower()
+            if (
+                "bot was blocked by the user" in error_msg
+                or "bot can't initiate conversation with a user" in error_msg
+            ):
+                await remove_admin(admin_id)
+                logger.info(
+                    f"Removed admin {admin_id} from database (bot blocked or no chat started)"
+                )
+            else:
+                logger.warning(f"Failed to notify admin {admin_id} about removal: {e}")
 
 
 async def _send_promo_message(

@@ -286,58 +286,23 @@ async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
                 group_id,
             )
 
-            # Get current admins
-            current_admins = [
-                row["admin_id"]
-                for row in await conn.fetch(
-                    """
-                    SELECT admin_id FROM group_administrators WHERE group_id = $1
-                """,
-                    group_id,
-                )
-            ]
+            # Add new admin
+            for admin_id in admin_ids:
+                # Initialize new admin if doesn't exist
+                await admin_operations.initialize_new_admin(admin_id)
 
-            # Remove admins not in the new list
-            removed_admins = set(current_admins) - set(admin_ids)
-            if removed_admins:
+                # Add as group administrator
                 await conn.execute(
-                    """
-                    DELETE FROM group_administrators
-                    WHERE group_id = $1 AND admin_id = ANY($2)
-                """,
-                    group_id,
-                    list(removed_admins),
-                )
-
-            # Add new admins
-            new_admins = set(admin_ids) - set(current_admins)
-            if new_admins:
-                # First ensure all admins exist in administrators table
-                for admin_id in new_admins:
-                    # Initialize new admin if doesn't exist
-                    await admin_operations.initialize_new_admin(admin_id)
-
-                # Then add them as group administrators
-                await conn.executemany(
                     """
                     INSERT INTO group_administrators (group_id, admin_id)
                     VALUES ($1, $2)
+                    ON CONFLICT DO NOTHING
                     """,
-                    [(group_id, admin_id) for admin_id in new_admins],
+                    group_id,
+                    admin_id,
                 )
 
-            # Update group last_active
-            await conn.execute(
-                """
-                UPDATE groups SET last_active = NOW()
-                WHERE group_id = $1
-                """,
-                group_id,
-            )
-
-            # Update Mixpanel profiles for affected admins
-            for admin_id in removed_admins | new_admins:
-                # Get updated count of managed groups
+                # Update Mixpanel profile
                 managed_groups_count = await conn.fetchval(
                     """
                     SELECT COUNT(*) FROM group_administrators
@@ -346,14 +311,11 @@ async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
                     admin_id,
                 )
 
-                # Update Mixpanel profile
                 mp.people_set(
                     admin_id,
                     {
                         "managed_groups_count": managed_groups_count,
-                        "$last_group_change": "removed"
-                        if admin_id in removed_admins
-                        else "added",
+                        "$last_group_change": "added",
                         "$last_group_change_date": "NOW()",
                     },
                 )
