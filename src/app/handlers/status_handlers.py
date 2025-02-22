@@ -108,6 +108,15 @@ async def _handle_permission_update(
             await _notify_admins_about_rights(
                 chat_id, chat_title, event.chat.username, admin_ids
             )
+        else:
+            # Send promo message when we get all required rights
+            await _send_promo_message(
+                chat_id,
+                chat_title,
+                event.chat.username,
+                [admin_id],
+                admin_id,
+            )
 
 
 async def _handle_bot_added(
@@ -152,14 +161,15 @@ async def _handle_bot_added(
         await _notify_admins_about_rights(
             chat_id, chat_title, event.chat.username, [admin_id]
         )
-
-    await _send_promo_message(
-        chat_id,
-        chat_title,
-        event.chat.username,
-        [admin_id],
-        admin_id,
-    )
+    else:
+        # Only send promo message if we have admin rights
+        await _send_promo_message(
+            chat_id,
+            chat_title,
+            event.chat.username,
+            [admin_id],
+            admin_id,
+        )
 
 
 async def _handle_bot_removed(
@@ -199,21 +209,24 @@ async def _notify_admins_about_rights(
     """Notify admins about required bot permissions."""
     for admin_id in admin_ids:
         try:
+            chat_title_escaped = (
+                chat_title.replace("*", "\\*").replace("_", "\\_").replace("`", "\\`")
+            )
             await bot.send_message(
                 admin_id,
-                "🤖 Приветствую! Для защиты группы мне нужны права администратора.\n\n"
-                f"Группа: *{chat_title}*"
-                f"{f' (@{username})' if username else ''}\n\n"
+                "🤖 Приветствую! Для защиты группы мне нужны права администратора\\.\n\n"
+                f"Группа: *{chat_title_escaped}*"
+                f"{f' \\(@{username}\\)' if username else ''}\n\n"
                 "📱 Как настроить права:\n"
-                "1. Откройте настройки группы (три точки ⋮ сверху)\n"
-                "2. Выберите пункт 'Управление группой'\n"
-                "3. Нажмите 'Администраторы'\n"
-                "4. Найдите меня в списке администраторов\n"
-                "5. Включите два права:\n"
-                "   • *Удаление сообщений* - чтобы удалять спам\n"
-                "   • *Блокировка пользователей* - чтобы блокировать спамеров\n\n"
-                "После настройки прав я смогу защищать группу! 🛡",
-                parse_mode="markdown",
+                "1\\. Откройте настройки группы \\(три точки ⋮ сверху\\)\n"
+                "2\\. Выберите пункт 'Управление группой'\n"
+                "3\\. Нажмите 'Администраторы'\n"
+                "4\\. Найдите меня в списке администраторов\n"
+                "5\\. Включите два права:\n"
+                "   • *Удаление сообщений* \\- чтобы удалять спам\n"
+                "   • *Блокировка пользователей* \\- чтобы блокировать спамеров\n\n"
+                "После настройки прав я смогу защищать группу\\! 🛡",
+                parse_mode="MarkdownV2",
             )
         except Exception as e:
             error_msg = str(e).lower()
@@ -246,13 +259,16 @@ async def _notify_admins_about_removal(
     """Notify admins when bot is removed from a group."""
     for admin_id in admin_ids:
         try:
+            chat_title_escaped = (
+                chat_title.replace("*", "\\*").replace("_", "\\_").replace("`", "\\`")
+            )
             await bot.send_message(
                 admin_id,
-                f"🔔 Я был удален из группы *{chat_title}*"
-                f"{f' (@{username})' if username else ''}\n\n"
+                f"🔔 Я был удален из группы *{chat_title_escaped}*"
+                f"{f' \\(@{username}\\)' if username else ''}\n\n"
                 "Если это произошло случайно, вы можете добавить меня обратно "
-                "и восстановить защиту группы.",
-                parse_mode="markdown",
+                "и восстановить защиту группы\\.",
+                parse_mode="MarkdownV2",
             )
         except Exception as e:
             error_msg = str(e).lower()
