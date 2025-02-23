@@ -24,11 +24,55 @@ from ..database import (
     remove_admin,
     set_group_moderation,
     update_group_admins,
+    get_group,
 )
 from .dp import dp
 from .updates_filter import filter_handle_message
 
 logger = logging.getLogger(__name__)
+
+
+async def track_group_event(
+    chat_id: int,
+    event_name: str,
+    event_properties: dict,
+) -> None:
+    """
+    Отправляет событие в Mixpanel всем админам группы.
+
+    Args:
+        chat_id: ID группы
+        event_name: Название события
+        event_properties: Свойства события
+    """
+    group = await get_group(chat_id)
+    if not group or not group.admin_ids:
+        return
+
+    # Добавляем group_id в свойства события, если его еще нет
+    if "group_id" not in event_properties:
+        event_properties["group_id"] = chat_id
+
+    # Отправляем событие каждому админу
+    for admin_id in group.admin_ids:
+        mp.track(admin_id, event_name, event_properties)
+
+
+def filter_real_admins(admins: Sequence[ChatMember]) -> list[Union[ChatMemberAdministrator, ChatMemberOwner]]:
+    """
+    Фильтрует список админов, оставляя только реальных пользователей (не ботов).
+
+    Args:
+        admins: Список админов из Telegram API
+
+    Returns:
+        list[Union[ChatMemberAdministrator, ChatMemberOwner]]: Отфильтрованный список админов
+    """
+    return [
+        admin for admin in admins
+        if isinstance(admin, (ChatMemberAdministrator, ChatMemberOwner))
+        and not admin.user.is_bot
+    ]
 
 
 @dp.message(filter_handle_message)
@@ -45,7 +89,7 @@ async def handle_moderated_message(message: types.Message):
         message_text = message.text or message.caption or "[MEDIA_MESSAGE]"
 
         # Трекинг начала обработки сообщения
-        mp.track(
+        await track_group_event(
             chat_id,
             "message_processing_started",
             {
@@ -58,9 +102,10 @@ async def handle_moderated_message(message: types.Message):
 
         if not await is_moderation_enabled(chat_id):
             # Трекинг пропуска из-за отключенной модерации
-            mp.track(
+            await track_group_event(
                 chat_id,
                 "message_skipped_moderation_disabled",
+                {},
             )
             return "message_moderation_disabled"
 
@@ -68,7 +113,7 @@ async def handle_moderated_message(message: types.Message):
 
         if is_known_member:
             # Трекинг пропуска известного пользователя
-            mp.track(
+            await track_group_event(
                 chat_id,
                 "message_skipped_known_member",
                 {"user_id": user_id},
@@ -80,9 +125,8 @@ async def handle_moderated_message(message: types.Message):
         bio = user_with_bio.bio if user_with_bio else None
 
         # Находим первого не-бот администратора
-        admin_id = next(
-            (admin.user.id for admin in admins if not admin.user.is_bot), None
-        )
+        real_admins = filter_real_admins(admins)
+        admin_id = real_admins[0].user.id if real_admins else None
 
         spam_score = await is_spam(
             comment=message_text, name=user.full_name, bio=bio, admin_id=admin_id
@@ -93,7 +137,7 @@ async def handle_moderated_message(message: types.Message):
             return "message_spam_check_failed"
 
         # Трекинг результата проверки на спам
-        mp.track(
+        await track_group_event(
             chat_id,
             "spam_check_result",
             {
@@ -115,10 +159,14 @@ async def handle_moderated_message(message: types.Message):
             await add_member(chat_id, user_id)
 
             # Трекинг одобрения пользователя
-            mp.track(
+            await track_group_event(
                 chat_id,
                 "user_approved",
-                {"chat_id": chat_id, "user_id": user_id, "spam_score": spam_score},
+                {
+                    "chat_id": chat_id,
+                    "user_id": user_id,
+                    "spam_score": spam_score,
+                },
             )
             return "message_user_approved"
 
@@ -127,7 +175,7 @@ async def handle_moderated_message(message: types.Message):
     except Exception as e:
         logger.error(f"Error processing message: {e}", exc_info=True)
         # Трекинг необработанной ошибки
-        mp.track(
+        await track_group_event(
             chat_id,
             "error_message_processing",
             {
@@ -390,7 +438,7 @@ async def track_spam_detection(message: types.Message) -> None:
     if not message.from_user:
         return
 
-    mp.track(
+    await track_group_event(
         message.chat.id,
         "spam_detected",
         {
@@ -413,11 +461,8 @@ async def check_admin_delete_preferences(admins: Sequence[ChatMember]) -> bool:
     Returns:
         bool: True если все админы включили автоудаление, False иначе
     """
-    for admin in admins:
-        if admin.user.is_bot:
-            continue
-        if not isinstance(admin, (ChatMemberAdministrator, types.ChatMemberOwner)):
-            continue
+    real_admins = filter_real_admins(admins)
+    for admin in real_admins:
         admin_user = await get_admin(admin.user.id)
         if not admin_user or not admin_user.delete_spam:
             return False
@@ -591,7 +636,7 @@ async def handle_spam_message_deletion(message: types.Message) -> None:
     await bot.delete_message(message.chat.id, message.message_id)
     logger.info(f"Deleted spam message {message.message_id} in chat {message.chat.id}")
 
-    mp.track(
+    await track_group_event(
         message.chat.id,
         "spam_message_deleted",
         {
