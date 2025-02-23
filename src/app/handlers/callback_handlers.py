@@ -96,26 +96,49 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
 @dp.callback_query(F.data.startswith("delete_spam_message:"))
 async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
     """
-    Обработчик колбэка для удаления спам-сообщения
+    Обработчик подтверждения спама. Удаляет оригинальное спам-сообщение из группы
+    и убирает клавиатуру с сообщения-уведомления.
+
+    Args:
+        callback (CallbackQuery): Callback запрос от Telegram
+
+    Returns:
+        str: Статус обработки callback
     """
     if not callback.data:
         return "callback_invalid_data"
 
     try:
-        _, author_id, chat_id, message_id = callback.data.split(":")
-        delete_message_task = asyncio.create_task(
-            bot.delete_message(int(chat_id), int(message_id))
-        )
-        edit_message_task = asyncio.create_task(
-            bot.edit_message_reply_markup(chat_id, message_id, reply_markup=None)
-        )
-        answer_callback_task = asyncio.create_task(
-            bot(callback.answer("✅ Принято", show_alert=False))
-        )
+        # Разбираем данные из callback
+        # chat_id и message_id относятся к оригинальному сообщению в группе
+        _, author_id, original_chat_id, original_message_id = callback.data.split(":")
 
-        await asyncio.gather(
-            delete_message_task, edit_message_task, answer_callback_task
-        )
+        # Проверяем, что callback относится к сообщению-уведомлению
+        if not callback.message:
+            logger.warning("No notification message in callback")
+            await callback.answer("❌ Неверный callback", show_alert=True)
+            return "callback_invalid_message"
+
+        # Удаляем клавиатуру с сообщения-уведомления
+        try:
+            await bot.edit_message_reply_markup(
+                chat_id=callback.message.chat.id,
+                message_id=callback.message.message_id,
+                reply_markup=None,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to remove keyboard from notification: {e}")
+
+        # Удаляем оригинальное спам-сообщение из группы
+        try:
+            await bot.delete_message(int(original_chat_id), int(original_message_id))
+        except Exception as e:
+            logger.warning(f"Failed to delete original spam message: {e}")
+            await callback.answer("❌ Не удалось удалить сообщение", show_alert=True)
+            return "callback_error_deleting_original"
+
+        # Отвечаем на callback в случае успеха
+        await callback.answer("✅ Спам удален", show_alert=False)
 
         # Трекинг подтверждения спама
         mp.track(
@@ -123,8 +146,10 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
             "callback_spam_confirm",
             {
                 "author_id": author_id,
-                "chat_id": chat_id,
-                "message_id": message_id,
+                "chat_id": int(original_chat_id),
+                "message_id": int(original_message_id),
+                "notification_chat_id": callback.message.chat.id,
+                "notification_message_id": callback.message.message_id,
             },
         )
         return "callback_spam_message_deleted"
