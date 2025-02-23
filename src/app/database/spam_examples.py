@@ -6,20 +6,22 @@ from .postgres_connection import get_pool
 logger = logging.getLogger(__name__)
 
 
-async def get_spam_examples(admin_id: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Get spam examples from PostgreSQL, including user-specific examples if admin_id is provided"""
+async def get_spam_examples(
+    admin_ids: Optional[List[int]] = None,
+) -> List[Dict[str, Any]]:
+    """Get spam examples from PostgreSQL, including user-specific examples if admin_ids is provided"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        if admin_id is not None:
-            # Get both common and user-specific examples
+        if admin_ids:
+            # Get both common and user-specific examples for multiple admins
             rows = await conn.fetch(
                 """
                 SELECT text, name, bio, score
                 FROM spam_examples
-                WHERE admin_id IS NULL OR admin_id = $1
+                WHERE admin_id IS NULL OR admin_id = ANY($1)
                 ORDER BY created_at DESC
             """,
-                admin_id,
+                admin_ids,
             )
         else:
             # Get only common examples

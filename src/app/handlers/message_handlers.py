@@ -19,12 +19,12 @@ from ..database import (
     add_member,
     deduct_credits_from_admins,
     get_admin,
+    get_group,
     is_member_in_group,
     is_moderation_enabled,
     remove_admin,
     set_group_moderation,
     update_group_admins,
-    get_group,
 )
 from .dp import dp
 from .updates_filter import filter_handle_message
@@ -58,7 +58,9 @@ async def track_group_event(
         mp.track(admin_id, event_name, event_properties)
 
 
-def filter_real_admins(admins: Sequence[ChatMember]) -> list[Union[ChatMemberAdministrator, ChatMemberOwner]]:
+def filter_real_admins(
+    admins: Sequence[ChatMember],
+) -> list[Union[ChatMemberAdministrator, ChatMemberOwner]]:
     """
     Фильтрует список админов, оставляя только реальных пользователей (не ботов).
 
@@ -69,7 +71,8 @@ def filter_real_admins(admins: Sequence[ChatMember]) -> list[Union[ChatMemberAdm
         list[Union[ChatMemberAdministrator, ChatMemberOwner]]: Отфильтрованный список админов
     """
     return [
-        admin for admin in admins
+        admin
+        for admin in admins
         if isinstance(admin, (ChatMemberAdministrator, ChatMemberOwner))
         and not admin.user.is_bot
     ]
@@ -98,9 +101,13 @@ async def handle_moderated_message(message: types.Message):
             },
         )
 
-        admins = await bot.get_chat_administrators(chat_id)
+        # Получаем информацию о группе из базы данных
+        group = await get_group(chat_id)
+        if not group:
+            logger.error(f"Group not found for chat {chat_id}")
+            return "error_message_group_not_found"
 
-        if not await is_moderation_enabled(chat_id):
+        if not group.moderation_enabled:
             # Трекинг пропуска из-за отключенной модерации
             await track_group_event(
                 chat_id,
@@ -124,12 +131,11 @@ async def handle_moderated_message(message: types.Message):
         user_with_bio = await bot.get_chat(user.id)
         bio = user_with_bio.bio if user_with_bio else None
 
-        # Находим первого не-бот администратора
-        real_admins = filter_real_admins(admins)
-        admin_id = real_admins[0].user.id if real_admins else None
+        # Используем список администраторов из базы данных
+        admin_ids = group.admin_ids
 
         spam_score = await is_spam(
-            comment=message_text, name=user.full_name, bio=bio, admin_id=admin_id
+            comment=message_text, name=user.full_name, bio=bio, admin_ids=admin_ids
         )
 
         if spam_score is None:
@@ -224,11 +230,11 @@ async def handle_spam(message: types.Message) -> str:
         # Трекинг обнаружения спама
         await track_spam_detection(message)
 
-        admins = await bot.get_chat_administrators(message.chat.id)
-        all_admins_delete = await check_admin_delete_preferences(admins)
+        # Проверяем настройки автоудаления у админов
+        all_admins_delete = await check_admin_delete_preferences(message.chat.id)
 
         # Уведомление администраторов...
-        notification_sent = await notify_admins(message, admins, all_admins_delete)
+        notification_sent = await notify_admins(message, all_admins_delete)
 
         if all_admins_delete:
             await handle_spam_message_deletion(message)
@@ -451,19 +457,24 @@ async def track_spam_detection(message: types.Message) -> None:
     )
 
 
-async def check_admin_delete_preferences(admins: Sequence[ChatMember]) -> bool:
+async def check_admin_delete_preferences(chat_id: int) -> bool:
     """
     Проверяет настройки автоудаления спама у администраторов.
 
     Args:
-        admins: Список администраторов чата
+        chat_id: ID чата
 
     Returns:
         bool: True если все админы включили автоудаление, False иначе
     """
-    real_admins = filter_real_admins(admins)
-    for admin in real_admins:
-        admin_user = await get_admin(admin.user.id)
+    # Получаем информацию о группе из базы данных
+    group = await get_group(chat_id)
+    if not group:
+        logger.error(f"Group not found for chat {chat_id}")
+        return False
+
+    for admin_id in group.admin_ids:
+        admin_user = await get_admin(admin_id)
         if not admin_user or not admin_user.delete_spam:
             return False
     return True
@@ -550,15 +561,12 @@ def format_admin_notification_message(
     return admin_msg
 
 
-async def notify_admins(
-    message: types.Message, admins: Sequence[ChatMember], all_admins_delete: bool
-) -> bool:
+async def notify_admins(message: types.Message, all_admins_delete: bool) -> bool:
     """
     Отправляет уведомления администраторам о спам-сообщении.
 
     Args:
         message: Спам-сообщение
-        admins: Список администраторов
         all_admins_delete: Флаг автоудаления спама
 
     Returns:
@@ -569,18 +577,24 @@ async def notify_admins(
 
     notification_sent = False
 
-    for admin in admins:
-        if admin.user.is_bot:
-            continue
-        if not isinstance(admin, (ChatMemberAdministrator, types.ChatMemberOwner)):
-            continue
+    # Получаем информацию о группе из базы данных
+    group = await get_group(message.chat.id)
+    if not group:
+        logger.error(f"Group not found for chat {message.chat.id}")
+        return False
 
+    for admin_id in group.admin_ids:
         try:
+            # Получаем информацию об админе из Telegram
+            admin_chat = await bot.get_chat(admin_id)
+            if not admin_chat:
+                continue
+
             keyboard = create_admin_notification_keyboard(message, all_admins_delete)
             admin_msg = format_admin_notification_message(message, all_admins_delete)
 
             await bot.send_message(
-                admin.user.id,
+                admin_id,
                 admin_msg,
                 reply_markup=keyboard,
                 parse_mode="HTML",
@@ -589,7 +603,7 @@ async def notify_admins(
             notification_sent = True
 
             mp.track(
-                admin.user.id,
+                admin_id,
                 "admin_spam_notification",
                 {
                     "chat_id": message.chat.id,
@@ -604,15 +618,15 @@ async def notify_admins(
                 "bot was blocked by the user" in error_msg
                 or "bot can't initiate conversation with a user" in error_msg
             ):
-                await remove_admin(admin.user.id)
+                await remove_admin(admin_id)
                 logger.info(
-                    f"Removed admin {admin.user.id} from database (bot blocked or no chat started)"
+                    f"Removed admin {admin_id} from database (bot blocked or no chat started)"
                 )
             else:
-                logger.warning(f"Failed to notify admin {admin.user.id}: {e}")
+                logger.warning(f"Failed to notify admin {admin_id}: {e}")
 
             mp.track(
-                admin.user.id,
+                admin_id,
                 "error_admin_notification",
                 {
                     "error_type": type(e).__name__,

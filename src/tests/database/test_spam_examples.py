@@ -5,13 +5,13 @@ from ...app.database import add_spam_example, get_spam_examples, remove_spam_exa
 
 @pytest.mark.asyncio
 async def test_get_spam_examples_common(patched_db_conn, clean_db):
-    """Test getting common spam examples (without admin_id)"""
+    """Test getting common spam examples (without admin_ids)"""
     async with clean_db.acquire() as conn:
         # Add test example
         example_data = {"text": "spam text", "score": 80}
         await add_spam_example(text=example_data["text"], score=example_data["score"])
 
-        # Get examples without admin_id
+        # Get examples without admin_ids
         result = await get_spam_examples()
 
         # Verify
@@ -49,12 +49,58 @@ async def test_get_spam_examples_with_admin(patched_db_conn, clean_db):
         )
 
         # Get all examples for the admin
-        result = await get_spam_examples(admin_id)
+        result = await get_spam_examples([admin_id])
 
         # Verify
         assert len(result) == 2
         assert any(ex["text"] == "common spam" for ex in result)
         assert any(ex["text"] == "user spam" for ex in result)
+
+
+@pytest.mark.asyncio
+async def test_get_spam_examples_with_multiple_admins(patched_db_conn, clean_db):
+    """Test getting spam examples from multiple admins"""
+    async with clean_db.acquire() as conn:
+        admin_ids = [12345, 67890]
+
+        # Ensure admins exist in administrators table
+        for admin_id in admin_ids:
+            await conn.execute(
+                """
+                INSERT INTO administrators (admin_id, username, credits)
+                VALUES ($1, 'testadmin', 100)
+                ON CONFLICT DO NOTHING
+            """,
+                admin_id,
+            )
+
+        # Add common example
+        common_example = {"text": "common spam", "score": 80}
+        await add_spam_example(
+            text=common_example["text"], score=common_example["score"]
+        )
+
+        # Add examples for each admin
+        examples = [
+            {"text": "admin1 spam", "score": 90, "admin_id": admin_ids[0]},
+            {"text": "admin2 spam", "score": 85, "admin_id": admin_ids[1]},
+        ]
+
+        for example in examples:
+            await add_spam_example(
+                text=example["text"],
+                score=example["score"],
+                admin_id=example["admin_id"],
+            )
+
+        # Get examples for both admins
+        result = await get_spam_examples(admin_ids)
+
+        # Verify
+        assert len(result) == 3  # Common example + 2 admin-specific examples
+        assert any(ex["text"] == "common spam" for ex in result)
+        assert any(ex["text"] == "admin1 spam" for ex in result)
+        assert any(ex["text"] == "admin2 spam" for ex in result)
 
 
 @pytest.mark.asyncio
@@ -124,7 +170,7 @@ async def test_add_spam_example_user_specific(patched_db_conn, clean_db):
         assert result is True
 
         # Check if example was added
-        examples = await get_spam_examples(admin_id)
+        examples = await get_spam_examples([admin_id])
         assert len(examples) == 1
         assert examples[0]["text"] == example_data["text"]
 

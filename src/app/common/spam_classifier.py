@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import logfire
 
@@ -33,12 +33,12 @@ base_prompt = """
 MAX_RETRIES = 3
 
 
-async def get_prompt(admin_id: Optional[int] = None):
-    """Get the full prompt with spam examples from Redis"""
+async def get_prompt(admin_ids: Optional[List[int]] = None):
+    """Get the full prompt with spam examples from database"""
     prompt = base_prompt
 
     # Get spam examples, including user-specific examples
-    examples = await get_spam_examples(admin_id)
+    examples = await get_spam_examples(admin_ids)
 
     # Add examples to prompt
     for example in examples:
@@ -65,7 +65,7 @@ async def is_spam(
     comment: str,
     name: str | None = None,
     bio: str | None = None,
-    admin_id: int | None = None,
+    admin_ids: List[int] | None = None,
 ):
     """
     Классифицирует сообщение как спам или не спам
@@ -74,12 +74,12 @@ async def is_spam(
         comment: Текст сообщения
         name: Имя отправителя (опционально)
         bio: Биография отправителя (опционально)
-        admin_id: ID пользователя для получения его персональных примеров спама (опционально)
+        admin_ids: Список ID администраторов для получения их персональных примеров спама (опционально)
 
     Returns:
         int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
     """
-    prompt = await get_prompt(admin_id)
+    prompt = await get_prompt(admin_ids)
 
     user_message = f"""
 <запрос>
@@ -117,14 +117,14 @@ async def is_spam(
                     "Rate limit exceeded in spam classifier",
                     reset_time=e.reset_time,
                     attempt=attempt,
-                    admin_id=admin_id,
+                    admin_ids=admin_ids,
                 )
             else:  # LocationNotSupported
                 logfire.info(
                     "Provider location not supported in spam classifier",
                     provider=e.provider,
                     attempt=attempt,
-                    admin_id=admin_id,
+                    admin_ids=admin_ids,
                 )
             continue
         except Exception as e:
@@ -138,7 +138,7 @@ async def is_spam(
                     comment=comment,
                     name=name,
                     bio=bio,
-                    admin_id=admin_id,
+                    admin_ids=admin_ids,
                     prompt=prompt,
                     _tags=["spam_classifier_failed"],
                 )
