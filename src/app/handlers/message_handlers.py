@@ -618,10 +618,11 @@ async def notify_admins(message: types.Message, all_admins_delete: bool) -> bool
             if (
                 "bot was blocked by the user" in error_msg
                 or "bot can't initiate conversation with a user" in error_msg
+                or "bots can't send messages to bots" in error_msg
             ):
                 await remove_admin(admin_id)
                 logger.info(
-                    f"Removed admin {admin_id} from database (bot blocked or no chat started)"
+                    f"Removed admin {admin_id} from database (bot blocked, no chat started, or admin is a bot)"
                 )
             else:
                 logger.warning(f"Failed to notify admin {admin_id}: {e}")

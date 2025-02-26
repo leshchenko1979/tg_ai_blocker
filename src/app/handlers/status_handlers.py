@@ -4,9 +4,9 @@ import logging
 from datetime import datetime, timezone
 from typing import List
 
-from aiogram import types, F
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram import F, types
 from aiogram.filters import or_f
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
 from ..common.mp import mp
@@ -338,7 +338,7 @@ async def _send_promo_message(
 member_service_message_filter = or_f(
     F.new_chat_member.as_("has_new_member"),
     F.new_chat_members.as_("has_new_members"),
-    F.left_chat_member.as_("has_left_member")
+    F.left_chat_member.as_("has_left_member"),
 )
 
 
