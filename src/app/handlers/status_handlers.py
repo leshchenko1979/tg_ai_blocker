@@ -4,8 +4,9 @@ import logging
 from datetime import datetime, timezone
 from typing import List
 
-from aiogram import types
+from aiogram import types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.filters import or_f
 
 from ..common.bot import bot
 from ..common.mp import mp
@@ -331,3 +332,67 @@ async def _send_promo_message(
                 "timestamp": datetime.now().isoformat(),
             },
         )
+
+
+# Фильтр для сервисных сообщений о присоединении/выходе участников
+member_service_message_filter = or_f(
+    F.new_chat_member.as_("has_new_member"),
+    F.new_chat_members.as_("has_new_members"),
+    F.left_chat_member.as_("has_left_member")
+)
+
+
+@dp.message(member_service_message_filter)
+async def handle_member_service_message(message: types.Message) -> str:
+    """
+    Handle service messages about members joining or leaving the chat.
+    Deletes these service messages to keep the chat clean.
+
+    Args:
+        message: The service message about member changes
+
+    Returns:
+        String indicating the result of handling
+    """
+    try:
+        chat_id = message.chat.id
+        message_id = message.message_id
+
+        # Log the event
+        if getattr(message, "new_chat_member", None) or getattr(
+            message, "new_chat_members", None
+        ):
+            logger.info(
+                f"Detected member join message in chat {chat_id}, message_id: {message_id}"
+            )
+        elif getattr(message, "left_chat_member", None):
+            logger.info(
+                f"Detected member leave message in chat {chat_id}, message_id: {message_id}"
+            )
+
+        # Delete the service message
+        try:
+            await bot.delete_message(chat_id, message_id)
+            logger.info(f"Deleted service message {message_id} in chat {chat_id}")
+            return "service_message_deleted"
+        except Exception as e:
+            logger.warning(
+                f"Failed to delete service message {message_id} in chat {chat_id}: {e}",
+                exc_info=True,
+            )
+            return "service_message_delete_failed"
+
+    except Exception as e:
+        logger.error(f"Error handling service message: {e}", exc_info=True)
+        if message.from_user:
+            mp.track(
+                message.from_user.id,
+                "error_service_message_handling",
+                {
+                    "group_id": message.chat.id,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+        return "service_message_error"

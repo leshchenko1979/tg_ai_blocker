@@ -15,4 +15,28 @@ filter_handle_message = and_f(
     ~F.forward_from_message_id,
     ~F.edited_message,
     ~F.via_bot,
+    # Исключаем все типы сервисных сообщений
+    ~F.new_chat_member,
+    ~F.new_chat_members,
+    ~F.left_chat_member,
+    ~F.new_chat_title,
+    ~F.new_chat_photo,
+    ~F.delete_chat_photo,
+    ~F.group_chat_created,
+    ~F.supergroup_chat_created,
+    ~F.channel_chat_created,
+    ~F.message_auto_delete_timer_changed,
+    ~F.pinned_message,
+    # Проверяем наличие текста или медиа-контента
+    or_f(
+        F.text,
+        F.photo,
+        F.video,
+        F.document,
+        F.sticker,
+        F.voice,
+        F.video_note,
+        F.animation,
+        F.audio,
+    ),
 )
