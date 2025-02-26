@@ -2,6 +2,7 @@ import logging
 from typing import Optional, Sequence, Tuple, Union
 
 from aiogram import types
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import (
     ChatMember,
     ChatMemberAdministrator,
@@ -647,15 +648,32 @@ async def handle_spam_message_deletion(message: types.Message) -> None:
     if not message.from_user:
         return
 
-    await bot.delete_message(message.chat.id, message.message_id)
-    logger.info(f"Deleted spam message {message.message_id} in chat {message.chat.id}")
+    try:
+        await bot.delete_message(message.chat.id, message.message_id)
+        logger.info(
+            f"Deleted spam message {message.message_id} in chat {message.chat.id}"
+        )
 
-    await track_group_event(
-        message.chat.id,
-        "spam_message_deleted",
-        {
-            "message_id": message.message_id,
-            "user_id": message.from_user.id,
-            "auto_delete": True,
-        },
-    )
+        await track_group_event(
+            message.chat.id,
+            "spam_message_deleted",
+            {
+                "message_id": message.message_id,
+                "user_id": message.from_user.id,
+                "auto_delete": True,
+            },
+        )
+    except TelegramBadRequest as e:
+        logger.warning(
+            f"Could not delete spam message {message.message_id} in chat {message.chat.id}: {e}",
+            exc_info=True,
+        )
+        await track_group_event(
+            message.chat.id,
+            "spam_message_delete_failed",
+            {
+                "message_id": message.message_id,
+                "user_id": message.from_user.id,
+                "error_message": str(e),
+            },
+        )
