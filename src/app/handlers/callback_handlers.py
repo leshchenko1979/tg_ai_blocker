@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from aiogram import F, types
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import CallbackQuery
 
 from ..common.bot import bot
 from ..common.mp import mp
@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 @dp.callback_query(F.data.startswith("mark_as_not_spam:"))
 async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
     """
-    Обработчик колбэка для добавления сообщения в базу безопасных примеров
+    Обработчик колбэка для добавления сообщения в базу безопасных примеров.
+    Обновляет сообщение-уведомление, отмечая его как "Не спам".
     """
     try:
         if not callback.data or not callback.message:
@@ -35,34 +36,38 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         if not message_text:
             return "callback_no_message_text"
 
-        add_safe_example_task = asyncio.create_task(
-            add_spam_example(
-                text=message_text,
-                score=-100,  # Безопасное сообщение с отрицательным score
-                name=author_info.full_name if author_info else None,
-                bio=author_info.bio if author_info else None,
-                admin_id=admin_id,
-            )
-        )
+        # Обновляем текст сообщения, добавляя пометку "Не спам"
+        updated_message_text = f"{message_text}\n\n✅ <b>Отмечено как НЕ СПАМ</b>"
 
-        delete_message_task = asyncio.create_task(
-            bot.delete_message(callback.message.chat.id, callback.message.message_id)
-        )
-
-        answer_callback_task = asyncio.create_task(
-            bot(
-                callback.answer(
-                    "✅ Сообщение добавлено как безопасный пример",
-                    show_alert=False,
+        # Используем TaskGroup для более чистого управления задачами
+        async with asyncio.TaskGroup() as tg:
+            # Добавляем сообщение в базу безопасных примеров
+            tg.create_task(
+                add_spam_example(
+                    text=message_text,
+                    score=-100,  # Безопасное сообщение с отрицательным score
+                    name=author_info.full_name if author_info else None,
+                    bio=author_info.bio if author_info else None,
+                    admin_id=admin_id,
                 )
             )
-        )
 
-        await asyncio.gather(
-            add_safe_example_task,
-            delete_message_task,
-            answer_callback_task,
-        )
+            # Обновляем сообщение
+            tg.create_task(
+                bot.edit_message_text(
+                    chat_id=callback.message.chat.id,
+                    message_id=callback.message.message_id,
+                    text=updated_message_text,
+                    parse_mode="HTML",
+                    reply_markup=None,  # Убираем клавиатуру
+                )
+            )
+
+            # Отвечаем на callback
+            # Используем bot() для получения корутины из callback.answer()
+            msg = "✅ Сообщение добавлено как безопасный пример"
+            answer = callback.answer(msg, show_alert=False)
+            tg.create_task(bot(answer))
 
         # Трекинг обработки колбэка
         mp.track(
@@ -71,8 +76,8 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
             {
                 "author_id": author_id,
                 "text": message_text,
-                "name": author_info.full_name,
-                "bio": author_info.bio,
+                "name": author_info.full_name if author_info else None,
+                "bio": author_info.bio if author_info else None,
             },
         )
         return "callback_marked_as_not_spam"
