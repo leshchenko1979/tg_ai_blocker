@@ -18,7 +18,11 @@ async def get_yandex_response(messages):
     return result.alternatives[0].text
 
 
-class RateLimitExceeded(Exception):
+class TransientOpenRouterError(Exception):
+    """Raised when OpenRouter returns a transient error"""
+
+
+class RateLimitExceeded(TransientOpenRouterError):
     """Raised when OpenRouter rate limit is exceeded"""
 
     def __init__(self, reset_time: int):
@@ -26,12 +30,19 @@ class RateLimitExceeded(Exception):
         super().__init__(f"Rate limit exceeded, reset at {reset_time}")
 
 
-class LocationNotSupported(Exception):
+class LocationNotSupported(TransientOpenRouterError):
     """Raised when user location is not supported by the provider"""
 
     def __init__(self, provider: str):
         self.provider = provider
         super().__init__(f"Location not supported for provider: {provider}")
+
+
+class InternalServerError(TransientOpenRouterError):
+    """Raised when OpenRouter returns an internal server error"""
+
+    def __init__(self):
+        super().__init__("OpenRouter internal server error")
 
 
 @logfire.instrument()
@@ -72,6 +83,12 @@ async def get_openrouter_response(messages):
                         response=result,
                     )
                     raise RateLimitExceeded(reset_time)
+
+                if error.get("code") == 500:
+                    logfire.exception(
+                        "OpenRouter internal server error", result=result, error=error
+                    )
+                    raise InternalServerError()
 
                 # Handle location not supported error
                 metadata = error.get("metadata", {})
