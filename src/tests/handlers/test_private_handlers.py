@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram import types
+from aiogram.exceptions import TelegramBadRequest
 
 from ...app.handlers.private_handlers import (
     OriginalMessageExtractionError,
@@ -9,6 +10,7 @@ from ...app.handlers.private_handlers import (
     handle_forwarded_message,
     handle_private_message,
     process_spam_example_callback,
+    sanitize_markdown,
 )
 
 
@@ -337,3 +339,184 @@ async def test_extract_original_message_info_channel_message(patched_db_conn, cl
         "Cannot extract meaningful message information from forwarded channel message"
         in str(exc_info.value)
     )
+
+
+@pytest.mark.asyncio
+async def test_sanitize_markdown_with_problematic_response():
+    """Test that sanitize_markdown correctly handles problematic responses."""
+    # This is the problematic response that caused the error
+    problematic_response = """Что я умею? 😈 Я - нейромодератор, кибер-защитник, страж чистоты Telegram! Мои умения безграничны, но вот основные:
+
+*   **Анализ сообщений**: Я сканирую каждое сообщение в группе, используя мощь искусственного интеллекта. 🧠
+*   **Удаление спама**: Если сообщение пахнет спамом, я его уничтожаю без колебаний. 💥
+*   **Учет пользователей**: Я помню, кто хороший, а кто плохой. Проверенные пользователи могут проходить, спамеры - нет! 🚫
+*   **Обучение**: Я учусь на ваших примерах, чтобы становиться еще лучше в борьбе со злом. 📚
+*   **Удаление мусора**: Автоматически удаляю сообщения о вступлении и выходе участников, чтобы в группе был порядок. 🧹
+
+И это только начало! 🚀 Я постоянно развиваюсь, чтобы быть на шаг впереди спамеров. 😈"""
+
+    # Sanitize the problematic response
+    sanitized_response = sanitize_markdown(problematic_response)
+
+    # Check that the sanitized response doesn't have unbalanced markdown entities
+    assert sanitized_response.count("*") % 2 == 0
+    assert sanitized_response.count("_") % 2 == 0
+    assert sanitized_response.count("`") % 2 == 0
+
+    # Check that bullet points are properly handled
+    assert "*   " not in sanitized_response
+    assert "•   " in sanitized_response
+
+    # Simulate sending the message to Telegram
+    message_mock = MagicMock(spec=types.Message)
+    reply_mock = AsyncMock()
+    message_mock.reply = reply_mock
+
+    # This should not raise an exception
+    await message_mock.reply(sanitized_response, parse_mode="markdown")
+
+    # Check that reply was called once
+    reply_mock.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_sanitize_markdown_with_unbalanced_symbols():
+    """Test that sanitize_markdown correctly handles unbalanced markdown symbols."""
+    # Test with unbalanced asterisks
+    unbalanced_text = "This is *unbalanced text"
+    sanitized = sanitize_markdown(unbalanced_text)
+    # Проверяем, что символы экранированы, а не сбалансированы
+    assert "\\*" in sanitized
+    assert "*" not in sanitized.replace("\\*", "")
+
+    # Test with unbalanced underscores
+    unbalanced_text = "This is _unbalanced text"
+    sanitized = sanitize_markdown(unbalanced_text)
+    assert "\\_" in sanitized
+    assert "_" not in sanitized.replace("\\_", "")
+
+    # Test with unbalanced backticks
+    unbalanced_text = "This is `unbalanced text"
+    sanitized = sanitize_markdown(unbalanced_text)
+    assert "\\`" in sanitized
+    assert "`" not in sanitized.replace("\\`", "")
+
+    # Test with multiple unbalanced symbols
+    unbalanced_text = "This is *unbalanced _text with `multiple symbols"
+    sanitized = sanitize_markdown(unbalanced_text)
+    assert "\\*" in sanitized
+    assert "\\_" in sanitized
+    assert "\\`" in sanitized
+    assert "*" not in sanitized.replace("\\*", "")
+    assert "_" not in sanitized.replace("\\_", "")
+    assert "`" not in sanitized.replace("\\`", "")
+
+
+@pytest.mark.asyncio
+async def test_sanitize_markdown_with_balanced_symbols():
+    """Test that sanitize_markdown preserves balanced markdown symbols."""
+    # Test with balanced asterisks
+    balanced_text = "This is *balanced* text"
+    sanitized = sanitize_markdown(balanced_text)
+    assert sanitized == balanced_text
+
+    # Test with balanced underscores
+    balanced_text = "This is _balanced_ text"
+    sanitized = sanitize_markdown(balanced_text)
+    assert sanitized == balanced_text
+
+    # Test with balanced backticks
+    balanced_text = "This is `balanced` text"
+    sanitized = sanitize_markdown(balanced_text)
+    assert sanitized == balanced_text
+
+    # Test with multiple balanced symbols
+    balanced_text = "This is *balanced* _text_ with `multiple` symbols"
+    sanitized = sanitize_markdown(balanced_text)
+    assert sanitized == balanced_text
+
+
+@pytest.mark.asyncio
+async def test_sanitize_markdown_with_bullet_points():
+    """Test that sanitize_markdown correctly handles bullet points."""
+    # Test with bullet points
+    bullet_text = """List:
+*   Item 1
+*   Item 2
+*   Item 3"""
+    sanitized = sanitize_markdown(bullet_text)
+    assert "*   " not in sanitized
+    assert "•   " in sanitized
+    assert sanitized.count("•   ") == 3
+
+    # Test with bullet points and formatting
+    bullet_text = """List:
+*   **Item 1**
+*   *Item 2*
+*   `Item 3`"""
+    sanitized = sanitize_markdown(bullet_text)
+    assert "*   " not in sanitized
+    assert "•   " in sanitized
+    assert "**Item 1**" in sanitized
+    assert "*Item 2*" in sanitized
+    assert "`Item 3`" in sanitized
+
+
+@pytest.mark.asyncio
+async def test_handle_private_message_with_markdown_error(
+    patched_db_conn, clean_db, private_message_mock
+):
+    """Test that handle_private_message correctly handles markdown errors."""
+    # Mock the get_message_history function
+    with patch(
+        "src.app.handlers.private_handlers.get_message_history",
+        return_value=[{"role": "user", "content": "Test message"}],
+    ) as get_history_mock, patch(
+        "src.app.handlers.private_handlers.get_spam_examples",
+        return_value=[],
+    ) as get_examples_mock, patch(
+        "src.app.handlers.private_handlers.get_openrouter_response",
+        return_value="Test **response with unbalanced markdown*",
+    ) as get_response_mock, patch(
+        "src.app.handlers.private_handlers.initialize_new_admin",
+        return_value=False,
+    ) as init_admin_mock, patch(
+        "src.app.handlers.private_handlers.get_admin_credits",
+        return_value=100,
+    ) as get_credits_mock, patch(
+        "src.app.handlers.private_handlers.save_message",
+    ) as save_message_mock, patch(
+        "src.app.handlers.private_handlers.mp.track",
+    ) as track_mock, patch(
+        "src.app.handlers.private_handlers.mp.people_set",
+    ) as people_set_mock, patch(
+        "pathlib.Path.read_text",
+        return_value="Test PRD",
+    ) as read_text_mock:
+        # Create a mock for the reply method
+        reply_mock = AsyncMock()
+
+        # First call raises an exception, second call succeeds
+        reply_mock.side_effect = [
+            Exception("Can't parse entities"),  # First call with markdown fails
+            MagicMock(),  # Second call without markdown succeeds
+        ]
+
+        private_message_mock.reply = reply_mock
+
+        # Call the handler
+        result = await handle_private_message(private_message_mock)
+
+        # Check that the handler returned the expected result
+        assert result == "private_message_replied"
+
+        # Check that reply was called twice
+        assert reply_mock.call_count == 2
+
+        # Check that the first call was with markdown
+        first_call_args = reply_mock.call_args_list[0]
+        assert first_call_args[1].get("parse_mode") == "markdown"
+
+        # Check that the second call was without markdown
+        second_call_args = reply_mock.call_args_list[1]
+        assert "parse_mode" not in second_call_args[1]

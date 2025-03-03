@@ -25,6 +25,36 @@ from .dp import dp
 logger = logging.getLogger(__name__)
 
 
+def sanitize_markdown(text: str) -> str:
+    """
+    Sanitizes markdown text to ensure it's compatible with Telegram's markdown parser.
+
+    Args:
+        text: The markdown text to sanitize
+
+    Returns:
+        Sanitized markdown text
+    """
+    # First, handle bullet points by replacing them with Unicode bullets
+    lines = text.split("\n")
+    for i in range(len(lines)):
+        if lines[i].strip().startswith("*   "):
+            lines[i] = lines[i].replace("*   ", "•   ", 1)
+
+    text = "\n".join(lines)
+
+    # Check if we have unbalanced markdown entities
+    if text.count("*") % 2 != 0 or text.count("_") % 2 != 0 or text.count("`") % 2 != 0:
+        # Escape all markdown characters
+        text = text.replace("*", "\\*")
+        text = text.replace("_", "\\_")
+        text = text.replace("`", "\\`")
+        text = text.replace("[", "\\[")
+        text = text.replace("]", "\\]")
+
+    return text
+
+
 class OriginalMessageExtractionError(Exception):
     """Raised when original message information cannot be extracted"""
 
@@ -148,7 +178,15 @@ async def handle_private_message(message: types.Message) -> str:
         # Save bot's response to history
         await save_message(admin_id, "assistant", response)
 
-        await message.reply(response, parse_mode="markdown")
+        # Try to send with markdown parsing first
+        try:
+            sanitized_response = sanitize_markdown(response)
+            await message.reply(sanitized_response, parse_mode="markdown")
+        except Exception as e:
+            # If markdown fails, try without formatting
+            logger.warning(f"Failed to send with markdown: {e}", exc_info=True)
+            await message.reply(response)
+
         return "private_message_replied"
 
     except Exception as e:
@@ -314,7 +352,7 @@ async def extract_original_message_info(
         info["user_id"] = user.id
         user_info = await bot.get_chat(user.id)
         info["bio"] = user_info.bio if user_info else None
-    elif original_message.forward_origin:
+    else:
         # Если есть информация о происхождении сообщения
         origin = original_message.forward_origin
         if isinstance(origin, types.MessageOriginUser):
