@@ -104,7 +104,7 @@ async def handle_timeout(
         f"⚠️ Webhook timeout after {elapsed:.2f} seconds\n"
         f"Chat ID: {chat_id}\n"
         f"Admin ID: {admin_id}\n"
-        "Update will not be retried."
+        "Update will be retried."
     )
     asyncio.create_task(
         bot.send_message(
@@ -113,7 +113,10 @@ async def handle_timeout(
             parse_mode="markdown",
         )
     )
-    return web.json_response({"message": "Processing timed out"})
+    return web.json_response(
+        {"error": "Processing timed out", "retry": True},
+        status=503,
+    )
 
 
 async def handle_temporary_error(
@@ -152,14 +155,29 @@ async def handle_temporary_error(
 
     # We have time for retries, return 503
     if isinstance(e, RateLimitExceeded):
-        logger.info(
-            f"Rate limit exceeded, {remaining:.2f} seconds remaining for retries",
-            extra={"reset_time": e.reset_time},
-        )
-        return web.json_response(
-            {"error": "Rate limit exceeded", "retry_after": e.reset_time},
-            status=503,
-        )
+        # Если это ошибка от upstream-провайдера, возвращаем 503 без retry_after
+        if e.is_upstream_error:
+            logger.info(
+                "Upstream provider rate limit exceeded, immediate retry",
+                extra={"remaining": remaining},
+            )
+            return web.json_response(
+                {"error": "Upstream provider rate limit exceeded"},
+                status=503,
+            )
+        # Если это ошибка от OpenRouter, возвращаем 503 с retry_after
+        else:
+            logger.info(
+                f"OpenRouter rate limit exceeded, {remaining:.2f} seconds remaining for retries",
+                extra={"reset_time": e.reset_time},
+            )
+            return web.json_response(
+                {
+                    "error": "OpenRouter rate limit exceeded",
+                    "retry_after": e.reset_time,
+                },
+                status=503,
+            )
     else:  # LocationNotSupported
         logger.info(
             f"Location not supported for provider {e.provider}, {remaining:.2f} seconds remaining for retries"

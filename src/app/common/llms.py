@@ -1,3 +1,4 @@
+import contextlib
 import os
 from typing import cast
 
@@ -18,19 +19,20 @@ async def get_yandex_response(messages):
     return result.alternatives[0].text
 
 
-class TransientOpenRouterError(Exception):
+class LLMException(Exception):
     """Raised when OpenRouter returns a transient error"""
 
 
-class RateLimitExceeded(TransientOpenRouterError):
+class RateLimitExceeded(LLMException):
     """Raised when OpenRouter rate limit is exceeded"""
 
-    def __init__(self, reset_time: int):
+    def __init__(self, reset_time: int, is_upstream_error: bool = False):
         self.reset_time = reset_time
+        self.is_upstream_error = is_upstream_error
         super().__init__(f"Rate limit exceeded, reset at {reset_time}")
 
 
-class LocationNotSupported(TransientOpenRouterError):
+class LocationNotSupported(LLMException):
     """Raised when user location is not supported by the provider"""
 
     def __init__(self, provider: str):
@@ -38,7 +40,7 @@ class LocationNotSupported(TransientOpenRouterError):
         super().__init__(f"Location not supported for provider: {provider}")
 
 
-class InternalServerError(TransientOpenRouterError):
+class InternalServerError(LLMException):
     """Raised when OpenRouter returns an internal server error"""
 
     def __init__(self):
@@ -77,23 +79,36 @@ async def get_openrouter_response(messages):
                         .get("headers", {})
                         .get("X-RateLimit-Reset", 0)
                     )
+                    # Проверяем, является ли это ошибкой от upstream-провайдера
+                    metadata = error.get("metadata", {})
+                    is_upstream_error = False
+                    if metadata.get("raw"):
+                        raw_error = metadata["raw"]
+                        if (
+                            "quota exceeded" in raw_error.lower()
+                            or "resource exhausted" in raw_error.lower()
+                        ):
+                            is_upstream_error = True
+                            reset_time = 0  # Для ошибок upstream-провайдера сбрасываем reset_time
+
                     logfire.info(
                         "OpenRouter rate limit exceeded",
                         reset_time=reset_time,
+                        is_upstream_error=is_upstream_error,
                         response=result,
                     )
-                    raise RateLimitExceeded(reset_time)
+                    raise RateLimitExceeded(reset_time, is_upstream_error) from e
 
                 if error.get("code") == 500:
                     logfire.exception(
                         "OpenRouter internal server error", result=result, error=error
                     )
-                    raise InternalServerError()
+                    raise InternalServerError() from e
 
                 # Handle location not supported error
                 metadata = error.get("metadata", {})
                 if metadata.get("raw"):
-                    try:
+                    with contextlib.suppress(KeyError, TypeError):
                         raw_error = metadata["raw"]
                         if "User location is not supported" in raw_error:
                             provider = metadata.get("provider_name", "unknown")
@@ -102,14 +117,11 @@ async def get_openrouter_response(messages):
                                 provider=provider,
                                 response=result,
                             )
-                            raise LocationNotSupported(provider)
-                    except (KeyError, TypeError):
-                        pass
-
+                            raise LocationNotSupported(provider) from e
                 error_msg = (
                     error.get("message") if isinstance(error, dict) else str(error)
                 )
                 logfire.exception(
                     "OpenRouter API error", response=result, error=error_msg
                 )
-                raise RuntimeError(f"OpenRouter API error: {error_msg}")
+                raise RuntimeError(f"OpenRouter API error: {error_msg}") from e

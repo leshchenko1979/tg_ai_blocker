@@ -1,10 +1,12 @@
+import asyncio
 import logging
+import time
 from typing import List, Optional
 
 import logfire
 
 from ..database.spam_examples import get_spam_examples
-from .llms import TransientOpenRouterError, get_openrouter_response
+from .llms import LocationNotSupported, RateLimitExceeded, get_openrouter_response
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +54,27 @@ async def is_spam(
                 logfire.metric_gauge("spam_score").set(score)
                 logfire.metric_gauge("attempts").set(attempt)
                 return score
-            except TransientOpenRouterError as e:
-                # Don't count transient errors towards retry attempts
+
+            except RateLimitExceeded as e:
+                if e.is_upstream_error:
+                    # Для ошибок upstream-провайдера продолжаем немедленно
+                    logger.info(
+                        "Upstream provider rate limit hit, retrying immediately"
+                    )
+                else:
+                    # Для ошибок OpenRouter ждем до reset_time
+                    wait_time = e.reset_time - time.time()
+                    if wait_time > 0:
+                        logger.info(
+                            f"OpenRouter rate limit hit, waiting {wait_time:.2f} seconds until {e.reset_time}"
+                        )
+                        await asyncio.sleep(wait_time)
                 continue
+            except LocationNotSupported as e:
+                # Location not supported тоже считаем транзиентной ошибкой
+                logger.info(f"Location not supported for provider {e.provider}")
+                continue
+
             except Exception as e:
                 last_error = e
                 unknown_errors += 1
