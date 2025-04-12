@@ -63,7 +63,7 @@ async def is_spam(
                     )
                 else:
                     # Для ошибок OpenRouter ждем до reset_time
-                    wait_time = e.reset_time - time.time()
+                    wait_time = int(e.reset_time) - time.time()
                     if wait_time > 0:
                         logger.info(
                             f"OpenRouter rate limit hit, waiting {wait_time:.2f} seconds until {e.reset_time}"
