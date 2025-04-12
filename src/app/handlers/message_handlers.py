@@ -92,13 +92,28 @@ async def handle_moderated_message(message: types.Message):
         # Получаем текст сообщения или описание медиа
         message_text = message.text or message.caption or "[MEDIA_MESSAGE]"
 
-        # Трекинг начала обработки сообщения
+        # Add forwarded message info to the text for better spam detection
+        if message.forward_from or message.forward_from_chat:
+            forward_info = []
+            if message.forward_from:
+                forward_info.append(
+                    f"Forwarded from user: {message.forward_from.full_name}"
+                )
+            if message.forward_from_chat:
+                forward_info.append(
+                    f"Forwarded from chat: {message.forward_from_chat.title}"
+                )
+
+            message_text = f"{message_text}\n[FORWARD_INFO]: {' | '.join(forward_info)}"
+
+        # Track message processing start
         await track_group_event(
             chat_id,
             "message_processing_started",
             {
                 "user_id": user_id,
                 "message_text": message_text,
+                "is_forwarded": bool(message.forward_from or message.forward_from_chat),
             },
         )
 

@@ -10,9 +10,6 @@ filter_handle_message = and_f(
         ~F.reply_to_message,
         and_f(F.reply_to_message, ~F.reply_to_message.message_thread_id),
     ),
-    ~F.forward_from,
-    ~F.forward_from_chat,
-    ~F.forward_from_message_id,
     ~F.edited_message,
     ~F.via_bot,
     # Исключаем все типы сервисных сообщений
