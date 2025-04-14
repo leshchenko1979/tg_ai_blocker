@@ -93,7 +93,7 @@ async def handle_moderated_message(message: types.Message):
         message_text = message.text or message.caption or "[MEDIA_MESSAGE]"
 
         # Add forwarded message info to the text for better spam detection
-        if message.forward_from or message.forward_from_chat:
+        if message.forward_from or message.forward_from_chat or message.story:
             forward_info = []
             if message.forward_from:
                 forward_info.append(
@@ -103,6 +103,12 @@ async def handle_moderated_message(message: types.Message):
                 forward_info.append(
                     f"Forwarded from chat: {message.forward_from_chat.title}"
                 )
+            if message.story:
+                forward_info.append(
+                    f"Forwarded story from: {message.story.chat.title} (@{message.story.chat.username})"
+                )
+                # Automatically treat forwarded stories as spam
+                spam_score = 100
 
             message_text = f"{message_text}\n[FORWARD_INFO]: {' | '.join(forward_info)}"
 
@@ -113,7 +119,9 @@ async def handle_moderated_message(message: types.Message):
             {
                 "user_id": user_id,
                 "message_text": message_text,
-                "is_forwarded": bool(message.forward_from or message.forward_from_chat),
+                "is_forwarded": bool(
+                    message.forward_from or message.forward_from_chat or message.story
+                ),
             },
         )
 

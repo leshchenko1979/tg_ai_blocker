@@ -35,5 +35,6 @@ filter_handle_message = and_f(
         F.video_note,
         F.animation,
         F.audio,
+        F.story,
     ),
 )
