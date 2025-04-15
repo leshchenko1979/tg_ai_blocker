@@ -63,10 +63,15 @@ async def is_spam(
                     )
                 else:
                     # Для ошибок OpenRouter ждем до reset_time
-                    wait_time = int(e.reset_time) - time.time()
+                    # Convert milliseconds to seconds for reset_time
+                    reset_time_seconds = int(e.reset_time) / 1000
+                    wait_time = reset_time_seconds - time.time()
                     if wait_time > 0:
+                        reset_time_str = time.strftime(
+                            "%Y-%m-%d %H:%M:%S", time.localtime(reset_time_seconds)
+                        )
                         logger.info(
-                            f"OpenRouter rate limit hit, waiting {wait_time:.2f} seconds until {e.reset_time}"
+                            f"OpenRouter rate limit hit, waiting {wait_time:.2f} seconds until {reset_time_str}"
                         )
                         await asyncio.sleep(wait_time)
                 continue
