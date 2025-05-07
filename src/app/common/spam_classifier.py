@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import time
 from typing import List, Optional
 
@@ -188,14 +189,23 @@ def format_spam_request(
 
 def extract_spam_score(response: str):
     """
-    Извлекает оценку спама из ответа LLM
+    Извлекает оценку спама из ответа LLM, поддерживает любые теги <...> ... <...>, а также отсутствие открывающего тега
     """
-    parts = response.strip().lower().split()
-    if parts[0] == "да":
-        return int(parts[1].replace("%", "").strip())
-    elif parts[0] == "нет":
-        return -int(parts[1].replace("%", "").strip())
+    # Ищем текст между любыми тегами <...> ... <...>
+    flags = re.IGNORECASE | re.DOTALL
+    match = re.search(r"<[^>]+>(.*?)<[^>]+>", response, flags=flags)
+    if match:
+        answer = match[1].strip()
     else:
-        raise ExtractionFailedError(
-            f"Failed to extract spam score from response: {response}"
-        )
+        # Если есть только закрывающий тег, берём всё до него
+        match_end = re.search(r"^(.*)<[^>]+>", response, flags=flags)
+        answer = match_end[1].strip() if match_end else response.strip()
+    parts = answer.lower().split()
+    if len(parts) >= 2:
+        if parts[0] == "да":
+            return int(parts[1].replace("%", "").strip())
+        elif parts[0] == "нет":
+            return -int(parts[1].replace("%", "").strip())
+    raise ExtractionFailedError(
+        f"Failed to extract spam score from response: {response}"
+    )
