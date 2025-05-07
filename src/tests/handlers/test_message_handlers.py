@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ...app.handlers.message_handlers import (
     handle_moderated_message,
@@ -136,6 +137,41 @@ async def test_handle_moderated_message_photo_with_caption(
         # Проверяем, что для проверки спама использовалась подпись к фото
         spam_mock.assert_called_once()
         assert spam_mock.call_args[1]["comment"] == "Test photo caption"
+
+
+@pytest.mark.asyncio
+async def test_handle_moderated_message_with_reply_markup(
+    patched_db_conn, clean_db, message_mock
+):
+    with patch(
+        "src.app.handlers.message_handlers.is_moderation_enabled"
+    ) as mod_mock, patch(
+        "src.app.handlers.message_handlers.is_member_in_group"
+    ) as member_mock, patch(
+        "src.app.handlers.message_handlers.is_spam"
+    ) as spam_mock, patch(
+        "src.app.handlers.message_handlers.try_deduct_credits"
+    ) as deduct_mock, patch(
+        "src.app.handlers.message_handlers.handle_spam"
+    ) as handle_spam_mock:
+        # Setup mocks
+        mod_mock.return_value = True
+        member_mock.return_value = False
+        deduct_mock.return_value = True
+
+        # Add reply markup to message
+        message_mock.reply_markup = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="Test Button", url="https://test.com")]
+            ]
+        )
+
+        result = await handle_moderated_message(message_mock)
+
+        # Verify message was marked as spam
+        spam_mock.assert_not_called()  # is_spam shouldn't be called since we auto-mark as spam
+        handle_spam_mock.assert_called_once_with(message_mock)
+        assert result == "message_spam_deleted"
 
 
 @pytest.mark.asyncio

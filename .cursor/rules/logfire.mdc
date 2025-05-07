@@ -1,0 +1,55 @@
+---
+description: Получение информации из логов
+globs:
+alwaysApply: false
+---
+1. Структура логов:
+   - Используется поле `start_timestamp` вместо `timestamp`
+   - Уровни логирования (числовые):
+     - error = 17
+     - warn = 13
+     - info = 9
+     - debug = 5
+     - trace = 3
+
+2. Анализ ошибок в логах:
+   - Всегда получать полный exception traceback для анализа (и для error, и для warning)
+   - Проверять контекст ошибки через поля:
+     - exception.type - тип исключения
+     - exception.message - сообщение об ошибке
+     - exception.stacktrace - полный стектрейс
+     - code.filepath - путь к файлу
+     - code.function - имя функции
+     - code.lineno - номер строки
+   - Анализировать цепочку вызовов для определения корневой причины
+   - Учитывать параллельные операции, которые могли повлиять на ошибку
+   - При неясной причине проверять логи за более широкий период
+   - Не игнорировать warning логи - они могут указывать на потенциальные проблемы
+
+
+3. Доступ к данным обновлений в Logfire:
+   - Данные обновлений хранятся в поле `attributes->>'update'`
+   - Информация о чате: `attributes->'update'->'message'->'chat'->>'id'`
+   - Информация о пользователе: `attributes->'update'->'message'->'from'->>'id'`
+   - Текст сообщения: `attributes->'update'->'message'->>'text'`
+   - Для агрегации по дням использовать: `DATE_TRUNC('day', start_timestamp)`
+
+4. Примеры SQL-запросов для Logfire:
+   ```sql
+   -- Подсчет сообщений по дням
+   SELECT
+     DATE_TRUNC('day', start_timestamp) as day,
+     COUNT(*) as total_records,
+     COUNT(DISTINCT attributes->'update'->'message'->'chat'->>'id') as unique_chats,
+     COUNT(DISTINCT attributes->'update'->'message'->'from'->>'id') as unique_users
+   FROM records
+   WHERE start_timestamp >= '2025-04-07'
+     AND attributes->>'update' IS NOT NULL
+   GROUP BY DATE_TRUNC('day', start_timestamp)
+   ```
+
+5. Особенности работы с данными:
+   - Всегда проверять наличие `attributes->>'update'` через IS NOT NULL
+   - Учитывать вложенность JSON-структуры при извлечении данных
+   - Использовать ->>'field' для извлечения текста, ->'field' для объектов
+   - При агрегации учитывать возможность NULL значений в полях

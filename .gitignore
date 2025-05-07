@@ -9,3 +9,4 @@ import.log
 profile_output
 aiogram_types.cache
 .cursorrules
+.cursor/mcp.json
