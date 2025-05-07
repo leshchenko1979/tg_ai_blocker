@@ -11,7 +11,6 @@ filter_handle_message = and_f(
         and_f(F.reply_to_message, ~F.reply_to_message.message_thread_id),
     ),
     ~F.edited_message,
-    ~F.via_bot,
     # Исключаем все типы сервисных сообщений
     ~F.new_chat_member,
     ~F.new_chat_members,
