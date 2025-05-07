@@ -4,6 +4,9 @@ from typing import cast
 import aiohttp
 import logfire
 
+# Global variable to track the last successful OpenRouter model
+_last_successful_openrouter_model = None
+
 
 async def get_yandex_response(messages):
     from yandex_cloud_ml_sdk import AsyncYCloudML
@@ -48,6 +51,7 @@ class InternalServerError(LLMException):
 
 @logfire.instrument()
 async def get_openrouter_response(messages):
+    global _last_successful_openrouter_model
     headers = {
         "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
         "Content-Type": "application/json",
@@ -59,7 +63,19 @@ async def get_openrouter_response(messages):
         "qwen/qwen3-30b-a3b:free",
         # сюда можно добавить другие резервные модели
     ]
-    models_to_try = [primary_model] + fallback_models
+    # Use a set to avoid duplicates, and a list to preserve order
+    models_to_try = []
+    seen = set()
+    if (
+        _last_successful_openrouter_model
+        and _last_successful_openrouter_model not in seen
+    ):
+        models_to_try.append(_last_successful_openrouter_model)
+        seen.add(_last_successful_openrouter_model)
+    for m in [primary_model] + fallback_models:
+        if m not in seen:
+            models_to_try.append(m)
+            seen.add(m)
 
     last_exception = None
     async with aiohttp.ClientSession() as session:
@@ -68,6 +84,8 @@ async def get_openrouter_response(messages):
                 result = await _request_openrouter(model, messages, headers, session)
                 if error := result.get("error"):
                     _handle_api_error(error, model)
+                # Update the global variable on success
+                _last_successful_openrouter_model = model
                 return _extract_content(result, model)
             except RateLimitExceeded as e:
                 last_exception = e
