@@ -1,6 +1,8 @@
 import logging
 from typing import Dict, List, Optional
 
+from aiogram.exceptions import TelegramBadRequest
+
 from ..common.bot import bot
 from ..common.mp import mp
 from . import admin_operations
@@ -148,6 +150,40 @@ async def deduct_credits_from_admins(group_id: int, amount: int) -> int:
             return admin_row["admin_id"]
 
 
+async def cleanup_inaccessible_group(conn, group_id: int) -> None:
+    """Remove group and all its associations when it becomes inaccessible"""
+    logger.info(f"Cleaning up inaccessible group {group_id}")
+
+    # Remove all admin associations
+    await conn.execute(
+        """
+        DELETE FROM group_administrators
+        WHERE group_id = $1
+        """,
+        group_id,
+    )
+
+    # Remove approved members
+    await conn.execute(
+        """
+        DELETE FROM approved_members
+        WHERE group_id = $1
+        """,
+        group_id,
+    )
+
+    # Remove the group itself
+    await conn.execute(
+        """
+        DELETE FROM groups
+        WHERE group_id = $1
+        """,
+        group_id,
+    )
+
+    logger.info(f"Successfully cleaned up group {group_id}")
+
+
 async def get_admin_groups(admin_id: int) -> List[Dict]:
     """Get list of groups where user is an admin"""
     pool = await get_pool()
@@ -173,6 +209,18 @@ async def get_admin_groups(admin_id: int) -> List[Dict]:
                         "is_moderation_enabled": row["moderation_enabled"],
                     }
                 )
+            except TelegramBadRequest as e:
+                if "chat not found" in str(e).lower():
+                    logger.warning(
+                        f"Chat {row['group_id']} not found, cleaning up", exc_info=True
+                    )
+                    await cleanup_inaccessible_group(conn, row["group_id"])
+                else:
+                    logger.error(
+                        f"Telegram error getting chat {row['group_id']}: {e}",
+                        exc_info=True,
+                    )
+                continue
             except Exception as e:
                 logger.error(
                     f"Error getting chat {row['group_id']}: {e}", exc_info=True
