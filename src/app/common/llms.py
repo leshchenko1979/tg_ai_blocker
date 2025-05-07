@@ -1,4 +1,3 @@
-import contextlib
 import os
 from typing import cast
 
@@ -54,76 +53,120 @@ async def get_openrouter_response(messages):
         "Content-Type": "application/json",
     }
 
-    model = "google/gemini-2.0-flash-exp:free"
-    data = {"model": model, "messages": messages, "temperature": 0.3}
+    primary_model = "google/gemini-2.0-flash-exp:free"
+    fallback_models = [
+        "deepseek/deepseek-chat-v3-0324:free",
+        "qwen/qwen3-30b-a3b:free",
+        # сюда можно добавить другие резервные модели
+    ]
+    models_to_try = [primary_model] + fallback_models
 
+    last_exception = None
     async with aiohttp.ClientSession() as session:
-        async with session.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json=data,
-        ) as response:
-            result = await response.json()
-            logfire.debug("OpenRouter response", status=response.status, result=result)
-
-            # Handle API errors
-            if error := result.get("error"):
-                if error.get("code") == 429:
-                    reset_time = (
-                        error.get("metadata", {})
-                        .get("headers", {})
-                        .get("X-RateLimit-Reset", 0)
-                    )
-                    if isinstance(reset_time, str):
-                        try:
-                            reset_time = int(reset_time)
-                        except (ValueError, TypeError):
-                            reset_time = 0
-                            logfire.error(
-                                "Failed to parse reset_time",
-                                reset_time_value=reset_time,
-                            )
-
-                    is_upstream_error = any(
-                        msg in error.get("metadata", {}).get("raw", "").lower()
-                        for msg in ["quota exceeded", "resource exhausted"]
-                    )
-                    if is_upstream_error:
-                        reset_time = 0
-
-                    logfire.info(
-                        "Rate limit exceeded",
-                        reset_time=reset_time,
-                        is_upstream_error=is_upstream_error,
-                    )
-                    raise RateLimitExceeded(reset_time, is_upstream_error)
-
-                if error.get("code") == 500:
-                    logfire.exception("Internal server error", error=error)
-                    raise InternalServerError()
-
-                if "User location is not supported" in error.get("metadata", {}).get(
-                    "raw", ""
-                ):
-                    provider = error.get("metadata", {}).get("provider_name", "unknown")
-                    logfire.info("Location not supported", provider=provider)
-                    raise LocationNotSupported(provider)
-
-                error_msg = error.get("message", str(error))
-                logfire.exception("API error", error=error_msg)
-                raise RuntimeError(f"OpenRouter API error: {error_msg}")
-
-            # Extract content from successful response
+        for model in models_to_try:
             try:
-                content = (
-                    result.get("choices", [{}])[0].get("message", {}).get("content")
+                result = await _request_openrouter(model, messages, headers, session)
+                if error := result.get("error"):
+                    _handle_api_error(error, model)
+                return _extract_content(result, model)
+            except RateLimitExceeded as e:
+                last_exception = e
+                continue  # пробуем следующую модель
+            except Exception as e:
+                last_exception = e
+                logfire.error(
+                    "Fallback model failed", error=str(last_exception), model=model
                 )
-                if not content:
-                    logfire.error("Invalid response format", response=result)
-                    raise RuntimeError("Invalid OpenRouter response format")
-                return content
-            except (KeyError, IndexError, TypeError) as e:
-                logfire.exception(
-                    "Failed to parse response", response=result, error=str(e)
-                )
-                raise RuntimeError("Failed to parse OpenRouter response") from e
+                continue
+    if last_exception:
+        raise last_exception
+    raise RuntimeError("All OpenRouter models failed to provide a response")
+
+
+async def _request_openrouter(model, messages, headers, session):
+    data = {"model": model, "messages": messages, "temperature": 0.3}
+    async with session.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers=headers,
+        json=data,
+    ) as response:
+        result = await response.json()
+        logfire.debug(
+            "OpenRouter response",
+            status=response.status,
+            result=result,
+            model=model,
+        )
+        return result
+
+
+def _handle_api_error(error, model):
+    if error.get("code") == 429:
+        _handle_rate_limit_error(error, model)
+    if error.get("code") == 500:
+        _handle_internal_server_error(error, model)
+    if "User location is not supported" in error.get("metadata", {}).get("raw", ""):
+        _handle_location_not_supported_error(error, model)
+    _handle_generic_api_error(error, model)
+
+
+def _handle_rate_limit_error(error, model):
+    reset_time = (
+        error.get("metadata", {}).get("headers", {}).get("X-RateLimit-Reset", 0)
+    )
+    if isinstance(reset_time, str):
+        try:
+            reset_time = int(reset_time)
+        except (ValueError, TypeError):
+            reset_time = 0
+            logfire.error(
+                "Failed to parse reset_time",
+                reset_time_value=reset_time,
+            )
+    is_upstream_error = any(
+        msg in error.get("metadata", {}).get("raw", "").lower()
+        for msg in ["quota exceeded", "resource exhausted"]
+    )
+    if is_upstream_error:
+        reset_time = 0
+    logfire.info(
+        "Rate limit exceeded",
+        reset_time=reset_time,
+        is_upstream_error=is_upstream_error,
+        model=model,
+    )
+    raise RateLimitExceeded(reset_time, is_upstream_error)
+
+
+def _handle_internal_server_error(error, model):
+    logfire.exception("Internal server error", error=error, model=model)
+    raise InternalServerError()
+
+
+def _handle_location_not_supported_error(error, model):
+    provider = error.get("metadata", {}).get("provider_name", "unknown")
+    logfire.info("Location not supported", provider=provider, model=model)
+    raise LocationNotSupported(provider)
+
+
+def _handle_generic_api_error(error, model):
+    error_msg = error.get("message", str(error))
+    logfire.exception("API error", error=error_msg, model=model)
+    raise RuntimeError(f"OpenRouter API error: {error_msg}")
+
+
+def _extract_content(result, model):
+    try:
+        content = result.get("choices", [{}])[0].get("message", {}).get("content")
+        if not content:
+            logfire.error("Invalid response format", response=result, model=model)
+            raise RuntimeError("Invalid OpenRouter response format")
+        return content
+    except (KeyError, IndexError, TypeError) as e:
+        logfire.exception(
+            "Failed to parse response",
+            response=result,
+            error=str(e),
+            model=model,
+        )
+        raise RuntimeError("Failed to parse OpenRouter response") from e
