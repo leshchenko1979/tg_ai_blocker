@@ -118,6 +118,22 @@ async def _handle_permission_update(
                 [admin_id],
                 admin_id,
             )
+            # NEW: Send confirmation to admin
+            try:
+                chat_title_escaped = (
+                    chat_title.replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("&", "&amp;")
+                )
+                await bot.send_message(
+                    admin_id,
+                    f"✅ Настройка завершена! Я получил все необходимые права и теперь защищаю группу <b>{chat_title_escaped}</b>.\n\nЕсли потребуется помощь — напишите мне в личку или воспользуйтесь командой /help.",
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to send setup confirmation to admin {admin_id}: {e}"
+                )
 
 
 async def _handle_bot_added(
@@ -171,6 +187,22 @@ async def _handle_bot_added(
             [admin_id],
             admin_id,
         )
+        # NEW: Send confirmation to admin
+        try:
+            chat_title_escaped = (
+                chat_title.replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("&", "&amp;")
+            )
+            await bot.send_message(
+                admin_id,
+                f"✅ Настройка завершена! Я получил все необходимые права и теперь защищаю группу <b>{chat_title_escaped}</b>.\n\nЕсли потребуется помощь — напишите мне в личку или воспользуйтесь командой /help.",
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to send setup confirmation to admin {admin_id}: {e}"
+            )
 
 
 async def _handle_bot_removed(
