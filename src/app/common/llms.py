@@ -143,7 +143,11 @@ def _handle_rate_limit_error(error, model):
             )
     is_upstream_error = any(
         msg in error.get("metadata", {}).get("raw", "").lower()
-        for msg in ["quota exceeded", "resource exhausted"]
+        for msg in [
+            "quota exceeded",
+            "resource exhausted",
+            "rate-limited upstream",
+        ]
     )
     if is_upstream_error:
         reset_time = 0
