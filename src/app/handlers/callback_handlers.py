@@ -39,6 +39,27 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         # Обновляем текст сообщения, добавляя пометку "Не спам"
         updated_message_text = f"{message_text}\n\n✅ <b>Отмечено как НЕ СПАМ</b>"
 
+        # Разбан пользователя и восстановление в approved_members
+        try:
+            await bot.unban_chat_member(message.chat.id, author_id, only_if_banned=True)
+            logger.info(
+                f"Unbanned user {author_id} in chat {message.chat.id} after marking as not spam"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to unban user {author_id} in chat {message.chat.id}: {e}",
+                exc_info=True,
+            )
+        try:
+            from ..database.group_operations import add_member
+
+            await add_member(message.chat.id, author_id)
+        except Exception as e:
+            logger.warning(
+                f"Failed to re-add user {author_id} to approved_members: {e}",
+                exc_info=True,
+            )
+
         # Используем TaskGroup для более чистого управления задачами
         async with asyncio.TaskGroup() as tg:
             # Добавляем сообщение в базу безопасных примеров

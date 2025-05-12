@@ -22,11 +22,10 @@ from ..database import (
     get_admin,
     get_group,
     is_member_in_group,
-    is_moderation_enabled,
     remove_admin,
     set_group_moderation,
-    update_group_admins,
 )
+from ..database.group_operations import remove_member_from_group
 from .dp import dp
 from .updates_filter import filter_handle_message
 
@@ -262,6 +261,7 @@ async def handle_spam(message: types.Message) -> str:
 
         if all_admins_delete:
             await handle_spam_message_deletion(message)
+            await ban_user_for_spam(message.chat.id, message.from_user.id)
             return "spam_auto_deleted"
 
         return (
@@ -571,7 +571,9 @@ def format_admin_notification_message(
     )
 
     if all_admins_delete:
-        admin_msg += "<b>Вредоносное сообщение уничтожено</b>"
+        admin_msg += (
+            "<b>Вредоносное сообщение уничтожено, пользователь заблокирован.</b>"
+        )
     else:
         link = f"https://t.me/{message.chat.username}/{message.message_id}"
         admin_msg += f'<a href="{link}">Ссылка на сообщение</a>'
@@ -700,4 +702,26 @@ async def handle_spam_message_deletion(message: types.Message) -> None:
                 "user_id": message.from_user.id,
                 "error_message": str(e),
             },
+        )
+
+
+async def ban_user_for_spam(chat_id: int, user_id: int) -> None:
+    """
+    Банит пользователя в группе и удаляет из approved_members.
+    Args:
+        chat_id: ID чата
+        user_id: ID пользователя
+    """
+    try:
+        await bot.ban_chat_member(chat_id, user_id)
+        logger.info(f"Banned user {user_id} in chat {chat_id} for spam")
+    except Exception as e:
+        logger.warning(
+            f"Failed to ban user {user_id} in chat {chat_id}: {e}", exc_info=True
+        )
+    try:
+        await remove_member_from_group(user_id, chat_id)
+    except Exception as e:
+        logger.warning(
+            f"Failed to remove user {user_id} from approved_members: {e}", exc_info=True
         )
