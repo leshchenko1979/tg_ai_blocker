@@ -1,5 +1,5 @@
 ---
-description: Получение информации из логов
+description: Получение информации из логов Logfire
 globs:
 alwaysApply: false
 ---
