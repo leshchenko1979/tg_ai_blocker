@@ -3,6 +3,7 @@ from typing import cast
 
 from aiogram import F, types
 from aiogram.filters import Command
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from ..common.mp import mp
 from ..common.utils import config
@@ -13,7 +14,6 @@ from ..database import (
     get_spam_deletion_state,
     get_spent_credits_last_week,
     initialize_new_admin,
-    save_referral,
     toggle_spam_deletion,
 )
 from .dp import dp
@@ -35,27 +35,6 @@ async def handle_help_command(message: types.Message) -> str:
 
     user = cast(types.User, message.from_user)  # Cast to ensure proper type hints
     user_id = user.id
-
-    # Проверяем реферальный код
-    if message.text.startswith("/start ref"):
-        try:
-            referrer_id = int(message.text[10:])  # Обрезаем "/start ref"
-        except ValueError:
-            logger.warning(f"Invalid referral code: {message.text[10:]}")
-            return "command_invalid_referral_code"
-
-        if await save_referral(user_id, referrer_id):
-            # Трекинг нового реферала
-            mp.track(
-                referrer_id,
-                "referral_joined",
-                {"referral_id": user_id, "ref_link": message.text},
-            )
-        else:
-            logger.warning(
-                f"Referral link already exists or referral chain is cyclic: {message.text[10:]}"
-            )
-            return "command_referral_link_exists"
 
     # Добавляем трекинг
     mp.track(
@@ -242,3 +221,23 @@ async def handle_mode_command(message: types.Message) -> str:
         logger.error(f"Error handling mode command: {e}", exc_info=True)
         await message.reply("Произошла ошибка при изменении режима работы.")
         return "command_mode_error"
+
+
+@dp.message(Command("ref"), F.chat.type == "private")
+async def cmd_ref(message: types.Message):
+    """Объясняет, как получить официальную реферальную ссылку Telegram Partner Program"""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="Открыть профиль бота",
+        url=f"https://t.me/{(await message.bot.get_me()).username}",
+    )
+    await message.answer(
+        "<b>Как получить свою реферальную ссылку для этого бота:</b>\n\n"
+        "1. Откройте профиль этого бота в Telegram (кнопка ниже).\n"
+        "2. Нажмите <b>Заработать звёзды</b>.\n"
+        "3. Найдите этот бот в списке программ и нажмите <b>Присоединиться к программе</b>.\n"
+        "4. После этого появится ваша персональная реферальная ссылка — её можно скопировать и отправить друзьям.\n\n"
+        "<i>Подробнее: https://telegram.org/tour/affiliate-programs/</i>",
+        parse_mode="HTML",
+        reply_markup=builder.as_markup(),
+    )

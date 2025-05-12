@@ -7,12 +7,10 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from ..common.bot import bot
 from ..common.mp import mp
 from ..common.utils import config
-from ..database import get_admin_credits, get_pool, get_referrer
+from ..database import get_admin_credits, get_pool
 from .dp import dp
 
 logger = logging.getLogger(__name__)
-
-REFERRAL_COMMISSION = config["referral_program"]["rewards"]["commission"]
 
 
 @dp.message(Command("buy"))
@@ -99,7 +97,6 @@ async def process_successful_payment(message: types.Message):
                 "CALL process_successful_payment($1, $2, $3)",
                 admin_id,
                 stars_amount,
-                REFERRAL_COMMISSION / 100,
             )
 
         # Update Mixpanel profile with new credit balance
@@ -115,32 +112,6 @@ async def process_successful_payment(message: types.Message):
 
         # Трекинг успешного платежа
         mp.track(admin_id, "payment_successful", {"stars_amount": stars_amount})
-
-        # Проверяем реферальный бонус
-        referrer_id = await get_referrer(admin_id)
-        if referrer_id:
-            commission = int(stars_amount * REFERRAL_COMMISSION / 100)
-            # Update referrer's profile
-            referrer_balance = await get_admin_credits(referrer_id)
-            mp.people_set(
-                referrer_id,
-                {
-                    "credits": referrer_balance,
-                    "$last_commission_amount": commission,
-                    "$last_commission_date": str(message.date),
-                },
-            )
-
-            mp.track(
-                referrer_id,
-                "referral_commission",
-                {
-                    "referral_id": admin_id,
-                    "payment_amount": stars_amount,
-                    "commission_amount": commission,
-                    "commission_percentage": REFERRAL_COMMISSION,
-                },
-            )
 
         await bot.send_message(
             admin_id,
