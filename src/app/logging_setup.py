@@ -26,6 +26,11 @@ def setup_logging():
 
 
 # Silence known chatty loggers
-CHATTY_LOGGERS = ["hpack.hpack", "httpcore.http2", "httpcore.connection"]
+CHATTY_LOGGERS = [
+    "hpack.hpack",
+    "httpcore.http2",
+    "httpcore.connection",
+    "aiohttp.access",
+]
 for logger_name in CHATTY_LOGGERS:
     logging.getLogger(logger_name).setLevel(logging.WARNING)
