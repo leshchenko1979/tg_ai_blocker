@@ -11,7 +11,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
 )
 
-from ..common.bot import bot
+from ..common.bot import LESHCHENKO_CHAT_ID, bot
 from ..common.mp import mp
 from ..common.spam_classifier import is_spam
 from ..database import (
@@ -725,3 +725,61 @@ async def ban_user_for_spam(chat_id: int, user_id: int) -> None:
         logger.warning(
             f"Failed to remove user {user_id} from approved_members: {e}", exc_info=True
         )
+
+
+@dp.channel_post()
+async def handle_channel_post(message: types.Message):
+    """
+    Обрабатывает сообщения типа channel_post (бот добавлен в канал, а не в группу с комментариями).
+    Уведомляет администратора канала (если найден в базе) и отписывает бота от канала.
+    """
+    from ..database import get_admin
+
+    try:
+        channel_title = message.chat.title or "(без названия)"
+        instruction = (
+            f"❗️ Бот был добавлен в канал <b>{channel_title}</b>, а не в группу с комментариями к нему.\n\n"
+            "Чтобы бот работал корректно, добавьте его в группу, "
+            "которая привязана к вашему каналу как группа для комментариев.\n\n"
+            "После этого бот сможет модерировать комментарии к вашим постам.\n\n"
+            "Подробнее: https://t.me/ai_antispam/14"
+        )
+        notified_admins = []
+        try:
+            admins = await bot.get_chat_administrators(message.chat.id)
+        except Exception as e:
+            logger.warning(
+                f"Не удалось получить админов канала {message.chat.id}: {e}",
+                exc_info=True,
+            )
+            admins = []
+        for admin in admins:
+            if admin.user.is_bot:
+                continue
+            admin_info = await get_admin(admin.user.id)
+            if admin_info:
+                try:
+                    await bot.send_message(
+                        admin.user.id, instruction, parse_mode="HTML"
+                    )
+                    notified_admins.append(admin.user.id)
+                except Exception as e:
+                    logger.warning(
+                        f"Не удалось отправить инструкцию админу {admin.user.id}: {e}",
+                        exc_info=True,
+                    )
+        await bot.leave_chat(message.chat.id)
+        logger.info(f"Bot left channel {message.chat.id} after channel_post event.")
+        mp.track(
+            message.chat.id,
+            "channel_post_received_and_left",
+            {
+                "chat_title": message.chat.title,
+                "chat_id": message.chat.id,
+                "notified_admins": notified_admins,
+            },
+        )
+        return "channel_post_left_channel"
+    except Exception as e:
+        logger.error(f"Error handling channel_post: {e}", exc_info=True)
+        return "channel_post_error"
