@@ -3,10 +3,9 @@ from typing import cast
 
 from aiogram import F, types
 from aiogram.filters import Command
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from ..common.mp import mp
-from ..common.utils import config
+from ..common.utils import config, sanitize_markdown
 from ..database import (
     INITIAL_CREDITS,
     get_admin_credits,
@@ -71,11 +70,21 @@ async def handle_help_command(message: types.Message) -> str:
     else:
         welcome_text = ""
 
-    await message.reply(
-        welcome_text + config["help_text"],
-        parse_mode="markdown",
-        disable_web_page_preview=True,
-    )
+    # Формируем и очищаем текст
+    full_text = welcome_text + config["help_text"]
+    safe_text = sanitize_markdown(full_text)
+
+    # Максимальная длина сообщения в Telegram
+    MAX_LEN = 4096
+
+    # Отправляем текст, разбивая на части только если он слишком длинный
+    for i in range(0, len(safe_text), MAX_LEN):
+        await message.reply(
+            safe_text[i : i + MAX_LEN],
+            parse_mode="markdown",
+            disable_web_page_preview=True,
+        )
+
     return (
         "command_help_sent"
         if message.text.startswith("/help")
@@ -226,18 +235,12 @@ async def handle_mode_command(message: types.Message) -> str:
 @dp.message(Command("ref"), F.chat.type == "private")
 async def cmd_ref(message: types.Message):
     """Объясняет, как получить официальную реферальную ссылку Telegram Partner Program"""
-    builder = InlineKeyboardBuilder()
-    builder.button(
-        text="Открыть профиль бота",
-        url=f"https://t.me/{(await message.bot.get_me()).username}",
-    )
     await message.answer(
         "<b>Как получить свою реферальную ссылку для этого бота:</b>\n\n"
-        "1. Откройте профиль этого бота в Telegram (кнопка ниже).\n"
+        "1. Откройте профиль этого бота в Telegram.\n"
         "2. Нажмите <b>Заработать звёзды</b>.\n"
         "3. Найдите этот бот в списке программ и нажмите <b>Присоединиться к программе</b>.\n"
         "4. После этого появится ваша персональная реферальная ссылка — её можно скопировать и отправить друзьям.\n\n"
         "<i>Подробнее: https://telegram.org/tour/affiliate-programs/</i>",
         parse_mode="HTML",
-        reply_markup=builder.as_markup(),
     )

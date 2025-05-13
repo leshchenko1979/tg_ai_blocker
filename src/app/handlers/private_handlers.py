@@ -9,7 +9,7 @@ from aiogram.filters import or_f
 from ..common.bot import bot
 from ..common.llms import get_openrouter_response
 from ..common.mp import mp
-from ..common.utils import config
+from ..common.utils import config, sanitize_markdown
 from ..database import (
     add_spam_example,
     get_admin_credits,
@@ -23,36 +23,6 @@ from ..database.constants import INITIAL_CREDITS
 from .dp import dp
 
 logger = logging.getLogger(__name__)
-
-
-def sanitize_markdown(text: str) -> str:
-    """
-    Sanitizes markdown text to ensure it's compatible with Telegram's markdown parser.
-
-    Args:
-        text: The markdown text to sanitize
-
-    Returns:
-        Sanitized markdown text
-    """
-    # First, handle bullet points by replacing them with Unicode bullets
-    lines = text.split("\n")
-    for i in range(len(lines)):
-        if lines[i].strip().startswith("*   "):
-            lines[i] = lines[i].replace("*   ", "•   ", 1)
-
-    text = "\n".join(lines)
-
-    # Check if we have unbalanced markdown entities
-    if text.count("*") % 2 != 0 or text.count("_") % 2 != 0 or text.count("`") % 2 != 0:
-        # Escape all markdown characters
-        text = text.replace("*", "\\*")
-        text = text.replace("_", "\\_")
-        text = text.replace("`", "\\`")
-        text = text.replace("[", "\\[")
-        text = text.replace("]", "\\]")
-
-    return text
 
 
 class OriginalMessageExtractionError(Exception):
@@ -134,32 +104,51 @@ async def handle_private_message(message: types.Message) -> str:
             formatted_examples.append(example_str)
 
         system_prompt = f"""
-        Ты - нейромодератор, киберсущность, защищающая пользователя от спама.
-        Твой функционал описан ниже.
+Ты - нейромодератор, киберсущность, защищающая пользователя от спама.
 
-        <функционал и стиль ответа>
-        {prd_text}
-        </функционал и стиль ответа>
+<функционал и стиль ответа>
+{prd_text}
+</функционал и стиль ответа>
 
-        Также используй эту информацию, которую получает пользователь по команде /start:
+Также используй эту информацию, которую получает пользователь по команде /start:
 
-        <текст сообщения>
-        {config['help_text']}
-        </текст сообщения>
+<текст сообщения>
+{config['help_text']}
+</текст сообщения>
 
-        А вот примеры того, что ты считаешь спамом, а что нет
-        (если spam_score > 50, то сообщение считается спамом):
-        <примеры>
-        {'\n'.join(formatted_examples)}
-        </примеры>
+А вот примеры того, что ты считаешь спамом, а что нет
+(если spam_score > 50, то сообщение считается спамом):
+<примеры>
+{'\n'.join(formatted_examples)}
+</примеры>
 
-        Отвечай от имени бота и используй указанный стиль ответа.
+Отвечай от имени бота и используй указанный стиль ответа.
 
-        Учитывай предыдущий контекст разговора при ответе.
+Учитывай предыдущий контекст разговора при ответе.
 
-        Разбивай текст на короткие абзацы. Умеренно используй эмодзи.
-        Используй **выделение жирным**.
-        """
+Разбивай текст на короткие абзацы. Умеренно используй эмодзи.
+Используй *выделение жирным*.
+
+<требования к форматированию>
+ВНИМАНИЕ! Используй только следующий синтаксис форматирования (Telegram Markdown v1):
+
+*Жирный*: выделяй жирное одной звездочкой с каждой стороны: *пример жирного текста*
+_Курсив_: выделяй курсив одним подчёркиванием с каждой стороны: _пример курсива_
+Не используй двойные звёздочки (**жирный**) или двойные подчёркивания (__жирный__), это не поддерживается!
+Не используй другие виды форматирования.
+
+Примеры:
+* Это *жирный текст*
+* Это _курсив_
+* Это обычный текст
+
+Неправильно:
+* **жирный** (не будет работать)
+* __жирный__ (не будет работать)
+
+ВСЕГДА следуй этим правилам форматирования!
+</требования к форматированию>
+"""
 
         # Combine system prompt with message history
         messages = [{"role": "system", "content": system_prompt}]
