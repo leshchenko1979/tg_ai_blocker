@@ -213,7 +213,11 @@ async def _handle_bot_removed(
     new_status: str,
 ) -> None:
     """Handle bot being removed from a group."""
-    logger.info(f"Bot removed from group {chat_id}")
+    # Skip notifications if the chat is a channel
+    if getattr(event.chat, "type", None) == "channel":
+        logger.info(f"Bot removed from channel {chat_id}, skipping notifications.")
+        return
+    logger.info(f"Bot removed from chat `{chat_title}`")
 
     group = await get_group(chat_id)
     if group and group.admin_ids:
