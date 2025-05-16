@@ -12,6 +12,7 @@ from ..common.bot import bot
 from ..common.mp import mp
 from ..database import get_group, remove_admin, update_group_admins
 from .dp import dp
+from .message_handlers import send_wrong_channel_addition_instruction
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,14 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
             await _handle_bot_added(event, chat_id, admin_id, chat_title, new_status)
         elif new_status in ["left", "kicked"]:
             await _handle_bot_removed(event, chat_id, admin_id, chat_title, new_status)
+
+        # Если бот добавлен в канал, отправляем инструкцию с ссылкой на обсуждение (если есть)
+        if event.chat.type == "channel" and new_status in [
+            "administrator",
+            "member",
+            "restricted",
+        ]:
+            await send_wrong_channel_addition_instruction(event.chat, bot)
 
     except Exception as e:
         logger.error(

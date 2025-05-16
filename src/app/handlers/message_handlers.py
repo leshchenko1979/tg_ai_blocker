@@ -166,50 +166,70 @@ async def handle_channel_post(message: types.Message):
     Уведомляет администратора канала (если найден в базе) и отписывает бота от канала.
     """
     try:
-        channel_title = message.chat.title or "(без названия)"
-        instruction = (
-            f"❗️ Бот был добавлен в канал <b>{channel_title}</b>, а не в группу с комментариями к нему.\n\n"
-            "Чтобы бот работал корректно, добавьте его в группу, "
-            "которая привязана к вашему каналу как группа для комментариев.\n\n"
-            "После этого бот сможет модерировать комментарии к вашим постам.\n\n"
-            "Подробнее: https://t.me/ai_antispam/14"
-        )
-        notified_admins = []
-        try:
-            admins = await bot.get_chat_administrators(message.chat.id)
-        except Exception as e:
-            logger.warning(
-                f"Не удалось получить админов канала {message.chat.id}: {e}",
-                exc_info=True,
-            )
-            admins = []
-        for admin in admins:
-            if admin.user.is_bot:
-                continue
-            admin_info = await get_admin(admin.user.id)
-            if admin_info:
-                try:
-                    await bot.send_message(
-                        admin.user.id, instruction, parse_mode="HTML"
-                    )
-                    notified_admins.append(admin.user.id)
-                except Exception as e:
-                    logger.warning(
-                        f"Не удалось отправить инструкцию админу {admin.user.id}: {e}",
-                        exc_info=True,
-                    )
-        await bot.leave_chat(message.chat.id)
-        logger.info(f"Bot left channel {message.chat.id} after channel_post event.")
-        mp.track(
-            message.chat.id,
-            "channel_post_received_and_left",
-            {
-                "chat_title": message.chat.title,
-                "chat_id": message.chat.id,
-                "notified_admins": notified_admins,
-            },
-        )
+        await send_wrong_channel_addition_instruction(message.chat, bot)
         return "channel_post_left_channel"
     except Exception as e:
         logger.error(f"Error handling channel_post: {e}", exc_info=True)
         return "channel_post_error"
+
+
+async def send_wrong_channel_addition_instruction(chat, bot):
+    """
+    Отправляет инструкцию администраторам канала, если бот был добавлен в канал, а не в группу обсуждений.
+    Вставляет ссылку на обсуждение, если оно есть.
+    """
+    channel_title = chat.title or "(без названия)"
+    discussion_link = None
+    linked_chat_id = getattr(chat, "linked_chat_id", None)
+    if linked_chat_id is not None:
+        try:
+            discussion_chat = await bot.get_chat(int(linked_chat_id))
+            if username := getattr(discussion_chat, "username", None):
+                discussion_link = f"https://t.me/{username}"
+        except Exception as e:
+            logger.warning(
+                f"Не удалось получить связанную группу обсуждения: {e}", exc_info=True
+            )
+    instruction = (
+        f"❗️ Бот был добавлен в канал <b>{channel_title}</b>, а не в группу обсуждений.\n\n"
+        "Для корректной работы бота, добавьте его в группу обсуждений, "
+        "привязанную к вашему каналу.\n\n"
+        "После этого бот сможет защищать ваши посты от спама в комментариях.\n\n"
+        + (
+            f'<b>Группа обсуждений:</b> <a href="{discussion_link}">перейти в группу</a>\n\n'
+            if discussion_link
+            else ""
+        )
+        + "Подробнее: https://t.me/ai_antispam/14"
+    )
+    notified_admins = []
+    try:
+        admins = await bot.get_chat_administrators(chat.id)
+    except Exception as e:
+        logger.warning(
+            f"Не удалось получить админов канала {chat.id}: {e}",
+            exc_info=True,
+        )
+        admins = []
+    for admin in admins:
+        if admin.user.is_bot:
+            continue
+        try:
+            await bot.send_message(admin.user.id, instruction, parse_mode="HTML")
+            notified_admins.append(admin.user.id)
+        except Exception as e:
+            logger.warning(
+                f"Не удалось отправить инструкцию админу {admin.user.id}: {e}",
+                exc_info=True,
+            )
+    await bot.leave_chat(chat.id)
+    logger.info(f"Bot left channel {chat.id} after notification.")
+    await track_group_event(
+        chat.id,
+        "channel_admins_notified_wrong_addition",
+        {
+            "chat_title": chat.title,
+            "chat_id": chat.id,
+            "notified_admins": notified_admins,
+        },
+    )

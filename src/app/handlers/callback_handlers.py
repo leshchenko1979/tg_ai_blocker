@@ -6,10 +6,9 @@ from aiogram.types import CallbackQuery
 
 from ..common.bot import bot
 from ..common.mp import mp
+from ..database.group_operations import add_member
 from ..database.spam_examples import add_spam_example
 from .dp import dp
-from ..database.group_operations import add_member
-
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,9 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
             return "callback_invalid_data"
 
         # Быстрый ответ Telegram, чтобы избежать таймаута
-        await callback.answer("✅ Сообщение добавлено как безопасный пример", show_alert=False)
+        await callback.answer(
+            "✅ Сообщение добавлено как безопасный пример", show_alert=False
+        )
 
         # Разбираем callback_data
         # Ожидается формат: mark_as_not_spam:{user_id}:{chat_id}
@@ -51,22 +52,28 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
 
         # Все тяжелые операции параллельно
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(bot.unban_chat_member(group_id, author_id, only_if_banned=True))
+            tg.create_task(
+                bot.unban_chat_member(group_id, author_id, only_if_banned=True)
+            )
             tg.create_task(add_member(group_id, author_id))
-            tg.create_task(add_spam_example(
-                text=message_text,
-                score=-100,  # Безопасное сообщение с отрицательным score
-                name=author_info.full_name if author_info else None,
-                bio=author_info.bio if author_info else None,
-                admin_id=admin_id,
-            ))
-            tg.create_task(bot.edit_message_text(
-                chat_id=callback.message.chat.id,
-                message_id=callback.message.message_id,
-                text=updated_message_text,
-                parse_mode="HTML",
-                reply_markup=None,  # Убираем клавиатуру
-            ))
+            tg.create_task(
+                add_spam_example(
+                    text=message_text,
+                    score=-100,  # Безопасное сообщение с отрицательным score
+                    name=author_info.full_name if author_info else None,
+                    bio=author_info.bio if author_info else None,
+                    admin_id=admin_id,
+                )
+            )
+            tg.create_task(
+                bot.edit_message_text(
+                    chat_id=callback.message.chat.id,
+                    message_id=callback.message.message_id,
+                    text=updated_message_text,
+                    parse_mode="HTML",
+                    reply_markup=None,  # Убираем клавиатуру
+                )
+            )
 
         # Трекинг обработки колбэка
         mp.track(
