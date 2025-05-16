@@ -8,6 +8,8 @@ from ..common.bot import bot
 from ..common.mp import mp
 from ..database.spam_examples import add_spam_example
 from .dp import dp
+from ..database.group_operations import add_member
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +24,16 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         if not callback.data or not callback.message:
             return "callback_invalid_data"
 
+        # Быстрый ответ Telegram, чтобы избежать таймаута
+        await callback.answer("✅ Сообщение добавлено как безопасный пример", show_alert=False)
+
         # Разбираем callback_data
-        author_id = int(callback.data.split(":")[1])
+        # Ожидается формат: mark_as_not_spam:{user_id}:{chat_id}
+        parts = callback.data.split(":")
+        if len(parts) < 3:
+            return "callback_invalid_data_format"
+        author_id = int(parts[1])
+        group_id = int(parts[2])
         author_info = await bot.get_chat(author_id)
         admin_id = callback.from_user.id
 
@@ -39,56 +49,24 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         # Обновляем текст сообщения, добавляя пометку "Не спам"
         updated_message_text = f"{message_text}\n\n✅ <b>Отмечено как НЕ СПАМ</b>"
 
-        # Разбан пользователя и восстановление в approved_members
-        try:
-            await bot.unban_chat_member(message.chat.id, author_id, only_if_banned=True)
-            logger.info(
-                f"Unbanned user {author_id} in chat {message.chat.id} after marking as not spam"
-            )
-        except Exception as e:
-            logger.warning(
-                f"Failed to unban user {author_id} in chat {message.chat.id}: {e}",
-                exc_info=True,
-            )
-        try:
-            from ..database.group_operations import add_member
-
-            await add_member(message.chat.id, author_id)
-        except Exception as e:
-            logger.warning(
-                f"Failed to re-add user {author_id} to approved_members: {e}",
-                exc_info=True,
-            )
-
-        # Используем TaskGroup для более чистого управления задачами
+        # Все тяжелые операции параллельно
         async with asyncio.TaskGroup() as tg:
-            # Добавляем сообщение в базу безопасных примеров
-            tg.create_task(
-                add_spam_example(
-                    text=message_text,
-                    score=-100,  # Безопасное сообщение с отрицательным score
-                    name=author_info.full_name if author_info else None,
-                    bio=author_info.bio if author_info else None,
-                    admin_id=admin_id,
-                )
-            )
-
-            # Обновляем сообщение
-            tg.create_task(
-                bot.edit_message_text(
-                    chat_id=callback.message.chat.id,
-                    message_id=callback.message.message_id,
-                    text=updated_message_text,
-                    parse_mode="HTML",
-                    reply_markup=None,  # Убираем клавиатуру
-                )
-            )
-
-            # Отвечаем на callback
-            # Используем bot() для получения корутины из callback.answer()
-            msg = "✅ Сообщение добавлено как безопасный пример"
-            answer = callback.answer(msg, show_alert=False)
-            tg.create_task(bot(answer))
+            tg.create_task(bot.unban_chat_member(group_id, author_id, only_if_banned=True))
+            tg.create_task(add_member(group_id, author_id))
+            tg.create_task(add_spam_example(
+                text=message_text,
+                score=-100,  # Безопасное сообщение с отрицательным score
+                name=author_info.full_name if author_info else None,
+                bio=author_info.bio if author_info else None,
+                admin_id=admin_id,
+            ))
+            tg.create_task(bot.edit_message_text(
+                chat_id=callback.message.chat.id,
+                message_id=callback.message.message_id,
+                text=updated_message_text,
+                parse_mode="HTML",
+                reply_markup=None,  # Убираем клавиатуру
+            ))
 
         # Трекинг обработки колбэка
         mp.track(
@@ -115,7 +93,10 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
             },
         )
         logger.error(f"Error in spam ignore callback: {e}", exc_info=True)
-        await callback.answer("❌ Произошла ошибка", show_alert=True)
+        try:
+            await callback.answer("❌ Произошла ошибка", show_alert=True)
+        except Exception:
+            pass
         return "callback_error_marking_not_spam"
 
 
@@ -135,6 +116,9 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
         return "callback_invalid_data"
 
     try:
+        # Быстрый ответ Telegram, чтобы избежать таймаута
+        await callback.answer("✅ Спам удален", show_alert=False)
+
         # Разбираем данные из callback
         # chat_id и message_id относятся к оригинальному сообщению в группе
         _, author_id, original_chat_id, original_message_id = callback.data.split(":")
@@ -163,9 +147,6 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
             await callback.answer("❌ Не удалось удалить сообщение", show_alert=True)
             return "callback_error_deleting_original"
 
-        # Отвечаем на callback в случае успеха
-        await callback.answer("✅ Спам удален", show_alert=False)
-
         # Трекинг подтверждения спама
         mp.track(
             callback.from_user.id,
@@ -191,5 +172,8 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
             },
         )
         logger.error(f"Error in spam confirm callback: {e}", exc_info=True)
-        await callback.answer("❌ Произошла ошибка", show_alert=True)
+        try:
+            await callback.answer("❌ Произошла ошибка", show_alert=True)
+        except Exception:
+            pass
         return "callback_error_deleting_spam"

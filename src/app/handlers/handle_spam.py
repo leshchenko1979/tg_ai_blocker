@@ -113,14 +113,14 @@ def create_admin_notification_keyboard(
             ),
             InlineKeyboardButton(
                 text="✅ Не спам",
-                callback_data=f"mark_as_not_spam:{message.from_user.id}",
+                callback_data=f"mark_as_not_spam:{message.from_user.id}:{message.chat.id}",
             ),
         ]
     else:
         row = [
             InlineKeyboardButton(
                 text="✅ Это не спам",
-                callback_data=f"mark_as_not_spam:{message.from_user.id}",
+                callback_data=f"mark_as_not_spam:{message.from_user.id}:{message.chat.id}",
             ),
         ]
     return InlineKeyboardMarkup(inline_keyboard=[row])

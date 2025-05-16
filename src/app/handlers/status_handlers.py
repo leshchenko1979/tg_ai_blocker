@@ -39,7 +39,10 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
             await _handle_bot_removed(event, chat_id, admin_id, chat_title, new_status)
 
     except Exception as e:
-        logger.error(f"Error handling bot status update in chat '{chat_title}' ({chat_id}): {e}", exc_info=True)
+        logger.error(
+            f"Error handling bot status update in chat '{chat_title}' ({chat_id}): {e}",
+            exc_info=True,
+        )
         mp.track(
             admin_id,
             "error_status_update",
@@ -144,7 +147,9 @@ async def _handle_bot_added(
     new_status: str,
 ) -> None:
     """Handle bot being added to a group."""
-    logger.info(f"Bot added to chat {chat_id} ('{chat_title}') with status {new_status}")
+    logger.info(
+        f"Bot added to chat {chat_id} ('{chat_title}') with status {new_status}"
+    )
 
     # Add only the admin who added the bot
     await update_group_admins(chat_id, [admin_id])
@@ -215,7 +220,9 @@ async def _handle_bot_removed(
     """Handle bot being removed from a group."""
     # Skip notifications if the chat is a channel
     if getattr(event.chat, "type", None) == "channel":
-        logger.info(f"Bot removed from channel {chat_id} ('{chat_title}'), skipping notifications.")
+        logger.info(
+            f"Bot removed from channel {chat_id} ('{chat_title}'), skipping notifications."
+        )
         return
     logger.info(f"Bot removed from chat '{chat_title}' ({chat_id})")
 
@@ -276,7 +283,9 @@ async def _notify_admins_about_rights(
                     f"Removed admin {admin_id} from database (bot blocked or no chat started) in chat '{chat_title}' ({chat_id})"
                 )
             else:
-                logger.warning(f"Failed to notify admin {admin_id} in chat '{chat_title}' ({chat_id}): {e}")
+                logger.warning(
+                    f"Failed to notify admin {admin_id} in chat '{chat_title}' ({chat_id}): {e}"
+                )
 
             mp.track(
                 admin_id,
@@ -318,7 +327,9 @@ async def _notify_admins_about_removal(
                     f"Removed admin {admin_id} from database (bot blocked or no chat started) in chat '{chat_title}' ({chat_id})"
                 )
             else:
-                logger.warning(f"Failed to notify admin {admin_id} about removal in chat '{chat_title}' ({chat_id}): {e}")
+                logger.warning(
+                    f"Failed to notify admin {admin_id} about removal in chat '{chat_title}' ({chat_id}): {e}"
+                )
 
 
 async def _send_promo_message(
@@ -357,7 +368,9 @@ async def _send_promo_message(
             reply_markup=keyboard,
         )
     except Exception as e:
-        logger.warning(f"Failed to send promo message to chat {chat_id} ('{chat_title}'): {e}")
+        logger.warning(
+            f"Failed to send promo message to chat {chat_id} ('{chat_title}'): {e}"
+        )
         mp.track(
             added_by,
             "error_promo_message",
@@ -409,7 +422,9 @@ async def handle_member_service_message(message: types.Message) -> str:
         # Delete the service message
         try:
             await bot.delete_message(chat_id, message_id)
-            logger.info(f"Deleted service message {message_id} in chat {chat_id} ('{message.chat.title or ''}')")
+            logger.info(
+                f"Deleted service message {message_id} in chat {chat_id} ('{message.chat.title or ''}')"
+            )
             return "service_message_deleted"
         except Exception as e:
             logger.warning(
@@ -419,7 +434,10 @@ async def handle_member_service_message(message: types.Message) -> str:
             return "service_message_delete_failed"
 
     except Exception as e:
-        logger.error(f"Error handling service message in chat {chat_id} ('{message.chat.title or ''}'): {e}", exc_info=True)
+        logger.error(
+            f"Error handling service message in chat {chat_id} ('{message.chat.title or ''}'): {e}",
+            exc_info=True,
+        )
         if message.from_user:
             mp.track(
                 message.from_user.id,
