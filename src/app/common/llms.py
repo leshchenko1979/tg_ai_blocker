@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import cast
 
@@ -57,10 +58,10 @@ async def get_openrouter_response(messages):
         "Content-Type": "application/json",
     }
 
-    primary_model = "google/gemini-2.0-flash-exp:free"
+    primary_model = "qwen/qwen3-30b-a3b:free"
     fallback_models = [
         "deepseek/deepseek-chat-v3-0324:free",
-        "qwen/qwen3-30b-a3b:free",
+        "google/gemini-2.0-flash-exp:free",
         # сюда можно добавить другие резервные модели
     ]
     # Use a set to avoid duplicates, and a list to preserve order
@@ -103,19 +104,30 @@ async def get_openrouter_response(messages):
 
 async def _request_openrouter(model, messages, headers, session):
     data = {"model": model, "messages": messages, "temperature": 0.3}
-    async with session.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers=headers,
-        json=data,
-    ) as response:
-        result = await response.json()
-        logfire.debug(
-            "OpenRouter response",
-            status=response.status,
-            result=result,
+    logfire.info("OpenRouter request", model=model, data=data)
+    try:
+        async with session.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=aiohttp.ClientTimeout(total=15),
+        ) as response:
+            result = await response.json()
+            logfire.info(
+                "OpenRouter response",
+                status=response.status,
+                result=result,
+                model=model,
+            )
+            return result
+    except asyncio.TimeoutError as e:
+        logfire.error(
+            "OpenRouter request timeout",
             model=model,
+            timeout=15,
+            error=str(e),
         )
-        return result
+        raise RuntimeError(f"OpenRouter request timed out for model {model}") from e
 
 
 def _handle_api_error(error, model):
