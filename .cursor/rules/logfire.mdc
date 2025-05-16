@@ -1,5 +1,5 @@
 ---
-description: Получение информации из логов Logfire
+description: Logfire logs логи
 globs:
 alwaysApply: false
 ---
@@ -28,9 +28,9 @@ alwaysApply: false
 
 
 3. Доступ к данным обновлений в Logfire:
-   - Данные обновлений хранятся в поле `attributes->>'update'`
-   - Информация о чате: `attributes->'update'->'message'->'chat'->>'id'`
-   - Информация о пользователе: `attributes->'update'->'message'->'from'->>'id'`
+   - Данные обновлений, приходящих от Telegram, хранятся в поле `attributes->>'update'`
+   - Информация о чате: `attributes->'update'->'message'->'chat'`
+   - Информация о пользователе: `attributes->'update'->'message'->'from'`
    - Текст сообщения: `attributes->'update'->'message'->>'text'`
    - Для агрегации по дням использовать: `DATE_TRUNC('day', start_timestamp)`
 
@@ -53,3 +53,10 @@ alwaysApply: false
    - Учитывать вложенность JSON-структуры при извлечении данных
    - Использовать ->>'field' для извлечения текста, ->'field' для объектов
    - При агрегации учитывать возможность NULL значений в полях
+
+6. Типовая структура получаемого апдейта:
+{'update_id': 726082068, 'message': {'message_id': 12132, 'from': {'id': 7856711520, 'is_bot': False, 'first_name': 'Виктория | Недвижимость на Юге России', 'is_premium': True}, 'chat': {'id': -1001660382870, 'title': 'Chat Павел Боровиков', 'type': 'supergroup'}, 'date': 1747396952, 'message_thread_id': 12126, 'reply_to_message': {'message_id': 12126, 'from': {'id': 777000, 'is_bot': False, 'first_name': 'Telegram'}, 'sender_chat': {'id': -1001406194622, 'title': 'Павел Боровиков', 'username': 'pborovikov', 'type': 'channel'}, 'chat': {'id': -1001660382870, 'title': 'Chat Павел Боровиков', 'type': 'supergroup'}, 'date': 1747396858, 'forward_origin': {'type': 'channel', 'chat': {'id': -1001406194622, 'title': 'Павел Боровиков', 'username': 'pborovikov', 'type': 'channel'}, 'message_id': 3745, 'date': 1747396855}, 'is_automatic_forward': True, 'forward_from_chat': {'id': -1001406194622, 'title': 'Павел Боровиков', 'username': 'pborovikov', 'type': 'channel'}, 'forward_from_message_id': 3745, 'forward_date': 1747396855, 'video': {'duration': 23, 'width': 464, 'height': 848, 'file_name': 'IMG_0089.MP4', 'mime_type': 'video/mp4', 'thumbnail': {'file_id': 'AAMCAgADHQJi926WAAIvXmgnKPpNiMU5baBN2udP_LJ5-uktAAIscgAC4TM5SYpxezkGsI2pAQAHbQADNgQ', 'file_unique_id': 'AQADLHIAAuEzOUly', 'file_size': 10562, 'width': 175, 'height': 320}, 'thumb': {'file_id': 'AAMCAgADHQJi926WAAIvXmgnKPpNiMU5baBN2udP_LJ5-uktAAIscgAC4TM5SYpxezkGsI2pAQAHbQADNgQ', 'file_unique_id': 'AQADLHIAAuEzOUly', 'file_size': 10562, 'width': 175, 'height': 320}, 'file_id': 'BAACAgIAAx0CYvdulgACL15oJyj6TYjFOW2gTdrnT_yyefrpLQACLHIAAuEzOUmKcXs5BrCNqTYE', 'file_unique_id': 'AgADLHIAAuEzOUk', 'file_size': 4412379}, 'caption': '''Весна - время загородки
+
+Давненько не публиковал никаких интересных коттеджей, а они есть у нас. Есть за 350.000.000₽, а есть и за 24.500.000₽, как этот интересный вариант с потрясающими гигантскими окнами, высотой 6 метров и просто невероятной ванной комнатой, площадью 22 м2 (сейчас студии в некоторых проектах меньшей площадью).
+
+Одним словом, если бы я искал себе загородный дом, то, пожалуй именно такой''', 'caption_entities': [{'offset': 131, 'length': 12, 'type': 'text_link', 'url': 'https://kuligovskaya.ru/catalog/zagorodnaya-nedvizhimost/zhizn-v-novom-svete-dom-s-panoramnymi-oknami/'}]}, 'text': 'Какой замечательный выбор! 🌿'}}
