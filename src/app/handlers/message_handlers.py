@@ -23,8 +23,11 @@ logger = logging.getLogger(__name__)
 
 
 @dp.message(filter_handle_message)
-async def handle_moderated_message(message: types.Message):
-    """Обработчик всех сообщений в модерируемых группах"""
+async def handle_moderated_message(message: types.Message) -> str:
+    """
+    Handles all messages in moderated groups.
+    Forwards, especially stories, are treated as spam.
+    """
     try:
         if not message.from_user:
             return "message_no_user_info"
@@ -32,27 +35,30 @@ async def handle_moderated_message(message: types.Message):
         chat_id = message.chat.id
         user_id = message.from_user.id
 
-        # Получаем текст сообщения или описание медиа
+        # Get message text or media caption
         message_text = message.text or message.caption or "[MEDIA_MESSAGE]"
 
-        # Add forwarded message info to the text for better spam detection
-        if message.forward_from or message.forward_from_chat or message.story:
-            forward_info = []
-            if message.forward_from:
-                forward_info.append(
-                    f"Forwarded from user: {message.forward_from.full_name}"
-                )
-            if message.forward_from_chat:
-                forward_info.append(
-                    f"Forwarded from chat: {message.forward_from_chat.title}"
-                )
-            if message.story:
-                forward_info.append(
-                    f"Forwarded story from: {message.story.chat.title} (@{message.story.chat.username})"
-                )
-                # Automatically treat forwarded stories as spam
-                spam_score = 100
+        # Build forward info
+        forward_info = []
+        is_story = False
+        if message.forward_from:
+            forward_info.append(
+                f"Forwarded from user: {message.forward_from.full_name}"
+            )
+        if message.forward_from_chat:
+            forward_info.append(
+                f"Forwarded from chat: {message.forward_from_chat.title}"
+            )
+        story_obj = getattr(message, "story", None)
+        if story_obj:
+            story_chat = getattr(getattr(story_obj, "chat", None), "title", "Unknown")
+            story_username = getattr(getattr(story_obj, "chat", None), "username", "")
+            forward_info.append(
+                f"Forwarded story from: {story_chat} (@{story_username})"
+            )
+            is_story = True
 
+        if forward_info:
             message_text = f"{message_text}\n[FORWARD_INFO]: {' | '.join(forward_info)}"
 
         # Track message processing start
@@ -62,54 +68,42 @@ async def handle_moderated_message(message: types.Message):
             {
                 "user_id": user_id,
                 "message_text": message_text,
-                "is_forwarded": bool(
-                    message.forward_from or message.forward_from_chat or message.story
-                ),
+                "is_forwarded": bool(forward_info),
             },
         )
 
-        # Получаем информацию о группе из базы данных
+        # Get group info
         group = await get_group(chat_id)
         if not group:
             logger.error(f"Group not found for chat {chat_id}")
             return "error_message_group_not_found"
-
         if not group.moderation_enabled:
-            # Трекинг пропуска из-за отключенной модерации
-            await track_group_event(
-                chat_id,
-                "message_skipped_moderation_disabled",
-                {},
-            )
+            await track_group_event(chat_id, "message_skipped_moderation_disabled", {})
             return "message_moderation_disabled"
 
-        is_known_member = await is_member_in_group(chat_id, user_id)
-
-        if is_known_member:
-            # Трекинг пропуска известного пользователя
+        if await is_member_in_group(chat_id, user_id):
             await track_group_event(
-                chat_id,
-                "message_skipped_known_member",
-                {"user_id": user_id},
+                chat_id, "message_skipped_known_member", {"user_id": user_id}
             )
             return "message_known_member_skipped"
 
-        user = message.from_user
-        user_with_bio = await bot.get_chat(user.id)
-        bio = user_with_bio.bio if user_with_bio else None
+        # --- Early return for stories ---
+        if is_story:
+            spam_score = 100
+            bio = None
+        else:
+            user = message.from_user
+            user_with_bio = await bot.get_chat(user.id)
+            bio = user_with_bio.bio if user_with_bio else None
+            admin_ids = group.admin_ids
+            spam_score = await is_spam(
+                comment=message_text, name=user.full_name, bio=bio, admin_ids=admin_ids
+            )
+            if spam_score is None:
+                logger.warning("Failed to get spam score")
+                return "message_spam_check_failed"
 
-        # Используем список администраторов из базы данных
-        admin_ids = group.admin_ids
-
-        spam_score = await is_spam(
-            comment=message_text, name=user.full_name, bio=bio, admin_ids=admin_ids
-        )
-
-        if spam_score is None:
-            logger.warning("Failed to get spam score")
-            return "message_spam_check_failed"
-
-        # Трекинг результата проверки на спам
+        # Track spam check result
         await track_group_event(
             chat_id,
             "spam_check_result",
@@ -127,11 +121,8 @@ async def handle_moderated_message(message: types.Message):
             if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
                 await handle_spam(message)
                 return "message_spam_deleted"
-
         elif await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
             await add_member(chat_id, user_id)
-
-            # Трекинг одобрения пользователя
             await track_group_event(
                 chat_id,
                 "user_approved",
@@ -147,7 +138,6 @@ async def handle_moderated_message(message: types.Message):
 
     except Exception as e:
         logger.error(f"Error processing message: {e}", exc_info=True)
-        # Трекинг необработанной ошибки
         await track_group_event(
             chat_id,
             "error_message_processing",
