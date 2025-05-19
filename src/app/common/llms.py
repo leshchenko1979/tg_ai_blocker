@@ -104,30 +104,25 @@ async def get_openrouter_response(messages):
 
 async def _request_openrouter(model, messages, headers, session):
     data = {"model": model, "messages": messages, "temperature": 0.3}
-    logfire.info("OpenRouter request", model=model, data=data)
-    try:
-        async with session.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=aiohttp.ClientTimeout(total=15),
-        ) as response:
-            result = await response.json()
-            logfire.info(
-                "OpenRouter response",
-                status=response.status,
-                result=result,
-                model=model,
-            )
-            return result
-    except asyncio.TimeoutError as e:
-        logfire.error(
-            "OpenRouter request timeout",
-            model=model,
-            timeout=15,
-            error=str(e),
-        )
-        raise RuntimeError(f"OpenRouter request timed out for model {model}") from e
+    with logfire.span(
+        "OpenRouter request/response", model=model, messages=messages
+    ) as span:
+        try:
+            async with session.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as response:
+                result = await response.json()
+                span.set_attribute("status", response.status)
+                span.set_attribute("result", result)
+                return result
+        except Exception as e:
+            span.set_level("error")
+            span.record_exception(e)
+            span.set_attribute("error", str(e))
+            raise
 
 
 def _handle_api_error(error, model):
