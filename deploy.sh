@@ -96,3 +96,8 @@ echo "Checking container status..."
 ssh ${REMOTE_USER}@${REMOTE_HOST} "docker ps | grep tg-ai-blocker || echo 'Container not found!'"
 
 echo "Deployment completed successfully!"
+
+# Print deployment time in green color
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+echo -e "${GREEN}deployed at $(date '+%Y-%m-%d %H:%M:%S')${NC}"
