@@ -50,6 +50,20 @@ class InternalServerError(LLMException):
         super().__init__("OpenRouter internal server error")
 
 
+def round_robin_with_start(models, start_model=None):
+    n = len(models)
+    if start_model and start_model in models:
+        start_idx = models.index(start_model)
+    else:
+        start_idx = 0
+    idx = start_idx
+    while True:
+        # Try each model twice
+        yield models[idx]
+        yield models[idx]
+        idx = (idx + 1) % n
+
+
 @logfire.instrument()
 async def get_openrouter_response(messages):
     global _last_successful_openrouter_model
@@ -58,45 +72,33 @@ async def get_openrouter_response(messages):
         "Content-Type": "application/json",
     }
 
-    primary_model = "qwen/qwen3-30b-a3b:free"
-    fallback_models = [
+    models = [
+        "qwen/qwen3-4b:free",
+        "qwen/qwen3-14b:free",
+        "google/gemma-3-12b-it:free",
+        "qwen/qwen3-30b-a3b:free",
+        "google/gemma-3-27b-it:free",
+        "qwen/qwen3-235b-a22b:free",
         "deepseek/deepseek-chat-v3-0324:free",
         "google/gemini-2.0-flash-exp:free",
-        # сюда можно добавить другие резервные модели
     ]
-    # Use a set to avoid duplicates, and a list to preserve order
-    models_to_try = []
-    seen = set()
-    if (
-        _last_successful_openrouter_model
-        and _last_successful_openrouter_model not in seen
-    ):
-        models_to_try.append(_last_successful_openrouter_model)
-        seen.add(_last_successful_openrouter_model)
-    for m in [primary_model] + fallback_models:
-        if m not in seen:
-            models_to_try.append(m)
-            seen.add(m)
-
+    model_gen = round_robin_with_start(models, _last_successful_openrouter_model)
     last_exception = None
     async with aiohttp.ClientSession() as session:
-        for model in models_to_try:
+        for _ in range(10):
+            model = next(model_gen)
             try:
                 result = await _request_openrouter(model, messages, headers, session)
-                if error := result.get("error"):
-                    _handle_api_error(error, model)
-                # Update the global variable on success
+                # Проверяем наличие ошибки в ответе
+                if err := result.get("error"):
+                    logfire.warn(
+                        "OpenRouter returned error in body", error=err, model=model
+                    )
+                    raise RuntimeError(f"OpenRouter error: {err}")
                 _last_successful_openrouter_model = model
                 return _extract_content(result, model)
-            except RateLimitExceeded as e:
-                last_exception = e
-                continue  # пробуем следующую модель
             except Exception as e:
                 last_exception = e
-                logfire.error(
-                    "Fallback model failed", error=str(last_exception), model=model
-                )
-                continue
     if last_exception:
         raise last_exception
     raise RuntimeError("All OpenRouter models failed to provide a response")
@@ -113,6 +115,7 @@ async def _request_openrouter(model, messages, headers, session):
                 headers=headers,
                 json=data,
                 timeout=aiohttp.ClientTimeout(total=15),
+                raise_for_status=True,
             ) as response:
                 result = await response.json()
                 span.set_attribute("status", response.status)
@@ -123,65 +126,6 @@ async def _request_openrouter(model, messages, headers, session):
             span.record_exception(e)
             span.set_attribute("error", str(e))
             raise
-
-
-def _handle_api_error(error, model):
-    if error.get("code") == 429:
-        _handle_rate_limit_error(error, model)
-    if error.get("code") == 500:
-        _handle_internal_server_error(error, model)
-    if "User location is not supported" in error.get("metadata", {}).get("raw", ""):
-        _handle_location_not_supported_error(error, model)
-    _handle_generic_api_error(error, model)
-
-
-def _handle_rate_limit_error(error, model):
-    reset_time = (
-        error.get("metadata", {}).get("headers", {}).get("X-RateLimit-Reset", 0)
-    )
-    if isinstance(reset_time, str):
-        try:
-            reset_time = int(reset_time)
-        except (ValueError, TypeError):
-            reset_time = 0
-            logfire.error(
-                "Failed to parse reset_time",
-                reset_time_value=reset_time,
-            )
-    is_upstream_error = any(
-        msg in error.get("metadata", {}).get("raw", "").lower()
-        for msg in [
-            "quota exceeded",
-            "resource exhausted",
-            "rate-limited upstream",
-        ]
-    )
-    if is_upstream_error:
-        reset_time = 0
-    logfire.info(
-        "Rate limit exceeded",
-        reset_time=reset_time,
-        is_upstream_error=is_upstream_error,
-        model=model,
-    )
-    raise RateLimitExceeded(reset_time, is_upstream_error)
-
-
-def _handle_internal_server_error(error, model):
-    logfire.exception("Internal server error", error=error, model=model)
-    raise InternalServerError()
-
-
-def _handle_location_not_supported_error(error, model):
-    provider = error.get("metadata", {}).get("provider_name", "unknown")
-    logfire.info("Location not supported", provider=provider, model=model)
-    raise LocationNotSupported(provider)
-
-
-def _handle_generic_api_error(error, model):
-    error_msg = error.get("message", str(error))
-    logfire.exception("API error", error=error_msg, model=model)
-    raise RuntimeError(f"OpenRouter API error: {error_msg}")
 
 
 def _extract_content(result, model):
