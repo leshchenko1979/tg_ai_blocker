@@ -38,7 +38,7 @@ async def handle_moderated_message(message: types.Message) -> str:
         # Get message text or media caption
         message_text = message.text or message.caption or "[MEDIA_MESSAGE]"
 
-        # Build forward info
+        # Build forward and channel info
         forward_info = []
         is_story = False
         if message.forward_from:
@@ -57,6 +57,16 @@ async def handle_moderated_message(message: types.Message) -> str:
                 f"Forwarded story from: {story_chat} (@{story_username})"
             )
             is_story = True
+
+        # Add channel info if message is from a channel
+        if message.sender_chat and message.sender_chat.type == "channel":
+            channel_title = message.sender_chat.title
+            channel_username = (
+                f" (@{message.sender_chat.username})"
+                if message.sender_chat.username
+                else ""
+            )
+            forward_info.append(f"Posted by channel: {channel_title}{channel_username}")
 
         if forward_info:
             message_text = f"{message_text}\n[FORWARD_INFO]: {' | '.join(forward_info)}"
