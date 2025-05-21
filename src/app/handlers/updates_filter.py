@@ -4,7 +4,6 @@ from aiogram.filters import and_f, or_f
 # Сообщение должно уходить в обработку handle_message, если:
 filter_handle_message = and_f(
     F.chat.type.in_(["group", "supergroup"]),
-    ~F.from_user.is_bot,
     ~F.from_user.is_admin,
     or_f(
         ~F.reply_to_message,
