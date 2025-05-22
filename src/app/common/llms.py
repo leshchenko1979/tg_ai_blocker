@@ -74,8 +74,8 @@ async def get_openrouter_response(messages):
 
     models = [
         "qwen/qwen3-14b:free",
-        "google/gemma-3-12b-it:free",
-        "google/gemma-3-27b-it:free",
+        # "google/gemma-3-12b-it:free", Context window 8K - too small
+        # "google/gemma-3-27b-it:free", Context window 8K - too small
         "qwen/qwen3-235b-a22b:free",
         "qwen/qwen3-30b-a3b:free",
         "deepseek/deepseek-chat-v3-0324:free",
