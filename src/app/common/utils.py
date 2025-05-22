@@ -115,3 +115,35 @@ def sanitize_markdown(text: str) -> str:
         return "".join(result)
 
     return escape_underscores(partially_escaped, protected)
+
+
+def clean_alert_text(text: str | None) -> str | None:
+    """Очищает текст от обёртки тревоги/уведомления, если она присутствует."""
+    if not text:
+        return text
+    # Проверяем наличие служебных маркеров
+    if ("⚠️ ТРЕВОГА!" in text or "⚠️ ВТОРЖЕНИЕ!" in text or "Содержание угрозы:" in text):
+        try:
+            # Находим содержание угрозы
+            start_idx = text.find("Содержание угрозы:")
+            if start_idx != -1:
+                start_idx += len("Содержание угрозы:")
+                # Ищем конец содержания
+                end_idx = text.find("Вредоносное сообщение уничтожено", start_idx)
+                if end_idx == -1:
+                    end_idx = text.find("Ссылка на сообщение", start_idx)
+                if end_idx == -1:
+                    end_idx = text.find("ℹ️ Подробнее", start_idx)
+                if end_idx != -1:
+                    cleaned = text[start_idx:end_idx].strip()
+                else:
+                    cleaned = text[start_idx:].strip()
+                # Если после очистки остались служебные строки, убираем их
+                lines = [line for line in cleaned.splitlines() if line.strip() and not any(
+                    marker in line for marker in [
+                        "⚠️ ТРЕВОГА!", "⚠️ ВТОРЖЕНИЕ!", "Группа:", "Нарушитель:", "Вредоносное сообщение уничтожено", "ℹ️ Подробнее", "Ссылка на сообщение"
+                    ])]
+                return "\n".join(lines).strip()
+        except Exception as e:
+            logger.error(f"Error cleaning alert text: {e}")
+    return text

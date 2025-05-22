@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from .postgres_connection import get_pool
+from ..common.utils import clean_alert_text
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,8 @@ async def add_spam_example(
     async with pool.acquire() as conn:
         async with conn.transaction():
             try:
+                # Очистка текста от служебных обёрток
+                cleaned_text = clean_alert_text(text)
                 # Remove existing example with same text and name if exists
                 await conn.execute(
                     """
@@ -64,7 +67,7 @@ async def add_spam_example(
                     WHERE text = $1 AND (name = $2 OR (name IS NULL AND $2 IS NULL))
                     AND (admin_id = $3 OR (admin_id IS NULL AND $3 IS NULL))
                 """,
-                    text,
+                    cleaned_text,
                     name,
                     admin_id,
                 )
@@ -75,7 +78,7 @@ async def add_spam_example(
                     INSERT INTO spam_examples (text, name, bio, score, admin_id, created_at)
                     VALUES ($1, $2, $3, $4, $5, NOW())
                 """,
-                    text,
+                    cleaned_text,
                     name,
                     bio,
                     score,

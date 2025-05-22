@@ -8,13 +8,12 @@
 """
 
 import logging
-from typing import Optional, Sequence
+from typing import Optional
 
-from aiogram.types import ChatMember, ChatMemberAdministrator, ChatMemberOwner
+from aiogram.types import ChatMemberAdministrator, ChatMemberOwner
 
 from ..common.bot import bot
 from ..common.mp import mp
-from ..database import get_admin, get_group
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +31,7 @@ async def track_group_event(
         event_name: Название события
         event_properties: Свойства события
     """
+    from ..database import get_group
     group = await get_group(chat_id)
     if not group or not group.admin_ids:
         return

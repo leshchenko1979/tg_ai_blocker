@@ -1,34 +1,21 @@
 from dotenv import load_dotenv
 
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 # Загружаем переменные окружения до импортов
 load_dotenv()
 
 import asyncio
 import logging
-import os
 from typing import Optional
 
 import asyncpg
 from src.app.database.postgres_connection import get_pool
+from src.app.common.utils import clean_alert_text
 
 logger = logging.getLogger(__name__)
-
-
-def clean_alert_text(text: Optional[str]) -> Optional[str]:
-    """Очищает текст от обертки тревоги"""
-    if not text or "⚠️ ТРЕВОГА!" not in text:
-        return text
-
-    try:
-        # Находим содержание угрозы
-        start_idx = text.find("Содержание угрозы:") + len("Содержание угрозы:")
-        end_idx = text.find("Вредоносное сообщение уничтожено")
-        if start_idx > 0 and end_idx > 0:
-            return text[start_idx:end_idx].strip()
-    except Exception as e:
-        logger.error(f"Error cleaning alert text: {e}")
-
-    return text
 
 
 async def clean_spam_examples():
