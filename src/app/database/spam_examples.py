@@ -1,8 +1,8 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from .postgres_connection import get_pool
 from ..common.utils import clean_alert_text
+from .postgres_connection import get_pool
 
 logger = logging.getLogger(__name__)
 

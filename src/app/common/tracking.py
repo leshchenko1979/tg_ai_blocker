@@ -32,6 +32,7 @@ async def track_group_event(
         event_properties: Свойства события
     """
     from ..database import get_group
+
     group = await get_group(chat_id)
     if not group or not group.admin_ids:
         return

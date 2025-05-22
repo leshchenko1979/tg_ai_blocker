@@ -122,7 +122,7 @@ def clean_alert_text(text: str | None) -> str | None:
     if not text:
         return text
     # Проверяем наличие служебных маркеров
-    if ("⚠️ ТРЕВОГА!" in text or "⚠️ ВТОРЖЕНИЕ!" in text or "Содержание угрозы:" in text):
+    if "⚠️ ТРЕВОГА!" in text or "⚠️ ВТОРЖЕНИЕ!" in text or "Содержание угрозы:" in text:
         try:
             # Находим содержание угрозы
             start_idx = text.find("Содержание угрозы:")
@@ -139,10 +139,23 @@ def clean_alert_text(text: str | None) -> str | None:
                 else:
                     cleaned = text[start_idx:].strip()
                 # Если после очистки остались служебные строки, убираем их
-                lines = [line for line in cleaned.splitlines() if line.strip() and not any(
-                    marker in line for marker in [
-                        "⚠️ ТРЕВОГА!", "⚠️ ВТОРЖЕНИЕ!", "Группа:", "Нарушитель:", "Вредоносное сообщение уничтожено", "ℹ️ Подробнее", "Ссылка на сообщение"
-                    ])]
+                lines = [
+                    line
+                    for line in cleaned.splitlines()
+                    if line.strip()
+                    and not any(
+                        marker in line
+                        for marker in [
+                            "⚠️ ТРЕВОГА!",
+                            "⚠️ ВТОРЖЕНИЕ!",
+                            "Группа:",
+                            "Нарушитель:",
+                            "Вредоносное сообщение уничтожено",
+                            "ℹ️ Подробнее",
+                            "Ссылка на сообщение",
+                        ]
+                    )
+                ]
                 return "\n".join(lines).strip()
         except Exception as e:
             logger.error(f"Error cleaning alert text: {e}")
