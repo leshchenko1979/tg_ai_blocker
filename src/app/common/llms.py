@@ -6,7 +6,7 @@ import aiohttp
 import logfire
 
 # Global variable to track the last successful OpenRouter model
-_last_successful_openrouter_model = None
+_last_model = None
 
 
 async def get_yandex_response(messages):
@@ -65,8 +65,8 @@ def round_robin_with_start(models, start_model=None):
 
 
 @logfire.instrument()
-async def get_openrouter_response(messages):
-    global _last_successful_openrouter_model
+async def get_openrouter_response(messages, temperature=0.3):
+    global _last_model
     headers = {
         "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
         "Content-Type": "application/json",
@@ -81,21 +81,24 @@ async def get_openrouter_response(messages):
         "deepseek/deepseek-chat-v3-0324:free",
         "google/gemini-2.0-flash-exp:free",
     ]
-    model_gen = round_robin_with_start(models, _last_successful_openrouter_model)
+    model_gen = round_robin_with_start(models, _last_model)
     last_exception = None
     async with aiohttp.ClientSession() as session:
         for _ in range(10):
-            model = next(model_gen)
+            _last_model = next(model_gen)
             try:
-                result = await _request_openrouter(model, messages, headers, session)
+                result = await _request_openrouter(
+                    _last_model, messages, headers, session, temperature
+                )
                 # Проверяем наличие ошибки в ответе
                 if err := result.get("error"):
                     logfire.warn(
-                        "OpenRouter returned error in body", error=err, model=model
+                        "OpenRouter returned error in body",
+                        error=err,
+                        model=_last_model,
                     )
                     raise RuntimeError(f"OpenRouter error: {err}")
-                _last_successful_openrouter_model = model
-                return _extract_content(result, model)
+                return _extract_content(result, _last_model)
             except Exception as e:
                 last_exception = e
     if last_exception:
@@ -103,8 +106,8 @@ async def get_openrouter_response(messages):
     raise RuntimeError("All OpenRouter models failed to provide a response")
 
 
-async def _request_openrouter(model, messages, headers, session):
-    data = {"model": model, "messages": messages, "temperature": 0.3}
+async def _request_openrouter(model, messages, headers, session, temperature=0.3):
+    data = {"model": model, "messages": messages, "temperature": temperature}
     with logfire.span(
         "OpenRouter request/response", model=model, messages=messages
     ) as span:

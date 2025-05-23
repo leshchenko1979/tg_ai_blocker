@@ -155,7 +155,7 @@ _Курсив_: выделяй курсив одним подчёркивани�
         messages.extend(message_history)
 
         # Get response from LLM
-        response = await get_openrouter_response(messages)
+        response = await get_openrouter_response(messages, temperature=0.6)
 
         # Трекинг успешного ответа LLM
         mp.track(

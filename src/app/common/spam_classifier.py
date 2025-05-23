@@ -48,7 +48,7 @@ async def is_spam(
         attempt += 1
         with logfire.span(f"Getting spam classifier response, attempt #{attempt}"):
             try:
-                response = await get_openrouter_response(messages)
+                response = await get_openrouter_response(messages, temperature=0.0)
                 last_response = response
                 logger.info(f"Spam classifier response: {response}")
                 score = extract_spam_score(response)
