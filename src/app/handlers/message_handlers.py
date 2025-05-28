@@ -3,7 +3,6 @@ import logging
 from aiogram import types
 
 from ..common.bot import bot
-from ..common.mp import mp
 from ..common.spam_classifier import is_spam
 from ..common.tracking import track_group_event
 from ..database import (
@@ -29,6 +28,44 @@ async def handle_moderated_message(message: types.Message) -> str:
     Forwards, especially stories, are treated as spam.
     """
     try:
+        # --- DEBUG: log sender_chat and linked_chat_id ---
+        logger.debug(
+            f"sender_chat={getattr(message, 'sender_chat', None)}, "
+            f"chat.linked_chat_id={getattr(message.chat, 'linked_chat_id', None)}"
+        )
+
+        # --- Exclude messages sent by the discussion channel bot (with fallback, optimized) ---
+        linked_chat_id = getattr(message.chat, "linked_chat_id", None)
+        if message.sender_chat:
+            # Если linked_chat_id уже есть и подходит — не делаем запрос к API
+            if linked_chat_id and message.sender_chat.id == linked_chat_id:
+                logger.debug(
+                    f"Skip moderation for message {message.message_id} "
+                    f"from channel bot {message.sender_chat.id} "
+                    f"in discussion group {message.chat.id}"
+                )
+                return "message_from_channel_bot_skipped"
+            # Делаем запрос к API только если:
+            # - linked_chat_id отсутствует
+            # - чат — обсуждение (supergroup)
+            # - sender_chat — канал
+            if (
+                not linked_chat_id
+                and getattr(message.chat, "type", None) == "supergroup"
+                and getattr(message.sender_chat, "type", None) == "channel"
+            ):
+                try:
+                    chat_info = await bot.get_chat(message.chat.id)
+                    linked_chat_id = getattr(chat_info, "linked_chat_id", None)
+                    logger.debug(f"fetched linked_chat_id via API: {linked_chat_id}")
+                except Exception as e:
+                    logger.warning(f"failed to fetch linked_chat_id via API: {e}")
+                if linked_chat_id and message.sender_chat.id == linked_chat_id:
+                    logger.debug(
+                        f"Skip moderation for message {message.message_id} from channel bot {message.sender_chat.id} in discussion group {message.chat.id} (with fallback)"
+                    )
+                    return "message_from_channel_bot_skipped"
+
         if not message.from_user:
             return "message_no_user_info"
 
