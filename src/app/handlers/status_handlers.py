@@ -10,6 +10,8 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
 from ..common.mp import mp
+from ..common.notifications import notify_admins_with_fallback_and_cleanup
+from ..common.utils import sanitize_markdown_v2
 from ..database import get_group, remove_admin, update_group_admins
 from .dp import dp
 from .message_handlers import send_wrong_channel_addition_instruction
@@ -94,6 +96,9 @@ async def _handle_permission_update(
         # Получаем группу для проверки времени добавления
         group = await get_group(chat_id)
         added_at = group.created_at if group else event.date
+        # Ensure both datetimes are timezone-aware (UTC)
+        if added_at.tzinfo is None:
+            added_at = added_at.replace(tzinfo=timezone.utc)
         time_since_added = (event.date - added_at).total_seconds()
 
         mp.track(
@@ -132,11 +137,7 @@ async def _handle_permission_update(
             )
             # NEW: Send confirmation to admin
             try:
-                chat_title_escaped = (
-                    chat_title.replace("<", "&lt;")
-                    .replace(">", "&gt;")
-                    .replace("&", "&amp;")
-                )
+                chat_title_escaped = sanitize_markdown_v2(chat_title)
                 await bot.send_message(
                     admin_id,
                     f"✅ Настройка завершена! Я получил все необходимые права и теперь защищаю группу <b>{chat_title_escaped}</b>.\n\nЕсли потребуется помощь — напишите мне в личку или воспользуйтесь командой /help.",
@@ -203,11 +204,7 @@ async def _handle_bot_added(
         )
         # NEW: Send confirmation to admin
         try:
-            chat_title_escaped = (
-                chat_title.replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("&", "&amp;")
-            )
+            chat_title_escaped = sanitize_markdown_v2(chat_title)
             await bot.send_message(
                 admin_id,
                 f"✅ Настройка завершена! Я получил все необходимые права и теперь защищаю группу <b>{chat_title_escaped}</b>.\n\nЕсли потребуется помощь — напишите мне в личку или воспользуйтесь командой /help.",
@@ -260,85 +257,48 @@ async def _notify_admins_about_rights(
     chat_id: int, chat_title: str, username: str | None, admin_ids: List[int]
 ) -> None:
     """Notify admins about required bot permissions."""
-    for admin_id in admin_ids:
-        try:
-            chat_title_escaped = (
-                chat_title.replace("*", "\\*").replace("_", "\\_").replace("`", "\\`")
-            )
-            await bot.send_message(
-                admin_id,
-                "🤖 Приветствую! Для защиты группы мне нужны права администратора\\.\n\n"
-                f"Группа: *{chat_title_escaped}*"
-                f"{f' \\(@{username}\\)' if username else ''}\n\n"
-                "📱 Как настроить права:\n"
-                "1\\. Откройте настройки группы \\(три точки ⋮ сверху\\)\n"
-                "2\\. Выберите пункт 'Управление группой'\n"
-                "3\\. Нажмите 'Администраторы'\n"
-                "4\\. Найдите меня в списке администраторов\n"
-                "5\\. Включите два права:\n"
-                "   • *Удаление сообщений* \\- чтобы удалять спам\n"
-                "   • *Блокировка пользователей* \\- чтобы блокировать спамеров\n\n"
-                "После настройки прав я смогу защищать группу\\! 🛡",
-                parse_mode="MarkdownV2",
-            )
-        except Exception as e:
-            error_msg = str(e).lower()
-            if (
-                "bot was blocked by the user" in error_msg
-                or "bot can't initiate conversation with a user" in error_msg
-            ):
-                await remove_admin(admin_id)
-                logger.info(
-                    f"Removed admin {admin_id} from database (bot blocked or no chat started) in chat '{chat_title}' ({chat_id})"
-                )
-            else:
-                logger.warning(
-                    f"Failed to notify admin {admin_id} in chat '{chat_title}' ({chat_id}): {e}"
-                )
-
-            mp.track(
-                admin_id,
-                "error_admin_notification",
-                {
-                    "group_id": chat_id,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "timestamp": datetime.now().isoformat(),
-                },
-            )
+    private_message = (
+        "🤖 Приветствую! Для защиты группы мне нужны права администратора\\.\n\n"
+        f"Группа: *{sanitize_markdown_v2(chat_title)}*"
+        f"{f' \\(@{sanitize_markdown_v2(username)}\\)' if username else ''}\n\n"
+        "📱 Как настроить права:\n"
+        "1\\. Откройте настройки группы \\(три точки ⋮ сверху\\)\n"
+        "2\\. Выберите пункт 'Управление группой'\n"
+        "3\\. Нажмите 'Администраторы'\n"
+        "4\\. Найдите меня в списке администраторов\n"
+        "5\\. Включите два права:\n"
+        "   • *Удаление сообщений* \\- чтобы удалять спам\n"
+        "   • *Блокировка пользователей* \\- чтобы блокировать спамеров\n\n"
+        "После настройки прав я смогу защищать группу\\! 🛡"
+    )
+    await notify_admins_with_fallback_and_cleanup(
+        bot,
+        admin_ids,
+        chat_id,
+        private_message,
+        group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
+        cleanup_if_group_fails=True,
+    )
 
 
 async def _notify_admins_about_removal(
     chat_id: int, chat_title: str, username: str | None, admin_ids: List[int]
 ) -> None:
     """Notify admins when bot is removed from a group."""
-    for admin_id in admin_ids:
-        try:
-            chat_title_escaped = (
-                chat_title.replace("*", "\\*").replace("_", "\\_").replace("`", "\\`")
-            )
-            await bot.send_message(
-                admin_id,
-                f"🔔 Я был удален из группы *{chat_title_escaped}*"
-                f"{f' \\(@{username}\\)' if username else ''}\n\n"
-                "Если это произошло случайно, вы можете добавить меня обратно "
-                "и восстановить защиту группы\\.",
-                parse_mode="MarkdownV2",
-            )
-        except Exception as e:
-            error_msg = str(e).lower()
-            if (
-                "bot was blocked by the user" in error_msg
-                or "bot can't initiate conversation with a user" in error_msg
-            ):
-                await remove_admin(admin_id)
-                logger.info(
-                    f"Removed admin {admin_id} from database (bot blocked or no chat started) in chat '{chat_title}' ({chat_id})"
-                )
-            else:
-                logger.warning(
-                    f"Failed to notify admin {admin_id} about removal in chat '{chat_title}' ({chat_id}): {e}"
-                )
+    private_message = (
+        f"🔔 Я был удален из группы *{sanitize_markdown_v2(chat_title)}*"
+        f"{f' \\(@{sanitize_markdown_v2(username)}\\)' if username else ''}\n\n"
+        "Если это произошло случайно, вы можете добавить меня обратно "
+        "и восстановить защиту группы\\."
+    )
+    await notify_admins_with_fallback_and_cleanup(
+        bot,
+        admin_ids,
+        chat_id,
+        private_message,
+        group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
+        cleanup_if_group_fails=True,
+    )
 
 
 async def _send_promo_message(

@@ -117,6 +117,18 @@ def sanitize_markdown(text: str) -> str:
     return escape_underscores(partially_escaped, protected)
 
 
+def sanitize_markdown_v2(text: str) -> str:
+    """
+    Escapes all special characters for Telegram MarkdownV2.
+    See: https://core.telegram.org/bots/api#markdownv2-style
+    """
+    # List of all special characters in MarkdownV2
+    special_chars = r"_ * [ ] ( ) ~ ` > # + - = | { } . !"
+    for char in special_chars.split():
+        text = text.replace(char, f"\\{char}")
+    return text
+
+
 def clean_alert_text(text: str | None) -> str | None:
     """Очищает текст от обёртки тревоги/уведомления, если она присутствует."""
     if not text:

@@ -17,9 +17,14 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
 from ..common.mp import mp
+from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.tracking import track_group_event, track_spam_detection
 from ..database import get_admin, get_group, remove_admin
-from ..database.group_operations import remove_member_from_group
+from ..database.group_operations import (
+    cleanup_inaccessible_group,
+    get_pool,
+    remove_member_from_group,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -186,67 +191,22 @@ async def notify_admins(message: types.Message, all_admins_delete: bool) -> bool
     if not message.from_user:
         return False
 
-    notification_sent = False
-
-    # Получаем информацию о группе из базы данных
     group = await get_group(message.chat.id)
     if not group:
         logger.error(f"Group not found for chat {message.chat.id}")
         return False
 
-    for admin_id in group.admin_ids:
-        try:
-            # Получаем информацию об админе из Telegram
-            admin_chat = await bot.get_chat(admin_id)
-            if not admin_chat:
-                continue
-
-            keyboard = create_admin_notification_keyboard(message, all_admins_delete)
-            admin_msg = format_admin_notification_message(message, all_admins_delete)
-
-            await bot.send_message(
-                admin_id,
-                admin_msg,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
-            notification_sent = True
-
-            mp.track(
-                admin_id,
-                "admin_spam_notification",
-                {
-                    "chat_id": message.chat.id,
-                    "message_id": message.message_id,
-                    "auto_delete": all_admins_delete,
-                },
-            )
-
-        except Exception as e:
-            error_msg = str(e).lower()
-            if (
-                "bot was blocked by the user" in error_msg
-                or "bot can't initiate conversation with a user" in error_msg
-                or "bots can't send messages to bots" in error_msg
-            ):
-                await remove_admin(admin_id)
-                logger.info(
-                    f"Removed admin {admin_id} from database (bot blocked, no chat started, or admin is a bot)"
-                )
-            else:
-                logger.warning(f"Failed to notify admin {admin_id}: {e}")
-
-            mp.track(
-                admin_id,
-                "error_admin_notification",
-                {
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                },
-            )
-
-    return notification_sent
+    admin_ids = group.admin_ids
+    private_message = format_admin_notification_message(message, all_admins_delete)
+    result = await notify_admins_with_fallback_and_cleanup(
+        bot,
+        admin_ids,
+        message.chat.id,
+        private_message,
+        group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
+        cleanup_if_group_fails=True,
+    )
+    return bool(result["notified_private"]) or bool(result["group_notified"])
 
 
 async def handle_spam_message_deletion(message: types.Message) -> None:
