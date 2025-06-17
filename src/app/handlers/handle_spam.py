@@ -205,6 +205,7 @@ async def notify_admins(message: types.Message, all_admins_delete: bool) -> bool
         private_message,
         group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
         cleanup_if_group_fails=True,
+        parse_mode="HTML",
     )
     return bool(result["notified_private"]) or bool(result["group_notified"])
 

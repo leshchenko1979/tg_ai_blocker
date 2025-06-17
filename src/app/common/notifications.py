@@ -15,6 +15,7 @@ async def notify_admins_with_fallback_and_cleanup(
     private_message: str,
     group_message_template: str = "{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
     cleanup_if_group_fails: bool = True,
+    parse_mode: str = "HTML",
 ) -> dict:
     """
     Notifies all admins in private, falls back to group if none are reachable.
@@ -29,7 +30,7 @@ async def notify_admins_with_fallback_and_cleanup(
     for admin_id in admin_ids:
         try:
             admin_chat = await bot.get_chat(admin_id)
-            await bot.send_message(admin_id, private_message)
+            await bot.send_message(admin_id, private_message, parse_mode=parse_mode)
             notified_private.append(admin_id)
             last_admin_info = admin_chat
         except Exception as e:
@@ -57,7 +58,11 @@ async def notify_admins_with_fallback_and_cleanup(
         if getattr(last_admin_info, "username", None):
             mention = f"@{last_admin_info.username}"
         else:
-            mention = f'<a href="tg://user?id={last_admin_info.id}">админ</a>'
+            mention = (
+                f'<a href="tg://user?id={last_admin_info.id}">админ</a>'
+                if parse_mode == "HTML"
+                else f"[админ](tg://user?id={last_admin_info.id})"
+            )
     else:
         mention = "админ"
 
@@ -66,7 +71,7 @@ async def notify_admins_with_fallback_and_cleanup(
         await bot.send_message(
             group_id,
             group_message,
-            parse_mode="HTML",
+            parse_mode=parse_mode,
             disable_web_page_preview=True,
         )
         result["group_notified"] = True

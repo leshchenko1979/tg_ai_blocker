@@ -278,6 +278,7 @@ async def _notify_admins_about_rights(
         private_message,
         group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
         cleanup_if_group_fails=True,
+        parse_mode="MarkdownV2",
     )
 
 
@@ -298,6 +299,7 @@ async def _notify_admins_about_removal(
         private_message,
         group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
         cleanup_if_group_fails=True,
+        parse_mode="MarkdownV2",
     )
 
 
