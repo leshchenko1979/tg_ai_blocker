@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import List
 
 from aiogram import F, types
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import or_f
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -258,7 +259,7 @@ async def _notify_admins_about_rights(
 ) -> None:
     """Notify admins about required bot permissions."""
     private_message = (
-        "🤖 Приветствую! Для защиты группы мне нужны права администратора\\.\n\n"
+        "🤖 Приветствую\\! Для защиты группы мне нужны права администратора\\.\n\n"
         f"Группа: *{sanitize_markdown_v2(chat_title)}*"
         f"{f' \\(@{sanitize_markdown_v2(username)}\\)' if username else ''}\n\n"
         "📱 Как настроить права:\n"
@@ -276,7 +277,7 @@ async def _notify_admins_about_rights(
         admin_ids,
         chat_id,
         private_message,
-        group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
+        group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение\\. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе\\!",
         cleanup_if_group_fails=True,
         parse_mode="MarkdownV2",
     )
@@ -397,6 +398,49 @@ async def handle_member_service_message(message: types.Message) -> str:
                 f"Deleted service message {message_id} in chat {chat_id} ('{message.chat.title or ''}')"
             )
             return "service_message_deleted"
+        except TelegramBadRequest as e:
+            # Check for permission error
+            if (
+                "not enough rights" in str(e).lower()
+                or "need administrator rights" in str(e).lower()
+                or "chat admin required" in str(e).lower()
+                or "can_delete_messages" in str(e).lower()
+                or "message can't be deleted" in str(e).lower()
+            ):
+                logger.warning(
+                    f"Insufficient rights to delete service message {message_id} in chat {chat_id} ('{message.chat.title or ''}'): {e}",
+                    exc_info=True,
+                )
+                # Notify admins about missing permission
+                try:
+                    admins = await bot.get_chat_administrators(chat_id)
+                    admin_ids = [
+                        admin.user.id for admin in admins if not admin.user.is_bot
+                    ]
+                    group_title = message.chat.title or ""
+                    await notify_admins_with_fallback_and_cleanup(
+                        bot,
+                        admin_ids,
+                        chat_id,
+                        private_message=(
+                            "❗️ У меня нет права удалять сервисные сообщения в группе\\. "
+                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы\\.\n\nГруппа: *{sanitize_markdown_v2(group_title)}*"
+                        ),
+                        group_message_template="{mention}, у меня нет права удалять сервисные сообщения\\. Пожалуйста, дайте мне право 'Удаление сообщений'\\!",
+                        cleanup_if_group_fails=True,
+                        parse_mode="MarkdownV2",
+                    )
+                except Exception as notify_exc:
+                    logger.warning(
+                        f"Failed to notify admins about missing rights: {notify_exc}"
+                    )
+                return "service_message_no_rights"
+            else:
+                logger.warning(
+                    f"Failed to delete service message {message_id} in chat {chat_id} ('{message.chat.title or ''}'): {e}",
+                    exc_info=True,
+                )
+                return "service_message_delete_failed"
         except Exception as e:
             logger.warning(
                 f"Failed to delete service message {message_id} in chat {chat_id} ('{message.chat.title or ''}'): {e}",
