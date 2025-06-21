@@ -126,7 +126,9 @@ async def handle_stats_command(message: types.Message) -> str:
                 status = (
                     "✅ включена" if group["is_moderation_enabled"] else "❌ выключена"
                 )
-                message_text += f"• {group['title']}: модерация {status}\n"
+                # Очищаем название группы от markdown символов
+                safe_title = sanitize_markdown(group["title"])
+                message_text += f"• {safe_title}: модерация {status}\n"
         else:
             message_text += "У вас нет групп, где вы администратор."
 
