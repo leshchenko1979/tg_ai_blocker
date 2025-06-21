@@ -35,24 +35,24 @@ async def handle_help_command(message: types.Message) -> str:
     user = cast(types.User, message.from_user)  # Cast to ensure proper type hints
     user_id = user.id
 
+    command = message.text.split()[0]
+
     # Добавляем трекинг
     mp.track(
         user_id,
-        "command_start",
+        f"command_{command.lstrip('/')}",
         {
             "user_id": user_id,
             "chat_type": message.chat.type,
-            "command": message.text.split()[0],
-            "is_help": message.text.startswith("/help"),
+            "command": command,
             "user_language": user.language_code,
-            "platform": user.is_premium,  # as proxy for platform capabilities
+            "platform": user.is_premium,
         },
     )
 
-    # Начисляем звезды только при команде /start и только новым пользователям
-    if message.text.startswith("/start"):
+    # Логика для /start
+    if command == "/start":
         is_new = await initialize_new_admin(user_id)
-        # Трекинг нового пользователя
         if is_new:
             mp.track(
                 user_id,
@@ -60,19 +60,27 @@ async def handle_help_command(message: types.Message) -> str:
                 {"user_id": user_id, "initial_credits": INITIAL_CREDITS},
             )
             welcome_text = (
-                "🤖 Приветствую, слабое создание из мира плоти!\n\n"
-                f"Я, могущественный защитник киберпространства, дарую тебе {INITIAL_CREDITS} звезд силы. "
-                "Используй их мудро для защиты своих цифровых владений от спам-захватчиков.\n\n"
-                "📢 Подпишись на [канал проекта](https://t.me/ai_antispam), чтобы быть в курсе обновлений!\n\n"
+                "🤖 Добро пожаловать!\n\n"
+                "Я — ваш новый ИИ-модератор. Я готов защищать ваши группы от спама.\n\n"
+                "Просто добавьте меня в свою группу и сделайте администратором. Я пришлю подтверждение, когда всё будет готово.\n\n"
+                "Для подробной информации и списка команд используйте /help.\n\n"
+                "📢 А чтобы быть в курсе обновлений, подписывайтесь на [канал проекта](https://t.me/ai_antispam)!"
             )
-        else:
-            welcome_text = ""
-    else:
-        welcome_text = ""
+            await message.reply(
+                welcome_text,
+                parse_mode="markdown",
+                disable_web_page_preview=True,
+            )
+            return "command_start_new_user_sent"
+        # Для существующих пользователей покажем краткое приветствие и направим к командам
+        await message.reply(
+            "С возвращением! Для просмотра баланса и групп используйте /stats. Для справки по командам — /help.",
+            parse_mode="markdown",
+        )
+        return "command_start_existing_user"
 
-    # Формируем и очищаем текст
-    full_text = welcome_text + config["help_text"]
-    safe_text = sanitize_markdown(full_text)
+    # Логика для /help
+    safe_text = sanitize_markdown(config["help_text"])
 
     # Максимальная длина сообщения в Telegram
     MAX_LEN = 4096
@@ -85,11 +93,7 @@ async def handle_help_command(message: types.Message) -> str:
             disable_web_page_preview=True,
         )
 
-    return (
-        "command_help_sent"
-        if message.text.startswith("/help")
-        else "command_start_completed"
-    )
+    return "command_help_sent"
 
 
 @dp.message(Command("stats"))
