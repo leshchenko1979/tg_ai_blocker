@@ -198,6 +198,7 @@ async def notify_admins(message: types.Message, all_admins_delete: bool) -> bool
 
     admin_ids = group.admin_ids
     private_message = format_admin_notification_message(message, all_admins_delete)
+    keyboard = create_admin_notification_keyboard(message, all_admins_delete)
     result = await notify_admins_with_fallback_and_cleanup(
         bot,
         admin_ids,
@@ -206,6 +207,7 @@ async def notify_admins(message: types.Message, all_admins_delete: bool) -> bool
         group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
         cleanup_if_group_fails=True,
         parse_mode="HTML",
+        reply_markup=keyboard,
     )
     return bool(result["notified_private"]) or bool(result["group_notified"])
 
