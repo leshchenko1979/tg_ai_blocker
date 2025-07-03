@@ -175,6 +175,15 @@ async def check_skip_channel_bot_message(message) -> tuple[bool, str]:
     """
     linked_chat_id = getattr(message.chat, "linked_chat_id", None)
     if message.sender_chat:
+        # Проверяем, если сообщение отправлено "от имени группы" (админ постит как группа)
+        if message.sender_chat.id == message.chat.id:
+            logger.debug(
+                f"Skip moderation for message {message.message_id} "
+                f"from admin posting as group {message.sender_chat.id} "
+                f"in chat {message.chat.id}"
+            )
+            return True, "message_from_group_admin_skipped"
+
         # Если linked_chat_id уже есть и подходит — не делаем запрос к API
         if linked_chat_id and message.sender_chat.id == linked_chat_id:
             logger.debug(
