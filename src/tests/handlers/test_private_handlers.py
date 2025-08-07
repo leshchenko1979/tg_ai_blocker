@@ -93,17 +93,19 @@ async def test_handle_private_message(patched_db_conn, clean_db, private_message
             private_message_mock.from_user.username,
         )
 
-        with patch(
-            "src.app.handlers.private_handlers.save_message"
-        ) as save_mock, patch(
-            "src.app.handlers.private_handlers.get_message_history"
-        ) as history_mock, patch(
-            "src.app.handlers.private_handlers.get_openrouter_response"
-        ) as llm_mock, patch(
-            "src.app.handlers.private_handlers.get_spam_examples"
-        ) as examples_mock, patch(
-            "pathlib.Path.read_text"
-        ) as read_mock:
+        with (
+            patch("src.app.handlers.private_handlers.save_message") as save_mock,
+            patch(
+                "src.app.handlers.private_handlers.get_message_history"
+            ) as history_mock,
+            patch(
+                "src.app.handlers.private_handlers.get_openrouter_response"
+            ) as llm_mock,
+            patch(
+                "src.app.handlers.private_handlers.get_spam_examples"
+            ) as examples_mock,
+            patch("pathlib.Path.read_text") as read_mock,
+        ):
             history_mock.return_value = [
                 {"role": "user", "content": "Previous message"},
                 {"role": "assistant", "content": "Previous response"},
@@ -198,15 +200,16 @@ async def test_process_spam_example_callback(
             callback_query_mock.from_user.username,
         )
 
-        with patch(
-            "src.app.handlers.private_handlers.extract_original_message_info"
-        ) as extract_mock, patch(
-            "src.app.handlers.private_handlers.add_spam_example"
-        ) as add_mock, patch(
-            "src.app.handlers.private_handlers.remove_member_from_group"
-        ) as remove_mock, patch(
-            "src.app.handlers.private_handlers.bot"
-        ) as bot_mock:
+        with (
+            patch(
+                "src.app.handlers.private_handlers.extract_original_message_info"
+            ) as extract_mock,
+            patch("src.app.handlers.private_handlers.add_spam_example") as add_mock,
+            patch(
+                "src.app.handlers.private_handlers.remove_member_from_group"
+            ) as remove_mock,
+            patch("src.app.handlers.private_handlers.bot") as bot_mock,
+        ):
             # Setup mocks
             message_info = {
                 "user_id": 987654321,
@@ -259,17 +262,17 @@ async def test_process_not_spam_example_callback(
     async with clean_db.acquire() as conn:
         # ... same database setup code ...
 
-        with patch(
-            "app.handlers.private_handlers.extract_original_message_info"
-        ) as extract_mock, patch(
-            "app.handlers.private_handlers.add_spam_example"
-        ) as add_mock, patch(
-            "app.handlers.private_handlers.remove_member_from_group"
-        ) as remove_mock, patch(
-            "app.handlers.private_handlers.bot"
-        ) as bot_mock, patch(
-            "app.handlers.private_handlers.mp"
-        ) as mp_mock:
+        with (
+            patch(
+                "app.handlers.private_handlers.extract_original_message_info"
+            ) as extract_mock,
+            patch("app.handlers.private_handlers.add_spam_example") as add_mock,
+            patch(
+                "app.handlers.private_handlers.remove_member_from_group"
+            ) as remove_mock,
+            patch("app.handlers.private_handlers.bot") as bot_mock,
+            patch("app.handlers.private_handlers.mp") as mp_mock,
+        ):
             # Similar setup as above
             message_info = {
                 "user_id": 987654321,
@@ -468,31 +471,41 @@ async def test_handle_private_message_with_markdown_error(
 ):
     """Test that handle_private_message correctly handles markdown errors."""
     # Mock the get_message_history function
-    with patch(
-        "src.app.handlers.private_handlers.get_message_history",
-        return_value=[{"role": "user", "content": "Test message"}],
-    ) as get_history_mock, patch(
-        "src.app.handlers.private_handlers.get_spam_examples",
-        return_value=[],
-    ) as get_examples_mock, patch(
-        "src.app.handlers.private_handlers.get_openrouter_response",
-        return_value="Test **response with unbalanced markdown*",
-    ) as get_response_mock, patch(
-        "src.app.handlers.private_handlers.initialize_new_admin",
-        return_value=False,
-    ) as init_admin_mock, patch(
-        "src.app.handlers.private_handlers.get_admin_credits",
-        return_value=100,
-    ) as get_credits_mock, patch(
-        "src.app.handlers.private_handlers.save_message",
-    ) as save_message_mock, patch(
-        "src.app.handlers.private_handlers.mp.track",
-    ) as track_mock, patch(
-        "src.app.handlers.private_handlers.mp.people_set",
-    ) as people_set_mock, patch(
-        "pathlib.Path.read_text",
-        return_value="Test PRD",
-    ) as read_text_mock:
+    with (
+        patch(
+            "src.app.handlers.private_handlers.get_message_history",
+            return_value=[{"role": "user", "content": "Test message"}],
+        ) as get_history_mock,
+        patch(
+            "src.app.handlers.private_handlers.get_spam_examples",
+            return_value=[],
+        ) as get_examples_mock,
+        patch(
+            "src.app.handlers.private_handlers.get_openrouter_response",
+            return_value="Test **response with unbalanced markdown*",
+        ) as get_response_mock,
+        patch(
+            "src.app.handlers.private_handlers.initialize_new_admin",
+            return_value=False,
+        ) as init_admin_mock,
+        patch(
+            "src.app.handlers.private_handlers.get_admin_credits",
+            return_value=100,
+        ) as get_credits_mock,
+        patch(
+            "src.app.handlers.private_handlers.save_message",
+        ) as save_message_mock,
+        patch(
+            "src.app.handlers.private_handlers.mp.track",
+        ) as track_mock,
+        patch(
+            "src.app.handlers.private_handlers.mp.people_set",
+        ) as people_set_mock,
+        patch(
+            "pathlib.Path.read_text",
+            return_value="Test PRD",
+        ) as read_text_mock,
+    ):
         # Create a mock for the reply method
         reply_mock = AsyncMock()
 

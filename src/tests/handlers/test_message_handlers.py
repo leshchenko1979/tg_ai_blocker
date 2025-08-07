@@ -73,11 +73,10 @@ def photo_with_caption_mock(photo_message_mock):
 async def test_handle_moderated_message_disabled_moderation(
     patched_db_conn, clean_db, message_mock
 ):
-    with patch(
-        "src.app.handlers.message_handlers.is_moderation_enabled"
-    ) as mod_mock, patch(
-        "src.app.handlers.message_handlers.is_member_in_group"
-    ) as member_mock:
+    with (
+        patch("src.app.handlers.message_handlers.is_moderation_enabled") as mod_mock,
+        patch("src.app.handlers.message_handlers.is_member_in_group") as member_mock,
+    ):
         mod_mock.return_value = False
 
         # Insert group directly into database
@@ -99,13 +98,11 @@ async def test_handle_moderated_message_disabled_moderation(
 async def test_handle_moderated_message_photo_no_caption(
     patched_db_conn, clean_db, photo_message_mock
 ):
-    with patch(
-        "src.app.handlers.message_handlers.is_moderation_enabled"
-    ) as mod_mock, patch(
-        "src.app.handlers.message_handlers.is_member_in_group"
-    ) as member_mock, patch(
-        "src.app.handlers.message_handlers.is_spam"
-    ) as spam_mock:
+    with (
+        patch("src.app.handlers.message_handlers.is_moderation_enabled") as mod_mock,
+        patch("src.app.handlers.message_handlers.is_member_in_group") as member_mock,
+        patch("src.app.handlers.message_handlers.is_spam") as spam_mock,
+    ):
         mod_mock.return_value = True
         member_mock.return_value = False
         spam_mock.return_value = 0
@@ -121,13 +118,11 @@ async def test_handle_moderated_message_photo_no_caption(
 async def test_handle_moderated_message_photo_with_caption(
     patched_db_conn, clean_db, photo_with_caption_mock
 ):
-    with patch(
-        "src.app.handlers.message_handlers.is_moderation_enabled"
-    ) as mod_mock, patch(
-        "src.app.handlers.message_handlers.is_member_in_group"
-    ) as member_mock, patch(
-        "src.app.handlers.message_handlers.is_spam"
-    ) as spam_mock:
+    with (
+        patch("src.app.handlers.message_handlers.is_moderation_enabled") as mod_mock,
+        patch("src.app.handlers.message_handlers.is_member_in_group") as member_mock,
+        patch("src.app.handlers.message_handlers.is_spam") as spam_mock,
+    ):
         mod_mock.return_value = True
         member_mock.return_value = False
         spam_mock.return_value = 0
@@ -143,17 +138,13 @@ async def test_handle_moderated_message_photo_with_caption(
 async def test_handle_moderated_message_with_reply_markup(
     patched_db_conn, clean_db, message_mock
 ):
-    with patch(
-        "src.app.handlers.message_handlers.is_moderation_enabled"
-    ) as mod_mock, patch(
-        "src.app.handlers.message_handlers.is_member_in_group"
-    ) as member_mock, patch(
-        "src.app.handlers.message_handlers.is_spam"
-    ) as spam_mock, patch(
-        "src.app.handlers.message_handlers.try_deduct_credits"
-    ) as deduct_mock, patch(
-        "src.app.handlers.message_handlers.handle_spam"
-    ) as handle_spam_mock:
+    with (
+        patch("src.app.handlers.message_handlers.is_moderation_enabled") as mod_mock,
+        patch("src.app.handlers.message_handlers.is_member_in_group") as member_mock,
+        patch("src.app.handlers.message_handlers.is_spam") as spam_mock,
+        patch("src.app.handlers.message_handlers.try_deduct_credits") as deduct_mock,
+        patch("src.app.handlers.message_handlers.handle_spam") as handle_spam_mock,
+    ):
         # Setup mocks
         mod_mock.return_value = True
         member_mock.return_value = False
@@ -196,11 +187,12 @@ async def test_handle_spam_auto_delete(patched_db_conn, clean_db, message_mock):
 
 @pytest.mark.asyncio
 async def test_try_deduct_credits_failure(patched_db_conn, clean_db):
-    with patch(
-        "src.app.handlers.message_handlers.deduct_credits_from_admins"
-    ) as deduct_mock, patch(
-        "src.app.handlers.message_handlers.set_group_moderation"
-    ) as set_mod_mock:
+    with (
+        patch(
+            "src.app.handlers.message_handlers.deduct_credits_from_admins"
+        ) as deduct_mock,
+        patch("src.app.handlers.message_handlers.set_group_moderation") as set_mod_mock,
+    ):
         deduct_mock.return_value = 0  # Return 0 instead of False to indicate failure
         chat_id = -1001234567890
 

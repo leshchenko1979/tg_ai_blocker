@@ -22,8 +22,12 @@ async def handle_buy_command(message: types.Message) -> None:
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="100 звезд 💫", callback_data="buy_stars:100"),
-                InlineKeyboardButton(text="500 звезд ⭐", callback_data="buy_stars:500"),
+                InlineKeyboardButton(
+                    text="100 звезд 💫", callback_data="buy_stars:100"
+                ),
+                InlineKeyboardButton(
+                    text="500 звезд ⭐", callback_data="buy_stars:500"
+                ),
             ],
             [
                 InlineKeyboardButton(
