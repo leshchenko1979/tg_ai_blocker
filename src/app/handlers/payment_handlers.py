@@ -94,7 +94,7 @@ async def process_successful_payment(message: types.Message):
         pool = await get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
-                "CALL process_successful_payment($1, $2, $3)",
+                "CALL process_successful_payment($1, $2)",
                 admin_id,
                 stars_amount,
             )
