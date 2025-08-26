@@ -19,7 +19,7 @@ services:
       - "traefik.http.routers.tg-ai-blocker.rule=Host(`tg-ai-blocker.redevest.ru`)"
       - "traefik.http.routers.tg-ai-blocker.entrypoints=websecure"
       - "traefik.http.routers.tg-ai-blocker.tls=true"
-      - "traefik.http.routers.tg-ai-blocker.tls.certresolver=cloudflare"
+      - "traefik.http.routers.tg-ai-blocker.tls.certresolver=letsencrypt"
       - "traefik.http.services.tg-ai-blocker.loadbalancer.server.port=8080"
     healthcheck:
       test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
