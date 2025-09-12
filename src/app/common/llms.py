@@ -63,7 +63,7 @@ async def get_openrouter_response(messages, temperature=0.3):
         # "qwen/qwen3-14b:free", 74/47
         # "google/gemma-3-12b-it:free", Context window 8K - too small
         # "google/gemma-3-27b-it:free", Context window 8K - too small
-        "nvidia/nemotron-nano-9b-v2:free",
+        # "nvidia/nemotron-nano-9b-v2:free", false positives
         "deepseek/deepseek-chat-v3.1:free",
         "openai/gpt-oss-120b:free",
         "openai/gpt-oss-20b:free",
