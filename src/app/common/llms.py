@@ -1,25 +1,10 @@
-import asyncio
 import os
-from typing import cast
 
 import aiohttp
 import logfire
 
 # Global variable to track the last successful OpenRouter model
 _last_model = None
-
-
-async def get_yandex_response(messages):
-    from yandex_cloud_ml_sdk import AsyncYCloudML
-
-    folder_id = cast(str, os.getenv("YANDEX_FOLDER_ID"))
-    auth = cast(str, os.getenv("YANDEX_GPT_API_KEY"))
-
-    sdk = AsyncYCloudML(folder_id=folder_id, auth=auth)
-
-    model = sdk.models.completions("yandexgpt")
-    result = await model.configure(temperature=0.3).run(messages)
-    return result.alternatives[0].text
 
 
 class LLMException(Exception):
@@ -72,14 +57,28 @@ async def get_openrouter_response(messages, temperature=0.3):
         "Content-Type": "application/json",
     }
 
+    # Below commented out models are given with X/Y numbers - that is failure to success ratio
+
     models = [
-        "qwen/qwen3-14b:free",
+        # "qwen/qwen3-14b:free", 74/47
         # "google/gemma-3-12b-it:free", Context window 8K - too small
         # "google/gemma-3-27b-it:free", Context window 8K - too small
+        "nvidia/nemotron-nano-9b-v2:free",
+        "deepseek/deepseek-chat-v3.1:free",
+        "openai/gpt-oss-120b:free",
+        "openai/gpt-oss-20b:free",
+        "z-ai/glm-4.5-air:free",
+        "qwen/qwen3-coder:free",
+        "moonshotai/kimi-k2:free",
+        "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+        "tencent/hunyuan-a13b-instruct:free",
+        "tngtech/deepseek-r1t2-chimera:free",
+        "mistralai/mistral-small-3.2-24b-instruct:free",
+        "deepseek/deepseek-r1-0528:free",
         "qwen/qwen3-235b-a22b:free",
         "qwen/qwen3-30b-a3b:free",
-        "deepseek/deepseek-chat-v3-0324:free",
-        "google/gemini-2.0-flash-exp:free",
+        # "deepseek/deepseek-chat-v3-0324:free", 53/9
+        # "google/gemini-2.0-flash-exp:free", 57/25
     ]
     model_gen = round_robin_with_start(models, _last_model)
     last_exception = None
