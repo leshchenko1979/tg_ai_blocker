@@ -95,6 +95,10 @@ ssh ${REMOTE_USER}@${REMOTE_HOST} '
 echo "Checking container status..."
 ssh ${REMOTE_USER}@${REMOTE_HOST} "docker ps | grep tg-ai-blocker || echo 'Container not found!'"
 
+# Clean up source files after successful deployment
+echo "Cleaning up files on the server..."
+ssh ${REMOTE_USER}@${REMOTE_HOST} "rm -rf /data/projects/tg-ai-blocker"
+
 echo "Deployment completed successfully!"
 
 # Print deployment time in green color
