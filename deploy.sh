@@ -47,7 +47,7 @@ fi
 echo "Setting up directory structure..."
 ssh ${REMOTE_USER}@${REMOTE_HOST} "
     # Create persistent directories with proper permissions
-    mkdir -p ${LOGS_DIR:-/home/${REMOTE_USER}/logs}
+    mkdir -p ${LOGS_DIR:-/data/projects/tg-ai-blocker/logs}
 "
 
 # Create package archive
@@ -71,22 +71,22 @@ tar \
 
 # Clean and recreate project directory
 echo "Cleaning and recreating project directory..."
-ssh ${REMOTE_USER}@${REMOTE_HOST} "rm -rf ~/tg-ai-blocker && mkdir -p ~/tg-ai-blocker"
+ssh ${REMOTE_USER}@${REMOTE_HOST} "rm -rf /data/projects/tg-ai-blocker && mkdir -p /data/projects/tg-ai-blocker"
 
 # Copy and extract Python package
 echo "Copying and extracting Python package..."
-scp "$TEMP_DIR/app.tar.gz" ${REMOTE_USER}@${REMOTE_HOST}:~/tg-ai-blocker/
-ssh ${REMOTE_USER}@${REMOTE_HOST} "cd ~/tg-ai-blocker && tar xzf app.tar.gz && rm app.tar.gz && ls -la"
+scp "$TEMP_DIR/app.tar.gz" ${REMOTE_USER}@${REMOTE_HOST}:/data/projects/tg-ai-blocker/
+ssh ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && tar xzf app.tar.gz && rm app.tar.gz && ls -la"
 rm -rf "$TEMP_DIR"
 
 # Copy configuration files
 echo "Copying configuration files..."
-scp .dockerfile docker-compose.yml .env requirements.txt config.yaml PRD.md ${REMOTE_USER}@${REMOTE_HOST}:~/tg-ai-blocker/
+scp .dockerfile docker-compose.yml .env requirements.txt config.yaml PRD.md ${REMOTE_USER}@${REMOTE_HOST}:/data/projects/tg-ai-blocker/
 
 # Deploy container
 echo "Deploying container..."
 ssh ${REMOTE_USER}@${REMOTE_HOST} '
-    cd ~/tg-ai-blocker
+    cd /data/projects/tg-ai-blocker
     docker compose down --remove-orphans
     docker compose up -d --build
 '
