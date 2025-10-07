@@ -5,6 +5,7 @@ from aiogram import types
 from ..common.bot import bot
 from ..common.spam_classifier import is_spam
 from ..common.tracking import track_group_event
+from ..common.utils import retry_on_network_error
 from ..database import (
     APPROVE_PRICE,
     DELETE_PRICE,
@@ -144,12 +145,19 @@ async def send_wrong_channel_addition_instruction(chat, bot):
     for admin in admins:
         if admin.user.is_bot:
             continue
+
+        admin_id = admin.user.id
         try:
-            await bot.send_message(admin.user.id, instruction, parse_mode="HTML")
-            notified_admins.append(admin.user.id)
+
+            @retry_on_network_error
+            async def send_instruction():
+                return await bot.send_message(admin_id, instruction, parse_mode="HTML")
+
+            await send_instruction()
+            notified_admins.append(admin_id)
         except Exception as e:
             logger.warning(
-                f"Не удалось отправить инструкцию админу {admin.user.id}: {e}",
+                f"Не удалось отправить инструкцию админу {admin_id}: {e}",
                 exc_info=True,
             )
 

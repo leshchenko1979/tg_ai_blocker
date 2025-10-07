@@ -9,7 +9,6 @@
 """
 
 import logging
-from typing import Optional
 
 from aiogram import types
 from aiogram.exceptions import TelegramBadRequest
@@ -19,12 +18,9 @@ from ..common.bot import bot
 from ..common.mp import mp
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.tracking import track_group_event, track_spam_detection
-from ..database import get_admin, get_group, remove_admin
-from ..database.group_operations import (
-    cleanup_inaccessible_group,
-    get_pool,
-    remove_member_from_group,
-)
+from ..common.utils import retry_on_network_error
+from ..database import get_admin, get_group
+from ..database.group_operations import remove_member_from_group
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +219,12 @@ async def handle_spam_message_deletion(message: types.Message) -> None:
         return
 
     try:
-        await bot.delete_message(message.chat.id, message.message_id)
+
+        @retry_on_network_error
+        async def delete_spam_message():
+            return await bot.delete_message(message.chat.id, message.message_id)
+
+        await delete_spam_message()
         logger.info(
             f"Deleted spam message {message.message_id} in chat {message.chat.id}"
         )
@@ -261,7 +262,12 @@ async def ban_user_for_spam(chat_id: int, user_id: int) -> None:
         user_id: ID пользователя
     """
     try:
-        await bot.ban_chat_member(chat_id, user_id)
+
+        @retry_on_network_error
+        async def ban_spam_user():
+            return await bot.ban_chat_member(chat_id, user_id)
+
+        await ban_spam_user()
         logger.info(f"Banned user {user_id} in chat {chat_id} for spam")
     except Exception as e:
         logger.warning(

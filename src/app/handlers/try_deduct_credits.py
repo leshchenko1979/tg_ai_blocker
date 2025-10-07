@@ -16,6 +16,7 @@ from aiogram.types import ChatMember, ChatMemberAdministrator, ChatMemberOwner
 from ..common.bot import bot
 from ..common.mp import mp
 from ..common.tracking import track_credits_deduction
+from ..common.utils import retry_on_network_error
 from ..database import deduct_credits_from_admins, get_admin, set_group_moderation
 
 logger = logging.getLogger(__name__)
@@ -117,21 +118,30 @@ async def send_group_deactivation_message(
         min_credits_admin: Админ с минимальным балансом
         min_credits: Минимальный баланс
     """
+    message_text = (
+        "⚠️ *Внимание! Защита группы деактивирована*\n\n"
+        "Нейромодератор приостановил работу из-за нехватки звезд.\n"
+        "Группа осталась без защиты от:\n"
+        "• Спама и рекламы\n"
+        "• Мошенников\n"
+        "• Нежелательных сообщений\n\n"
+        "👉 Администраторы могут восстановить защиту через личные сообщения с ботом\n\n"
+        f"🤖 [Хотите такого же модератора в свою группу? Подключить]({ref_link})\n"
+        "📢 [Следите за обновлениями в канале проекта](https://t.me/ai_antispam)"
+    )
+
     try:
-        await bot.send_message(
-            chat_id,
-            "⚠️ *Внимание! Защита группы деактивирована*\n\n"
-            "Нейромодератор приостановил работу из-за нехватки звезд.\n"
-            "Группа осталась без защиты от:\n"
-            "• Спама и рекламы\n"
-            "• Мошенников\n"
-            "• Нежелательных сообщений\n\n"
-            "👉 Администраторы могут восстановить защиту через личные сообщения с ботом\n\n"
-            f"🤖 [Хотите такого же модератора в свою группу? Подключить]({ref_link})\n"
-            "📢 [Следите за обновлениями в канале проекта](https://t.me/ai_antispam)",
-            parse_mode="markdown",
-            disable_web_page_preview=True,
-        )
+
+        @retry_on_network_error
+        async def send_deactivation_message():
+            return await bot.send_message(
+                chat_id,
+                message_text,
+                parse_mode="markdown",
+                disable_web_page_preview=True,
+            )
+
+        await send_deactivation_message()
 
         # Трекинг отправки рекламного сообщения
         mp.track(
@@ -144,7 +154,7 @@ async def send_group_deactivation_message(
             },
         )
     except Exception as e:
-        logger.warning(f"Failed to send group promo message: {e}")
+        logger.warning(f"Failed to send group promo message: {e}", exc_info=True)
 
 
 async def notify_admins_about_deactivation(
@@ -163,16 +173,27 @@ async def notify_admins_about_deactivation(
             continue
         if admin.user.is_bot:
             continue
+
+        admin_id = admin.user.id
+        message_text = (
+            "Внимание, органическая форма жизни!\n\n"
+            f'Моя защита группы "{chat_title}" временно приостановлена '
+            "из-за истощения звездной энергии.\n\n"
+            "Пополни запас звезд командой /buy, чтобы я продолжил охранять "
+            "твоё киберпространство от цифровых паразитов!\n\n"
+            f"Или пригласи других администраторов: {ref_link}"
+        )
+
         try:
-            await bot.send_message(
-                admin.user.id,
-                "Внимание, органическая форма жизни!\n\n"
-                f'Моя защита группы "{chat_title}" временно приостановлена '
-                "из-за истощения звездной энергии.\n\n"
-                "Пополни запас звезд командой /buy, чтобы я продолжил охранять "
-                "твоё киберпространство от цифровых паразитов!\n\n"
-                f"Или пригласи других администраторов: {ref_link}",
-                disable_web_page_preview=True,
-            )
+
+            @retry_on_network_error
+            async def send_notification():
+                return await bot.send_message(
+                    admin_id,
+                    message_text,
+                    disable_web_page_preview=True,
+                )
+
+            await send_notification()
         except Exception as e:
-            logger.warning(f"Failed to notify admin {admin.user.id}: {e}")
+            logger.warning(f"Failed to notify admin {admin_id}: {e}", exc_info=True)

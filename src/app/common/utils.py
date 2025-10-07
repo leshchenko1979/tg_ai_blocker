@@ -3,8 +3,47 @@ import re
 from typing import Any, Dict
 
 import yaml
+from aiogram.exceptions import TelegramBadRequest
+from aiohttp import ClientError, ClientOSError
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 logger = logging.getLogger(__name__)
+
+# Network errors that should be retried
+RETRYABLE_ERRORS = (
+    ClientOSError,  # Connection reset by peer, etc.
+    ClientError,  # Other aiohttp client errors
+    OSError,  # Low-level OS errors
+    ConnectionError,  # Generic connection errors
+    TimeoutError,  # Timeout errors
+)
+
+# Permanent errors that should not be retried
+PERMANENT_ERRORS = (TelegramBadRequest,)  # User blocked bot, chat not found, etc.
+
+# Tenacity retry decorator for network operations
+retry_on_network_error = retry(
+    stop=stop_after_attempt(4),  # 4 attempts total (1 initial + 3 retries)
+    wait=wait_exponential(multiplier=0.5, min=0.5, max=10),  # 0.5s to 10s backoff
+    retry=retry_if_exception_type(RETRYABLE_ERRORS),
+    reraise=True,  # Re-raise the last exception if all retries fail
+    before_sleep=lambda retry_state: (
+        logger.info(
+            f"Retryable error on attempt {retry_state.attempt_number}/{retry_state.attempt_number + 2}: "
+            f"{retry_state.outcome.exception() if retry_state.outcome else 'Unknown error'}. Retrying..."
+        )
+        if retry_state.attempt_number <= 3
+        else logger.warning(
+            f"All retries failed with error: {retry_state.outcome.exception() if retry_state.outcome else 'Unknown error'}",
+            exc_info=True,
+        )
+    ),
+)
 
 
 def load_config() -> Dict[str, Any]:

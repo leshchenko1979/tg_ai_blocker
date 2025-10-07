@@ -1,9 +1,9 @@
 import logging
 
-from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import InlineKeyboardMarkup, Message
+from aiogram.types import InlineKeyboardMarkup
 
 from ..database.group_operations import cleanup_inaccessible_group, get_pool
+from .utils import retry_on_network_error
 
 logger = logging.getLogger(__name__)
 
@@ -30,20 +30,39 @@ async def notify_admins_with_fallback_and_cleanup(
 
     for admin_id in admin_ids:
         try:
-            admin_chat = await bot.get_chat(admin_id)
-            await bot.send_message(
-                admin_id,
-                private_message,
-                parse_mode=parse_mode,
-                reply_markup=reply_markup,
-            )
+            # Get admin chat info with retry
+            @retry_on_network_error
+            async def get_chat_info():
+                return await bot.get_chat(admin_id)
+
+            admin_chat = await get_chat_info()
+
+            # Send message with retry
+            @retry_on_network_error
+            async def send_private_message():
+                return await bot.send_message(
+                    admin_id,
+                    private_message,
+                    parse_mode=parse_mode,
+                    reply_markup=reply_markup,
+                )
+
+            await send_private_message()
+
             notified_private.append(admin_id)
             last_admin_info = admin_chat
         except Exception as e:
-            logger.warning(f"Failed to notify admin {admin_id} in private: {e}")
+            logger.warning(
+                f"Failed to notify admin {admin_id} in private: {e}", exc_info=True
+            )
             unreachable.append(admin_id)
             try:
-                admin_chat = await bot.get_chat(admin_id)
+
+                @retry_on_network_error
+                async def get_chat_info_fallback():
+                    return await bot.get_chat(admin_id)
+
+                admin_chat = await get_chat_info_fallback()
                 last_admin_info = admin_chat
             except Exception:
                 pass
@@ -74,16 +93,23 @@ async def notify_admins_with_fallback_and_cleanup(
 
     group_message = group_message_template.format(mention=mention)
     try:
-        await bot.send_message(
-            group_id,
-            group_message,
-            parse_mode=parse_mode,
-            disable_web_page_preview=True,
-        )
+
+        @retry_on_network_error
+        async def send_group_message():
+            return await bot.send_message(
+                group_id,
+                group_message,
+                parse_mode=parse_mode,
+                disable_web_page_preview=True,
+            )
+
+        await send_group_message()
         result["group_notified"] = True
         return result
     except Exception as group_e:
-        logger.warning(f"Failed to send group fallback notification: {group_e}")
+        logger.warning(
+            f"Failed to send group fallback notification: {group_e}", exc_info=True
+        )
         if cleanup_if_group_fails:
             try:
                 pool = await get_pool()

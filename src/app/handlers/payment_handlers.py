@@ -6,7 +6,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
 from ..common.mp import mp
-from ..common.utils import config
+from ..common.utils import retry_on_network_error
 from ..database import get_admin_credits, get_pool
 from .dp import dp
 
@@ -117,12 +117,16 @@ async def process_successful_payment(message: types.Message):
         # Трекинг успешного платежа
         mp.track(admin_id, "payment_successful", {"stars_amount": stars_amount})
 
-        await bot.send_message(
-            admin_id,
-            f"🎉 Поздравляю, человек! Я начислил тебе {stars_amount} звезд и активировал "
-            f"защиту в твоих группах.\n\n"
-            "Теперь я буду охранять твое киберпространство с утроенной силой! 💪",
-        )
+        @retry_on_network_error
+        async def send_payment_confirmation():
+            return await bot.send_message(
+                admin_id,
+                f"🎉 Поздравляю, человек! Я начислил тебе {stars_amount} звезд и активировал "
+                f"защиту в твоих группах.\n\n"
+                "Теперь я буду охранять твое киберпространство с утроенной силой! 💪",
+            )
+
+        await send_payment_confirmation()
 
     except Exception as e:
         # Трекинг ошибок

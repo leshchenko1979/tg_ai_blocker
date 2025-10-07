@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery
 
 from ..common.bot import bot
 from ..common.mp import mp
+from ..common.utils import retry_on_network_error
 from ..database.group_operations import add_member
 from ..database.spam_examples import add_spam_example
 from .dp import dp
@@ -148,9 +149,18 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
 
         # Удаляем оригинальное спам-сообщение из группы
         try:
-            await bot.delete_message(int(original_chat_id), int(original_message_id))
+
+            @retry_on_network_error
+            async def delete_original_message():
+                return await bot.delete_message(
+                    int(original_chat_id), int(original_message_id)
+                )
+
+            await delete_original_message()
         except Exception as e:
-            logger.warning(f"Failed to delete original spam message: {e}")
+            logger.warning(
+                f"Failed to delete original spam message: {e}", exc_info=True
+            )
             await callback.answer("❌ Не удалось удалить сообщение", show_alert=True)
             return "callback_error_deleting_original"
 

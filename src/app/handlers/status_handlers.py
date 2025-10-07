@@ -12,8 +12,8 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from ..common.bot import bot
 from ..common.mp import mp
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
-from ..common.utils import sanitize_markdown_v2
-from ..database import get_group, remove_admin, update_group_admins
+from ..common.utils import retry_on_network_error, sanitize_markdown_v2
+from ..database import get_group, update_group_admins
 from .dp import dp
 from .message_handlers import send_wrong_channel_addition_instruction
 
@@ -139,14 +139,20 @@ async def _handle_permission_update(
             # NEW: Send confirmation to admin
             try:
                 chat_title_escaped = sanitize_markdown_v2(chat_title)
-                await bot.send_message(
-                    admin_id,
-                    f"✅ Настройка завершена! Я получил все необходимые права и теперь защищаю группу <b>{chat_title_escaped}</b>.\n\nЕсли потребуется помощь — напишите мне в личку или воспользуйтесь командой /help.",
-                    parse_mode="HTML",
-                )
+
+                @retry_on_network_error
+                async def send_setup_confirmation():
+                    return await bot.send_message(
+                        admin_id,
+                        f"✅ Настройка завершена! Я получил все необходимые права и теперь защищаю группу <b>{chat_title_escaped}</b>.\n\nЕсли потребуется помощь — напишите мне в личку или воспользуйтесь командой /help.",
+                        parse_mode="HTML",
+                    )
+
+                await send_setup_confirmation()
             except Exception as e:
                 logger.warning(
-                    f"Failed to send setup confirmation to admin {admin_id}: {e}"
+                    f"Failed to send setup confirmation to admin {admin_id}: {e}",
+                    exc_info=True,
                 )
 
 
@@ -206,14 +212,20 @@ async def _handle_bot_added(
         # NEW: Send confirmation to admin
         try:
             chat_title_escaped = sanitize_markdown_v2(chat_title)
-            await bot.send_message(
-                admin_id,
-                f"✅ Настройка завершена! Я получил все необходимые права и теперь защищаю группу <b>{chat_title_escaped}</b>.\n\nЕсли потребуется помощь — напишите мне в личку или воспользуйтесь командой /help.",
-                parse_mode="HTML",
-            )
+
+            @retry_on_network_error
+            async def send_setup_confirmation():
+                return await bot.send_message(
+                    admin_id,
+                    f"✅ Настройка завершена! Я получил все необходимые права и теперь защищаю группу <b>{chat_title_escaped}</b>.\n\nЕсли потребуется помощь — напишите мне в личку или воспользуйтесь командой /help.",
+                    parse_mode="HTML",
+                )
+
+            await send_setup_confirmation()
         except Exception as e:
             logger.warning(
-                f"Failed to send setup confirmation to admin {admin_id}: {e}"
+                f"Failed to send setup confirmation to admin {admin_id}: {e}",
+                exc_info=True,
             )
 
 
@@ -324,21 +336,25 @@ async def _send_promo_message(
             ]
         )
 
-        await bot.send_message(
-            chat_id,
-            "👋 Приветствую всех обитателей этого цифрового пространства!\n\n"
-            "Я - искусственный интеллект, созданный для защиты групп от спама "
-            "и нежелательного контента.\n\n"
-            "🛡 Мои возможности:\n"
-            "• Мгновенное определение спамеров\n"
-            "• Автоматическое удаление спама\n"
-            "• Ведение белого списка участников\n"
-            "• Обучение на ваших примерах\n\n"
-            "ℹ️ [Узнайте, как работает определение спама](https://t.me/ai_antispam/7)\n"
-            "📢 Следите за обновлениями в [канале проекта](https://t.me/ai_antispam)\n\n"
-            "Нажмите на кнопку ниже, чтобы начать настройку защиты.",
-            reply_markup=keyboard,
-        )
+        @retry_on_network_error
+        async def send_promo_message():
+            return await bot.send_message(
+                chat_id,
+                "👋 Приветствую всех обитателей этого цифрового пространства!\n\n"
+                "Я - искусственный интеллект, созданный для защиты групп от спама "
+                "и нежелательного контента.\n\n"
+                "🛡 Мои возможности:\n"
+                "• Мгновенное определение спамеров\n"
+                "• Автоматическое удаление спама\n"
+                "• Ведение белого списка участников\n"
+                "• Обучение на ваших примерах\n\n"
+                "ℹ️ [Узнайте, как работает определение спама](https://t.me/ai_antispam/7)\n"
+                "📢 Следите за обновлениями в [канале проекта](https://t.me/ai_antispam)\n\n"
+                "Нажмите на кнопку ниже, чтобы начать настройку защиты.",
+                reply_markup=keyboard,
+            )
+
+        await send_promo_message()
     except Exception as e:
         logger.warning(
             f"Failed to send promo message to chat {chat_id} ('{chat_title}'): {e}"

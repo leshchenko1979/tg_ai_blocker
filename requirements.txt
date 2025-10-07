@@ -5,3 +5,4 @@ mixpanel
 pyyaml
 asyncpg
 logfire
+tenacity
