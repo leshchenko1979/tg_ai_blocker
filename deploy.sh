@@ -82,7 +82,7 @@ rm -rf "$TEMP_DIR"
 
 # Copy configuration files
 echo "Copying configuration files..."
-scp .dockerfile docker-compose.yml .env requirements.txt config.yaml PRD.md ${REMOTE_USER}@${REMOTE_HOST}:/data/projects/tg-ai-blocker/
+scp .dockerfile docker-compose.yml .env pyproject.toml config.yaml PRD.md ${REMOTE_USER}@${REMOTE_HOST}:/data/projects/tg-ai-blocker/
 
 # Deploy container
 echo "Deploying container..."

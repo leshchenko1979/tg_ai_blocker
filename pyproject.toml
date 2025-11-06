@@ -6,18 +6,31 @@ build-backend = "setuptools.build_meta"
 name = "tg_ai_blocker"
 version = "0.1.0"
 authors = [
-    { name = "Leshchenko", email = "leshchenko@example.com" }
+    { name = "Leshchenko", email = "leshchenko@gmail.com" }
 ]
 description = "Telegram AI spam blocker"
 requires-python = ">=3.12"
+dependencies = [
+    "aiohttp",
+    "python-dotenv",
+    "aiogram",
+    "mixpanel",
+    "pyyaml",
+    "asyncpg",
+    "logfire",
+    "tenacity",
+]
 
 [tool.setuptools]
-packages = ["src"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pyright]
 include = ["src"]
 extraPaths = ["src", "."]
-pythonVersion = "3.12"
+pythonVersion = "3.13"
 typeCheckingMode = "basic"
 useLibraryCodeForTypes = true
 reportMissingImports = true

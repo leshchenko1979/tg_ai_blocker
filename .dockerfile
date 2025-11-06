@@ -4,14 +4,16 @@ LABEL Name=tg-ai-blocker Version=0.0.1
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt --no-cache-dir
+COPY pyproject.toml ./
+RUN set -eux; \
+    pip install --no-cache-dir uv; \
+    uv pip install --system --no-cache -r pyproject.toml; \
+    pip uninstall -y uv; \
+    rm -rf /root/.cache/uv
 
-COPY .env PRD.md config.yaml ./
 COPY src/app ./app
 
-# Test imports during build
-# RUN PYTHONPATH=/app python -c "from app import main"
+COPY .env PRD.md config.yaml ./
 
 EXPOSE 8080
 

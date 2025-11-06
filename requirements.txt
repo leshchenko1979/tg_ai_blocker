@@ -1,8 +1,0 @@
-aiohttp
-python-dotenv
-aiogram
-mixpanel
-pyyaml
-asyncpg
-logfire
-tenacity
