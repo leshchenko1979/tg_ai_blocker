@@ -1,0 +1,144 @@
+import os
+import ssl
+from typing import Any, Dict, Optional
+
+import aiohttp
+import logfire
+
+from .utils import retry_on_network_error
+
+
+class MtprotoHttpError(RuntimeError):
+    """Raised when the MTProto bridge returns an error payload."""
+
+
+class MtprotoHttpClient:
+    def __init__(
+        self,
+        base_url: str,
+        bearer_token: str,
+        *,
+        disable_ssl_verify: bool = False,
+        ca_bundle: Optional[str] = None,
+    ):
+        if not bearer_token:
+            raise ValueError("MTProto HTTP bearer token is not configured")
+
+        self._base_url = base_url.rstrip("/")
+        self._bearer_token = bearer_token
+        self._session_ssl_kwargs: Dict[str, Any] = {}
+
+        if disable_ssl_verify:
+            # Disable SSL verification entirely (debug only)
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            self._session_ssl_kwargs["ssl"] = ssl_context
+        elif ca_bundle:
+            ssl_context = ssl.create_default_context(cafile=ca_bundle)
+            self._session_ssl_kwargs["ssl"] = ssl_context
+
+    @classmethod
+    def from_env(
+        cls,
+        *,
+        base_url_env: str = "MTPROTO_HTTP_BASE_URL",
+        token_env: str = "MTPROTO_HTTP_BEARER_TOKEN",
+        default_base_url: str = "https://tg-mcp.redevest.ru",
+        disable_ssl_verify_env: str = "MTPROTO_HTTP_DISABLE_SSL_VERIFY",
+        ca_bundle_env: str = "MTPROTO_HTTP_CA_BUNDLE",
+    ) -> "MtprotoHttpClient":
+        base_url = os.getenv(base_url_env, default_base_url)
+        bearer_token = os.getenv(token_env)
+        if bearer_token is None:
+            raise ValueError(f"Environment variable {token_env} is not set")
+        disable_ssl = os.getenv(disable_ssl_verify_env, "0").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        ca_bundle = os.getenv(ca_bundle_env)
+        return cls(
+            base_url,
+            bearer_token,
+            disable_ssl_verify=disable_ssl,
+            ca_bundle=ca_bundle,
+        )
+
+    async def call(
+        self,
+        method: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        params_json: Optional[str] = None,
+        resolve: bool = True,
+        timeout: int = 15,
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {"resolve": resolve}
+        if params is not None:
+            payload["params"] = params
+        if params_json is not None:
+            payload["params_json"] = params_json
+
+        return await self._post(method, payload, timeout=timeout)
+
+    @retry_on_network_error
+    async def _post(
+        self, method: str, payload: Dict[str, Any], *, timeout: int = 15
+    ) -> Dict[str, Any]:
+        url = f"{self._base_url}/mtproto-api/{method}"
+        headers = {
+            "Authorization": f"Bearer {self._bearer_token}",
+            "Content-Type": "application/json",
+        }
+
+        client_timeout = aiohttp.ClientTimeout(total=timeout)
+        connector = None
+        if "ssl" in self._session_ssl_kwargs:
+            connector = aiohttp.TCPConnector(ssl=self._session_ssl_kwargs["ssl"])
+
+        session_kwargs: Dict[str, Any] = {"timeout": client_timeout}
+        if connector:
+            session_kwargs["connector"] = connector
+
+        async with aiohttp.ClientSession(**session_kwargs) as session:
+            with logfire.span(
+                "mtproto_http_call",
+                method=method,
+                url=url,
+                payload=payload,
+            ) as span:
+                async with session.post(url, headers=headers, json=payload) as response:
+                    span.set_attribute("status", response.status)
+                    try:
+                        data = await response.json()
+                    except aiohttp.ContentTypeError as e:
+                        text = await response.text()
+                        span.set_level("error")
+                        span.record_exception(e)
+                        span.set_attribute("response_text", text)
+                        raise MtprotoHttpError(
+                            f"MTProto HTTP bridge returned non-JSON body: {text}"
+                        ) from e
+                    span.set_attribute("response", data)
+
+                    if response.status >= 400:
+                        raise MtprotoHttpError(
+                            f"MTProto HTTP bridge error {response.status}: {data}"
+                        )
+
+                    if data.get("error"):
+                        raise MtprotoHttpError(str(data["error"]))
+
+                    # Bridge responses use `result` for successful payloads.
+                    return data.get("result", data)
+
+
+_client: Optional[MtprotoHttpClient] = None
+
+
+def get_mtproto_client() -> MtprotoHttpClient:
+    global _client
+    if _client is None:
+        _client = MtprotoHttpClient.from_env()
+    return _client

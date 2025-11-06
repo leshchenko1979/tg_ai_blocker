@@ -23,6 +23,7 @@ async def is_spam(
     name: str | None = None,
     bio: str | None = None,
     admin_ids: List[int] | None = None,
+    linked_channel_fragment: str | None = None,
 ):
     """
     Классифицирует сообщение как спам или не спам
@@ -37,7 +38,7 @@ async def is_spam(
         int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
     """
     prompt = await get_system_prompt(admin_ids)
-    messages = get_messages(comment, name, bio, prompt)
+    messages = get_messages(comment, name, bio, prompt, linked_channel_fragment)
 
     last_response = None
     last_error = None
@@ -143,8 +144,14 @@ async def get_system_prompt(admin_ids: Optional[List[int]] = None):
     return prompt
 
 
-def get_messages(comment: str, name: str | None, bio: str | None, prompt: str):
-    user_request = format_spam_request(comment, name, bio)
+def get_messages(
+    comment: str,
+    name: str | None,
+    bio: str | None,
+    prompt: str,
+    linked_channel_fragment: str | None,
+):
+    user_request = format_spam_request(comment, name, bio, linked_channel_fragment)
     user_message = f"""
 {user_request}
 <ответ>
@@ -157,7 +164,10 @@ def get_messages(comment: str, name: str | None, bio: str | None, prompt: str):
 
 
 def format_spam_request(
-    text: str, name: Optional[str] = None, bio: Optional[str] = None
+    text: str,
+    name: Optional[str] = None,
+    bio: Optional[str] = None,
+    linked_channel_fragment: Optional[str] = None,
 ) -> str:
     """
     Форматирует запрос для классификации спама.
@@ -182,6 +192,9 @@ def format_spam_request(
 
     if bio:
         request += f"<биография>{bio}</биография>\n"
+
+    if linked_channel_fragment:
+        request += f"<связанный_канал>{linked_channel_fragment}</связанный_канал>\n"
 
     request += "</запрос>"
     return request
