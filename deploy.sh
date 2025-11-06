@@ -56,7 +56,8 @@ TEMP_DIR=$(mktemp -d)
 if [ -f "$TEMP_DIR/app.tar.gz" ]; then
     rm "$TEMP_DIR/app.tar.gz"
 fi
-tar \
+COPYFILE_DISABLE=1 tar \
+    --no-xattrs \
     --exclude='venv' \
     --exclude='*.pyc' \
     --exclude='__pycache__' \
