@@ -14,6 +14,7 @@ from .common.llms import LocationNotSupported, RateLimitExceeded
 from .common.mp import mp
 from .common.utils import remove_lines_to_fit_len
 from .handlers.dp import dp
+from .logging_setup import register_telegram_logging_loop
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,13 @@ async def handle_update(request: web.Request) -> web.Response:
 
 
 app.add_routes(routes)
+
+
+async def _on_startup_register_logging(app: web.Application) -> None:
+    register_telegram_logging_loop(asyncio.get_running_loop())
+
+
+app.on_startup.append(_on_startup_register_logging)
 
 
 def extract_ids_from_update(json: dict) -> Tuple[Optional[int], Optional[int]]:
