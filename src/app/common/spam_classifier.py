@@ -85,16 +85,14 @@ async def is_spam(
                 last_error = e
                 unknown_errors += 1
 
-    logfire.exception(
-        "Spam classifier failed",
-        response=last_response,
-        error=str(last_error),
-        comment=comment,
-        name=name,
-        bio=bio,
-        admin_ids=admin_ids,
-        prompt=prompt,
-        _tags=["spam_classifier_failed"],
+    logger.exception(
+        "Spam classifier failed after %s attempts. comment=%r, name=%r, bio=%r, response=%r, last_error=%r",
+        MAX_RETRIES,
+        comment,
+        name,
+        bio,
+        last_response,
+        last_error,
     )
     raise ExtractionFailedError(
         f"Failed to classify message after {MAX_RETRIES} attempts: {str(last_error)}"
