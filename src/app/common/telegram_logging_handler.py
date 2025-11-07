@@ -120,9 +120,6 @@ class TelegramLogHandler(logging.Handler):
             f"<code>{html.escape(record.name)}</code>"
         )
 
-        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(record.created))
-        header += f"\n<code>{html.escape(timestamp)}</code>"
-
         text = f"{header}\n\n<pre>{body}</pre>"
         if len(text) > self.MAX_TELEGRAM_LENGTH:
             text = text[: self.MAX_TELEGRAM_LENGTH - 1] + "…"

@@ -391,9 +391,9 @@ async def extract_original_message_info(
             "Cannot determine forwarded user id for spam example",
             extra={
                 "forward_from": bool(original_message.forward_from),
-                "forward_origin_type": getattr(origin, "type", None)
-                if origin
-                else None,
+                "forward_origin_type": (
+                    getattr(origin, "type", None) if origin else None
+                ),
             },
         )
 
