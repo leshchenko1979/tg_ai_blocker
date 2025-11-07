@@ -29,6 +29,7 @@ where = ["src"]
 
 [tool.pyright]
 include = ["src"]
+exclude = ["tests"]
 extraPaths = ["src", "."]
 pythonVersion = "3.13"
 typeCheckingMode = "basic"

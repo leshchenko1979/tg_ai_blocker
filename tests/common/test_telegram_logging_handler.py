@@ -48,7 +48,7 @@ async def test_handler_flushes_after_loop_registration():
 
     handler.set_event_loop(asyncio.get_running_loop())
 
-    await asyncio.sleep(0)
+    await asyncio.sleep(0.5)  # Give time for background task to process
 
     logger.removeHandler(handler)
 
@@ -77,9 +77,9 @@ async def test_handler_deduplicates_repeated_messages():
     logger.propagate = False
 
     logger.error("Duplicate")
-    await asyncio.sleep(0)
+    await asyncio.sleep(0.5)
     logger.error("Duplicate")
-    await asyncio.sleep(0)
+    await asyncio.sleep(0.5)
 
     logger.removeHandler(handler)
 

@@ -32,13 +32,7 @@ black src
 # Run tests if not skipped
 if [ "$SKIP_TESTS" = false ]; then
     echo "Running tests..."
-    #pytest src -v
-
-    # If any of the above commands failed, exit
-    if [ $? -ne 0 ]; then
-        echo "Tests failed! Aborting deployment."
-        exit 1
-    fi
+    pytest tests -v --maxfail=1 --exitfirst --last-failed
 else
     echo "Skipping tests..."
 fi

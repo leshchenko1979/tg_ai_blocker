@@ -1,6 +1,6 @@
 import pytest
 
-from ...app.database import add_spam_example, get_spam_examples, remove_spam_example
+from app.database import add_spam_example, get_spam_examples, remove_spam_example
 
 
 @pytest.mark.asyncio

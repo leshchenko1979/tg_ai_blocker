@@ -1,6 +1,6 @@
 import pytest
 
-from ...app.database import (
+from app.database import (
     Administrator,
     add_member,
     get_paying_admins,
