@@ -26,6 +26,12 @@ app = web.Application()
 WEBHOOK_TIMEOUT = 55
 
 
+@routes.get("/health")
+async def healthcheck(_: web.Request) -> web.Response:
+    """Return plain OK response for health probes."""
+    return web.Response(text="ok")
+
+
 @routes.post("/")
 @routes.get("/")
 async def handle_update(request: web.Request) -> web.Response:

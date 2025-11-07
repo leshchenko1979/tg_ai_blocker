@@ -97,8 +97,8 @@ echo "Checking container status..."
 ssh ${REMOTE_USER}@${REMOTE_HOST} "docker ps | grep tg-ai-blocker || echo 'Container not found!'"
 
 # Clean up source files after successful deployment
-echo "Cleaning up files on the server..."
-ssh ${REMOTE_USER}@${REMOTE_HOST} "rm -rf /data/projects/tg-ai-blocker"
+echo "Cleaning up source files on the server (preserving docker-compose and .env for Sablier)..."
+ssh ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && rm -rf src app"
 
 echo "Deployment completed successfully!"
 
