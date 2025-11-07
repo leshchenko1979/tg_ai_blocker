@@ -1,8 +1,8 @@
 ---
 ## Progress
 
-- **Functional**: Telegram webhook server, aiogram handlers, spam classifier, billing via Telegram Stars, Mixpanel tracking hooks, PostgreSQL data layer, MTProto bridge enrichment, and Telegram logging handler (with logfire spans) are live.
-- **In Flight**: Validate MTProto credentials across environments, monitor Telegram alert cadence for noise, and extend automated tests covering linked-channel prompt injection.
+- **Functional**: Telegram webhook server, aiogram handlers, spam classifier, billing via Telegram Stars, Mixpanel tracking hooks, PostgreSQL data layer, MTProto bridge enrichment, and Telegram logging handler (with logfire spans) are live; comment-spam prompt now interprets linked-channel fragments with explicit suspicion thresholds.
+- **In Flight**: Validate MTProto credentials across environments, monitor Telegram alert cadence for noise, and extend automated tests covering linked-channel prompt injection plus the new suspicion rule.
 - **Known Gaps/Risks**:
   - Need confirmed status for production deployment, monitoring dashboards, and dependency installs in target environments.
   - Remaining modules might reintroduce direct `logfire` warning/error usage; regression coverage for Telegram alert handler is pending.
