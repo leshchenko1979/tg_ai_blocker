@@ -3,6 +3,7 @@ import logging
 from aiogram import types
 
 from ..common.bot import bot
+from ..common.linked_channel import collect_linked_channel_summary
 from ..common.spam_classifier import is_spam
 from ..common.tracking import track_group_event
 from ..common.utils import retry_on_network_error
@@ -307,8 +308,26 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
     bio = user_with_bio.bio if user_with_bio else None
     admin_ids = group.admin_ids
 
+    channel_fragment = None
+    if getattr(message, "message_thread_id", None):
+        try:
+            summary = await collect_linked_channel_summary(user.id)
+        except Exception as exc:  # noqa: BLE001 - log and fall back gracefully
+            logger.info(
+                "Failed to collect linked channel summary",
+                extra={"user_id": user.id, "error": str(exc)},
+            )
+            summary = None
+
+        if summary:
+            channel_fragment = summary.to_prompt_fragment()
+
     spam_score = await is_spam(
-        comment=message_text, name=user.full_name, bio=bio, admin_ids=admin_ids
+        comment=message_text,
+        name=user.full_name,
+        bio=bio,
+        admin_ids=admin_ids,
+        linked_channel_fragment=channel_fragment,
     )
     return spam_score, bio
 

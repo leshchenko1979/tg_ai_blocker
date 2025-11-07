@@ -1,0 +1,15 @@
+## Product Context
+
+- **Target Users**: Telegram administrators managing active groups or channel discussions who need proactive, automated spam control without constant manual oversight.
+- **Core Value Proposition**: Deliver immediate protection against spam and scam activity by combining LLM-based classification, custom spam examples, and automated enforcement actions.
+- **User Journeys**:
+  - Onboard bot into a group, grant admin permissions, configure moderation mode, and observe automated clean-up.
+  - Receive alerts about suspicious messages, approve or override actions, and curate trusted/blocked user lists.
+  - Purchase Telegram Star packages, monitor balance consumption, and review billing history.
+- **Experience Principles**:
+  - Fast, transparent feedback: instant notifications, clear reason codes, and undo paths for mistakes.
+  - High reliability: minimal false positives, safe handling of admin/service messages, and graceful degradation when credits run low.
+  - Empowered control: admins can tune moderation levels, manage exceptions, and contribute labeled examples for continuous improvement.
+- **Success Metrics**: Reduced spam incidents, sustained admin engagement, conversion to paid plans, and positive sentiment in bot interactions.
+
+

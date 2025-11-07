@@ -1,9 +1,12 @@
+---
 ## Progress
 
-- **Functional**: Telegram logging handler now receives warnings/errors from `common.llms` and `common.spam_classifier`, which emit through standard logging while retaining logfire spans and metrics for traceability.
-- **In Flight**: Evaluate production alert cadence and tune throttling/deduplication parameters if noisy.
+- **Functional**: Telegram webhook server, aiogram handlers, spam classifier, billing via Telegram Stars, Mixpanel tracking hooks, PostgreSQL data layer, MTProto bridge enrichment, and Telegram logging handler (with logfire spans) are live.
+- **In Flight**: Validate MTProto credentials across environments, monitor Telegram alert cadence for noise, and extend automated tests covering linked-channel prompt injection.
 - **Known Gaps/Risks**:
-  - Remaining modules might reintroduce `logfire` warning/error usage without review.
-  - Dependency installs performed locally (mixpanel, asyncpg) need confirmation in deployment environments.
-- **Next Checkpoints**: Schedule a sweep of other packages for logging consistency and add regression coverage for Telegram alert handler once broader tests are defined.
+  - Need confirmed status for production deployment, monitoring dashboards, and dependency installs in target environments.
+  - Remaining modules might reintroduce direct `logfire` warning/error usage; regression coverage for Telegram alert handler is pending.
+  - Lack of regression tests for MTProto bridge failures or missing channel metadata responses.
+- **Next Checkpoints**: Sync with maintainers on priorities, confirm remote DB connectivity process, ensure telemetry (Logfire, Mixpanel) aligns with current policies, design tests for comment moderation edge cases, and schedule a logging consistency sweep.
+---
 

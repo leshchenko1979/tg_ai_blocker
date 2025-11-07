@@ -1,11 +1,12 @@
 ## Active Context
 
-- **Current Focus**: Align critical warnings and errors with the Python logging pipeline so the Telegram escalation handler captures them while retaining logfire spans/metrics for observability.
+- **Current Focus**: Reinforce comment moderation by enriching LLM context with MTProto-derived data about user-linked channels.
 - **Key Decisions**:
-  - Refactored `common.llms` and `common.spam_classifier` to use module loggers for warning/error reporting, preserving existing logfire instrumentation where it adds trace data.
-  - Keep logfire metric gauges in the spam classifier to monitor scoring attempts without duplicating alert noise.
+  - Build an `MtprotoHttpClient` wrapper that reads credentials from `MTPROTO_HTTP_BEARER_TOKEN` and defaults to `https://tg-mcp.redevest.ru`.
+  - Collect channel metadata (title, username, invite link, subscriber count, post range, latest post preview) via `account.getProfilePeer`, `channels.getFullChannel`, and `messages.getHistory` only for threaded comment messages.
 - **Immediate Next Steps**:
-  - Monitor Telegram alert volume and adjust handler throttling if noise becomes excessive.
-  - Watch for new logfire error/warning usage in future changes and migrate them to logging promptly.
-  - Confirm production environments have the required dependencies (`mixpanel`, `asyncpg`) installed after local test runs.
+  - Monitor telemetry for MTProto bridge failures and adjust retry/backoff if needed.
+  - Confirm `.env` contains the required `MTPROTO_HTTP_BEARER_TOKEN` and optionally override base URL when deploying outside prod bridge.
+  - Re-run regression tests covering spam classification once classifier prompt adjustments stabilize.
+
 

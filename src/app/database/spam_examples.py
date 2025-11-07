@@ -17,7 +17,7 @@ async def get_spam_examples(
             # Get both common and user-specific examples for multiple admins
             rows = await conn.fetch(
                 """
-                SELECT text, name, bio, score
+                SELECT text, name, bio, score, linked_channel_fragment
                 FROM spam_examples
                 WHERE admin_id IS NULL OR admin_id = ANY($1)
                 ORDER BY created_at DESC
@@ -28,7 +28,7 @@ async def get_spam_examples(
             # Get only common examples
             rows = await conn.fetch(
                 """
-                SELECT text, name, bio, score
+                SELECT text, name, bio, score, linked_channel_fragment
                 FROM spam_examples
                 WHERE admin_id IS NULL
                 ORDER BY created_at DESC
@@ -41,6 +41,7 @@ async def get_spam_examples(
                 "name": row["name"],
                 "bio": row["bio"],
                 "score": row["score"],
+                "linked_channel_fragment": row["linked_channel_fragment"],
             }
             for row in rows
         ]
@@ -52,6 +53,7 @@ async def add_spam_example(
     name: Optional[str] = None,
     bio: Optional[str] = None,
     admin_id: Optional[int] = None,
+    linked_channel_fragment: Optional[str] = None,
 ) -> bool:
     """Add a new spam example to PostgreSQL"""
     pool = await get_pool()
@@ -75,14 +77,23 @@ async def add_spam_example(
                 # Add new example
                 await conn.execute(
                     """
-                    INSERT INTO spam_examples (text, name, bio, score, admin_id, created_at)
-                    VALUES ($1, $2, $3, $4, $5, NOW())
+                    INSERT INTO spam_examples (
+                        text,
+                        name,
+                        bio,
+                        score,
+                        admin_id,
+                        linked_channel_fragment,
+                        created_at
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, NOW())
                 """,
                     cleaned_text,
                     name,
                     bio,
                     score,
                     admin_id,
+                    linked_channel_fragment,
                 )
                 return True
             except Exception as e:

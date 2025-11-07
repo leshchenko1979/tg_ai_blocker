@@ -7,10 +7,8 @@ from aiogram.filters import and_f, or_f
 # 3. Сообщение не отредактировано
 # 4. Не сервисное сообщение (новые участники, смена фото и т.д.)
 # 5. Сообщение содержит текст или медиа
-# 6. Разрешаем:
-#    - Сообщения не-ответы
-#    - Ответы вне треда
-#    - Ответы в треде, если отправитель — бот
+# 6. Ответы не ограничиваем — дальнейшая фильтрация выполняется в
+#    check_skip_channel_bot_message
 
 filter_handle_message = and_f(
     # 1. Только групповые чаты
@@ -43,16 +41,5 @@ filter_handle_message = and_f(
         F.animation,
         F.audio,
         F.story,
-    ),
-    # 6. Логика для ответов:
-    #    - Не ответ
-    #    - Ответ вне треда
-    #    - Ответ в треде, если отправитель — бот
-    or_f(
-        ~F.reply_to_message,
-        and_f(F.reply_to_message, ~F.reply_to_message.message_thread_id),
-        and_f(
-            F.reply_to_message, F.reply_to_message.message_thread_id, F.from_user.is_bot
-        ),
     ),
 )

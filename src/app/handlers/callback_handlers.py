@@ -5,6 +5,7 @@ from aiogram import F, types
 from aiogram.types import CallbackQuery
 
 from ..common.bot import bot
+from ..common.linked_channel import collect_linked_channel_summary
 from ..common.mp import mp
 from ..common.utils import retry_on_network_error
 from ..database.group_operations import add_member
@@ -51,6 +52,18 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         # Обновляем текст сообщения, добавляя пометку "Не спам"
         updated_message_text = f"{message_text}\n\n✅ <b>Отмечено как НЕ СПАМ</b>"
 
+        channel_fragment = None
+        try:
+            summary = await collect_linked_channel_summary(author_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.info(
+                "Failed to load linked channel for author",
+                extra={"author_id": author_id, "error": str(exc)},
+            )
+            summary = None
+        if summary:
+            channel_fragment = summary.to_prompt_fragment()
+
         # Все тяжелые операции параллельно
         async with asyncio.TaskGroup() as tg:
             tg.create_task(
@@ -64,6 +77,7 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
                     name=author_info.full_name if author_info else None,
                     bio=author_info.bio if author_info else None,
                     admin_id=admin_id,
+                    linked_channel_fragment=channel_fragment,
                 )
             )
             tg.create_task(
@@ -85,6 +99,7 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
                 "text": message_text,
                 "name": author_info.full_name if author_info else None,
                 "bio": author_info.bio if author_info else None,
+                "linked_channel": channel_fragment,
             },
         )
         return "callback_marked_as_not_spam"
