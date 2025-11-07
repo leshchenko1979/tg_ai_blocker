@@ -6,7 +6,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import logfire
+from aiogram import Bot
 
+from .bot import bot
 from .mtproto_client import MtprotoHttpClient, MtprotoHttpError, get_mtproto_client
 
 logger = logging.getLogger(__name__)
@@ -40,19 +42,33 @@ async def collect_linked_channel_summary(
     user_reference: str | int,
 ) -> Optional[LinkedChannelSummary]:
     client = get_mtproto_client()
+    logger.debug(
+        "Collecting linked channel summary via MTProto",
+        extra={"user_reference": user_reference},
+    )
+
     try:
         full_user_response = await client.call(
             "users.getFullUser", params={"id": user_reference}, resolve=True
         )
+        source = "mtproto"
     except MtprotoHttpError as exc:
         logger.info(
-            "Failed to load full user",
+            "MTProto failed for full user",
             extra={
                 "user_reference": user_reference,
                 "error": str(exc),
+                "error_contains_entity": "Could not find the input entity" in str(exc),
             },
         )
-        return None
+        if "Could not find the input entity" not in str(exc):
+            return None
+
+        logger.info(
+            "MTProto missing entity, attempting bot fallback",
+            extra={"user_reference": user_reference},
+        )
+        return await _collect_summary_via_bot(user_reference)
 
     resolved_user = None
     users_block = full_user_response.get("users") or []
@@ -74,13 +90,21 @@ async def collect_linked_channel_summary(
 
     channel_id = int(personal_channel_id)
 
+    logger.debug(
+        "Fetching linked channel via MTProto",
+        extra={
+            "user_reference": user_reference,
+            "channel_id": channel_id,
+        },
+    )
+
     try:
         full_channel = await client.call(
             "channels.getFullChannel", params={"channel": channel_id}, resolve=True
         )
     except MtprotoHttpError as exc:
         logger.info(
-            "Failed to load full channel",
+            "Failed to load full channel via MTProto",
             extra={
                 "user_reference": user_reference,
                 "resolved_user": resolved_user,
@@ -88,9 +112,17 @@ async def collect_linked_channel_summary(
                 "error": str(exc),
             },
         )
-        return None
+        return await _collect_summary_via_bot(user_reference, channel_id=channel_id)
 
     subscribers = full_channel.get("full_chat", {}).get("participants_count")
+    logger.debug(
+        "MTProto channel stats",
+        extra={
+            "user_reference": user_reference,
+            "channel_id": channel_id,
+            "subscribers": subscribers,
+        },
+    )
 
     newest_message, total_posts = await _fetch_channel_edge_message(
         client, channel_id, limit_offset=None
@@ -109,13 +141,112 @@ async def collect_linked_channel_summary(
     if newest_post_date and oldest_post_date:
         post_age_delta = int((newest_post_date - oldest_post_date).total_seconds())
 
-    return LinkedChannelSummary(
+    summary = LinkedChannelSummary(
         subscribers=subscribers,
         total_posts=total_posts,
         newest_post_date=newest_post_date,
         oldest_post_date=oldest_post_date,
         post_age_delta=post_age_delta,
     )
+
+    logfire.info(
+        "linked channel summary collected",
+        source=source,
+        user_reference=user_reference,
+        channel_id=channel_id,
+        subscribers=subscribers,
+        total_posts=total_posts,
+        post_age_delta=post_age_delta,
+    )
+
+    return summary
+
+
+async def _collect_summary_via_bot(
+    user_reference: str | int,
+    *,
+    channel_id: Optional[int] = None,
+    bot_client: Bot = bot,
+) -> Optional[LinkedChannelSummary]:
+    logger.debug(
+        "Bot fallback: loading user chat",
+        extra={"user_reference": user_reference},
+    )
+
+    try:
+        user_chat = await bot_client.get_chat(user_reference)
+    except Exception as exc:  # noqa: BLE001
+        logger.info(
+            "Bot fallback failed to get user chat",
+            extra={"user_reference": user_reference, "error": str(exc)},
+        )
+        return None
+
+    personal_channel_id = channel_id or getattr(user_chat, "linked_chat_id", None)
+
+    if not personal_channel_id:
+        logger.debug(
+            "Bot fallback found no linked channel",
+            extra={"user_reference": user_reference},
+        )
+        return None
+
+    logger.debug(
+        "Bot fallback: loading channel chat",
+        extra={
+            "user_reference": user_reference,
+            "channel_id": personal_channel_id,
+        },
+    )
+
+    try:
+        channel_chat = await bot_client.get_chat(personal_channel_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.info(
+            "Bot fallback failed to load channel chat",
+            extra={
+                "user_reference": user_reference,
+                "channel_id": personal_channel_id,
+                "error": str(exc),
+            },
+        )
+        return None
+
+    subscribers = getattr(channel_chat, "members_count", None)
+
+    logger.debug(
+        "Bot fallback channel stats",
+        extra={
+            "user_reference": user_reference,
+            "channel_id": personal_channel_id,
+            "subscribers": subscribers,
+        },
+    )
+
+    total_posts = None
+    newest_post_date = None
+    oldest_post_date = None
+    post_age_delta = None
+
+    summary = LinkedChannelSummary(
+        subscribers=subscribers,
+        total_posts=total_posts,
+        newest_post_date=newest_post_date,
+        oldest_post_date=oldest_post_date,
+        post_age_delta=post_age_delta,
+    )
+
+    logfire.info(
+        "linked channel summary collected",
+        source="bot",
+        user_reference=user_reference,
+        channel_id=personal_channel_id,
+        subscribers=subscribers,
+        total_posts=total_posts,
+        post_age_delta=post_age_delta,
+    )
+
+    return summary
 
 
 @logfire.instrument()
