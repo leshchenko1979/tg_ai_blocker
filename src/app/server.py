@@ -222,3 +222,6 @@ async def handle_unhandled_exception(
     )
 
     return web.json_response({"message": "Error processing request"})
+
+
+logging.warning("Server started")
