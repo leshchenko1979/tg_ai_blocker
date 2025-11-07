@@ -4,8 +4,7 @@ import logging
 import threading
 import time
 from collections import deque
-from concurrent.futures import Future
-from typing import Deque, Optional, Tuple
+from typing import Deque, Optional
 
 from aiogram import Bot
 
@@ -14,10 +13,8 @@ class TelegramLogHandler(logging.Handler):
     """
     Logging handler that forwards warnings and errors to a Telegram chat.
 
-    The handler buffers log records until the asyncio event loop is available.
-    Once a loop is registered (see `set_event_loop`), records are delivered by
-    scheduling `bot.send_message` calls on that loop. Delivery is throttled to
-    avoid spamming Telegram during error storms.
+    Uses a queue-based approach with a background task to send messages,
+    avoiding threading issues. Messages are throttled to avoid spamming.
     """
 
     MAX_MESSAGE_BODY = 3600  # leave headroom for headers & markup
@@ -37,25 +34,22 @@ class TelegramLogHandler(logging.Handler):
         self._chat_id = chat_id
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._lock = threading.Lock()
-        self._pending: Deque[Tuple[str, logging.LogRecord]] = deque(maxlen=50)
+        self._message_queue: Deque[str] = deque(maxlen=100)
         self._sent_timestamps: Deque[float] = deque(maxlen=throttling_capacity)
         self._throttling_window = throttling_window
         self._dedupe_window = dedupe_window
         self._last_text: Optional[str] = None
         self._last_sent_at: float = 0.0
+        self._send_task: Optional[asyncio.Task] = None
 
     def set_event_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """
-        Register an asyncio loop used to deliver Telegram messages.
-        Flushes any buffered records once the loop becomes available.
+        Register an asyncio loop and start the background send task.
         """
         with self._lock:
             self._loop = loop
-            pending = list(self._pending)
-            self._pending.clear()
-
-        for text, record in pending:
-            self._enqueue(text, record)
+            if self._send_task is None or self._send_task.done():
+                self._send_task = loop.create_task(self._process_queue())
 
     def emit(self, record: logging.LogRecord) -> None:
         # Skip logs emitted by this handler to prevent recursion
@@ -70,44 +64,45 @@ class TelegramLogHandler(logging.Handler):
 
         with self._lock:
             if self._loop is None:
-                self._pending.append((text, record))
+                # Buffer messages until loop is available
+                self._message_queue.append(text)
                 return
 
-        self._enqueue(text, record)
-
-    def _enqueue(self, text: str, record: logging.LogRecord) -> None:
-        loop: Optional[asyncio.AbstractEventLoop]
-        with self._lock:
-            loop = self._loop
-            if loop is None:
-                self._pending.append((text, record))
-                return
+            # Bypass throttling for ERROR and CRITICAL level messages (keep deduplication)
+            bypass_throttling = record.levelno >= logging.ERROR
 
             if self._should_dedupe(text):
                 return
 
-            if not self._allow_throughput():
+            if not bypass_throttling and not self._allow_throughput():
                 return
 
             now = time.monotonic()
             self._last_text = text
             self._last_sent_at = now
-            self._sent_timestamps.append(now)
+            if not bypass_throttling:
+                self._sent_timestamps.append(now)
 
-        try:
-            running_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            running_loop = None
+            self._message_queue.append(text)
 
-        if running_loop is loop:
-            task = loop.create_task(self._send(text))
-            task.add_done_callback(lambda t: self._on_task_done(t, record))
-        else:
-            future: Future = asyncio.run_coroutine_threadsafe(
-                self._send(text),
-                loop,
-            )
-            future.add_done_callback(lambda f: self._on_future_done(f, record))
+    async def _process_queue(self) -> None:
+        """Background task that processes the message queue."""
+        while True:
+            try:
+                # Wait a bit between sends to avoid overwhelming Telegram
+                await asyncio.sleep(0.1)
+
+                with self._lock:
+                    if not self._message_queue:
+                        continue
+                    text = self._message_queue.popleft()
+
+                await self._send(text)
+
+            except Exception as e:
+                # Log send failures but don't crash the task
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to send Telegram notification: {e}", exc_info=e)
 
     def _render_message(self, record: logging.LogRecord) -> str:
         rendered = self.format(record)
@@ -132,26 +127,6 @@ class TelegramLogHandler(logging.Handler):
             parse_mode="HTML",
             disable_web_page_preview=True,
         )
-
-    def _on_future_done(
-        self,
-        future: Future,
-        record: logging.LogRecord,
-    ) -> None:
-        if future.cancelled():
-            return
-        exc = future.exception()
-        if exc:
-            record.exc_info = (exc.__class__, exc, exc.__traceback__)
-            self.handleError(record)
-
-    def _on_task_done(self, task: asyncio.Task, record: logging.LogRecord) -> None:
-        if task.cancelled():
-            return
-        exc = task.exception()
-        if exc:
-            record.exc_info = (exc.__class__, exc, exc.__traceback__)
-            self.handleError(record)
 
     def _allow_throughput(self) -> bool:
         now = time.monotonic()
