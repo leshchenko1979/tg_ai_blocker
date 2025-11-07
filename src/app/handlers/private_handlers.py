@@ -7,6 +7,7 @@ from aiogram import F, types
 from aiogram.filters import or_f
 
 from ..common.bot import bot
+from ..common.linked_channel import collect_linked_channel_summary
 from ..common.llms import get_openrouter_response
 from ..common.mp import mp
 from ..common.utils import config, sanitize_markdown
@@ -98,6 +99,8 @@ async def handle_private_message(message: types.Message) -> str:
                 example_str += f"\n<имя>{example['name']}</имя>"
             if "bio" in example:
                 example_str += f"\n<биография>{example['bio']}</биография>"
+            if example.get("linked_channel_fragment"):
+                example_str += f"\n<канал>{example['linked_channel_fragment']}</канал>"
             example_str += "\n</запрос>\n<ответ>\n"
             example_str += f"{'да' if example['score'] > 50 else 'нет'} {abs(example['score'])}%\n</ответ>"
             example_str += "\n</пример>"
@@ -113,13 +116,13 @@ async def handle_private_message(message: types.Message) -> str:
 Также используй эту информацию, которую получает пользователь по команде /start:
 
 <текст сообщения>
-{config['help_text']}
+{config["help_text"]}
 </текст сообщения>
 
 А вот примеры того, что ты считаешь спамом, а что нет
 (если spam_score > 50, то сообщение считается спамом):
 <примеры>
-{'\n'.join(formatted_examples)}
+{"\n".join(formatted_examples)}
 </примеры>
 
 Отвечай от имени бота и используй указанный стиль ответа.
@@ -254,6 +257,20 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
 
         info = await extract_original_message_info(callback.message)
 
+        channel_fragment = None
+        user_id = info.get("user_id")
+        if user_id:
+            try:
+                summary = await collect_linked_channel_summary(user_id)
+            except Exception as exc:  # noqa: BLE001 - log and continue
+                logger.info(
+                    "Failed to load linked channel for forwarded user",
+                    extra={"user_id": user_id, "error": str(exc)},
+                )
+                summary = None
+            if summary:
+                channel_fragment = summary.to_prompt_fragment()
+
         tasks = [
             bot(
                 callback.answer(
@@ -270,6 +287,7 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                 bio=info["bio"],
                 score=100 if action == "spam" else -100,
                 admin_id=admin_id,
+                linked_channel_fragment=channel_fragment,
             ),
             bot.edit_message_text(
                 chat_id=callback.message.chat.id,
@@ -298,6 +316,18 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                 )
 
         await asyncio.gather(*tasks)
+
+        mp.track(
+            admin_id,
+            "spam_example_saved",
+            {
+                "decision": action,
+                "text": info["text"],
+                "user_id": info.get("user_id"),
+                "name": info.get("name"),
+                "linked_channel_fragment": channel_fragment,
+            },
+        )
         return "spam_example_processed"
 
     except OriginalMessageExtractionError as e:
@@ -334,6 +364,8 @@ async def extract_original_message_info(
         "group_message_id": None,
     }
 
+    origin = original_message.forward_origin
+
     if original_message.forward_from:
         # Если есть прямая информация о пользователе
         user = original_message.forward_from
@@ -341,14 +373,28 @@ async def extract_original_message_info(
         info["user_id"] = user.id
         user_info = await bot.get_chat(user.id)
         info["bio"] = user_info.bio if user_info else None
-    else:
-        # Если есть информация о происхождении сообщения
-        origin = original_message.forward_origin
-        if isinstance(origin, types.MessageOriginUser):
-            info["name"] = origin.sender_user.full_name
-        elif isinstance(origin, types.MessageOriginChannel):
-            info["name"] = origin.chat.title
-            info["group_chat_id"] = origin.chat.id
-            info["group_message_id"] = origin.message_id
+
+    if isinstance(origin, types.MessageOriginUser):
+        sender_user = origin.sender_user
+        info["name"] = info["name"] or sender_user.full_name
+        info["user_id"] = sender_user.id
+        if not info["bio"]:
+            user_info = await bot.get_chat(sender_user.id)
+            info["bio"] = user_info.bio if user_info else None
+    elif isinstance(origin, types.MessageOriginChannel):
+        info["name"] = info["name"] or origin.chat.title
+        info["group_chat_id"] = origin.chat.id
+        info["group_message_id"] = origin.message_id
+
+    if not info["user_id"]:
+        logger.warning(
+            "Cannot determine forwarded user id for spam example",
+            extra={
+                "forward_from": bool(original_message.forward_from),
+                "forward_origin_type": getattr(origin, "type", None)
+                if origin
+                else None,
+            },
+        )
 
     return info

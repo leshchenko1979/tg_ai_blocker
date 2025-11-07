@@ -95,6 +95,7 @@ async def create_schema(conn: asyncpg.Connection):
                 name VARCHAR(255),
                 bio TEXT,
                 score INTEGER NOT NULL,
+                linked_channel_fragment TEXT,
                 created_at TIMESTAMP NOT NULL DEFAULT NOW()
             );
 

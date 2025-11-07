@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+import logfire
+
 from .mtproto_client import MtprotoHttpClient, MtprotoHttpError, get_mtproto_client
 
 logger = logging.getLogger(__name__)
@@ -59,6 +61,7 @@ class LinkedChannelSummary:
         return "; ".join(parts)
 
 
+@logfire.instrument()
 async def collect_linked_channel_summary(
     user_reference: str | int,
 ) -> Optional[LinkedChannelSummary]:
@@ -219,6 +222,7 @@ def _extract_invite_link(response: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+@logfire.instrument()
 async def _fetch_channel_edge_message(
     client: MtprotoHttpClient,
     peer_reference: int | str,
