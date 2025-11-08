@@ -53,8 +53,19 @@ def setup_logging():
             )
         )
 
+        _stream_handler = logging.StreamHandler()
+        _stream_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
         logging.basicConfig(
-            handlers=[logfire.LogfireLoggingHandler(), _telegram_handler],
+            handlers=[
+                logfire.LogfireLoggingHandler(),
+                _telegram_handler,
+                _stream_handler,
+            ],
             level=logging.DEBUG,
         )
         logfire.install_auto_tracing(
@@ -67,6 +78,11 @@ def setup_logging():
 def register_telegram_logging_loop(loop):
     if _telegram_handler:
         _telegram_handler.set_event_loop(loop)
+
+
+def get_telegram_handler() -> TelegramLogHandler | None:
+    """Get the TelegramLogHandler instance for cleanup purposes."""
+    return _telegram_handler
 
 
 # Silence known chatty loggers
