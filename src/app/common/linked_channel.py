@@ -18,21 +18,18 @@ logger = logging.getLogger(__name__)
 class LinkedChannelSummary:
     subscribers: Optional[int]
     total_posts: Optional[int]
-    newest_post_date: Optional[datetime]
-    oldest_post_date: Optional[datetime]
     post_age_delta: Optional[int]
 
     def to_prompt_fragment(self) -> str:
-        def months_delta(delta_seconds: Optional[int]) -> str:
-            if delta_seconds is None:
-                return "unknown"
-            months = delta_seconds // (30 * 24 * 60 * 60)
-            return f"{months}mo" if months >= 0 else "unknown"
+        if self.post_age_delta is None or self.post_age_delta < 0:
+            post_age_str = "unknown"
+        else:
+            post_age_str = f"{self.post_age_delta}mo"
 
         parts = [
             f"subscribers={self.subscribers if self.subscribers is not None else 'unknown'}",
             f"total_posts={self.total_posts if self.total_posts is not None else 'unknown'}",
-            f"age_delta={months_delta(self.post_age_delta)}",
+            f"age_delta={post_age_str}",
         ]
         return "; ".join(parts)
 
@@ -41,117 +38,104 @@ class LinkedChannelSummary:
 async def collect_linked_channel_summary(
     user_reference: str | int,
 ) -> Optional[LinkedChannelSummary]:
-    client = get_mtproto_client()
-    logger.debug(
-        "Collecting linked channel summary via MTProto",
+    with logfire.span(
+        "Collecting linked channel summary via bot", user_reference=user_reference
+    ):
+        # Try bot extraction first
+        bot_summary = await _collect_summary_via_bot(user_reference)
+        if bot_summary is not None:
+            return bot_summary
+
+    logger.info(
+        "Bot extraction failed, attempting MTProto fallback",
         extra={"user_reference": user_reference},
     )
 
-    try:
-        full_user_response = await client.call(
-            "users.getFullUser", params={"id": user_reference}, resolve=True
-        )
-        source = "mtproto"
-    except MtprotoHttpError as exc:
-        logger.info(
-            "MTProto failed for full user",
-            extra={
-                "user_reference": user_reference,
-                "error": str(exc),
-                "error_contains_entity": "Could not find the input entity" in str(exc),
-            },
-        )
-        if "Could not find the input entity" not in str(exc):
+    client = get_mtproto_client()
+    with logfire.span(
+        "Collecting linked channel summary via MTProto", user_reference=user_reference
+    ):
+        try:
+            full_user_response = await client.call(
+                "users.getFullUser", params={"id": user_reference}, resolve=True
+            )
+        except MtprotoHttpError as exc:
+            logger.info(
+                "MTProto failed for full user",
+                extra={
+                    "user_reference": user_reference,
+                    "error": str(exc),
+                },
+            )
             return None
-
-        logger.info(
-            "MTProto missing entity, attempting bot fallback",
-            extra={"user_reference": user_reference},
-        )
-        return await _collect_summary_via_bot(user_reference)
-
-    resolved_user = None
-    users_block = full_user_response.get("users") or []
-    if users_block:
-        resolved_user = users_block[0]
 
     full_user = full_user_response.get("full_user") or {}
     personal_channel_id = full_user.get("personal_channel_id")
     if not personal_channel_id:
-        logger.debug(
+        logfire.debug(
             "User has no linked channel in profile",
-            extra={
-                "user_reference": user_reference,
-                "resolved_user": resolved_user,
-                "full_user_keys": list(full_user.keys()),
-            },
+            user_reference=user_reference,
+            full_user_keys=list(full_user.keys()),
         )
         return None
 
     channel_id = int(personal_channel_id)
 
-    logger.debug(
+    with logfire.span(
         "Fetching linked channel via MTProto",
-        extra={
-            "user_reference": user_reference,
-            "channel_id": channel_id,
-        },
-    )
-
-    try:
-        full_channel = await client.call(
-            "channels.getFullChannel", params={"channel": channel_id}, resolve=True
-        )
-    except MtprotoHttpError as exc:
-        logger.info(
-            "Failed to load full channel via MTProto",
-            extra={
-                "user_reference": user_reference,
-                "resolved_user": resolved_user,
-                "channel_id": channel_id,
-                "error": str(exc),
-            },
-        )
-        return await _collect_summary_via_bot(user_reference, channel_id=channel_id)
+        user_reference=user_reference,
+        channel_id=channel_id,
+    ):
+        try:
+            full_channel = await client.call(
+                "channels.getFullChannel", params={"channel": channel_id}, resolve=True
+            )
+        except MtprotoHttpError as exc:
+            logger.info(
+                "Failed to load full channel via MTProto",
+                extra={
+                    "user_reference": user_reference,
+                    "channel_id": channel_id,
+                    "error": str(exc),
+                },
+            )
+            return None
 
     subscribers = full_channel.get("full_chat", {}).get("participants_count")
-    logger.debug(
+    logfire.debug(
         "MTProto channel stats",
-        extra={
-            "user_reference": user_reference,
-            "channel_id": channel_id,
-            "subscribers": subscribers,
-        },
+        user_reference=user_reference,
+        channel_id=channel_id,
+        subscribers=subscribers,
     )
 
     newest_message, total_posts = await _fetch_channel_edge_message(
         client, channel_id, limit_offset=None
     )
 
-    oldest_message = None
+    newest_post_date = _extract_message_date(newest_message)
+    oldest_post_date = None
     if total_posts and total_posts > 1:
         oldest_message, _ = await _fetch_channel_edge_message(
             client, channel_id, limit_offset=total_posts - 1
         )
+        oldest_post_date = _extract_message_date(oldest_message)
 
-    newest_post_date = _extract_message_date(newest_message)
-    oldest_post_date = _extract_message_date(oldest_message) or newest_post_date
-
+    oldest_post_date = oldest_post_date or newest_post_date
     post_age_delta = None
     if newest_post_date and oldest_post_date:
-        post_age_delta = int((newest_post_date - oldest_post_date).total_seconds())
+        delta_days = (newest_post_date - oldest_post_date).days
+        post_age_delta = max(delta_days // 30, 0)
 
     summary = LinkedChannelSummary(
         subscribers=subscribers,
         total_posts=total_posts,
-        newest_post_date=newest_post_date,
-        oldest_post_date=oldest_post_date,
         post_age_delta=post_age_delta,
     )
 
     logfire.info(
         "linked channel summary collected",
-        source=source,
+        source="mtproto",
         user_reference=user_reference,
         channel_id=channel_id,
         subscribers=subscribers,
@@ -168,72 +152,55 @@ async def _collect_summary_via_bot(
     channel_id: Optional[int] = None,
     bot_client: Bot = bot,
 ) -> Optional[LinkedChannelSummary]:
-    logger.debug(
-        "Bot fallback: loading user chat",
-        extra={"user_reference": user_reference},
-    )
-
-    try:
-        user_chat = await bot_client.get_chat(user_reference)
-    except Exception as exc:  # noqa: BLE001
-        logger.info(
-            "Bot fallback failed to get user chat",
-            extra={"user_reference": user_reference, "error": str(exc)},
-        )
-        return None
+    with logfire.span("Bot fallback: loading user chat", user_reference=user_reference):
+        try:
+            user_chat = await bot_client.get_chat(user_reference)
+        except Exception as exc:  # noqa: BLE001
+            logger.info(
+                "Bot fallback failed to get user chat",
+                extra={"user_reference": user_reference, "error": str(exc)},
+            )
+            return None
 
     personal_channel_id = channel_id or getattr(user_chat, "linked_chat_id", None)
 
     if not personal_channel_id:
-        logger.debug(
-            "Bot fallback found no linked channel",
-            extra={"user_reference": user_reference},
+        logfire.debug(
+            "Bot fallback found no linked channel", user_reference=user_reference
         )
         return None
 
-    logger.debug(
+    with logfire.span(
         "Bot fallback: loading channel chat",
-        extra={
-            "user_reference": user_reference,
-            "channel_id": personal_channel_id,
-        },
-    )
-
-    try:
-        channel_chat = await bot_client.get_chat(personal_channel_id)
-    except Exception as exc:  # noqa: BLE001
-        logger.info(
-            "Bot fallback failed to load channel chat",
-            extra={
-                "user_reference": user_reference,
-                "channel_id": personal_channel_id,
-                "error": str(exc),
-            },
-        )
-        return None
+        user_reference=user_reference,
+        channel_id=personal_channel_id,
+    ):
+        try:
+            channel_chat = await bot_client.get_chat(personal_channel_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.info(
+                "Bot fallback failed to load channel chat",
+                extra={
+                    "user_reference": user_reference,
+                    "channel_id": personal_channel_id,
+                    "error": str(exc),
+                },
+            )
+            return None
 
     subscribers = getattr(channel_chat, "members_count", None)
 
-    logger.debug(
+    logfire.debug(
         "Bot fallback channel stats",
-        extra={
-            "user_reference": user_reference,
-            "channel_id": personal_channel_id,
-            "subscribers": subscribers,
-        },
+        user_reference=user_reference,
+        channel_id=personal_channel_id,
+        subscribers=subscribers,
     )
-
-    total_posts = None
-    newest_post_date = None
-    oldest_post_date = None
-    post_age_delta = None
 
     summary = LinkedChannelSummary(
         subscribers=subscribers,
-        total_posts=total_posts,
-        newest_post_date=newest_post_date,
-        oldest_post_date=oldest_post_date,
-        post_age_delta=post_age_delta,
+        total_posts=None,
+        post_age_delta=None,
     )
 
     logfire.info(
@@ -242,8 +209,8 @@ async def _collect_summary_via_bot(
         user_reference=user_reference,
         channel_id=personal_channel_id,
         subscribers=subscribers,
-        total_posts=total_posts,
-        post_age_delta=post_age_delta,
+        total_posts=None,
+        post_age_delta=None,
     )
 
     return summary
@@ -295,6 +262,6 @@ def _extract_message_date(message: Optional[Dict[str, Any]]) -> Optional[datetim
             # Strings returned by the bridge are ISO8601 with timezone
             return datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         except ValueError:
-            logger.debug("Failed to parse message date", extra={"timestamp": timestamp})
+            logfire.debug("Failed to parse message date", timestamp=timestamp)
             return None
     return None
