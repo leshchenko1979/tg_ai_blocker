@@ -12,7 +12,6 @@ description = "Telegram AI spam blocker"
 requires-python = ">=3.12"
 dependencies = [
     "aiohttp",
-    "python-dotenv",
     "aiogram",
     "mixpanel",
     "pyyaml",

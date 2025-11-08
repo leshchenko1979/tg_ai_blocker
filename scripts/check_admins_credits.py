@@ -5,6 +5,7 @@ import asyncpg
 
 load_dotenv()
 
+
 async def check_admins_credits():
     # Получаем параметры подключения из переменных окружения
     conn = await asyncpg.connect(
@@ -12,7 +13,7 @@ async def check_admins_credits():
         port=int(os.getenv("PG_PORT", "5432")),
         user=os.getenv("PG_USER", "postgres"),
         password=os.getenv("PG_PASSWORD", ""),
-        database=os.getenv("PG_DB", "ai_spam_bot")
+        database=os.getenv("PG_DB", "ai_spam_bot"),
     )
 
     try:
@@ -52,6 +53,7 @@ async def check_admins_credits():
 
     finally:
         await conn.close()
+
 
 if __name__ == "__main__":
     asyncio.run(check_admins_credits())
