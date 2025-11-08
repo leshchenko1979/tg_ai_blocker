@@ -41,6 +41,7 @@ class TelegramLogHandler(logging.Handler):
         self._last_text: Optional[str] = None
         self._last_sent_at: float = 0.0
         self._send_task: Optional[asyncio.Task] = None
+        self._shutdown_flag = False
 
     def set_event_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """
@@ -87,22 +88,51 @@ class TelegramLogHandler(logging.Handler):
 
     async def _process_queue(self) -> None:
         """Background task that processes the message queue."""
-        while True:
+        while not self._shutdown_flag:
             try:
                 # Wait a bit between sends to avoid overwhelming Telegram
                 await asyncio.sleep(0.1)
 
                 with self._lock:
+                    if self._shutdown_flag:
+                        break
                     if not self._message_queue:
                         continue
                     text = self._message_queue.popleft()
 
                 await self._send(text)
 
+            except asyncio.CancelledError:
+                # Task was cancelled, exit gracefully
+                break
             except Exception as e:
                 # Log send failures but don't crash the task
                 logger = logging.getLogger(__name__)
                 logger.error(f"Failed to send Telegram notification: {e}", exc_info=e)
+
+    async def stop(self, timeout: float = 5.0) -> None:
+        """
+        Stop the background task gracefully.
+
+        Args:
+            timeout: Maximum time to wait for task completion in seconds
+        """
+        with self._lock:
+            self._shutdown_flag = True
+            task = self._send_task
+
+        if task and not task.done():
+            task.cancel()
+            try:
+                await asyncio.wait_for(task, timeout=timeout)
+            except asyncio.TimeoutError:
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    f"TelegramLogHandler stop() timed out after {timeout}s, task may not have completed"
+                )
+            except asyncio.CancelledError:
+                # Task was cancelled, which is expected
+                pass
 
     def _render_message(self, record: logging.LogRecord) -> str:
         rendered = self.format(record)

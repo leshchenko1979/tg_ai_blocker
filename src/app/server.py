@@ -13,8 +13,9 @@ from .common.bot import LESHCHENKO_CHAT_ID, bot
 from .common.llms import LocationNotSupported, RateLimitExceeded
 from .common.mp import mp
 from .common.utils import remove_lines_to_fit_len
+from .database.postgres_connection import close_pool
 from .handlers.dp import dp
-from .logging_setup import register_telegram_logging_loop
+from .logging_setup import get_telegram_handler, register_telegram_logging_loop
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,32 @@ async def _on_startup_register_logging(app: web.Application) -> None:
     register_telegram_logging_loop(asyncio.get_running_loop())
 
 
+async def _on_startup_log_server_started(app: web.Application) -> None:
+    logging.warning("Server started")
+
+
+async def _shutdown(app: web.Application) -> None:
+    """Gracefully shutdown all resources."""
+    logger.warning("Starting graceful shutdown...")
+
+    async with asyncio.TaskGroup() as tg:
+        tg.create_task(bot.session.close())
+        tg.create_task(close_pool())
+
+    # Stop TelegramLogHandler background task last
+    telegram_handler = get_telegram_handler()
+    if telegram_handler:
+        try:
+            logger.info("Stopping TelegramLogHandler...")
+            await telegram_handler.stop(timeout=5.0)
+            logger.info("TelegramLogHandler stopped")
+        except Exception as e:
+            logger.warning(f"Error stopping TelegramLogHandler: {e}", exc_info=True)
+
+
 app.on_startup.append(_on_startup_register_logging)
+app.on_startup.append(_on_startup_log_server_started)
+app.on_shutdown.append(_shutdown)
 
 
 def extract_ids_from_update(json: dict) -> Tuple[Optional[int], Optional[int]]:
@@ -228,6 +254,3 @@ async def handle_unhandled_exception(
     )
 
     return web.json_response({"message": "Error processing request"})
-
-
-logging.warning("Server started")
