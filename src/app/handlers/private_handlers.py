@@ -9,6 +9,7 @@ from aiogram.filters import or_f
 from ..common.bot import bot
 from ..common.linked_channel import collect_linked_channel_summary
 from ..common.llms import get_openrouter_response
+from ..common.logfire_lookup import find_original_message
 from ..common.mp import mp
 from ..common.utils import config, sanitize_markdown
 from ..database import (
@@ -21,6 +22,7 @@ from ..database import (
     save_message,
 )
 from ..database.constants import INITIAL_CREDITS
+from ..database.group_operations import get_admin_groups
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -255,7 +257,7 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
         if not isinstance(callback.message, types.Message):
             return "spam_example_invalid_message_type"
 
-        info = await extract_original_message_info(callback.message)
+        info = await extract_original_message_info(callback.message, admin_id)
 
         channel_fragment = None
         user_id = info.get("user_id")
@@ -312,7 +314,8 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                 )
             else:
                 logger.warning(
-                    "Group chat ID or message ID not found in info, skipping message deletion"
+                    "Group chat ID or message ID not found in info, skipping message deletion",
+                    extra={"message_deletion": "skipped"},
                 )
 
         await asyncio.gather(*tasks)
@@ -344,9 +347,14 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
 
 async def extract_original_message_info(
     callback_message: types.Message,
+    admin_id: int,
 ) -> Dict[str, Any]:
     """
     Извлекает информацию об исходном сообщении из пересланного сообщения
+
+    Args:
+        callback_message: The callback message containing the forwarded message
+        admin_id: The admin who forwarded the message
     """
     if not callback_message.reply_to_message:
         raise OriginalMessageExtractionError("No reply_to_message found")
@@ -396,5 +404,45 @@ async def extract_original_message_info(
                 ),
             },
         )
+
+    # If we don't have group chat/message IDs from forward metadata, try Logfire lookup
+    if not info["group_chat_id"] or not info["group_message_id"]:
+        if info["user_id"]:
+            # Get admin's managed groups and extract IDs
+            admin_groups = await get_admin_groups(admin_id)
+            admin_group_ids = [group["id"] for group in admin_groups]
+
+            if admin_group_ids:
+                # Try to find the original message in Logfire
+                lookup_result = await find_original_message(
+                    user_id=info["user_id"],
+                    message_text=info["text"],
+                    forward_date=original_message.forward_date or original_message.date,
+                    admin_chat_ids=admin_group_ids,
+                )
+
+                if lookup_result:
+                    info["group_chat_id"] = lookup_result["chat_id"]
+                    info["group_message_id"] = lookup_result["message_id"]
+                    logger.info(
+                        "Logfire lookup succeeded",
+                        extra={
+                            "logfire_lookup": "success",
+                            "candidate_chats": len(admin_group_ids),
+                        },
+                    )
+                else:
+                    logger.info(
+                        "Logfire lookup failed to find message",
+                        extra={
+                            "logfire_lookup": "miss",
+                            "candidate_chats": len(admin_group_ids),
+                        },
+                    )
+            else:
+                logger.info(
+                    "Admin has no managed groups, skipping Logfire lookup",
+                    extra={"logfire_lookup": "skip", "candidate_chats": 0},
+                )
 
     return info
