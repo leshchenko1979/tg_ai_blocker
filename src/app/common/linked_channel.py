@@ -35,22 +35,62 @@ class LinkedChannelSummary:
 @logfire.instrument()
 async def collect_linked_channel_summary(
     user_reference: str | int,
+    username: Optional[str] = None,
 ) -> Optional[LinkedChannelSummary]:
     client = get_mtproto_client()
     with logfire.span(
         "Collecting linked channel summary via MTProto (direct)",
         user_reference=user_reference,
+        username=username,
     ):
-        try:
-            full_user_response = await client.call(
-                "users.getFullUser", params={"id": user_reference}, resolve=True
-            )
-        except MtprotoHttpError as exc:
+        # Try username first if available, then fall back to user ID
+        user_identifiers = []
+        if username:
+            user_identifiers.append(username)
+        user_identifiers.append(user_reference)
+
+        full_user_response = None
+        last_error = None
+
+        for identifier in user_identifiers:
+            try:
+                logger.debug(
+                    "Attempting to get full user info",
+                    extra={
+                        "identifier": identifier,
+                        "identifier_type": type(identifier).__name__,
+                    },
+                )
+                full_user_response = await client.call(
+                    "users.getFullUser", params={"id": identifier}, resolve=True
+                )
+                logger.debug(
+                    "Successfully got user info",
+                    extra={
+                        "identifier": identifier,
+                        "has_full_user": bool(full_user_response.get("full_user")),
+                    },
+                )
+                break  # Success, stop trying other identifiers
+            except MtprotoHttpError as exc:
+                last_error = exc
+                logger.debug(
+                    "Failed to get user info with identifier",
+                    extra={
+                        "identifier": identifier,
+                        "error": str(exc),
+                    },
+                )
+                continue  # Try next identifier
+
+        if full_user_response is None:
             logger.info(
-                "MTProto failed for full user",
+                "MTProto failed for full user with all identifiers",
                 extra={
                     "user_reference": user_reference,
-                    "error": str(exc),
+                    "username": username,
+                    "identifiers_tried": user_identifiers,
+                    "final_error": str(last_error) if last_error else "No error",
                 },
             )
             return None

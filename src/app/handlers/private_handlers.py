@@ -261,13 +261,17 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
 
         channel_fragment = None
         user_id = info.get("user_id")
+        username = info.get("username")
         if user_id:
             try:
-                summary = await collect_linked_channel_summary(user_id)
+                summary = await collect_linked_channel_summary(
+                    user_id,
+                    username=username
+                )
             except Exception as exc:  # noqa: BLE001 - log and continue
                 logger.info(
                     "Failed to load linked channel for forwarded user",
-                    extra={"user_id": user_id, "error": str(exc)},
+                    extra={"user_id": user_id, "username": username, "error": str(exc)},
                 )
                 summary = None
             if summary:
@@ -368,6 +372,7 @@ async def extract_original_message_info(
         "name": None,
         "bio": None,
         "user_id": None,
+        "username": None,
         "group_chat_id": None,
         "group_message_id": None,
     }
@@ -379,6 +384,7 @@ async def extract_original_message_info(
         user = original_message.forward_from
         info["name"] = user.full_name
         info["user_id"] = user.id
+        info["username"] = user.username
         user_info = await bot.get_chat(user.id)
         info["bio"] = user_info.bio if user_info else None
 
@@ -386,6 +392,7 @@ async def extract_original_message_info(
         sender_user = origin.sender_user
         info["name"] = info["name"] or sender_user.full_name
         info["user_id"] = sender_user.id
+        info["username"] = info["username"] or sender_user.username
         if not info["bio"]:
             user_info = await bot.get_chat(sender_user.id)
             info["bio"] = user_info.bio if user_info else None
