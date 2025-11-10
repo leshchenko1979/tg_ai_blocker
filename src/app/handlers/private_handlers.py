@@ -265,8 +265,7 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
         if user_id:
             try:
                 summary = await collect_linked_channel_summary(
-                    user_id,
-                    username=username
+                    user_id, username=username
                 )
             except Exception as exc:  # noqa: BLE001 - log and continue
                 logger.info(

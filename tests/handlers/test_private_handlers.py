@@ -27,6 +27,7 @@ class TestExtractOriginalMessageInfo:
         sender_user = MagicMock(spec=types.User)
         sender_user.id = 12345
         sender_user.full_name = "Spammer User"
+        sender_user.username = "spammeruser"
         origin.sender_user = sender_user
         forwarded_message.forward_origin = origin
         forwarded_message.forward_from = None
@@ -74,6 +75,7 @@ class TestExtractOriginalMessageInfo:
                 assert result["group_chat_id"] == 1001
                 assert result["group_message_id"] == 555
                 assert result["user_id"] == 12345
+                assert result["username"] == "spammeruser"
                 assert result["name"] == "Spammer User"
                 assert result["bio"] == "Spammer bio"
                 assert result["text"] == "Test spam message"
@@ -112,6 +114,7 @@ class TestExtractOriginalMessageInfo:
                 assert result["group_chat_id"] is None
                 assert result["group_message_id"] is None
                 assert result["user_id"] == 12345
+                assert result["username"] == "spammeruser"
                 assert result["text"] == "Test spam message"
 
     @pytest.mark.asyncio
@@ -139,6 +142,7 @@ class TestExtractOriginalMessageInfo:
                 assert result["group_chat_id"] is None
                 assert result["group_message_id"] is None
                 assert result["user_id"] == 12345
+                assert result["username"] == "spammeruser"
 
     @pytest.mark.asyncio
     async def test_channel_forward_metadata_available(self, mock_bot_get_chat):

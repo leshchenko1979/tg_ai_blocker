@@ -55,13 +55,16 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         channel_fragment = None
         try:
             summary = await collect_linked_channel_summary(
-                author_id,
-                username=author_info.username if author_info else None
+                author_id, username=author_info.username if author_info else None
             )
         except Exception as exc:  # noqa: BLE001
             logger.info(
                 "Failed to load linked channel for author",
-                extra={"author_id": author_id, "username": author_info.username if author_info else None, "error": str(exc)},
+                extra={
+                    "author_id": author_id,
+                    "username": author_info.username if author_info else None,
+                    "error": str(exc),
+                },
             )
             summary = None
         if summary:

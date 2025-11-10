@@ -312,13 +312,16 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
     if getattr(message, "message_thread_id", None):
         try:
             summary = await collect_linked_channel_summary(
-                user.id,
-                username=user.username
+                user.id, username=user.username
             )
         except Exception as exc:  # noqa: BLE001 - log and fall back gracefully
             logger.info(
                 "Failed to collect linked channel summary",
-                extra={"user_id": user.id, "username": user.username, "error": str(exc)},
+                extra={
+                    "user_id": user.id,
+                    "username": user.username,
+                    "error": str(exc),
+                },
             )
             summary = None
 
