@@ -6,9 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import logfire
-from aiogram import Bot
 
-from .bot import bot
 from .mtproto_client import MtprotoHttpClient, MtprotoHttpError, get_mtproto_client
 
 logger = logging.getLogger(__name__)
@@ -38,22 +36,10 @@ class LinkedChannelSummary:
 async def collect_linked_channel_summary(
     user_reference: str | int,
 ) -> Optional[LinkedChannelSummary]:
-    with logfire.span(
-        "Collecting linked channel summary via bot", user_reference=user_reference
-    ):
-        # Try bot extraction first
-        bot_summary = await _collect_summary_via_bot(user_reference)
-        if bot_summary is not None:
-            return bot_summary
-
-    logger.info(
-        "Bot extraction failed, attempting MTProto fallback",
-        extra={"user_reference": user_reference},
-    )
-
     client = get_mtproto_client()
     with logfire.span(
-        "Collecting linked channel summary via MTProto", user_reference=user_reference
+        "Collecting linked channel summary via MTProto (direct)",
+        user_reference=user_reference,
     ):
         try:
             full_user_response = await client.call(
@@ -141,76 +127,6 @@ async def collect_linked_channel_summary(
         subscribers=subscribers,
         total_posts=total_posts,
         post_age_delta=post_age_delta,
-    )
-
-    return summary
-
-
-async def _collect_summary_via_bot(
-    user_reference: str | int,
-    *,
-    channel_id: Optional[int] = None,
-    bot_client: Bot = bot,
-) -> Optional[LinkedChannelSummary]:
-    with logfire.span("Bot fallback: loading user chat", user_reference=user_reference):
-        try:
-            user_chat = await bot_client.get_chat(user_reference)
-        except Exception as exc:  # noqa: BLE001
-            logger.info(
-                "Bot fallback failed to get user chat",
-                extra={"user_reference": user_reference, "error": str(exc)},
-            )
-            return None
-
-    personal_channel_id = channel_id or getattr(user_chat, "linked_chat_id", None)
-
-    if not personal_channel_id:
-        logfire.debug(
-            "Bot fallback found no linked channel", user_reference=user_reference
-        )
-        return None
-
-    with logfire.span(
-        "Bot fallback: loading channel chat",
-        user_reference=user_reference,
-        channel_id=personal_channel_id,
-    ):
-        try:
-            channel_chat = await bot_client.get_chat(personal_channel_id)
-        except Exception as exc:  # noqa: BLE001
-            logger.info(
-                "Bot fallback failed to load channel chat",
-                extra={
-                    "user_reference": user_reference,
-                    "channel_id": personal_channel_id,
-                    "error": str(exc),
-                },
-            )
-            return None
-
-    subscribers = getattr(channel_chat, "members_count", None)
-
-    logfire.debug(
-        "Bot fallback channel stats",
-        user_reference=user_reference,
-        channel_id=personal_channel_id,
-        subscribers=subscribers,
-    )
-
-    summary = LinkedChannelSummary(
-        subscribers=subscribers,
-        total_posts=None,
-        post_age_delta=None,
-    )
-
-    logfire.info(
-        "linked channel summary collected",
-        source="bot",
-        user_reference=user_reference,
-        channel_id=personal_channel_id,
-        subscribers=subscribers,
-        total_posts=None,
-        post_age_delta=None,
     )
 
     return summary
