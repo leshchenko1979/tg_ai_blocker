@@ -94,9 +94,7 @@ async def _shutdown(app: web.Application) -> None:
     telegram_handler = get_telegram_handler()
     if telegram_handler:
         try:
-            logger.info("Stopping TelegramLogHandler...")
             await telegram_handler.stop(timeout=5.0)
-            logger.info("TelegramLogHandler stopped")
         except Exception as e:
             logger.warning(f"Error stopping TelegramLogHandler: {e}", exc_info=True)
 
