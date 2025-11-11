@@ -5,6 +5,7 @@ services:
       dockerfile: .dockerfile
     container_name: tg-ai-blocker
     mem_limit: 256mb
+    cpus: 0.5
     restart: unless-stopped
     env_file:
       - .env
