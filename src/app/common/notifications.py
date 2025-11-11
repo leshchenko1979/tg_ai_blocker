@@ -115,6 +115,11 @@ async def notify_admins_with_fallback_and_cleanup(
         )
         if cleanup_if_group_fails:
             try:
+                # Leave the group first
+                await bot.leave_chat(group_id)
+                logger.info(f"Left inaccessible group {group_id}")
+
+                # Clean up database records
                 pool = await get_pool()
                 async with pool.acquire() as conn:
                     await cleanup_inaccessible_group(conn, group_id)

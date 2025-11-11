@@ -18,7 +18,7 @@ from ..common.bot import bot
 from ..common.mp import mp
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.tracking import track_group_event, track_spam_detection
-from ..common.utils import retry_on_network_error
+from ..common.utils import retry_on_network_error, sanitize_markdown_v2
 from ..database import get_admin, get_group
 from ..database.group_operations import remove_member_from_group
 
@@ -239,10 +239,45 @@ async def handle_spam_message_deletion(message: types.Message) -> None:
             },
         )
     except TelegramBadRequest as e:
-        logger.warning(
-            f"Could not delete spam message {message.message_id} in chat {message.chat.id}: {e}",
-            exc_info=True,
-        )
+        # Check for permission error
+        if (
+            "not enough rights" in str(e).lower()
+            or "need administrator rights" in str(e).lower()
+            or "chat admin required" in str(e).lower()
+            or "can_delete_messages" in str(e).lower()
+            or "message can't be deleted" in str(e).lower()
+        ):
+            logger.warning(
+                f"Insufficient rights to delete spam message {message.message_id} in chat {message.chat.id}: {e}",
+                exc_info=True,
+            )
+            # Notify admins about missing permission
+            try:
+                group = await get_group(message.chat.id)
+                if group:
+                    admin_ids = group.admin_ids
+                    group_title = message.chat.title or ""
+                    await notify_admins_with_fallback_and_cleanup(
+                        bot,
+                        admin_ids,
+                        message.chat.id,
+                        private_message=(
+                            "❗️ У меня нет права удалять спам-сообщения в группе\\. "
+                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы\\.\n\nГруппа: *{sanitize_markdown_v2(group_title)}*"
+                        ),
+                        group_message_template="{mention}, у меня нет права удалять спам-сообщения\\. Пожалуйста, дайте мне право 'Удаление сообщений'\\!",
+                        cleanup_if_group_fails=True,
+                        parse_mode="MarkdownV2",
+                    )
+            except Exception as notify_exc:
+                logger.warning(
+                    f"Failed to notify admins about missing rights for spam deletion: {notify_exc}"
+                )
+        else:
+            logger.warning(
+                f"Could not delete spam message {message.message_id} in chat {message.chat.id}: {e}",
+                exc_info=True,
+            )
         await track_group_event(
             message.chat.id,
             "spam_message_delete_failed",
