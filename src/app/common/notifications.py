@@ -45,6 +45,7 @@ async def notify_admins_with_fallback_and_cleanup(
                     private_message,
                     parse_mode=parse_mode,
                     reply_markup=reply_markup,
+                    disable_web_page_preview=True,
                 )
 
             await send_private_message()
