@@ -88,8 +88,7 @@ def get_telegram_handler() -> TelegramLogHandler | None:
 # Silence known chatty loggers
 CHATTY_LOGGERS = [
     "hpack.hpack",
-    "httpcore.http2",
-    "httpcore.connection",
+    "httpcore",
     "aiohttp.access",
 ]
 for logger_name in CHATTY_LOGGERS:

@@ -139,13 +139,7 @@ class TelegramLogHandler(logging.Handler):
         body = html.escape(rendered)
         if len(body) > self.MAX_MESSAGE_BODY:
             body = body[: self.MAX_MESSAGE_BODY - 1] + "…"
-
-        header = (
-            f"<b>{html.escape(record.levelname)}</b> · "
-            f"<code>{html.escape(record.name)}</code>"
-        )
-
-        text = f"{header}\n\n<pre>{body}</pre>"
+        text = f"<pre>{body}</pre>"
         if len(text) > self.MAX_TELEGRAM_LENGTH:
             text = text[: self.MAX_TELEGRAM_LENGTH - 1] + "…"
         return text
