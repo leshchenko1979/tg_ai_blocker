@@ -79,6 +79,10 @@ async def notify_admins_with_fallback_and_cleanup(
         return result
 
     # No admins reachable in private, send group message
+    logger.info(
+        f"All private notifications failed for chat {group_id}, attempting group fallback"
+    )
+
     mention = None
     if last_admin_info:
         if getattr(last_admin_info, "username", None):
@@ -92,10 +96,18 @@ async def notify_admins_with_fallback_and_cleanup(
                 if parse_mode == "HTML"
                 else f"[админ](tg://user?id={last_admin_info.id})"
             )
+        logger.info(f"Using mention '{mention}' for group fallback in chat {group_id}")
     else:
         mention = "админ"
+        logger.warning(
+            f"No admin info available for group fallback in chat {group_id}, using generic mention"
+        )
 
     group_message = group_message_template.format(mention=mention)
+    logger.info(
+        f"Sending group fallback message to chat {group_id}: {group_message[:100]}..."
+    )
+
     try:
 
         @retry_on_network_error
@@ -109,27 +121,35 @@ async def notify_admins_with_fallback_and_cleanup(
 
         await send_group_message()
         result["group_notified"] = True
+        logger.info(f"Successfully sent group fallback notification to chat {group_id}")
         return result
     except Exception as group_e:
         logger.warning(
-            f"Failed to send group fallback notification: {group_e}", exc_info=True
+            f"Failed to send group fallback notification to chat {group_id}: {group_e}",
+            exc_info=True,
         )
         if cleanup_if_group_fails:
+            logger.info(f"Starting cleanup process for inaccessible group {group_id}")
             try:
                 # Leave the group first
                 await bot.leave_chat(group_id)
-                logger.info(f"Left inaccessible group {group_id}")
+                logger.info(f"Successfully left inaccessible group {group_id}")
 
                 # Clean up database records
                 pool = await get_pool()
                 async with pool.acquire() as conn:
                     await cleanup_inaccessible_group(conn, group_id)
                 logger.info(
-                    f"Group {group_id} and its admins removed due to unreachable admins."
+                    f"Successfully cleaned up group {group_id} and its admins from database due to unreachable admins."
                 )
                 result["group_cleaned_up"] = True
             except Exception as cleanup_e:
                 logger.error(
-                    f"Failed to cleanup inaccessible group {group_id}: {cleanup_e}"
+                    f"Failed to cleanup inaccessible group {group_id}: {cleanup_e}",
+                    exc_info=True,
                 )
+        else:
+            logger.info(
+                f"Cleanup disabled for group {group_id}, leaving group accessible despite notification failure"
+            )
         return result

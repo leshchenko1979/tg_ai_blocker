@@ -8,7 +8,7 @@
 - MTProto bridge enrichment
 - Telegram logging handler (with logfire spans)
 - A `/health` endpoint returning plain `ok` for Sablier probes are live
-- Comment-spam prompt now interprets linked-channel fragments with explicit suspicion thresholds. 
+- Comment-spam prompt now interprets linked-channel fragments with explicit suspicion thresholds.
 - Linked channel extraction optimized with username-first resolution (tries username before user ID) and direct MTProto-only approach (bot API calls removed)
-- Logfire client-based message lookup implemented for reliable spam deletion from forwarded reports, scoped to admin-managed chats with 3-day search window. 
-- Permission failure handling unified across spam and service message deletion: when bot lacks delete rights, admins are notified and groups are left/cleaned from DB when unreachable. 
+- Logfire client-based message lookup implemented for reliable spam deletion from forwarded reports, scoped to admin-managed chats with 3-day search window; now supports hidden user forwards where user_id is not available.
+- Permission failure handling unified across spam and service message deletion: when bot encounters "message can't be deleted" or other permission errors, admins are notified with private→group fallback and groups are left/cleaned from DB when all notification methods fail.

@@ -239,25 +239,28 @@ async def handle_spam_message_deletion(message: types.Message) -> None:
             },
         )
     except TelegramBadRequest as e:
-        # Check for permission error
-        if (
-            "not enough rights" in str(e).lower()
-            or "need administrator rights" in str(e).lower()
-            or "chat admin required" in str(e).lower()
-            or "can_delete_messages" in str(e).lower()
-            or "message can't be deleted" in str(e).lower()
-        ):
+        # Check for deletion errors that indicate permission issues
+        error_message = str(e).lower()
+        is_deletion_error = (
+            "not enough rights" in error_message
+            or "need administrator rights" in error_message
+            or "chat admin required" in error_message
+            or "can_delete_messages" in error_message
+            or "message can't be deleted" in error_message
+        )
+
+        if is_deletion_error:
             logger.warning(
-                f"Insufficient rights to delete spam message {message.message_id} in chat {message.chat.id}: {e}",
+                f"Cannot delete spam message {message.message_id} in chat {message.chat.id}: {e}",
                 exc_info=True,
             )
-            # Notify admins about missing permission
+            # Notify admins about missing permission - if this fails, cleanup will happen
             try:
                 group = await get_group(message.chat.id)
                 if group:
                     admin_ids = group.admin_ids
                     group_title = message.chat.title or ""
-                    await notify_admins_with_fallback_and_cleanup(
+                    notification_result = await notify_admins_with_fallback_and_cleanup(
                         bot,
                         admin_ids,
                         message.chat.id,
@@ -269,6 +272,17 @@ async def handle_spam_message_deletion(message: types.Message) -> None:
                         cleanup_if_group_fails=True,
                         parse_mode="MarkdownV2",
                     )
+                    if (
+                        not notification_result["notified_private"]
+                        and not notification_result["group_notified"]
+                    ):
+                        logger.error(
+                            f"Failed to notify admins about missing spam deletion rights - all notification methods failed for chat {message.chat.id}, cleanup initiated"
+                        )
+                    elif notification_result["group_cleaned_up"]:
+                        logger.info(
+                            f"Group {message.chat.id} cleaned up due to inability to notify admins about missing delete permissions for spam"
+                        )
             except Exception as notify_exc:
                 logger.warning(
                     f"Failed to notify admins about missing rights for spam deletion: {notify_exc}"

@@ -415,26 +415,29 @@ async def handle_member_service_message(message: types.Message) -> str:
             )
             return "service_message_deleted"
         except TelegramBadRequest as e:
-            # Check for permission error
-            if (
-                "not enough rights" in str(e).lower()
-                or "need administrator rights" in str(e).lower()
-                or "chat admin required" in str(e).lower()
-                or "can_delete_messages" in str(e).lower()
-                or "message can't be deleted" in str(e).lower()
-            ):
+            # Check for deletion errors that indicate permission issues
+            error_message = str(e).lower()
+            is_deletion_error = (
+                "not enough rights" in error_message
+                or "need administrator rights" in error_message
+                or "chat admin required" in error_message
+                or "can_delete_messages" in error_message
+                or "message can't be deleted" in error_message
+            )
+
+            if is_deletion_error:
                 logger.warning(
-                    f"Insufficient rights to delete service message {message_id} in chat {chat_id} ('{message.chat.title or ''}'): {e}",
+                    f"Cannot delete service message {message_id} in chat {chat_id} ('{message.chat.title or ''}'): {e}",
                     exc_info=True,
                 )
-                # Notify admins about missing permission
+                # Notify admins about missing permission - if this fails, cleanup will happen
                 try:
                     admins = await bot.get_chat_administrators(chat_id)
                     admin_ids = [
                         admin.user.id for admin in admins if not admin.user.is_bot
                     ]
                     group_title = message.chat.title or ""
-                    await notify_admins_with_fallback_and_cleanup(
+                    notification_result = await notify_admins_with_fallback_and_cleanup(
                         bot,
                         admin_ids,
                         chat_id,
@@ -446,11 +449,26 @@ async def handle_member_service_message(message: types.Message) -> str:
                         cleanup_if_group_fails=True,
                         parse_mode="MarkdownV2",
                     )
+                    if (
+                        not notification_result["notified_private"]
+                        and not notification_result["group_notified"]
+                    ):
+                        logger.error(
+                            f"Failed to notify admins about missing rights - all notification methods failed for chat {chat_id}, cleanup initiated"
+                        )
+                        return "service_message_no_rights_cleanup"
+                    elif notification_result["group_cleaned_up"]:
+                        logger.info(
+                            f"Group {chat_id} cleaned up due to inability to notify admins about missing delete permissions"
+                        )
+                        return "service_message_no_rights_cleanup"
+                    else:
+                        return "service_message_no_rights"
                 except Exception as notify_exc:
                     logger.warning(
                         f"Failed to notify admins about missing rights: {notify_exc}"
                     )
-                return "service_message_no_rights"
+                    return "service_message_no_rights"
             else:
                 logger.warning(
                     f"Failed to delete service message {message_id} in chat {chat_id} ('{message.chat.title or ''}'): {e}",
