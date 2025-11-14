@@ -3,7 +3,7 @@ import logging
 from aiogram.types import InlineKeyboardMarkup
 
 from ..database.group_operations import cleanup_inaccessible_group, get_pool
-from .utils import retry_on_network_error, sanitize_markdown_v2
+from .utils import retry_on_network_error
 
 logger = logging.getLogger(__name__)
 
@@ -86,10 +86,8 @@ async def notify_admins_with_fallback_and_cleanup(
     mention = None
     if last_admin_info:
         if getattr(last_admin_info, "username", None):
-            if parse_mode == "MarkdownV2":
-                mention = f"@{sanitize_markdown_v2(last_admin_info.username)}"
-            else:
-                mention = f"@{last_admin_info.username}"
+            # Usernames should not be escaped - they are literal text
+            mention = f"@{last_admin_info.username}"
         else:
             mention = (
                 f'<a href="tg://user?id={last_admin_info.id}">админ</a>'

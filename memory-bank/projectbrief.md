@@ -8,6 +8,4 @@
   - Remove or flag suspicious content, ban offenders, and notify admins.
   - Track usage and bill via Telegram Stars with flexible packages.
   - Provide stats, exceptions, and admin controls for fine-grained moderation.
-- **Business Goals**: Grow paid usage through reliable moderation, transparent billing, and actionable insights. Maintain trust via consistent automation, human-friendly overrides, and clear notifications.
-
-
+- **Business Goals**: Grow paid usage through reliable moderation, transparent billing, and actionable insights. Maintain trust via consistent automation, human-friendly overrides, clear HTML-formatted notifications, and robust error recovery that keeps admins informed.

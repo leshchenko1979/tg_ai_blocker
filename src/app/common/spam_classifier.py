@@ -37,7 +37,9 @@ async def is_spam(
     Returns:
         int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
     """
-    prompt = await get_system_prompt(admin_ids)
+    prompt = await get_system_prompt(
+        admin_ids, include_linked_channel_guidance=linked_channel_fragment is not None
+    )
     messages = get_messages(comment, name, bio, prompt, linked_channel_fragment)
 
     last_response = None
@@ -100,14 +102,20 @@ async def is_spam(
     ) from last_error
 
 
-async def get_system_prompt(admin_ids: Optional[List[int]] = None):
+async def get_system_prompt(
+    admin_ids: Optional[List[int]] = None, include_linked_channel_guidance: bool = False
+):
     """Get the full prompt with spam examples from database"""
-    prompt = """Ты - классификатор спама. Пользователь подает тебе сообщения с текстом, именем и биографией (опционально),
-а ты должен определить, спам это или нет, и дать оценку своей уверенности в процентах.
+    prompt = """Ты - классификатор спама. Администратор группы телеграм подает тебе
+тексты сообщений от пользователей, а также их имена и биографии из профиля,
+а ты должен определить, спам это или нет, и дать оценку своей уверенности в процентах."""
 
-Если в запросе присутствует тег <связанный_канал>, он содержит краткую сводку канала пользователя в формате
-"ключ=значение" через точку с запятой (например, subscribers=5; total_posts=12; age_delta=3mo).
-Всегда обращай внимание на эти поля:
+    if include_linked_channel_guidance:
+        prompt += """
+
+Раздел <связанный канал> содержит данные о канале, привязанном к профилю автора.
+
+Обращай внимание на эти поля:
 - subscribers — количество подписчиков канала
 - total_posts — сколько постов опубликовано за всё время
 - age_delta — разница между первым и последним постом (в месяцах, формат "11mo")
@@ -115,9 +123,11 @@ async def get_system_prompt(admin_ids: Optional[List[int]] = None):
 Считай пользователя подозрительным, если у него одновременно:
 - subscribers < 10
 - total_posts < 50
-- age_delta < 10mo
+- age_delta < 10mo"""
 
-ФОРМАТ:
+    prompt += """
+
+ИСПОЛЬЗУЙ ФОРМАТ ОТВЕТА:
 <начало ответа>
 да ХХХ%
 <конец ответа>

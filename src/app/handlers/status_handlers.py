@@ -12,7 +12,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from ..common.bot import bot
 from ..common.mp import mp
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
-from ..common.utils import retry_on_network_error, sanitize_markdown_v2
+from ..common.utils import retry_on_network_error, sanitize_html
 from ..database import get_group, update_group_admins
 from .dp import dp
 from .message_handlers import send_wrong_channel_addition_instruction
@@ -138,7 +138,7 @@ async def _handle_permission_update(
             )
             # NEW: Send confirmation to admin
             try:
-                chat_title_escaped = sanitize_markdown_v2(chat_title)
+                chat_title_escaped = sanitize_html(chat_title)
 
                 @retry_on_network_error
                 async def send_setup_confirmation():
@@ -211,7 +211,7 @@ async def _handle_bot_added(
         )
         # NEW: Send confirmation to admin
         try:
-            chat_title_escaped = sanitize_markdown_v2(chat_title)
+            chat_title_escaped = sanitize_html(chat_title)
 
             @retry_on_network_error
             async def send_setup_confirmation():
@@ -271,39 +271,18 @@ async def _notify_admins_about_rights(
 ) -> None:
     """Notify admins about required bot permissions."""
     private_message = (
-        "🤖 Приветствую\\! Для защиты группы мне нужны права администратора\\.\n\n"
-        f"Группа: *{sanitize_markdown_v2(chat_title)}*"
-        f"{f' \\(@{sanitize_markdown_v2(username)}\\)' if username else ''}\n\n"
+        "🤖 Приветствую! Для защиты группы мне нужны права администратора.\n\n"
+        f"Группа: <b>{sanitize_html(chat_title)}</b>"
+        f"{f' (@{username})' if username else ''}\n\n"
         "📱 Как настроить права:\n"
-        "1\\. Откройте настройки группы \\(три точки ⋮ сверху\\)\n"
-        "2\\. Выберите пункт 'Управление группой'\n"
-        "3\\. Нажмите 'Администраторы'\n"
-        "4\\. Найдите меня в списке администраторов\n"
-        "5\\. Включите два права:\n"
-        "   • *Удаление сообщений* \\- чтобы удалять спам\n"
-        "   • *Блокировка пользователей* \\- чтобы блокировать спамеров\n\n"
-        "После настройки прав я смогу защищать группу\\! 🛡"
-    )
-    await notify_admins_with_fallback_and_cleanup(
-        bot,
-        admin_ids,
-        chat_id,
-        private_message,
-        group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение\\. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе\\!",
-        cleanup_if_group_fails=True,
-        parse_mode="MarkdownV2",
-    )
-
-
-async def _notify_admins_about_removal(
-    chat_id: int, chat_title: str, username: str | None, admin_ids: List[int]
-) -> None:
-    """Notify admins when bot is removed from a group."""
-    private_message = (
-        f"🔔 Я был удален из группы *{sanitize_markdown_v2(chat_title)}*"
-        f"{f' \\(@{sanitize_markdown_v2(username)}\\)' if username else ''}\n\n"
-        "Если это произошло случайно, вы можете добавить меня обратно "
-        "и восстановить защиту группы\\."
+        "1. Откройте настройки группы (три точки ⋮ сверху)\n"
+        "2. Выберите пункт 'Управление группой'\n"
+        "3. Нажмите 'Администраторы'\n"
+        "4. Найдите меня в списке администраторов\n"
+        "5. Включите два права:\n"
+        "   • <b>Удаление сообщений</b> - чтобы удалять спам\n"
+        "   • <b>Блокировка пользователей</b> - чтобы блокировать спамеров\n\n"
+        "После настройки прав я смогу защищать группу! 🛡"
     )
     await notify_admins_with_fallback_and_cleanup(
         bot,
@@ -312,7 +291,28 @@ async def _notify_admins_about_removal(
         private_message,
         group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
         cleanup_if_group_fails=True,
-        parse_mode="MarkdownV2",
+        parse_mode="HTML",
+    )
+
+
+async def _notify_admins_about_removal(
+    chat_id: int, chat_title: str, username: str | None, admin_ids: List[int]
+) -> None:
+    """Notify admins when bot is removed from a group."""
+    private_message = (
+        f"🔔 Я был удален из группы <b>{sanitize_html(chat_title)}</b>"
+        f"{f' (@{username})' if username else ''}\n\n"
+        "Если это произошло случайно, вы можете добавить меня обратно "
+        "и восстановить защиту группы."
+    )
+    await notify_admins_with_fallback_and_cleanup(
+        bot,
+        admin_ids,
+        chat_id,
+        private_message,
+        group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
+        cleanup_if_group_fails=True,
+        parse_mode="HTML",
     )
 
 
@@ -443,11 +443,11 @@ async def handle_member_service_message(message: types.Message) -> str:
                         chat_id,
                         private_message=(
                             "❗️ У меня нет права удалять сервисные сообщения в группе\\. "
-                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы\\.\n\nГруппа: *{sanitize_markdown_v2(group_title)}*"
+                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы\\.\n\nГруппа: *{sanitize_html(group_title)}*"
                         ),
                         group_message_template="{mention}, у меня нет права удалять сервисные сообщения\\. Пожалуйста, дайте мне право 'Удаление сообщений'\\!",
                         cleanup_if_group_fails=True,
-                        parse_mode="MarkdownV2",
+                        parse_mode="HTML",
                     )
                     if (
                         not notification_result["notified_private"]

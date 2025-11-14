@@ -1,5 +1,4 @@
 import logging
-import re
 from typing import Any, Dict
 
 import yaml
@@ -83,88 +82,20 @@ def remove_lines_to_fit_len(text: str, max_len: int) -> str:
     return text
 
 
-def sanitize_markdown(text: str) -> str:
+def sanitize_html(text: str) -> str:
     """
-    Sanitizes text for Telegram Markdown (v1) format.
-
-    В Markdown v1 (parse_mode="markdown") символы (* _ ` [) не экранируются, если используются парами для форматирования.
-    Например:
-    - *bold text* — не экранируется
-    - _italic_ — не экранируется
-    - some_variable_name — экранируется
-    - [link](url) — не экранируется
-    - `code` — не экранируется
+    Escapes special characters for Telegram HTML format.
+    See: https://core.telegram.org/bots/api#html-style
     """
-    # Сначала заменяем маркеры списка
-    lines = text.split("\n")
-    for i in range(len(lines)):
-        if lines[i].strip().startswith("*   "):
-            lines[i] = lines[i].replace("*   ", "•   ", 1)
-    text = "\n".join(lines)
-
-    # Спецслучай: если строка состоит только из формат-символов, экранируем все
-    if text.strip() and all(c in "*_`[" for c in text.strip()):
-        return "".join("\\" + c if c in "*_`[" else c for c in text)
-
-    # Найти все валидные пары форматирования
-    valid_formats = [
-        (r"\*([^*\n]+)\*", "*"),
-        (r"(?<![\w])_([^_\n]+)_(?![\w])", "_"),
-        (r"`([^`\n]+)`", "`"),
-        (r"\[([^\]]+)\]\([^)]+\)", "["),
-    ]
-    protected = set()
-    for pattern, _ in valid_formats:
-        for match in re.finditer(pattern, text):
-            for i in range(match.start(), match.end()):
-                protected.add(i)
-
-    # Экранируем звездочки вне валидных пар
-    result = []
-    for i, char in enumerate(text):
-        if i in protected:
-            result.append(char)
-        elif char == "*":
-            result.append("\\*")
-        else:
-            result.append(char)
-    partially_escaped = "".join(result)
-
-    # Экранируем подчеркивания между букв/цифр вне валидных пар
-    def escape_underscores(s, protected):
-        chars = list(s)
-        result = []
-        i = 0
-        while i < len(chars):
-            if chars[i] == "_" and i not in protected:
-                prev_char = chars[i - 1] if i > 0 else ""
-                next_char = chars[i + 1] if i + 1 < len(chars) else ""
-                if prev_char.isalnum() and next_char.isalnum():
-                    result.append("\\_")
-                    i += 1
-                    continue
-                elif (i == 0 and next_char.isalnum()) or (
-                    i > 0 and not prev_char.isalnum() and next_char.isalnum()
-                ):
-                    result.append("\\_")
-                    i += 1
-                    continue
-            result.append(chars[i])
-            i += 1
-        return "".join(result)
-
-    return escape_underscores(partially_escaped, protected)
-
-
-def sanitize_markdown_v2(text: str) -> str:
-    """
-    Escapes all special characters for Telegram MarkdownV2.
-    See: https://core.telegram.org/bots/api#markdownv2-style
-    """
-    # List of all special characters in MarkdownV2
-    special_chars = r"_ * [ ] ( ) ~ ` > # + - = | { } . !"
-    for char in special_chars.split():
-        text = text.replace(char, f"\\{char}")
+    # HTML entities that need to be escaped
+    html_entities = {
+        "&": "&amp;",  # Must be first
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+    }
+    for char, entity in html_entities.items():
+        text = text.replace(char, entity)
     return text
 
 

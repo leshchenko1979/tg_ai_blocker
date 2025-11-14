@@ -148,7 +148,7 @@ async def handle_timeout(
         bot.send_message(
             LESHCHENKO_CHAT_ID,
             text,
-            parse_mode="markdown",
+            parse_mode="HTML",
         )
     )
     return web.json_response(
@@ -242,12 +242,12 @@ async def handle_unhandled_exception(
             {"chat_id": chat_id, "exception": str(e)},
         )
 
-    text = f"Bot error: `{e}`\n```\n{traceback.format_exc()}\n```"
+    text = f"Bot error: <code>{e}</code>\n<pre>\n{traceback.format_exc()}\n</pre>"
     asyncio.create_task(
         bot.send_message(
             LESHCHENKO_CHAT_ID,
             remove_lines_to_fit_len(text, 4096),
-            parse_mode="markdown",
+            parse_mode="HTML",
         )
     )
 

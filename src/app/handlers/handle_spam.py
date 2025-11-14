@@ -18,7 +18,7 @@ from ..common.bot import bot
 from ..common.mp import mp
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.tracking import track_group_event, track_spam_detection
-from ..common.utils import retry_on_network_error, sanitize_markdown_v2
+from ..common.utils import retry_on_network_error, sanitize_html
 from ..database import get_admin, get_group
 from ..database.group_operations import remove_member_from_group
 
@@ -266,11 +266,11 @@ async def handle_spam_message_deletion(message: types.Message) -> None:
                         message.chat.id,
                         private_message=(
                             "❗️ У меня нет права удалять спам-сообщения в группе\\. "
-                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы\\.\n\nГруппа: *{sanitize_markdown_v2(group_title)}*"
+                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы\\.\n\nГруппа: *{sanitize_html(group_title)}*"
                         ),
                         group_message_template="{mention}, у меня нет права удалять спам-сообщения\\. Пожалуйста, дайте мне право 'Удаление сообщений'\\!",
                         cleanup_if_group_fails=True,
-                        parse_mode="MarkdownV2",
+                        parse_mode="HTML",
                     )
                     if (
                         not notification_result["notified_private"]

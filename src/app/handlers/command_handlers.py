@@ -5,7 +5,7 @@ from aiogram import F, types
 from aiogram.filters import Command
 
 from ..common.mp import mp
-from ..common.utils import config, sanitize_markdown
+from ..common.utils import config, sanitize_html
 from ..database import (
     INITIAL_CREDITS,
     get_admin_credits,
@@ -68,19 +68,19 @@ async def handle_help_command(message: types.Message) -> str:
             )
             await message.reply(
                 welcome_text,
-                parse_mode="markdown",
+                parse_mode="HTML",
                 disable_web_page_preview=True,
             )
             return "command_start_new_user_sent"
         # Для существующих пользователей покажем краткое приветствие и направим к командам
         await message.reply(
             "С возвращением! Для просмотра баланса и групп используйте /stats. Для справки по командам — /help.",
-            parse_mode="markdown",
+            parse_mode="HTML",
         )
         return "command_start_existing_user"
 
     # Логика для /help
-    safe_text = sanitize_markdown(config["help_text"])
+    safe_text = sanitize_html(config["help_text"])
 
     # Максимальная длина сообщения в Telegram
     MAX_LEN = 4096
@@ -89,7 +89,7 @@ async def handle_help_command(message: types.Message) -> str:
     for i in range(0, len(safe_text), MAX_LEN):
         await message.reply(
             safe_text[i : i + MAX_LEN],
-            parse_mode="markdown",
+            parse_mode="HTML",
             disable_web_page_preview=True,
         )
 
@@ -130,8 +130,8 @@ async def handle_stats_command(message: types.Message) -> str:
                 status = (
                     "✅ включена" if group["is_moderation_enabled"] else "❌ выключена"
                 )
-                # Очищаем название группы от markdown символов
-                safe_title = sanitize_markdown(group["title"])
+                # Очищаем название группы от HTML символов
+                safe_title = sanitize_html(group["title"])
                 message_text += f"• {safe_title}: модерация {status}\n"
         else:
             message_text += "У вас нет групп, где вы администратор."
@@ -139,7 +139,7 @@ async def handle_stats_command(message: types.Message) -> str:
         # Добавляем информацию о режиме работы
         delete_spam = await get_spam_deletion_state(user_id)
         mode = "🗑 Режим удаления" if delete_spam else "🔔 Режим уведомлений"
-        message_text += f"\n\nТекущий режим: *{mode}*"
+        message_text += f"\n\nТекущий режим: <b>{mode}</b>"
 
         # Трекинг просмотра статистики
         mp.track(
@@ -155,7 +155,7 @@ async def handle_stats_command(message: types.Message) -> str:
             },
         )
 
-        await message.reply(message_text, parse_mode="markdown")
+        await message.reply(message_text, parse_mode="HTML")
         return "command_stats_sent"
 
     except Exception as e:
@@ -204,18 +204,18 @@ async def handle_mode_command(message: types.Message) -> str:
         # Формируем сообщение о новом режиме
         if delete_spam:
             message_text = (
-                "🗑 Включен *режим удаления*\n\n"
+                "🗑 Включен <b>режим удаления</b>\n\n"
                 "Теперь я буду автоматически удалять сообщения, "
                 "определённые как спам, в ваших группах."
             )
         else:
             message_text = (
-                "🔔 Включен *режим уведомлений*\n\n"
+                "🔔 Включен <b>режим уведомлений</b>\n\n"
                 "Теперь я буду только уведомлять о сообщениях, "
                 "определённых как спам, но не буду их удалять."
             )
 
-        await message.reply(message_text, parse_mode="markdown")
+        await message.reply(message_text, parse_mode="HTML")
         return (
             "command_mode_changed_to_deletion"
             if delete_spam
