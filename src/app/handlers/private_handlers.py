@@ -413,42 +413,43 @@ async def extract_original_message_info(
 
     # If we don't have group chat/message IDs from forward metadata, try Logfire lookup
     if not info["group_chat_id"] or not info["group_message_id"]:
-        if info["user_id"]:
-            # Get admin's managed groups and extract IDs
-            admin_groups = await get_admin_groups(admin_id)
-            admin_group_ids = [group["id"] for group in admin_groups]
+        # Get admin's managed groups and extract IDs
+        admin_groups = await get_admin_groups(admin_id)
+        admin_group_ids = [group["id"] for group in admin_groups]
 
-            if admin_group_ids:
-                # Try to find the original message in Logfire
-                lookup_result = await find_original_message(
-                    user_id=info["user_id"],
-                    message_text=info["text"],
-                    forward_date=original_message.forward_date or original_message.date,
-                    admin_chat_ids=admin_group_ids,
+        if admin_group_ids:
+            # Try to find the original message in Logfire (user_id is optional now)
+            lookup_result = await find_original_message(
+                user_id=info["user_id"],  # Can be None for hidden users
+                message_text=info["text"],
+                forward_date=original_message.forward_date or original_message.date,
+                admin_chat_ids=admin_group_ids,
+            )
+
+            if lookup_result:
+                info["group_chat_id"] = lookup_result["chat_id"]
+                info["group_message_id"] = lookup_result["message_id"]
+                logger.info(
+                    "Logfire lookup succeeded",
+                    extra={
+                        "logfire_lookup": "success",
+                        "candidate_chats": len(admin_group_ids),
+                        "user_id_provided": info["user_id"] is not None,
+                    },
                 )
-
-                if lookup_result:
-                    info["group_chat_id"] = lookup_result["chat_id"]
-                    info["group_message_id"] = lookup_result["message_id"]
-                    logger.info(
-                        "Logfire lookup succeeded",
-                        extra={
-                            "logfire_lookup": "success",
-                            "candidate_chats": len(admin_group_ids),
-                        },
-                    )
-                else:
-                    logger.info(
-                        "Logfire lookup failed to find message",
-                        extra={
-                            "logfire_lookup": "miss",
-                            "candidate_chats": len(admin_group_ids),
-                        },
-                    )
             else:
                 logger.info(
-                    "Admin has no managed groups, skipping Logfire lookup",
-                    extra={"logfire_lookup": "skip", "candidate_chats": 0},
+                    "Logfire lookup failed to find message",
+                    extra={
+                        "logfire_lookup": "miss",
+                        "candidate_chats": len(admin_group_ids),
+                        "user_id_provided": info["user_id"] is not None,
+                    },
                 )
+        else:
+            logger.info(
+                "Admin has no managed groups, skipping Logfire lookup",
+                extra={"logfire_lookup": "skip", "candidate_chats": 0},
+            )
 
     return info

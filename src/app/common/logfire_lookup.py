@@ -33,17 +33,17 @@ def _get_client() -> LogfireQueryClient:
 
 
 async def find_original_message(
-    user_id: int,
+    user_id: Optional[int],
     message_text: str,
     forward_date: datetime,
     admin_chat_ids: Sequence[int],
     search_days_back: int = 3,
 ) -> Optional[Dict[str, int]]:
     """
-    Query Logfire to find the original message by user_id, text, and date.
+    Query Logfire to find the original message by user_id (if available), text, and date.
 
     Args:
-        user_id: The ID of the user who sent the original message
+        user_id: The ID of the user who sent the original message (optional)
         message_text: The text content of the message (exact match)
         forward_date: The date when the message was forwarded
         admin_chat_ids: List of chat IDs where the admin has permissions
@@ -66,6 +66,13 @@ async def find_original_message(
     # Extract the first distinctive sentence that should be unique enough
     text_sample = message_text.split("\n\n")[0][:150].replace("'", "''")
 
+    # Build user_id condition only if provided
+    user_id_condition = ""
+    if user_id is not None:
+        user_id_condition = (
+            f"AND (attributes->'update'->'message'->'from'->>'id')::bigint = {user_id}"
+        )
+
     sql = f"""
     SELECT
         (attributes->'update'->'message'->>'message_id')::bigint as message_id,
@@ -75,7 +82,7 @@ async def find_original_message(
     WHERE
         attributes->'update' IS NOT NULL
         AND attributes->'update'->'message' IS NOT NULL
-        AND (attributes->'update'->'message'->'from'->>'id')::bigint = {user_id}
+        {user_id_condition}
         AND (
             position('{text_sample}' in attributes->'update'->'message'->>'text') > 0
             OR position('{text_sample}' in attributes->'update'->'message'->>'caption') > 0

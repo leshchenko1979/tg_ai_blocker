@@ -188,6 +188,58 @@ class TestExtractOriginalMessageInfo:
                 mock_get_groups.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_logfire_lookup_hidden_user(self, mock_bot_get_chat):
+        """Test Logfire lookup succeeds even when user_id is None (hidden user forward)."""
+        admin_id = 99999
+
+        # Create mock with hidden user forward (no user_id available)
+        callback_message = MagicMock(spec=types.Message)
+        forwarded_message = MagicMock(spec=types.Message)
+        forwarded_message.text = "Hidden user message"
+        forwarded_message.forward_date = datetime.now(timezone.utc)
+        forwarded_message.forward_from = None
+
+        # Mock hidden user origin
+        origin = MagicMock()
+        origin.type = "hidden_user"
+        origin.sender_user_name = "Hidden User"
+        forwarded_message.forward_origin = origin
+
+        callback_message.reply_to_message = forwarded_message
+
+        # Mock admin groups
+        with patch(
+            "src.app.handlers.private_handlers.get_admin_groups", new_callable=AsyncMock
+        ) as mock_get_groups:
+            mock_get_groups.return_value = [{"id": 1001}, {"id": 1002}]
+
+            # Mock successful Logfire lookup
+            with patch(
+                "src.app.handlers.private_handlers.find_original_message",
+                new_callable=AsyncMock,
+            ) as mock_lookup:
+                mock_lookup.return_value = {"message_id": 888, "chat_id": 1001}
+
+                result = await extract_original_message_info(
+                    callback_message, admin_id
+                )
+
+                # Verify the result includes Logfire data
+                assert result["group_chat_id"] == 1001
+                assert result["group_message_id"] == 888
+                assert result["user_id"] is None  # No user_id for hidden user
+                assert result["name"] is None  # No name for hidden user
+                assert result["text"] == "Hidden user message"
+
+                # Verify Logfire lookup was called with user_id=None
+                mock_lookup.assert_called_once_with(
+                    user_id=None,
+                    message_text="Hidden user message",
+                    forward_date=forwarded_message.forward_date,
+                    admin_chat_ids=[1001, 1002],
+                )
+
+    @pytest.mark.asyncio
     async def test_no_user_id_in_forward(self):
         """Test handling when forwarded message has no user information."""
         admin_id = 99999
