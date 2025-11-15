@@ -99,6 +99,33 @@ def sanitize_html(text: str) -> str:
     return text
 
 
+def sanitize_llm_html(text: str) -> str:
+    """
+    Sanitizes LLM-generated HTML content, allowing only safe Telegram HTML tags.
+    This is designed for content where we expect HTML formatting from a controlled source.
+    """
+    import re
+
+    # Allow only these safe HTML tags: <b>, <i>, </b>, </i>
+    allowed_tags = ["<b>", "</b>", "<i>", "</i>"]
+
+    # First, temporarily replace allowed tags with placeholders
+    placeholders = {}
+    for i, tag in enumerate(allowed_tags):
+        placeholder = f"__ALLOWED_TAG_{i}__"
+        placeholders[placeholder] = tag
+        text = text.replace(tag, placeholder)
+
+    # Escape all remaining HTML characters
+    text = sanitize_html(text)
+
+    # Restore allowed tags
+    for placeholder, tag in placeholders.items():
+        text = text.replace(placeholder, tag)
+
+    return text
+
+
 def clean_alert_text(text: str | None) -> str | None:
     """Очищает текст от обёртки тревоги/уведомления, если она присутствует."""
     if not text:
