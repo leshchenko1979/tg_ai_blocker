@@ -11,15 +11,45 @@ done
 
 set -e  # Exit on any error
 
+# Color codes and timing functions
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+start_time=$(date +%s)
+section_start_time=0
+
+start_section() {
+    section_start_time=$(date +%s)
+    echo -e "${BLUE}┌─────────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${BLUE}│${NC} ${WHITE}$1${NC}"
+    echo -e "${BLUE}└─────────────────────────────────────────────────────────────────┘${NC}"
+}
+
+end_section() {
+    local end_time=$(date +%s)
+    local duration=$((end_time - section_start_time))
+    echo -e "${GREEN}✓ Completed in ${duration}s${NC}"
+    echo ""
+}
+
 # Load environment variables
 if [ ! -f .env ]; then
-    echo "Error: .env file not found!"
+    echo -e "${RED}Error: .env file not found!${NC}"
     exit 1
 fi
 
 source .env
 
-echo "Running code quality checks..."
+# Validation
+: "${REMOTE_USER:?REMOTE_USER not set}"
+: "${REMOTE_HOST:?REMOTE_HOST not set}"
+
+start_section "🔧 Code Quality & Testing"
 
 # Run isort to sort imports
 echo "Running isort..."
@@ -31,25 +61,33 @@ black src
 
 # Run tests if not skipped
 if [ "$SKIP_TESTS" = false ]; then
-    echo "Running tests..."
-    pytest tests -v --maxfail=1 --exitfirst --last-failed
+    echo "Running full test suite with SQLite..."
+    USE_SQLITE_TESTS=true python3 -m pytest tests --maxfail=1 --exitfirst -q
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Tests failed! Aborting deployment.${NC}"
+        exit 1
+    fi
+    echo "All tests completed successfully"
 else
     echo "Skipping tests..."
 fi
 
-# Set up directory structure
+end_section
+
+start_section "📦 File Transfer & Setup"
+
+# Set up directory structure with SSH multiplexing
 echo "Setting up directory structure..."
-ssh ${REMOTE_USER}@${REMOTE_HOST} "
+ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "
     # Create persistent directories with proper permissions
     mkdir -p ${LOGS_DIR:-/data/projects/tg-ai-blocker/logs}
+    chown -R 1000:1000 ${LOGS_DIR:-/data/projects/tg-ai-blocker/logs}
 "
 
 # Create package archive
 echo "Creating Python package archive..."
 TEMP_DIR=$(mktemp -d)
-if [ -f "$TEMP_DIR/app.tar.gz" ]; then
-    rm "$TEMP_DIR/app.tar.gz"
-fi
 COPYFILE_DISABLE=1 tar \
     --no-xattrs \
     --exclude='venv' \
@@ -58,45 +96,69 @@ COPYFILE_DISABLE=1 tar \
     --exclude='.git' \
     --exclude='.pytest_cache' \
     --exclude='node_modules' \
-    --exclude='.dockerfile' \
-    --exclude='docker-compose.yml' \
-    --exclude='.env' \
     --exclude='.dockerignore' \
-    -czf "$TEMP_DIR/app.tar.gz" src/app/
+    -czf "$TEMP_DIR/app.tar.gz" src/app/ .dockerfile docker-compose.yml .env pyproject.toml config.yaml PRD.md
 
 # Clean and recreate project directory
 echo "Cleaning and recreating project directory..."
-ssh ${REMOTE_USER}@${REMOTE_HOST} "rm -rf /data/projects/tg-ai-blocker && mkdir -p /data/projects/tg-ai-blocker"
+ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "rm -rf /data/projects/tg-ai-blocker && mkdir -p /data/projects/tg-ai-blocker"
 
 # Copy and extract Python package
 echo "Copying and extracting Python package..."
 scp "$TEMP_DIR/app.tar.gz" ${REMOTE_USER}@${REMOTE_HOST}:/data/projects/tg-ai-blocker/
-ssh ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && tar xzf app.tar.gz && rm app.tar.gz && ls -la"
+ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && tar xzf app.tar.gz && rm app.tar.gz && ls -la"
 rm -rf "$TEMP_DIR"
 
-# Copy configuration files
-echo "Copying configuration files..."
-scp .dockerfile docker-compose.yml .env pyproject.toml config.yaml PRD.md ${REMOTE_USER}@${REMOTE_HOST}:/data/projects/tg-ai-blocker/
+end_section
+
+start_section "🐳 Container Deployment"
 
 # Deploy container
 echo "Deploying container..."
-ssh ${REMOTE_USER}@${REMOTE_HOST} '
+ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} '
     cd /data/projects/tg-ai-blocker
     docker compose down --remove-orphans
     docker compose up -d --build
 '
 
-# Check container status
-echo "Checking container status..."
-ssh ${REMOTE_USER}@${REMOTE_HOST} "docker ps | grep tg-ai-blocker || echo 'Container not found!'"
+end_section
+
+start_section "🏥 Health Verification"
+
+# Wait for container to be healthy
+echo "Waiting for container to be healthy..."
+ATTEMPTS=0
+MAX_ATTEMPTS=30
+until [ $ATTEMPTS -ge $MAX_ATTEMPTS ] || ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && docker compose ps --format json | grep -q 'Health.*healthy'"; do
+    ATTEMPTS=$((ATTEMPTS + 1))
+    echo "Waiting for container to be healthy (attempt ${ATTEMPTS}/${MAX_ATTEMPTS})..."
+    sleep 5
+done
+
+if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
+    echo -e "${RED}Container failed to become healthy after ${MAX_ATTEMPTS} attempts${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ Container is healthy!${NC}"
+
+end_section
+
+start_section "🧹 Cleanup & Security"
 
 # Clean up source files after successful deployment
 echo "Cleaning up source files on the server (preserving docker-compose and .env for Sablier)..."
-ssh ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && rm -rf src app"
+ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && rm -rf src app"
 
-echo "Deployment completed successfully!"
+end_section
 
-# Print deployment time in green color
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
-echo -e "${GREEN}deployed at $(date '+%Y-%m-%d %H:%M:%S')${NC}"
+# Final deployment summary
+end_time=$(date +%s)
+total_duration=$((end_time - start_time))
+current_time=$(date '+%Y-%m-%d %H:%M:%S')
+
+echo -e "${CYAN}┌─────────────────────────────────────────────────────────────────┐${NC}"
+echo -e "${CYAN}│${NC} ${WHITE}🎉 Deployment completed successfully!${NC}"
+echo -e "${CYAN}│${NC} ${GREEN}Total deployment time: ${total_duration}s${NC}"
+echo -e "${CYAN}│${NC} ${YELLOW}Finished at: ${current_time}${NC}"
+echo -e "${CYAN}└─────────────────────────────────────────────────────────────────┘${NC}"

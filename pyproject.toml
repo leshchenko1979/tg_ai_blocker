@@ -18,6 +18,12 @@ dependencies = [
     "asyncpg",
     "logfire",
     "tenacity",
+    "pydantic",
+]
+
+[project.optional-dependencies]
+dev = [
+    "python-dotenv",
 ]
 
 [tool.setuptools]
