@@ -4,6 +4,7 @@ import pathlib
 from typing import Any, Dict, cast
 
 from aiogram import F, types
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import or_f
 
 from ..common.bot import bot
@@ -11,7 +12,7 @@ from ..common.linked_channel import collect_linked_channel_summary
 from ..common.llms import get_openrouter_response
 from ..common.logfire_lookup import find_original_message
 from ..common.mp import mp
-from ..common.utils import config, sanitize_html
+from ..common.utils import config, sanitize_llm_html
 from ..database import (
     add_spam_example,
     get_admin_credits,
@@ -160,24 +161,72 @@ async def handle_private_message(message: types.Message) -> str:
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(message_history)
 
-        # Get response from LLM
-        response = await get_openrouter_response(messages, temperature=0.6)
+        # Get response from LLM with retry logic for HTML parsing errors
+        max_retries = 3
+        retry_count = 0
 
-        # Трекинг успешного ответа LLM
-        mp.track(
-            admin_id,
-            "llm_response_received",
-            {"response_text": response},
+        while retry_count < max_retries:
+            # Get response from LLM
+            response = await get_openrouter_response(messages, temperature=0.6)
+
+            # Трекинг успешного ответа LLM
+            mp.track(
+                admin_id,
+                "llm_response_received",
+                {
+                    "response_text": response,
+                    "retry_count": retry_count,
+                },
+            )
+
+            # Save bot's response to history
+            await save_message(admin_id, "assistant", response)
+
+            # Send with HTML formatting
+            sanitized_response = sanitize_llm_html(response)
+
+            try:
+                await message.reply(sanitized_response, parse_mode="HTML")
+                return "private_message_replied"
+
+            except TelegramBadRequest as send_error:
+                # Check if this is a Telegram HTML parsing error
+                error_msg = str(send_error).lower()
+                is_html_error = (
+                    "can't parse entities" in error_msg
+                    or "can't find end tag" in error_msg
+                    or "unclosed tag" in error_msg
+                )
+
+                if is_html_error and retry_count < max_retries - 1:
+                    # This is an HTML parsing error, retry with new LLM response
+                    retry_count += 1
+                    mp.track(
+                        admin_id,
+                        "llm_response_retry",
+                        {
+                            "error_message": str(send_error),
+                            "retry_count": retry_count,
+                        },
+                    )
+
+                    # Add a note to the conversation history about the HTML formatting issue
+                    messages.append({"role": "assistant", "content": response})
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": "Предыдущий ответ содержал ошибку форматирования HTML. Пожалуйста, повтори ответ, строго следуя правилам HTML: используй только <b> для жирного и <i> для курсива, обязательно закрывай все теги.",
+                        }
+                    )
+                    continue  # Retry with updated context
+                else:
+                    # Not an HTML error or max retries reached, re-raise
+                    raise send_error
+
+        # If we get here, max retries exceeded
+        raise Exception(
+            f"Failed to send message after {max_retries} retries due to HTML parsing errors"
         )
-
-        # Save bot's response to history
-        await save_message(admin_id, "assistant", response)
-
-        # Send with HTML formatting
-        sanitized_response = sanitize_html(response)
-        await message.reply(sanitized_response, parse_mode="HTML")
-
-        return "private_message_replied"
 
     except Exception as e:
         # Трекинг ошибок
@@ -232,7 +281,9 @@ async def handle_forwarded_message(message: types.Message) -> str:
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=[row])
 
     await message.reply(
-        "Добавить это сообщение в базу примеров?", reply_markup=keyboard
+        "Добавить это сообщение в базу примеров?",
+        reply_markup=keyboard,
+        parse_mode="HTML",
     )
     return "private_forward_prompt_sent"
 
@@ -294,6 +345,7 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                 chat_id=callback.message.chat.id,
                 message_id=callback.message.message_id,
                 text=f"Сообщение добавлено как пример {'спама' if action == 'spam' else 'ценного сообщения'}.",
+                parse_mode="HTML",
             ),
         ]
 

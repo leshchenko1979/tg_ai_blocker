@@ -191,6 +191,7 @@ async def notify_admins_about_deactivation(
                 return await bot.send_message(
                     admin_id,
                     message_text,
+                    parse_mode="HTML",
                     disable_web_page_preview=True,
                 )
 

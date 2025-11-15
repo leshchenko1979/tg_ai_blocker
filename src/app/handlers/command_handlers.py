@@ -80,7 +80,8 @@ async def handle_help_command(message: types.Message) -> str:
         return "command_start_existing_user"
 
     # Логика для /help
-    safe_text = sanitize_html(config["help_text"])
+    # config["help_text"] contains safe HTML that we control, no need to sanitize
+    safe_text = config["help_text"]
 
     # Максимальная длина сообщения в Telegram
     MAX_LEN = 4096
@@ -120,8 +121,8 @@ async def handle_stats_command(message: types.Message) -> str:
 
         # Формируем сообщение
         message_text = (
-            f"💰 Баланс: *{balance}* звезд\n"
-            f"📊 Потрачено за последние 7 дней: *{spent_week}* звезд\n\n"
+            f"💰 Баланс: <b>{balance}</b> звезд\n"
+            f"📊 Потрачено за последние 7 дней: <b>{spent_week}</b> звезд\n\n"
         )
 
         if admin_groups:
@@ -170,7 +171,9 @@ async def handle_stats_command(message: types.Message) -> str:
             },
         )
         logger.error(f"Error handling stats command: {e}", exc_info=True)
-        await message.reply("Произошла ошибка при получении статистики.")
+        await message.reply(
+            "Произошла ошибка при получении статистики.", parse_mode="HTML"
+        )
         return "command_stats_error"
 
 
@@ -234,7 +237,9 @@ async def handle_mode_command(message: types.Message) -> str:
             },
         )
         logger.error(f"Error handling mode command: {e}", exc_info=True)
-        await message.reply("Произошла ошибка при изменении режима работы.")
+        await message.reply(
+            "Произошла ошибка при изменении режима работы.", parse_mode="HTML"
+        )
         return "command_mode_error"
 
 
