@@ -15,5 +15,3 @@
   - `deploy_scalene.sh` spins up the Scalene-instrumented stack (Dockerfile.scalene + docker-compose.scalene.yml) under `/data/projects/tg-ai-blocker-scalene`, capturing reports in `profiles/` (Scalene runs with `--html --json --outfile /app/profiles/scalene_report`). VS Code task `Deploy Scalene Profiling` runs the script locally.
 - **Error Notification**: `TelegramLogHandler` uses a queue-based approach with background task to send WARNING+ level logs to admin chat. Includes throttling (10/min) and deduplication (15s). ERROR/CRITICAL messages bypass throttling but retain deduplication to ensure critical errors are notified while preventing spam.
 - **Linked Channel Testing Infrastructure**: Comprehensive test suite in `tests/common/test_linked_channel.py` with CSV-driven test cases (`tests/linked_channel_test.csv`) validates bot vs MTProto extraction methods. Includes SSL bypass for local MTProto testing and detailed success/failure matrix analysis. Bot extraction tested for both user info access and channel info access separately.
-
-

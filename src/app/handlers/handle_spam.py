@@ -144,6 +144,8 @@ def format_admin_notification_message(
         return "Ошибка: сообщение без информации о пользователе"
 
     content_text = message.text or message.caption or "[MEDIA_MESSAGE]"
+    # Escape HTML entities in content to prevent parsing errors
+    content_text = sanitize_html(content_text)
     chat_username_str = f" (@{message.chat.username})" if message.chat.username else ""
     user_username_str = (
         f" (@{message.from_user.username})" if message.from_user.username else ""

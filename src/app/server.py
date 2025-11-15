@@ -41,6 +41,15 @@ async def handle_update(request: web.Request) -> web.Response:
         return web.Response()
 
     json = await request.json()
+
+    # Validate that this is a proper Telegram update
+    if not isinstance(json, dict) or "update_id" not in json:
+        logger.warning(f"Received invalid update format: {json}")
+        return web.json_response(
+            {"error": "Invalid update format", "required_field": "update_id"},
+            status=400,
+        )
+
     start_time = time.time()
 
     with logfire.span("Update: handling...", update=json) as span:
@@ -78,6 +87,18 @@ async def _on_startup_register_logging(app: web.Application) -> None:
     register_telegram_logging_loop(asyncio.get_running_loop())
 
 
+async def _on_startup_setup_webhook(app: web.Application) -> None:
+    """Set up Telegram webhook on startup"""
+    try:
+        webhook_url = "https://tg-ai-blocker.redevest.ru/"
+        logger.info(f"Setting webhook URL to: {webhook_url}")
+        await bot.set_webhook(webhook_url)
+        logger.info("Webhook setup completed successfully")
+    except Exception as e:
+        logger.error(f"Failed to set webhook: {e}")
+        raise
+
+
 async def _on_startup_log_server_started(app: web.Application) -> None:
     logging.warning("Server started")
 
@@ -100,6 +121,7 @@ async def _shutdown(app: web.Application) -> None:
 
 
 app.on_startup.append(_on_startup_register_logging)
+app.on_startup.append(_on_startup_setup_webhook)
 app.on_startup.append(_on_startup_log_server_started)
 app.on_shutdown.append(_shutdown)
 

@@ -1,5 +1,6 @@
 import logging
 
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardMarkup
 
 from ..database.group_operations import cleanup_inaccessible_group, get_pool
@@ -53,10 +54,38 @@ async def notify_admins_with_fallback_and_cleanup(
             notified_private.append(admin_id)
             last_admin_info = admin_chat
         except Exception as e:
-            logger.warning(
-                f"Failed to notify admin {admin_id} in private: {e}", exc_info=True
-            )
-            unreachable.append(admin_id)
+            # Check if this is a content parsing error vs access/permission error
+            if isinstance(e, TelegramBadRequest):
+                # Check for specific parsing errors in the message
+                error_msg = str(e)
+                if (
+                    "can't parse entities" in error_msg
+                    or "Unsupported start tag" in error_msg
+                ):
+                    logger.error(
+                        f"Content parsing error when notifying admin {admin_id}: {e}. "
+                        "This indicates malformed HTML in the notification message content.",
+                        exc_info=True,
+                        extra={
+                            "error_message": error_msg,
+                            "private_message": private_message,
+                        },
+                    )
+                    # Don't treat content parsing errors as "unreachable admin"
+                    # These should be fixed in the message formatting, not trigger fallback
+                    continue
+                else:
+                    # Other TelegramBadRequest errors (like invalid chat_id) should be treated as unreachable
+                    logger.warning(
+                        f"Telegram API error when notifying admin {admin_id}: {e}",
+                        exc_info=True,
+                    )
+                    unreachable.append(admin_id)
+            else:
+                logger.warning(
+                    f"Failed to notify admin {admin_id} in private: {e}", exc_info=True
+                )
+                unreachable.append(admin_id)
             try:
 
                 @retry_on_network_error
