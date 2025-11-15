@@ -253,18 +253,19 @@ async def create_procedures(conn: asyncpg.Connection):
 
 
 async def truncate_all_tables(conn: asyncpg.Connection):
-    """Truncate all tables in the database"""
-    await conn.execute(
+    """Truncate all tables in the database efficiently"""
+    # Get all table names in a single query
+    table_names = await conn.fetchval(
         """
-        DO $$
-        DECLARE
-            statements CURSOR FOR
-                SELECT tablename FROM pg_tables
-                WHERE schemaname = 'public';
-        BEGIN
-            FOR stmt IN statements LOOP
-                EXECUTE 'TRUNCATE TABLE ' || quote_ident(stmt.tablename) || ' CASCADE';
-            END LOOP;
-        END $$;
-    """
+        SELECT string_agg(quote_ident(tablename), ', ')
+        FROM pg_tables
+        WHERE schemaname = 'public'
+        """
     )
+
+    if table_names:
+        # Truncate all tables in a single statement
+        await conn.execute(f"TRUNCATE TABLE {table_names} CASCADE")
+    else:
+        # No tables to truncate
+        pass
