@@ -58,13 +58,26 @@ async def handle_update(request: web.Request) -> web.Response:
             result = await asyncio.wait_for(
                 dp.feed_raw_update(bot, json), timeout=WEBHOOK_TIMEOUT
             )
-            span.message = f"Update handled: {result}"
-            span.set_attribute("result", result)
+
+            # Extract message title or username from the update
+            for path in ["message.chat.title", "message.from.username"]:
+                try:
+                    current = json
+                    for part in path.split("."):
+                        current = current[part]
+                    span.message = f"{current}"
+                    break
+                except Exception:
+                    continue
+            else:
+                span.message = "Unknown chat or user"
+
             # Add tag based on handler result
             if result == UNHANDLED:
                 span.tags = ["unhandled"]
             elif result:
                 span.tags = [result]
+
             return web.json_response({"message": "Processed successfully"})
 
         except TimeoutError:
@@ -160,19 +173,6 @@ async def handle_timeout(
             },
         )
 
-    text = (
-        f"⚠️ Webhook timeout after {elapsed:.2f} seconds\n"
-        f"Chat ID: {chat_id}\n"
-        f"Admin ID: {admin_id}\n"
-        "Update will be retried."
-    )
-    asyncio.create_task(
-        bot.send_message(
-            LESHCHENKO_CHAT_ID,
-            text,
-            parse_mode="HTML",
-        )
-    )
     return web.json_response(
         {"error": "Processing timed out", "retry": True},
         status=503,
