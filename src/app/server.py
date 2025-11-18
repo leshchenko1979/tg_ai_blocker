@@ -60,7 +60,14 @@ async def handle_update(request: web.Request) -> web.Response:
             )
 
             # Extract message title or username from the update
-            for path in ["message.chat.title", "message.from.username"]:
+            for path in [
+                "message.chat.title",
+                "message.from.username",
+                "callback_query.from.username",
+                "edited_message.chat.title",
+                "chat_join_request.chat.title",
+                "my_chat_member.from.username",
+            ]:
                 try:
                     current = json
                     for part in path.split("."):
