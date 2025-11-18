@@ -12,7 +12,7 @@ from aiohttp import web
 from .common.bot import LESHCHENKO_CHAT_ID, bot
 from .common.llms import LocationNotSupported, RateLimitExceeded
 from .common.mp import mp
-from .common.utils import remove_lines_to_fit_len
+from .common.utils import get_dotted_path, remove_lines_to_fit_len
 from .database.postgres_connection import close_pool
 from .handlers.dp import dp
 from .logging_setup import get_telegram_handler, register_telegram_logging_loop
@@ -53,37 +53,16 @@ async def handle_update(request: web.Request) -> web.Response:
     start_time = time.time()
 
     with logfire.span("Update: handling...", update=json) as span:
+        span.message = extract_chat_or_user(json)
+
         try:
             # Wrap the update handling in a timeout
             result = await asyncio.wait_for(
                 dp.feed_raw_update(bot, json), timeout=WEBHOOK_TIMEOUT
             )
 
-            # Extract message title or username from the update
-            for path in [
-                "message.chat.title",
-                "message.from.username",
-                "callback_query.from.username",
-                "edited_message.chat.title",
-                "chat_join_request.chat.title",
-                "my_chat_member.from.username",
-            ]:
-                try:
-                    current = json
-                    for part in path.split("."):
-                        current = current[part]
-                    span.message = f"{current}"
-                    break
-                except Exception:
-                    continue
-            else:
-                span.message = "Unknown chat or user"
-
             # Add tag based on handler result
-            if result == UNHANDLED:
-                span.tags = ["unhandled"]
-            elif result:
-                span.tags = [result]
+            span.tags = [result] if result != UNHANDLED else ["unhandled"]
 
             return web.json_response({"message": "Processed successfully"})
 
@@ -98,6 +77,26 @@ async def handle_update(request: web.Request) -> web.Response:
 
         except Exception as e:
             return await handle_unhandled_exception(span, e, json)
+
+        finally:
+            if update_time := get_dotted_path(json, "*.date", False):
+                logfire.metric_histogram("serve_time", unit="s").record(
+                    time.time() - update_time
+                )
+
+
+def extract_chat_or_user(json: dict) -> str:
+    # Extract message title or username from the update
+    for path in [
+        "*.chat.title",
+        "*.from.username",
+    ]:
+        try:
+            return f"{get_dotted_path(json, path, True)}"
+        except Exception:
+            continue
+
+    return "Unknown chat or user"
 
 
 app.add_routes(routes)

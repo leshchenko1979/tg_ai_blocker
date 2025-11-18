@@ -169,3 +169,44 @@ def clean_alert_text(text: str | None) -> str | None:
         except Exception as e:
             logger.error(f"Error cleaning alert text: {e}")
     return text
+
+
+def get_dotted_path(json: dict, path: str, raise_on_missing: bool = True):
+    """
+    Получает значение из JSON по заданному пути.
+
+    Можно указывать *, чтобы произвести поиск по всем элементам словаря.
+
+    Например, для json = {"message": {"chat": {"title": "title", "username": "username"}}}
+    get_dotted_path(json, "message.chat.title") вернет "title"
+    get_dotted_path(json, "*.*.title") вернет "title"
+    get_dotted_path(json, "non-existent.path") поднимет исключение KeyError
+    """
+    current_path = path
+    current_json = json
+    while True:
+        if "." not in current_path:
+            if current_path in current_json:
+                return current_json[current_path]
+            elif raise_on_missing:
+                raise KeyError(f"Key {path} not found in {json}")
+            else:
+                return None
+        next_step, rest = current_path.split(".", 1)
+        if next_step == "*":
+            for value in current_json.values():
+                if isinstance(value, dict):
+                    result = get_dotted_path(value, rest, False)
+                    if result is not None:
+                        return result
+            if raise_on_missing:
+                raise KeyError(f"Key {path} not found in {json}")
+            else:
+                return None
+        if next_step in current_json:
+            current_json = current_json[next_step]
+            current_path = rest
+        elif raise_on_missing:
+            raise KeyError(f"Key {next_step} not found in {json}")
+        else:
+            return None
