@@ -69,20 +69,21 @@ async def get_openrouter_response(messages, temperature=0.3):
         # "nvidia/nemotron-nano-9b-v2:free", false positives
         # "deepseek/deepseek-chat-v3.1:free", success rate 0%
         # "openai/gpt-oss-120b:free", success rate 0%
-        "openai/gpt-oss-20b:free",
         # "z-ai/glm-4.5-air:free", success rate 57.14%
         # "qwen/qwen3-coder:free", success rate 37.5%
         # "moonshotai/kimi-k2:free", success rate 0%
         # "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", success rate 20%
         # "tencent/hunyuan-a13b-instruct:free", success rate 0%
-        "tngtech/deepseek-r1t2-chimera:free",
         # "mistralai/mistral-small-3.2-24b-instruct:free", success rate 50%
         # "deepseek/deepseek-r1-0528:free", success rate 0%
         # "qwen/qwen3-235b-a22b:free", success rate 37.5%
-        "qwen/qwen3-30b-a3b:free",
         # "deepseek/deepseek-chat-v3-0324:free", 53/9
         # "google/gemini-2.0-flash-exp:free", 57/25
         "minimax/minimax-m2:free",
+        "kwaipilot/kat-coder-pro:free",
+        "openai/gpt-oss-20b:free",
+        "tngtech/deepseek-r1t2-chimera:free",
+        "qwen/qwen3-30b-a3b:free",
     ]
     model_gen = round_robin_with_start(models, _last_model)
     last_exception = None
