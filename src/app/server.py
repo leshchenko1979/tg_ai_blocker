@@ -62,7 +62,11 @@ async def handle_update(request: web.Request) -> web.Response:
             )
 
             # Add tag based on handler result
-            span.tags = [result] if result != UNHANDLED else ["unhandled"]
+            span.tags = (
+                [result]
+                if result is not None and result != UNHANDLED
+                else ["unhandled"]
+            )
 
             return web.json_response({"message": "Processed successfully"})
 

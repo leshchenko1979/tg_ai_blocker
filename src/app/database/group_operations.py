@@ -6,8 +6,7 @@ from aiogram.exceptions import TelegramBadRequest
 from ..common.bot import bot
 from ..common.mp import mp
 from . import admin_operations
-from .constants import INITIAL_CREDITS
-from .models import Administrator, Group
+from .models import Group
 from .postgres_connection import get_pool
 
 logger = logging.getLogger(__name__)

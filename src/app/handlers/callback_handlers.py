@@ -15,199 +15,89 @@ from .dp import dp
 logger = logging.getLogger(__name__)
 
 
-@dp.callback_query(F.data == "help_getting_started")
-async def handle_help_getting_started(callback: CallbackQuery) -> str:
-    """Показывает информацию о том, как начать использовать бота"""
+def create_help_keyboard(config):
+    """Создает клавиатуру помощи из конфигурации"""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    help_config = config.get("help_system", {})
+    buttons_config = help_config.get("buttons", [])
+
+    if not buttons_config:
+        return InlineKeyboardMarkup(inline_keyboard=[])
+
+    inline_keyboard = []
+    for row_config in buttons_config:
+        row = []
+        # row_config - это массив вида ["text1", "callback1", "text2", "callback2", ...]
+        for i in range(0, len(row_config), 2):
+            if i + 1 < len(row_config):
+                text = row_config[i]
+                callback_data = row_config[i + 1]
+                row.append(InlineKeyboardButton(text=text, callback_data=callback_data))
+        if row:  # Добавляем только непустые ряды
+            inline_keyboard.append(row)
+
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
+
+@dp.callback_query(F.data.startswith("help_") & ~F.data.in_(["help_back"]))
+async def handle_help_pages(callback: CallbackQuery) -> str:
+    """Единый обработчик для всех страниц помощи"""
+    if not callback.message or not isinstance(callback.message, types.Message):
+        await callback.answer("❌ Сообщение недоступно", show_alert=True)
+        return "callback_message_inaccessible"
+
     config = load_config()
-    text = config.get(
-        "help_getting_started_text", "Информация о начале работы временно недоступна."
+    help_config = config.get("help_system", {})
+
+    callback_data = callback.data
+
+    # Вычисляем всё на лету
+    text_key = f"{callback_data}_text"
+    return_value = f"{callback_data}_shown"
+    default_text = help_config.get(
+        "default_page_text", "Информация временно недоступна."
+    )
+
+    # Получаем текст страницы
+    text = config.get(text_key, default_text)
+
+    # Создаем кнопку "Назад"
+    back_button_text = help_config.get("back_button_text", "⬅️ Назад к справке")
+    back_button = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=back_button_text, callback_data="help_back")]
+        ]
     )
 
     await callback.message.edit_text(
         text,
         parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="⬅️ Назад к справке", callback_data="help_back"
-                    )
-                ]
-            ]
-        ),
+        reply_markup=back_button,
         disable_web_page_preview=True,
     )
     await callback.answer()
-    return "help_getting_started_shown"
 
-
-@dp.callback_query(F.data == "help_training")
-async def handle_help_training(callback: CallbackQuery) -> str:
-    """Показывает информацию об обучении бота"""
-    config = load_config()
-    text = config.get(
-        "help_training_text", "Информация об обучении временно недоступна."
-    )
-
-    await callback.message.edit_text(
-        text,
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="⬅️ Назад к справке", callback_data="help_back"
-                    )
-                ]
-            ]
-        ),
-        disable_web_page_preview=True,
-    )
-    await callback.answer()
-    return "help_training_shown"
-
-
-@dp.callback_query(F.data == "help_moderation")
-async def handle_help_moderation(callback: CallbackQuery) -> str:
-    """Показывает информацию о том, что модерируется"""
-    config = load_config()
-    text = config.get(
-        "help_moderation_text", "Информация о модерации временно недоступна."
-    )
-
-    await callback.message.edit_text(
-        text,
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="⬅️ Назад к справке", callback_data="help_back"
-                    )
-                ]
-            ]
-        ),
-        disable_web_page_preview=True,
-    )
-    await callback.answer()
-    return "help_moderation_shown"
-
-
-@dp.callback_query(F.data == "help_commands")
-async def handle_help_commands(callback: CallbackQuery) -> str:
-    """Показывает список доступных команд"""
-    config = load_config()
-    text = config.get(
-        "help_commands_text", "Информация о командах временно недоступна."
-    )
-
-    await callback.message.edit_text(
-        text,
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="⬅️ Назад к справке", callback_data="help_back"
-                    )
-                ]
-            ]
-        ),
-        disable_web_page_preview=True,
-    )
-    await callback.answer()
-    return "help_commands_shown"
-
-
-@dp.callback_query(F.data == "help_payment")
-async def handle_help_payment(callback: CallbackQuery) -> str:
-    """Показывает информацию об оплате"""
-    # Загружаем текст из конфигурации
-    config = load_config()
-    safe_text = config.get(
-        "payment_help_text", "Информация об оплате временно недоступна."
-    )
-
-    await callback.message.edit_text(
-        safe_text,
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="⬅️ Назад к справке", callback_data="help_back"
-                    )
-                ]
-            ]
-        ),
-        disable_web_page_preview=True,
-    )
-    await callback.answer()
-    return "help_payment_shown"
-
-
-@dp.callback_query(F.data == "help_support")
-async def handle_help_support(callback: CallbackQuery) -> str:
-    """Показывает информацию о поддержке"""
-    config = load_config()
-    text = config.get(
-        "help_support_text", "Информация о поддержке временно недоступна."
-    )
-
-    await callback.message.edit_text(
-        text,
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="⬅️ Назад к справке", callback_data="help_back"
-                    )
-                ]
-            ]
-        ),
-        disable_web_page_preview=True,
-    )
-    await callback.answer()
-    return "help_support_shown"
+    return return_value
 
 
 @dp.callback_query(F.data == "help_back")
 async def handle_help_back(callback: CallbackQuery) -> str:
     """Возвращает к основному меню помощи"""
-    from ..common.utils import config
+    if not callback.message or not isinstance(callback.message, types.Message):
+        await callback.answer("❌ Сообщение недоступно", show_alert=True)
+        return "callback_message_inaccessible"
 
-    # config["help_text"] contains safe HTML that we control, no need to sanitize
-    safe_text = config["help_text"]
+    config = load_config()
 
-    # Создаем клавиатуру с кнопками для разных разделов помощи
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    # Получаем текст главного меню (всегда "help_text")
+    text = config.get("help_text", "Справка временно недоступна.")
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="🚀 Как начать", callback_data="help_getting_started"
-                ),
-                InlineKeyboardButton(
-                    text="📚 Обучение бота", callback_data="help_training"
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text="⚙️ Что проверяется", callback_data="help_moderation"
-                ),
-                InlineKeyboardButton(text="💡 Команды", callback_data="help_commands"),
-            ],
-            [
-                InlineKeyboardButton(text="💰 Оплата", callback_data="help_payment"),
-                InlineKeyboardButton(text="🔧 Поддержка", callback_data="help_support"),
-            ],
-        ]
-    )
+    # Создаем клавиатуру
+    keyboard = create_help_keyboard(config)
 
     await callback.message.edit_text(
-        safe_text,
+        text,
         parse_mode="HTML",
         reply_markup=keyboard,
         disable_web_page_preview=True,

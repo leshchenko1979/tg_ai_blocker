@@ -41,3 +41,6 @@ typeCheckingMode = "basic"
 useLibraryCodeForTypes = true
 reportMissingImports = true
 reportMissingTypeStubs = false
+
+[tool.logfire]
+ignore_no_config = true

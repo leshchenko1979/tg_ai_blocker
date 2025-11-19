@@ -35,10 +35,10 @@ async def main():
                 print(f'Delete Spam: {admin.delete_spam}')
                 print(f'Created: {admin.created_at}')
                 print(f'Last Active: {admin.last_updated}')
-            except Exception as e:
+            except Exception:
                 print(f'ID: {admin.admin_id}')
                 print(f'Username: {admin.username or "Not set"}')
-                print(f'Full Name: Unable to fetch (User may have blocked the bot)')
+                print('Full Name: Unable to fetch (User may have blocked the bot)')
                 print(f'Credits: {admin.credits}')
                 print(f'Delete Spam: {admin.delete_spam}')
                 print(f'Created: {admin.created_at}')

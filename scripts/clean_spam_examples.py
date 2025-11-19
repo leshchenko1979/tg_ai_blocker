@@ -9,9 +9,7 @@ load_dotenv()
 
 import asyncio
 import logging
-from typing import Optional
 
-import asyncpg
 from src.app.database.postgres_connection import get_pool
 from src.app.common.utils import clean_alert_text
 

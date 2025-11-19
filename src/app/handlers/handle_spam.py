@@ -18,7 +18,7 @@ from ..common.bot import bot
 from ..common.mp import mp
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.tracking import track_group_event, track_spam_detection
-from ..common.utils import retry_on_network_error, sanitize_html
+from ..common.utils import get_spam_guide_url, retry_on_network_error, sanitize_html
 from ..database import get_admin, get_group
 from ..database.group_operations import remove_member_from_group
 
@@ -168,7 +168,7 @@ def format_admin_notification_message(
 
     admin_msg += (
         "\n\n"
-        '<a href="https://t.me/ai_antispam/7">'
+        f'<a href="{get_spam_guide_url()}">'
         "ℹ️ Подробнее о том, как работает определение спама</a>"
     )
 

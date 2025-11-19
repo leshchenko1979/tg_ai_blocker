@@ -37,7 +37,6 @@ from app.database import (
     create_schema,
     drop_and_create_database,
     postgres_connection,
-    truncate_all_tables,
 )
 
 # Test database settings - use SQLite for fast local testing
@@ -424,6 +423,11 @@ async def create_test_database():
 async def test_pool():
     """Create a test database pool that can be cleaned between tests"""
     if USE_SQLITE:
+        # Register datetime adapters to avoid deprecation warnings (Python 3.12+)
+        import sqlite3
+        sqlite3.register_adapter(datetime, lambda dt: dt.isoformat())
+        sqlite3.register_converter("TIMESTAMP", lambda ts: datetime.fromisoformat(ts.decode()))
+
         # Create SQLite in-memory database
         sqlite_conn = await aiosqlite.connect(SQLITE_DB_PATH)
         sqlite_conn.row_factory = aiosqlite.Row  # Enable dict-like access to rows
@@ -484,7 +488,6 @@ def patched_db_conn(test_pool):
 async def patched_get_pool(clean_db):
     """Patch get_pool to return a pool that gives our test connection"""
     from app.database import postgres_connection
-    import asyncio
 
     class TestPool:
         def __init__(self, pool_obj):

@@ -104,7 +104,6 @@ def sanitize_llm_html(text: str) -> str:
     Sanitizes LLM-generated HTML content, allowing only safe Telegram HTML tags.
     This is designed for content where we expect HTML formatting from a controlled source.
     """
-    import re
 
     # Allow only these safe HTML tags: <b>, <i>, </b>, </i>
     allowed_tags = ["<b>", "</b>", "<i>", "</i>"]
@@ -169,6 +168,58 @@ def clean_alert_text(text: str | None) -> str | None:
         except Exception as e:
             logger.error(f"Error cleaning alert text: {e}")
     return text
+
+
+def get_system_config():
+    """Get system configuration from config.yaml"""
+    config = load_config()
+    return config.get("system", {})
+
+
+# System constants loaded from config
+_system_config = None
+
+
+def get_project_channel_url():
+    """Get project channel URL"""
+    global _system_config
+    if _system_config is None:
+        _system_config = get_system_config()
+    return _system_config.get("project_channel", "https://t.me/ai_antispam")
+
+
+def get_spam_guide_url():
+    """Get spam guide URL"""
+    global _system_config
+    if _system_config is None:
+        _system_config = get_system_config()
+    return _system_config.get("spam_guide_url", "https://t.me/ai_antispam/7")
+
+
+def get_setup_guide_url():
+    """Get setup guide URL"""
+    global _system_config
+    if _system_config is None:
+        _system_config = get_system_config()
+    return _system_config.get("setup_guide_url", "https://t.me/ai_antispam/14")
+
+
+def get_affiliate_url():
+    """Get affiliate program URL"""
+    global _system_config
+    if _system_config is None:
+        _system_config = get_system_config()
+    return _system_config.get(
+        "affiliate_url", "https://telegram.org/tour/affiliate-programs/"
+    )
+
+
+def get_webhook_timeout():
+    """Get webhook timeout"""
+    global _system_config
+    if _system_config is None:
+        _system_config = get_system_config()
+    return _system_config.get("webhook_timeout", 55)
 
 
 def get_dotted_path(json: dict, path: str, raise_on_missing: bool = True):

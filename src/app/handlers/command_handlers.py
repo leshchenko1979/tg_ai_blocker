@@ -6,7 +6,7 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.mp import mp
-from ..common.utils import config, sanitize_html
+from ..common.utils import get_affiliate_url, sanitize_html
 from ..database import (
     INITIAL_CREDITS,
     get_admin_credits,
@@ -38,6 +38,11 @@ async def handle_help_command(message: types.Message) -> str:
 
     command = message.text.split()[0]
 
+    # Загружаем конфигурацию
+    from ..common.utils import load_config
+
+    config = load_config()
+
     # Добавляем трекинг
     mp.track(
         user_id,
@@ -60,16 +65,7 @@ async def handle_help_command(message: types.Message) -> str:
                 "command_start_new_user",
                 {"user_id": user_id, "initial_credits": INITIAL_CREDITS},
             )
-            welcome_text = (
-                "🤖 <b>Добро пожаловать в AI Антиспам!</b>\n\n"
-                "Я — ваш умный защитник от спама в Telegram группах.\n\n"
-                "🚀 <b>Как начать:</b>\n"
-                "1. Добавьте меня в группу\n"
-                "2. Сделайте администратором\n"
-                "3. Готово! Я начну работать автоматически\n\n"
-                "💡 Используйте /help для полного списка команд\n\n"
-                "📢 Новости: [канал проекта](https://t.me/ai_antispam)"
-            )
+            welcome_text = config.get("start_welcome_text", "Добро пожаловать!")
             await message.reply(
                 welcome_text,
                 parse_mode="HTML",
@@ -77,11 +73,9 @@ async def handle_help_command(message: types.Message) -> str:
             )
             return "command_start_new_user_sent"
         # Для существующих пользователей покажем приветствие с быстрым доступом к функциям
+        existing_user_text = config.get("start_existing_user_text", "С возвращением!")
         await message.reply(
-            "👋 <b>С возвращением!</b>\n\n"
-            "📊 /stats — посмотреть баланс и группы\n"
-            "💡 /help — все доступные команды\n\n"
-            "Я продолжаю защищать ваши группы от спама! ✨",
+            existing_user_text,
             parse_mode="HTML",
         )
         return "command_start_existing_user"
@@ -279,6 +273,6 @@ async def cmd_ref(message: types.Message):
         "2. Нажмите <b>Партнёрская программа</b>.\n"
         "3. Нажмите <b>Участвовать</b>.\n"
         "4. После этого появится ваша персональная реферальная ссылка — её можно скопировать и отправить друзьям.\n\n"
-        "<i>Подробнее: https://telegram.org/tour/affiliate-programs/</i>",
+        f"<i>Подробнее: {get_affiliate_url()}</i>",
         parse_mode="HTML",
     )
