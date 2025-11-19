@@ -52,9 +52,7 @@ async def handle_update(request: web.Request) -> web.Response:
 
     start_time = time.time()
 
-    with logfire.span("Update: handling...", update=json) as span:
-        span.message = extract_chat_or_user(json)
-
+    with logfire.span(extract_chat_or_user(json), update=json) as span:
         try:
             # Wrap the update handling in a timeout
             result = await asyncio.wait_for(
