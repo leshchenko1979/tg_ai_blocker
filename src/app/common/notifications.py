@@ -82,7 +82,7 @@ async def notify_admins_with_fallback_and_cleanup(
                     )
                     unreachable.append(admin_id)
             else:
-                logger.warning(
+                logger.info(
                     f"Failed to notify admin {admin_id} in private: {e}", exc_info=True
                 )
                 unreachable.append(admin_id)

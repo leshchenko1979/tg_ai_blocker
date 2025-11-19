@@ -137,7 +137,7 @@ def _extract_content(result, model):
     try:
         content = result.get("choices", [{}])[0].get("message", {}).get("content")
         if not content:
-            logger.error(
+            logger.warning(
                 "Invalid OpenRouter response format for model %s: %s",
                 model,
                 result,
@@ -145,9 +145,10 @@ def _extract_content(result, model):
             raise RuntimeError("Invalid OpenRouter response format")
         return content
     except (KeyError, IndexError, TypeError) as e:
-        logger.exception(
+        logger.warning(
             "Failed to parse OpenRouter response for model %s: %s",
             model,
             result,
+            exc_info=True,
         )
         raise RuntimeError("Failed to parse OpenRouter response") from e

@@ -88,7 +88,7 @@ async def is_spam(
                 last_error = e
                 unknown_errors += 1
 
-    logger.exception(
+    logger.warning(
         "Spam classifier failed after %s attempts. comment=%r, name=%r, bio=%r, response=%r, last_error=%r",
         MAX_RETRIES,
         comment,
