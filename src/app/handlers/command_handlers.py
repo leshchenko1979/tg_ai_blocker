@@ -3,6 +3,7 @@ from typing import cast
 
 from aiogram import F, types
 from aiogram.filters import Command
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.mp import mp
 from ..common.utils import config, sanitize_html
@@ -60,11 +61,14 @@ async def handle_help_command(message: types.Message) -> str:
                 {"user_id": user_id, "initial_credits": INITIAL_CREDITS},
             )
             welcome_text = (
-                "🤖 Добро пожаловать!\n\n"
-                "Я — ваш новый ИИ-модератор. Я готов защищать ваши группы от спама.\n\n"
-                "Просто добавьте меня в свою группу и сделайте администратором. Я пришлю подтверждение, когда всё будет готово.\n\n"
-                "Для подробной информации и списка команд используйте /help.\n\n"
-                "📢 А чтобы быть в курсе обновлений, подписывайтесь на [канал проекта](https://t.me/ai_antispam)!"
+                "🤖 <b>Добро пожаловать в AI Антиспам!</b>\n\n"
+                "Я — ваш умный защитник от спама в Telegram группах.\n\n"
+                "🚀 <b>Как начать:</b>\n"
+                "1. Добавьте меня в группу\n"
+                "2. Сделайте администратором\n"
+                "3. Готово! Я начну работать автоматически\n\n"
+                "💡 Используйте /help для полного списка команд\n\n"
+                "📢 Новости: [канал проекта](https://t.me/ai_antispam)"
             )
             await message.reply(
                 welcome_text,
@@ -72,9 +76,12 @@ async def handle_help_command(message: types.Message) -> str:
                 disable_web_page_preview=True,
             )
             return "command_start_new_user_sent"
-        # Для существующих пользователей покажем краткое приветствие и направим к командам
+        # Для существующих пользователей покажем приветствие с быстрым доступом к функциям
         await message.reply(
-            "С возвращением! Для просмотра баланса и групп используйте /stats. Для справки по командам — /help.",
+            "👋 <b>С возвращением!</b>\n\n"
+            "📊 /stats — посмотреть баланс и группы\n"
+            "💡 /help — все доступные команды\n\n"
+            "Я продолжаю защищать ваши группы от спама! ✨",
             parse_mode="HTML",
         )
         return "command_start_existing_user"
@@ -83,16 +90,36 @@ async def handle_help_command(message: types.Message) -> str:
     # config["help_text"] contains safe HTML that we control, no need to sanitize
     safe_text = config["help_text"]
 
-    # Максимальная длина сообщения в Telegram
-    MAX_LEN = 4096
+    # Создаем клавиатуру с кнопками для разных разделов помощи
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🚀 Как начать", callback_data="help_getting_started"
+                ),
+                InlineKeyboardButton(
+                    text="📚 Обучение бота", callback_data="help_training"
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⚙️ Что проверяется", callback_data="help_moderation"
+                ),
+                InlineKeyboardButton(text="💡 Команды", callback_data="help_commands"),
+            ],
+            [
+                InlineKeyboardButton(text="💰 Оплата", callback_data="help_payment"),
+                InlineKeyboardButton(text="🔧 Поддержка", callback_data="help_support"),
+            ],
+        ]
+    )
 
-    # Отправляем текст, разбивая на части только если он слишком длинный
-    for i in range(0, len(safe_text), MAX_LEN):
-        await message.reply(
-            safe_text[i : i + MAX_LEN],
-            parse_mode="HTML",
-            disable_web_page_preview=True,
-        )
+    await message.reply(
+        safe_text,
+        parse_mode="HTML",
+        reply_markup=keyboard,
+        disable_web_page_preview=True,
+    )
 
     return "command_help_sent"
 

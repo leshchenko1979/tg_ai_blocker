@@ -10,6 +10,7 @@
   - Unified permission failure handling: When bot lacks delete rights for spam/service messages ("message can't be deleted" or permission errors), notify admins with private→group fallback and leave group/clean DB if all notification methods fail.
   - HTML formatting migration completed for all user-facing messages: private AI responses, command replies, and notifications now use consistent HTML formatting.
   - AI prompts updated with HTML formatting instructions to ensure consistent styling in AI-generated responses.
+  - Help message restructured with progressive disclosure: main help now shows concise overview with inline keyboard buttons for detailed sections (getting started, training, moderation rules, commands, payment, support).
 - **Immediate Next Steps**:
   - Execute `tests/common/test_linked_channel.py` to compare bot vs MTProto extraction methods and determine if MTProto fallback adds value.
   - Based on test results, decide whether to keep or remove MTProto fallback from `collect_linked_channel_summary`.
