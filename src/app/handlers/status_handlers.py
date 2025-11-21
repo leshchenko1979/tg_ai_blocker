@@ -444,10 +444,10 @@ async def handle_member_service_message(message: types.Message) -> str:
                         admin_ids,
                         chat_id,
                         private_message=(
-                            "❗️ У меня нет права удалять сервисные сообщения в группе\\. "
-                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы\\.\n\nГруппа: *{sanitize_html(group_title)}*"
+                            "❗️ У меня нет права удалять сервисные сообщения в группе. "
+                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы.\n\nГруппа: *{sanitize_html(group_title)}*"
                         ),
-                        group_message_template="{mention}, у меня нет права удалять сервисные сообщения\\. Пожалуйста, дайте мне право 'Удаление сообщений'\\!",
+                        group_message_template="{mention}, у меня нет права удалять сервисные сообщения. Пожалуйста, дайте мне право 'Удаление сообщений'!",
                         cleanup_if_group_fails=True,
                         parse_mode="HTML",
                     )
