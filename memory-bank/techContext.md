@@ -4,7 +4,7 @@
 - **Frameworks & Libraries**:
   - `aiohttp` for webhook server, `aiogram` for Telegram bot routing.
   - `asyncpg` for PostgreSQL access, structured via database operation modules.
-  - `python-dotenv` for configuration loading, `logfire` for tracing/logging, `mixpanel` for analytics, `tenacity` for retries.
+  - `python-dotenv` for configuration loading, `logfire` for tracing/logging/metrics, `mixpanel` for analytics, `tenacity` for retries.
 - **Project Layout**: Source lives under `src/app`, grouped into `common`, `handlers`, `database`, plus `logging_setup.py`, `main.py`, and `server.py`. Tests mirror structure under `tests/` at project root using `pytest`.
 - **Configuration**: Secrets pulled from `.env` (restricted). Startup script runs `dotenv.load_dotenv()` before initializing logging and handlers. Mixpanel tracking must respect admin-centric IDs per workspace rules.
 - **Configuration Handling**: Secrets live in `.env`; contents remain off-limits, but developers can run `source .env` to load required environment variables without reading the file directly.

@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
 
-# Create gauge metrics once at module level
+# Create metrics once at module level
 spam_score_gauge = logfire.metric_gauge("spam_score")
-attempts_gauge = logfire.metric_gauge("attempts")
+attempts_histogram = logfire.metric_histogram("attempts")
 
 
 class ExtractionFailedError(Exception):
@@ -60,7 +60,7 @@ async def is_spam(
                 logger.info(f"Spam classifier response: {response}")
                 score = extract_spam_score(response)
                 spam_score_gauge.set(score)
-                attempts_gauge.set(attempt)
+                attempts_histogram.record(attempt)
                 return score
 
             except RateLimitExceeded as e:

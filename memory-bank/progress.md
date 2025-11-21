@@ -6,7 +6,7 @@
 - Mixpanel tracking hooks
 - PostgreSQL data layer
 - MTProto bridge enrichment
-- Telegram logging handler (with logfire spans)
+- Telegram logging handler (with logfire spans and properly initialized metrics)
 - A `/health` endpoint returning plain `ok` for Sablier probes are live
 - Comment-spam prompt now interprets linked-channel fragments with explicit suspicion thresholds.
 - Linked channel extraction optimized with username-first resolution (tries username before user ID) and direct MTProto-only approach (bot API calls removed)
