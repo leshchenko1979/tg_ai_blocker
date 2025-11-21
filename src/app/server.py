@@ -26,6 +26,9 @@ app = web.Application()
 # We'll use 55 seconds as our timeout to have some buffer
 WEBHOOK_TIMEOUT = 55
 
+# Create histogram metric once at module level
+serve_time_histogram = logfire.metric_histogram("serve_time", unit="s")
+
 
 @routes.get("/health")
 async def healthcheck(_: web.Request) -> web.Response:
@@ -82,9 +85,9 @@ async def handle_update(request: web.Request) -> web.Response:
 
         finally:
             if update_time := get_dotted_path(json, "*.date", False):
-                logfire.metric_histogram("serve_time", unit="s").record(
-                    time.time() - update_time
-                )
+                serve_time = time.time() - update_time
+                span.set_attribute("serve_time", serve_time)
+                serve_time_histogram.record(serve_time)
 
 
 def extract_chat_or_user(json: dict) -> str:
@@ -92,6 +95,7 @@ def extract_chat_or_user(json: dict) -> str:
     for path in [
         "*.chat.title",
         "*.from.username",
+        "*.from.first_name",
     ]:
         try:
             return f"{get_dotted_path(json, path, True)}"
