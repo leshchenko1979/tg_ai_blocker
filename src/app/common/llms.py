@@ -79,7 +79,7 @@ async def get_openrouter_response(messages, temperature=0.3):
         # "qwen/qwen3-235b-a22b:free", success rate 37.5%
         # "deepseek/deepseek-chat-v3-0324:free", 53/9
         # "google/gemini-2.0-flash-exp:free", 57/25
-        "minimax/minimax-m2:free",
+        # "minimax/minimax-m2:free", removed by OpenRouter
         "kwaipilot/kat-coder-pro:free",
         "openai/gpt-oss-20b:free",
         "tngtech/deepseek-r1t2-chimera:free",
