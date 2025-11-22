@@ -44,6 +44,9 @@ async def create_schema(conn: asyncpg.Connection):
         # Create tables
         await conn.execute(
             """
+            -- Cleanup legacy stats table
+            DROP TABLE IF EXISTS stats;
+
             -- Administrators table
             CREATE TABLE IF NOT EXISTS administrators (
                 admin_id BIGINT PRIMARY KEY,
@@ -108,15 +111,6 @@ async def create_schema(conn: asyncpg.Connection):
                 description TEXT,
                 created_at TIMESTAMP NOT NULL DEFAULT NOW()
             );
-
-            -- Statistics
-            CREATE TABLE IF NOT EXISTS stats (
-                group_id BIGINT REFERENCES groups(group_id) ON DELETE CASCADE,
-                date DATE NOT NULL,
-                processed_messages INTEGER DEFAULT 0,
-                deleted_spam INTEGER DEFAULT 0,
-                PRIMARY KEY (group_id, date)
-            );
         """
         )
     except Exception as e:
@@ -147,9 +141,6 @@ async def create_schema(conn: asyncpg.Connection):
             CREATE INDEX IF NOT EXISTS idx_transactions_admin ON transactions(admin_id);
             CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
             CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at);
-
-            -- Stats indexes
-            CREATE INDEX IF NOT EXISTS idx_stats_date ON stats(date);
         """
         )
     except Exception as e:
@@ -240,7 +231,7 @@ async def create_procedures(conn: asyncpg.Connection):
                 -- Enable moderation in all user's groups
                 UPDATE groups g
                 SET moderation_enabled = true,
-                    last_active = NOW()
+                last_active = NOW()
                 FROM group_administrators ga
                 WHERE g.group_id = ga.group_id
                 AND ga.admin_id = p_admin_id;

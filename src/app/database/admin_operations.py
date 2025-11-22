@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..common.mp import mp
 from .constants import INITIAL_CREDITS
@@ -224,3 +224,87 @@ async def remove_admin(admin_id: int) -> None:
                     "timestamp": datetime.now().isoformat(),
                 },
             )
+
+
+async def get_admin_stats(admin_id: int) -> Dict[str, Any]:
+    """
+    Get comprehensive statistics for an administrator.
+    Includes global stats and per-group stats with Logfire metrics.
+    """
+    from ..common.logfire_lookup import get_weekly_stats
+    from .group_operations import get_admin_groups
+
+    # Get groups managed by admin
+    groups = await get_admin_groups(admin_id)
+
+    if not groups:
+        return {
+            "global": {
+                "processed": 0,
+                "spam": 0,
+                "approved": 0,
+            },
+            "groups": [],
+        }
+
+    group_ids = [g["id"] for g in groups]
+
+    # Fetch Logfire weekly stats
+    weekly_stats = await get_weekly_stats(group_ids)
+
+    # Fetch approved members count for each group
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        approved_counts = await conn.fetch(
+            """
+            SELECT group_id, COUNT(*) as count
+            FROM approved_members
+            WHERE group_id = ANY($1::bigint[])
+            GROUP BY group_id
+            """,
+            group_ids,
+        )
+
+        # Fetch spam examples count for this admin
+        spam_examples_count = await conn.fetchval(
+            """
+            SELECT COUNT(*)
+            FROM spam_examples
+            WHERE admin_id = $1
+            """,
+            admin_id,
+        )
+
+    approved_map = {row["group_id"]: row["count"] for row in approved_counts}
+
+    # Aggregate data
+    global_processed = 0
+    global_spam = 0
+    global_approved = sum(approved_map.values())
+
+    enriched_groups = []
+    for group in groups:
+        gid = group["id"]
+        w_stats = weekly_stats.get(gid, {"processed": 0, "spam": 0})
+
+        global_processed += w_stats["processed"]
+        global_spam += w_stats["spam"]
+
+        enriched_groups.append(
+            {
+                "title": group["title"],
+                "is_moderation_enabled": group["is_moderation_enabled"],
+                "approved_users_count": approved_map.get(gid, 0),
+                "stats": w_stats,
+            }
+        )
+
+    return {
+        "global": {
+            "processed": global_processed,
+            "spam": global_spam,
+            "approved": global_approved,
+            "spam_examples": spam_examples_count or 0,
+        },
+        "groups": enriched_groups,
+    }

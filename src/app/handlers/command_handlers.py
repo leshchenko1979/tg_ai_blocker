@@ -10,7 +10,7 @@ from ..common.utils import get_affiliate_url, sanitize_html
 from ..database import (
     INITIAL_CREDITS,
     get_admin_credits,
-    get_admin_groups,
+    get_admin_stats,
     get_spam_deletion_state,
     get_spent_credits_last_week,
     initialize_new_admin,
@@ -122,7 +122,7 @@ async def handle_help_command(message: types.Message) -> str:
 async def handle_stats_command(message: types.Message) -> str:
     """
     Обработчик команды /stats
-    Показывает баланс пользователя и статус модерации в его группах
+    Показывает баланс пользователя, глобальную статистику и статус модерации в его группах
     """
     if not message.from_user:
         return "command_no_user_info"
@@ -137,24 +137,44 @@ async def handle_stats_command(message: types.Message) -> str:
         # Получаем потраченные звезды за неделю
         spent_week = await get_spent_credits_last_week(user_id)
 
-        # Получаем список групп с их статусами модерации
-        admin_groups = await get_admin_groups(user_id)
+        # Получаем расширенную статистику (включая данные из Logfire)
+        admin_stats = await get_admin_stats(user_id)
+        global_stats = admin_stats["global"]
+        groups = admin_stats["groups"]
 
         # Формируем сообщение
+        # Баланс и расходы
         message_text = (
             f"💰 Баланс: <b>{balance}</b> звезд\n"
             f"📊 Потрачено за последние 7 дней: <b>{spent_week}</b> звезд\n\n"
         )
 
-        if admin_groups:
-            message_text += "👥 Ваши группы:\n"
-            for group in admin_groups:
-                status = (
-                    "✅ включена" if group["is_moderation_enabled"] else "❌ выключена"
-                )
-                # Очищаем название группы от HTML символов
+        # Глобальная статистика за неделю
+        message_text += (
+            "<b>Статистика за 7 дней:</b>\n"
+            f"📨 Обработано сообщений: <b>{global_stats['processed']}</b>\n"
+            f"🗑 Заблокировано спама: <b>{global_stats['spam']}</b>\n\n"
+            "<b>За все время:</b>\n"
+            f"👤 Одобрено пользователей: <b>{global_stats['approved']}</b>\n"
+            f"📝 Сохраненных примеров спама: <b>{global_stats['spam_examples']}</b>\n\n"
+        )
+
+        # Список групп
+        if groups:
+            message_text += "<b>По группам:</b>\n"
+            for group in groups:
+                status_emoji = "✅" if group["is_moderation_enabled"] else "❌"
                 safe_title = sanitize_html(group["title"])
-                message_text += f"• {safe_title}: модерация {status}\n"
+                g_stats = group["stats"]
+
+                # Формируем строку статистики группы
+                stats_line = (
+                    f"   └ 📨 {g_stats['processed']} | "
+                    f"🗑 {g_stats['spam']} | "
+                    f"👤 {group['approved_users_count']}"
+                )
+
+                message_text += f"{status_emoji} <b>{safe_title}</b>\n{stats_line}\n"
         else:
             message_text += "У вас нет групп, где вы администратор."
 
@@ -171,9 +191,11 @@ async def handle_stats_command(message: types.Message) -> str:
                 "user_id": user_id,
                 "balance": balance,
                 "spent_week": spent_week,
-                "groups_count": len(admin_groups) if admin_groups else 0,
+                "groups_count": len(groups),
                 "deletion_mode": delete_spam,
                 "chat_type": message.chat.type,
+                "total_processed": global_stats["processed"],
+                "total_spam": global_stats["spam"],
             },
         )
 

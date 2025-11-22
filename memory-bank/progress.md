@@ -13,3 +13,4 @@
 - Logfire client-based message lookup implemented for reliable spam deletion from forwarded reports, scoped to admin-managed chats with 3-day search window; now supports hidden user forwards where user_id is not available.
 - Permission failure handling unified across spam and service message deletion: when bot encounters "message can't be deleted" or other permission errors, admins are notified with private→group fallback and groups are left/cleaned from DB when all notification methods fail.
 - Fixed channel bot approval bug: Messages sent by channels now use the channel's ID for moderation instead of the generic Channel Bot ID, preventing accidental whitelisting of all channel spam.
+- `/stats` command updated to use direct Logfire queries for weekly metrics (processed/spam), removing the need for a local `stats` table and ensuring data consistency.
