@@ -3,6 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.exceptions import TelegramBadRequest
 
 from src.app.handlers.handle_spam import handle_spam_message_deletion
+from src.app.handlers.message_handlers import get_spam_score_and_bio
+from src.app.common.linked_channel import LinkedChannelSummary
 
 
 class MockTelegramBadRequest(TelegramBadRequest):
@@ -29,6 +31,7 @@ class TestSpamDeletion:
         user.full_name = "Test User"
         user.username = "testuser"
         message.from_user = user
+        message.sender_chat = None  # Default to no sender_chat
 
         return message
 
@@ -201,3 +204,56 @@ class TestSpamDeletion:
 
             # Should track failure
             mock_track.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_sender_chat_spam_check_trigger(self, mock_message):
+        """
+        Test that messages with sender_chat trigger collect_channel_summary_by_id
+        and the result is passed to is_spam.
+        """
+        # Setup mock message with sender_chat
+        mock_message.sender_chat = MagicMock()
+        mock_message.sender_chat.id = -1002916411724  # Example channel ID
+        mock_message.sender_chat.title = "Channel Bot"
+        mock_message.sender_chat.type = "channel"
+        mock_message.chat.id = -1001503592176  # Different group ID
+
+        # Mock group
+        mock_group = MagicMock()
+        mock_group.admin_ids = [123]
+
+        # Mock summary result
+        mock_summary = LinkedChannelSummary(
+            subscribers=1000, total_posts=500, post_age_delta=12
+        )
+
+        with (
+            patch(
+                "src.app.handlers.message_handlers.collect_channel_summary_by_id",
+                new_callable=AsyncMock,
+            ) as mock_collect_summary,
+            patch(
+                "src.app.handlers.message_handlers.is_spam", new_callable=AsyncMock
+            ) as mock_is_spam,
+            patch("src.app.handlers.message_handlers.bot") as mock_bot,
+        ):
+            mock_collect_summary.return_value = mock_summary
+            mock_is_spam.return_value = 85  # Spam score
+
+            mock_bot.get_chat = AsyncMock()  # Mock get_chat for bio fetch
+
+            await get_spam_score_and_bio(
+                mock_message, "test message", mock_group, False
+            )
+
+            # Verify collect_channel_summary_by_id was called with correct ID
+            mock_collect_summary.assert_called_once()
+            call_args = mock_collect_summary.call_args
+            assert call_args[0][0] == -1002916411724
+
+            # Verify is_spam received the channel fragment
+            mock_is_spam.assert_called_once()
+            kwargs = mock_is_spam.call_args[1]
+            assert (
+                kwargs["linked_channel_fragment"] == mock_summary.to_prompt_fragment()
+            )

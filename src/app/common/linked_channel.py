@@ -106,9 +106,30 @@ async def collect_linked_channel_summary(
         return None
 
     channel_id = int(personal_channel_id)
+    return await collect_channel_summary_by_id(channel_id, user_reference)
+
+
+@logfire.instrument()
+async def collect_channel_summary_by_id(
+    channel_id: int,
+    user_reference: str | int = "unknown",
+) -> Optional[LinkedChannelSummary]:
+    """
+    Collects summary stats for a specific channel ID.
+    Reuses logic previously embedded in collect_linked_channel_summary.
+    """
+    client = get_mtproto_client()
+
+    # Convert Bot API ID (negative -100...) to MTProto ID (positive, without -100)
+    if channel_id < 0:
+        str_id = str(channel_id)
+        if str_id.startswith("-100"):
+            channel_id = int(str_id[4:])
+        elif str_id.startswith("-"):
+            channel_id = int(str_id[1:])
 
     with logfire.span(
-        "Fetching linked channel via MTProto",
+        "Fetching channel summary via MTProto",
         user_reference=user_reference,
         channel_id=channel_id,
     ):
@@ -160,7 +181,7 @@ async def collect_linked_channel_summary(
     )
 
     logfire.info(
-        "linked channel summary collected",
+        "channel summary collected",
         source="mtproto",
         user_reference=user_reference,
         channel_id=channel_id,

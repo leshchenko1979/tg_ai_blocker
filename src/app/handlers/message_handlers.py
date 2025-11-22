@@ -3,7 +3,10 @@ import logging
 from aiogram import types
 
 from ..common.bot import bot
-from ..common.linked_channel import collect_linked_channel_summary
+from ..common.linked_channel import (
+    collect_channel_summary_by_id,
+    collect_linked_channel_summary,
+)
 from ..common.spam_classifier import is_spam
 from ..common.tracking import track_group_event
 from ..common.utils import retry_on_network_error
@@ -37,11 +40,17 @@ async def handle_moderated_message(message: types.Message) -> str:
         if skip:
             return reason
 
-        if not message.from_user:
+        # Determine effective user ID for moderation
+        # If message is from a channel (sender_chat is set), use channel ID
+        # unless it's the group itself (anonymous admin) - handled by check_skip... above
+        if message.sender_chat and message.sender_chat.id != message.chat.id:
+            user_id = message.sender_chat.id
+        elif message.from_user:
+            user_id = message.from_user.id
+        else:
             return "message_no_user_info"
 
         chat_id = message.chat.id
-        user_id = message.from_user.id
 
         message_text, forward_info, is_story = build_forward_info(message)
 
@@ -303,34 +312,71 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
     if is_story:
         return 100, None
 
-    user = message.from_user
-    user_with_bio = await bot.get_chat(user.id)
-    bio = user_with_bio.bio if user_with_bio else None
+    bio = None
+    name = "Unknown"
+    channel_fragment = None
     admin_ids = group.admin_ids
 
-    channel_fragment = None
-    if getattr(message, "message_thread_id", None):
+    # Check if message is from a sender_chat (channel) that is NOT the group itself
+    if message.sender_chat and message.sender_chat.id != message.chat.id:
+        # Channel sender
+        subject_id = message.sender_chat.id
+        name = message.sender_chat.title or "Channel"
+
         try:
-            summary = await collect_linked_channel_summary(
-                user.id, username=user.username
+            # Try to get channel description
+            chat_info = await bot.get_chat(subject_id)
+            bio = chat_info.description
+        except Exception:
+            pass
+
+        try:
+            summary = await collect_channel_summary_by_id(
+                subject_id,
+                user_reference=f"sender_chat_{subject_id}",
             )
-        except Exception as exc:  # noqa: BLE001 - log and fall back gracefully
+            if summary:
+                channel_fragment = summary.to_prompt_fragment()
+        except Exception as exc:
             logger.info(
-                "Failed to collect linked channel summary",
+                "Failed to collect channel summary for sender_chat",
                 extra={
-                    "user_id": user.id,
-                    "username": user.username,
+                    "sender_chat_id": subject_id,
                     "error": str(exc),
                 },
             )
-            summary = None
 
-        if summary:
-            channel_fragment = summary.to_prompt_fragment()
+    elif message.from_user:
+        # User sender
+        user = message.from_user
+        name = user.full_name
+
+        try:
+            user_with_bio = await bot.get_chat(user.id)
+            bio = user_with_bio.bio if user_with_bio else None
+        except Exception:
+            pass
+
+        if getattr(message, "message_thread_id", None):
+            try:
+                summary = await collect_linked_channel_summary(
+                    user.id, username=user.username
+                )
+                if summary:
+                    channel_fragment = summary.to_prompt_fragment()
+            except Exception as exc:  # noqa: BLE001 - log and fall back gracefully
+                logger.info(
+                    "Failed to collect linked channel summary",
+                    extra={
+                        "user_id": user.id,
+                        "username": user.username,
+                        "error": str(exc),
+                    },
+                )
 
     spam_score = await is_spam(
         comment=message_text,
-        name=user.full_name,
+        name=name,
         bio=bio,
         admin_ids=admin_ids,
         linked_channel_fragment=channel_fragment,

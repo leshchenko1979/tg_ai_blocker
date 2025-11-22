@@ -316,6 +316,9 @@ async def ban_user_for_spam(chat_id: int, user_id: int) -> None:
 
         @retry_on_network_error
         async def ban_spam_user():
+            if user_id < 0:
+                # It's a channel, use ban_chat_sender_chat
+                return await bot.ban_chat_sender_chat(chat_id, sender_chat_id=user_id)
             return await bot.ban_chat_member(chat_id, user_id)
 
         await ban_spam_user()
