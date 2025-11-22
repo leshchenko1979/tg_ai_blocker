@@ -12,6 +12,8 @@
   - AI prompts updated with HTML formatting instructions to ensure consistent styling in AI-generated responses.
   - Help message restructured with progressive disclosure: main help now shows concise overview with inline keyboard buttons for detailed sections (getting started, training, moderation rules, commands, payment, support).
   - Logfire metrics fixed: All metrics (histograms and gauges) now initialized once at module level to prevent null values in metric tables. Server `serve_time_histogram` and spam classifier `spam_score_gauge`/`attempts_histogram` follow this pattern.
+  - Fixed critical bug where channel spam messages were approving the generic "Channel Bot" ID (136817688), whitelisting all future channel spam. Implemented logic to use `sender_chat.id` as the effective user ID for moderation and cleaned up erroneous approvals.
+
 - **Immediate Next Steps**:
   - Execute `tests/common/test_linked_channel.py` to compare bot vs MTProto extraction methods and determine if MTProto fallback adds value.
   - Based on test results, decide whether to keep or remove MTProto fallback from `collect_linked_channel_summary`.
