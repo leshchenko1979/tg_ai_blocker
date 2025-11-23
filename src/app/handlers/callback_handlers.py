@@ -113,13 +113,20 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
     Обновляет сообщение-уведомление, отмечая его как "Не спам".
     """
     try:
+        admin_id = callback.from_user.id
+
         if not callback.data or not callback.message:
             return "callback_invalid_data"
 
         # Быстрый ответ Telegram, чтобы избежать таймаута
-        await callback.answer(
-            "✅ Сообщение добавлено как безопасный пример", show_alert=False
-        )
+        try:
+            await callback.answer(
+                "✅ Сообщение добавлено как безопасный пример", show_alert=False
+            )
+        except Exception:
+            # Игнорируем ошибки ответа на колбэк (например, если он устарел),
+            # чтобы не прерывать основную логику
+            pass
 
         # Разбираем callback_data
         # Ожидается формат: mark_as_not_spam:{user_id}:{chat_id}
@@ -129,7 +136,6 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         author_id = int(parts[1])
         group_id = int(parts[2])
         author_info = await bot.get_chat(author_id)
-        admin_id = callback.from_user.id
 
         # Get message text safely
         message = callback.message
@@ -238,7 +244,10 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
 
     try:
         # Быстрый ответ Telegram, чтобы избежать таймаута
-        await callback.answer("✅ Спам удален", show_alert=False)
+        try:
+            await callback.answer("✅ Спам удален", show_alert=False)
+        except Exception:
+            pass
 
         # Разбираем данные из callback
         # chat_id и message_id относятся к оригинальному сообщению в группе

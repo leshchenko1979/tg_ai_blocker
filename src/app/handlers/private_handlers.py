@@ -323,16 +323,18 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
             if summary:
                 channel_fragment = summary.to_prompt_fragment()
 
+        try:
+            await callback.answer(
+                (
+                    "Сообщение добавлено как пример спама, пользователь удален из одобренных."
+                    if action == "spam"
+                    else "Сообщение добавлено как пример ценного сообщения."
+                ),
+            )
+        except Exception:
+            pass
+
         tasks = [
-            bot(
-                callback.answer(
-                    (
-                        "Сообщение добавлено как пример спама, пользователь удален из одобренных."
-                        if action == "spam"
-                        else "Сообщение добавлено как пример ценного сообщения."
-                    ),
-                )
-            ),
             add_spam_example(
                 info["text"],
                 name=info["name"],
