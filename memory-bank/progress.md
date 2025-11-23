@@ -1,7 +1,10 @@
 # What works
 - Telegram webhook server
 - aiogram handlers
-- Spam classifier
+- Spam classifier with:
+  - Text analysis
+  - Linked channel context (suspicious channel detection)
+  - **Story-based spam detection** (new)
 - Billing via Telegram Stars
 - Mixpanel tracking hooks
 - PostgreSQL data layer

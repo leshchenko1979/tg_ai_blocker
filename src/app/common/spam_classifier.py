@@ -28,6 +28,7 @@ async def is_spam(
     bio: str | None = None,
     admin_ids: List[int] | None = None,
     linked_channel_fragment: str | None = None,
+    stories_context: str | None = None,
 ):
     """
     Классифицирует сообщение как спам или не спам
@@ -42,9 +43,13 @@ async def is_spam(
         int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
     """
     prompt = await get_system_prompt(
-        admin_ids, include_linked_channel_guidance=linked_channel_fragment is not None
+        admin_ids,
+        include_linked_channel_guidance=linked_channel_fragment is not None,
+        include_stories_guidance=stories_context is not None,
     )
-    messages = get_messages(comment, name, bio, prompt, linked_channel_fragment)
+    messages = get_messages(
+        comment, name, bio, prompt, linked_channel_fragment, stories_context
+    )
 
     last_response = None
     last_error = None
@@ -107,7 +112,9 @@ async def is_spam(
 
 
 async def get_system_prompt(
-    admin_ids: Optional[List[int]] = None, include_linked_channel_guidance: bool = False
+    admin_ids: Optional[List[int]] = None,
+    include_linked_channel_guidance: bool = False,
+    include_stories_guidance: bool = False,
 ):
     """Get the full prompt with spam examples from database"""
     prompt = """Ты - классификатор спама. Администратор группы телеграм подает тебе
@@ -128,6 +135,21 @@ async def get_system_prompt(
 - subscribers < 10
 - total_posts < 50
 - age_delta < 10mo"""
+
+    if include_stories_guidance:
+        prompt += """
+
+Раздел <истории_пользователя> содержит информацию из актуальных сторис профиля автора.
+Спамеры часто используют сторис для размещения рекламы, ссылок на каналы или мошеннических предложений, 
+оставляя при этом "чистый" комментарий, чтобы спровоцировать пользователя зайти в профиль.
+
+Если в историях есть:
+- Рекламные ссылки
+- Призывы перейти в канал/профиль
+- Предложения заработка, криптовалют, инвестиций
+- Ссылки на другие каналы
+
+Считай это ВЫСОКИМ индикатором спама, даже если сам комментарий выглядит безобидно."""
 
     prompt += """
 
@@ -174,8 +196,11 @@ def get_messages(
     bio: str | None,
     prompt: str,
     linked_channel_fragment: str | None,
+    stories_context: str | None = None,
 ):
-    user_request = format_spam_request(comment, name, bio, linked_channel_fragment)
+    user_request = format_spam_request(
+        comment, name, bio, linked_channel_fragment, stories_context
+    )
     user_message = f"""
 {user_request}
 <ответ>
@@ -192,6 +217,7 @@ def format_spam_request(
     name: Optional[str] = None,
     bio: Optional[str] = None,
     linked_channel_fragment: Optional[str] = None,
+    stories_context: Optional[str] = None,
 ) -> str:
     """
     Форматирует запрос для классификации спама.
@@ -219,6 +245,11 @@ def format_spam_request(
 
     if linked_channel_fragment:
         request += f"<связанный_канал>{linked_channel_fragment}</связанный_канал>\n"
+
+    if stories_context:
+        request += (
+            f"<истории_пользователя>\n{stories_context}\n</истории_пользователя>\n"
+        )
 
     request += "</запрос>"
     return request

@@ -1,7 +1,11 @@
 ## Product Context
 
 - **Target Users**: Telegram administrators managing active groups or channel discussions who need proactive, automated spam control without constant manual oversight.
-- **Core Value Proposition**: Deliver immediate protection against spam and scam activity by combining LLM-based classification, custom spam examples, and automated enforcement actions.
+- **Core Value Proposition**: Deliver immediate protection against spam and scam activity by combining:
+  - **LLM-based classification** for nuanced text analysis.
+  - **Deep Context Analysis**: Inspection of linked channels and **User Stories** to catch "Trojan horse" spam (benign message, toxic profile).
+  - **Custom spam examples** for community-specific tuning.
+  - **Automated enforcement** actions (delete, ban).
 - **User Journeys**:
   - Onboard bot into a group, grant admin permissions, configure moderation mode, and observe automated clean-up.
   - Receive alerts about suspicious messages, approve or override actions, and curate trusted/blocked user lists.

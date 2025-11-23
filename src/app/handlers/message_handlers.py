@@ -8,6 +8,7 @@ from ..common.linked_channel import (
     collect_linked_channel_summary,
 )
 from ..common.spam_classifier import is_spam
+from ..common.stories import collect_user_stories
 from ..common.tracking import track_group_event
 from ..common.utils import retry_on_network_error
 from ..database import (
@@ -315,6 +316,7 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
     bio = None
     name = "Unknown"
     channel_fragment = None
+    stories_context = None
     admin_ids = group.admin_ids
 
     # Check if message is from a sender_chat (channel) that is NOT the group itself
@@ -351,6 +353,20 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
         user = message.from_user
         name = user.full_name
 
+        # Only collect stories if it's a comment thread (message_thread_id is present)
+        # or if we are in a group where we want strict checking.
+        # Assuming for now we check stories for all user messages in moderated groups
+        try:
+            stories_context = await collect_user_stories(user.id)
+        except Exception as exc:
+            logger.info(
+                "Failed to collect user stories",
+                extra={
+                    "user_id": user.id,
+                    "error": str(exc),
+                },
+            )
+
         try:
             user_with_bio = await bot.get_chat(user.id)
             bio = user_with_bio.bio if user_with_bio else None
@@ -380,6 +396,7 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
         bio=bio,
         admin_ids=admin_ids,
         linked_channel_fragment=channel_fragment,
+        stories_context=stories_context,
     )
     return spam_score, bio
 
