@@ -33,7 +33,7 @@ retry_on_network_error = retry(
     reraise=True,  # Re-raise the last exception if all retries fail
     before_sleep=lambda retry_state: (
         logger.info(
-            f"Retryable error on attempt {retry_state.attempt_number}/{retry_state.attempt_number + 2}: "
+            f"Retryable error on attempt {retry_state.attempt_number}/4: "
             f"{retry_state.outcome.exception() if retry_state.outcome else 'Unknown error'}. Retrying..."
         )
         if retry_state.attempt_number <= 3
@@ -222,7 +222,7 @@ def get_webhook_timeout():
     return _system_config.get("webhook_timeout", 55)
 
 
-def get_dotted_path(json: dict, path: str, raise_on_missing: bool = True):
+def get_dotted_path(json: dict, path: str, raise_on_missing: bool = False):
     """
     Получает значение из JSON по заданному пути.
 

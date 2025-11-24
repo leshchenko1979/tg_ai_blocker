@@ -84,7 +84,10 @@ async def handle_update(request: web.Request) -> web.Response:
             return await handle_unhandled_exception(span, e, json)
 
         finally:
-            if update_time := get_dotted_path(json, "*.date", False):
+            update_time = get_dotted_path(json, "*.edit_date") or get_dotted_path(
+                json, "*.date"
+            )
+            if update_time:
                 serve_time = time.time() - update_time
                 span.set_attribute("serve_time", serve_time)
                 serve_time_histogram.record(serve_time)
