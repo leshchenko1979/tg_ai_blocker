@@ -336,6 +336,7 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
             summary = await collect_channel_summary_by_id(
                 subject_id,
                 user_reference=f"sender_chat_{subject_id}",
+                username=message.sender_chat.username,
             )
             if summary:
                 channel_fragment = summary.to_prompt_fragment()

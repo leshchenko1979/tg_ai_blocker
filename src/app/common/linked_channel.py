@@ -113,6 +113,7 @@ async def collect_linked_channel_summary(
 async def collect_channel_summary_by_id(
     channel_id: int,
     user_reference: str | int = "unknown",
+    username: Optional[str] = None,
 ) -> Optional[LinkedChannelSummary]:
     """
     Collects summary stats for a specific channel ID.
@@ -120,30 +121,51 @@ async def collect_channel_summary_by_id(
     """
     client = get_mtproto_client()
 
+    identifiers = []
+    if username:
+        identifiers.append(username)
+
     # Convert Bot API ID (negative -100...) to MTProto ID (positive, without -100)
+    mtproto_id = channel_id
     if channel_id < 0:
         str_id = str(channel_id)
         if str_id.startswith("-100"):
-            channel_id = int(str_id[4:])
+            mtproto_id = int(str_id[4:])
         elif str_id.startswith("-"):
-            channel_id = int(str_id[1:])
+            mtproto_id = int(str_id[1:])
+    identifiers.append(mtproto_id)
+
+    full_channel = None
+    last_error = None
+    successful_identifier = None
 
     with logfire.span(
         "Fetching channel summary via MTProto",
         user_reference=user_reference,
         channel_id=channel_id,
+        username=username,
     ):
-        try:
-            full_channel = await client.call(
-                "channels.getFullChannel", params={"channel": channel_id}, resolve=True
-            )
-        except MtprotoHttpError as exc:
+        for identifier in identifiers:
+            try:
+                full_channel = await client.call(
+                    "channels.getFullChannel",
+                    params={"channel": identifier},
+                    resolve=True,
+                )
+                successful_identifier = identifier
+                break
+            except MtprotoHttpError as exc:
+                last_error = exc
+                continue
+
+        if full_channel is None:
             logger.info(
                 "Failed to load full channel via MTProto",
                 extra={
                     "user_reference": user_reference,
                     "channel_id": channel_id,
-                    "error": str(exc),
+                    "username": username,
+                    "error": str(last_error),
                 },
             )
             return None
@@ -156,15 +178,18 @@ async def collect_channel_summary_by_id(
         subscribers=subscribers,
     )
 
+    # Use the identifier that worked for the history call to ensure consistency
+    peer_to_use = successful_identifier
+
     newest_message, total_posts = await _fetch_channel_edge_message(
-        client, channel_id, limit_offset=None
+        client, peer_to_use, limit_offset=None
     )
 
     newest_post_date = _extract_message_date(newest_message)
     oldest_post_date = None
     if total_posts and total_posts > 1:
         oldest_message, _ = await _fetch_channel_edge_message(
-            client, channel_id, limit_offset=total_posts - 1
+            client, peer_to_use, limit_offset=total_posts - 1
         )
         oldest_post_date = _extract_message_date(oldest_message)
 
