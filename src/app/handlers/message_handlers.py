@@ -33,17 +33,9 @@ async def handle_moderated_message(message: types.Message) -> str:
     Forwards, especially stories, are treated as spam.
     """
     try:
-        logger.debug(
-            f"sender_chat={getattr(message, 'sender_chat', None)}, "
-            f"chat.linked_chat_id={getattr(message.chat, 'linked_chat_id', None)}"
-        )
-        skip, reason = await check_skip_channel_bot_message(message)
-        if skip:
-            return reason
-
-        # Determine effective user ID for moderation
+        # Determine effective user ID for moderation early
         # If message is from a channel (sender_chat is set), use channel ID
-        # unless it's the group itself (anonymous admin) - handled by check_skip... above
+        # unless it's the group itself (anonymous admin)
         if message.sender_chat and message.sender_chat.id != message.chat.id:
             user_id = message.sender_chat.id
         elif message.from_user:
@@ -53,20 +45,37 @@ async def handle_moderated_message(message: types.Message) -> str:
 
         chat_id = message.chat.id
 
-        message_text, forward_info, is_story = build_forward_info(message)
-
-        await track_message_processing_start(
-            chat_id, user_id, message_text, bool(forward_info)
-        )
-
+        # Get group early to check admin/approved status before expensive operations
         group, group_error = await get_and_check_group(chat_id)
         if group_error:
             return group_error
 
         assert group is not None
 
+        # Check if sender is an admin - skip immediately without expensive operations
+        if user_id in group.admin_ids:
+            await track_group_event(
+                chat_id, "message_from_admin_skipped", {"user_id": user_id}
+            )
+            return "message_from_admin_skipped"
+
+        # Check if sender is approved - skip before expensive operations
         if await check_known_member(chat_id, user_id):
             return "message_known_member_skipped"
+
+        logger.debug(
+            f"sender_chat={getattr(message, 'sender_chat', None)}, "
+            f"chat.linked_chat_id={getattr(message.chat, 'linked_chat_id', None)}"
+        )
+        skip, reason = await check_skip_channel_bot_message(message)
+        if skip:
+            return reason
+
+        message_text, forward_info, is_story = build_forward_info(message)
+
+        await track_message_processing_start(
+            chat_id, user_id, message_text, bool(forward_info)
+        )
 
         spam_score, bio = await get_spam_score_and_bio(
             message, message_text, group, is_story
@@ -78,7 +87,9 @@ async def handle_moderated_message(message: types.Message) -> str:
 
         await track_spam_check_result(chat_id, user_id, spam_score, message_text, bio)
 
-        return await process_spam_or_approve(chat_id, user_id, spam_score, message, bio)
+        return await process_spam_or_approve(
+            chat_id, user_id, spam_score, message, group.admin_ids
+        )
 
     except Exception as e:
         logger.error(f"Error processing message: {e}", exc_info=True)
@@ -358,12 +369,15 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
         # or if we are in a group where we want strict checking.
         # Assuming for now we check stories for all user messages in moderated groups
         try:
-            stories_context = await collect_user_stories(user.id)
+            stories_context = await collect_user_stories(
+                user.id, username=user.username
+            )
         except Exception as exc:
             logger.info(
                 "Failed to collect user stories",
                 extra={
                     "user_id": user.id,
+                    "username": user.username,
                     "error": str(exc),
                 },
             )
@@ -417,10 +431,10 @@ async def track_spam_check_result(chat_id, user_id, spam_score, message_text, bi
     )
 
 
-async def process_spam_or_approve(chat_id, user_id, spam_score, message, bio):
+async def process_spam_or_approve(chat_id, user_id, spam_score, message, admin_ids):
     if spam_score > 50:
         if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
-            await handle_spam(message)
+            await handle_spam(message, admin_ids)
             return "message_spam_deleted"
 
     elif await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):

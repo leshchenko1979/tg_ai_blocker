@@ -19,13 +19,13 @@ from ..common.mp import mp
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.tracking import track_group_event, track_spam_detection
 from ..common.utils import get_spam_guide_url, retry_on_network_error, sanitize_html
-from ..database import get_admin, get_group
+from ..database import get_admin
 from ..database.group_operations import remove_member_from_group
 
 logger = logging.getLogger(__name__)
 
 
-async def handle_spam(message: types.Message) -> str:
+async def handle_spam(message: types.Message, admin_ids: list[int]) -> str:
     """
     Обработка спам-сообщений
     """
@@ -38,13 +38,13 @@ async def handle_spam(message: types.Message) -> str:
         await track_spam_detection(message)
 
         # Проверяем настройки автоудаления у админов
-        all_admins_delete = await check_admin_delete_preferences(message.chat.id)
+        all_admins_delete = await check_admin_delete_preferences(admin_ids)
 
         # Уведомление администраторов...
-        notification_sent = await notify_admins(message, all_admins_delete)
+        notification_sent = await notify_admins(message, all_admins_delete, admin_ids)
 
         if all_admins_delete:
-            await handle_spam_message_deletion(message)
+            await handle_spam_message_deletion(message, admin_ids)
             await ban_user_for_spam(message.chat.id, message.from_user.id)
             return "spam_auto_deleted"
 
@@ -67,23 +67,17 @@ async def handle_spam(message: types.Message) -> str:
         raise
 
 
-async def check_admin_delete_preferences(chat_id: int) -> bool:
+async def check_admin_delete_preferences(admin_ids: list[int]) -> bool:
     """
     Проверяет настройки автоудаления спама у администраторов.
 
     Args:
-        chat_id: ID чата
+        admin_ids: Список ID администраторов группы
 
     Returns:
         bool: True если все админы включили автоудаление, False иначе
     """
-    # Получаем информацию о группе из базы данных
-    group = await get_group(chat_id)
-    if not group:
-        logger.error(f"Group not found for chat {chat_id}")
-        return False
-
-    for admin_id in group.admin_ids:
+    for admin_id in admin_ids:
         admin_user = await get_admin(admin_id)
         if not admin_user or not admin_user.delete_spam:
             return False
@@ -175,7 +169,9 @@ def format_admin_notification_message(
     return admin_msg
 
 
-async def notify_admins(message: types.Message, all_admins_delete: bool) -> bool:
+async def notify_admins(
+    message: types.Message, all_admins_delete: bool, admin_ids: list[int]
+) -> bool:
     """
     Отправляет уведомления администраторам о спам-сообщении.
 
@@ -189,12 +185,7 @@ async def notify_admins(message: types.Message, all_admins_delete: bool) -> bool
     if not message.from_user:
         return False
 
-    group = await get_group(message.chat.id)
-    if not group:
-        logger.error(f"Group not found for chat {message.chat.id}")
-        return False
-
-    admin_ids = group.admin_ids
+    # admin_ids are passed as parameter
     private_message = format_admin_notification_message(message, all_admins_delete)
     keyboard = create_admin_notification_keyboard(message, all_admins_delete)
     result = await notify_admins_with_fallback_and_cleanup(
@@ -210,7 +201,9 @@ async def notify_admins(message: types.Message, all_admins_delete: bool) -> bool
     return bool(result["notified_private"]) or bool(result["group_notified"])
 
 
-async def handle_spam_message_deletion(message: types.Message) -> None:
+async def handle_spam_message_deletion(
+    message: types.Message, admin_ids: list[int]
+) -> None:
     """
     Удаляет спам-сообщение и отправляет событие в Mixpanel.
 
@@ -257,10 +250,8 @@ async def handle_spam_message_deletion(message: types.Message) -> None:
                 exc_info=True,
             )
             # Notify admins about missing permission - if this fails, cleanup will happen
-            try:
-                group = await get_group(message.chat.id)
-                if group:
-                    admin_ids = group.admin_ids
+            if admin_ids:  # Only notify if there are admins to notify
+                try:
                     group_title = message.chat.title or ""
                     notification_result = await notify_admins_with_fallback_and_cleanup(
                         bot,
@@ -268,7 +259,7 @@ async def handle_spam_message_deletion(message: types.Message) -> None:
                         message.chat.id,
                         private_message=(
                             "❗️ У меня нет права удалять спам-сообщения в группе. "
-                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы.\n\nГруппа: *{sanitize_html(group_title)}*"
+                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы.\n\nГруппа: <b>{sanitize_html(group_title)}</b>"
                         ),
                         group_message_template="{mention}, у меня нет права удалять спам-сообщения. Пожалуйста, дайте мне право 'Удаление сообщений'!",
                         cleanup_if_group_fails=True,
@@ -285,10 +276,10 @@ async def handle_spam_message_deletion(message: types.Message) -> None:
                         logger.info(
                             f"Group {message.chat.id} cleaned up due to inability to notify admins about missing delete permissions for spam"
                         )
-            except Exception as notify_exc:
-                logger.warning(
-                    f"Failed to notify admins about missing rights for spam deletion: {notify_exc}"
-                )
+                except Exception as notify_exc:
+                    logger.warning(
+                        f"Failed to notify admins about missing rights for spam deletion: {notify_exc}"
+                    )
         else:
             logger.warning(
                 f"Could not delete spam message {message.message_id} in chat {message.chat.id}: {e}",

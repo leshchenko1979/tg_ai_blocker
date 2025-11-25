@@ -44,7 +44,7 @@ class TestSpamDeletion:
         ):
             mock_bot.delete_message = AsyncMock()
 
-            await handle_spam_message_deletion(mock_message)
+            await handle_spam_message_deletion(mock_message, [123456789])
 
             mock_bot.delete_message.assert_called_once_with(
                 mock_message.chat.id, mock_message.message_id
@@ -63,7 +63,7 @@ class TestSpamDeletion:
                 side_effect=MockTelegramBadRequest("Some other error")
             )
 
-            await handle_spam_message_deletion(mock_message)
+            await handle_spam_message_deletion(mock_message, [123456789])
 
             mock_bot.delete_message.assert_called_once_with(
                 mock_message.chat.id, mock_message.message_id
@@ -79,7 +79,6 @@ class TestSpamDeletion:
         """Test spam deletion failure due to permission error with successful admin notification."""
         with (
             patch("src.app.handlers.handle_spam.bot") as mock_bot,
-            patch("src.app.handlers.handle_spam.get_group") as mock_get_group,
             patch(
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
             ) as mock_notify,
@@ -92,25 +91,18 @@ class TestSpamDeletion:
             )
             mock_bot.delete_message = AsyncMock(side_effect=permission_error)
 
-            # Mock group data
-            mock_group = MagicMock()
-            mock_group.admin_ids = [111, 222]
-            mock_get_group.return_value = mock_group
-
             # Mock successful notification
             mock_notify.return_value = {
                 "notified_private": [111],
                 "group_notified": False,
             }
 
-            await handle_spam_message_deletion(mock_message)
+            await handle_spam_message_deletion(mock_message, [111, 222])
 
             mock_bot.delete_message.assert_called_once_with(
                 mock_message.chat.id, mock_message.message_id
             )
 
-            # Should get group info
-            mock_get_group.assert_called_once_with(mock_message.chat.id)
 
             # Should notify admins about missing rights
             mock_notify.assert_called_once()
@@ -133,7 +125,6 @@ class TestSpamDeletion:
         """Test spam deletion failure due to permission error with failed admin notification."""
         with (
             patch("src.app.handlers.handle_spam.bot") as mock_bot,
-            patch("src.app.handlers.handle_spam.get_group") as mock_get_group,
             patch(
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
             ) as mock_notify,
@@ -146,15 +137,10 @@ class TestSpamDeletion:
             )
             mock_bot.delete_message = AsyncMock(side_effect=permission_error)
 
-            # Mock group data
-            mock_group = MagicMock()
-            mock_group.admin_ids = [111, 222]
-            mock_get_group.return_value = mock_group
-
             # Mock notification failure that triggers cleanup
             mock_notify.side_effect = Exception("All notification methods failed")
 
-            await handle_spam_message_deletion(mock_message)
+            await handle_spam_message_deletion(mock_message, [111, 222])
 
             mock_bot.delete_message.assert_called_once_with(
                 mock_message.chat.id, mock_message.message_id
@@ -179,7 +165,6 @@ class TestSpamDeletion:
         """Test spam deletion failure due to permission error when group not found."""
         with (
             patch("src.app.handlers.handle_spam.bot") as mock_bot,
-            patch("src.app.handlers.handle_spam.get_group") as mock_get_group,
             patch(
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
             ) as mock_notify,
@@ -190,10 +175,8 @@ class TestSpamDeletion:
             permission_error = MockTelegramBadRequest("Chat admin required")
             mock_bot.delete_message = AsyncMock(side_effect=permission_error)
 
-            # Mock group not found
-            mock_get_group.return_value = None
-
-            await handle_spam_message_deletion(mock_message)
+            # Simulate no admins available
+            await handle_spam_message_deletion(mock_message, [])
 
             mock_bot.delete_message.assert_called_once_with(
                 mock_message.chat.id, mock_message.message_id
