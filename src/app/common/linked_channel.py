@@ -44,53 +44,25 @@ async def collect_linked_channel_summary(
         username=username,
     ):
         # Try username first if available, then fall back to user ID
-        user_identifiers = []
+        identifiers = []
         if username:
-            user_identifiers.append(username)
-        user_identifiers.append(user_reference)
+            identifiers.append(username)
+        identifiers.append(user_reference)
 
-        full_user_response = None
-        last_error = None
-
-        for identifier in user_identifiers:
-            try:
-                logger.debug(
-                    "Attempting to get full user info",
-                    extra={
-                        "identifier": identifier,
-                        "identifier_type": type(identifier).__name__,
-                    },
-                )
-                full_user_response = await client.call(
-                    "users.getFullUser", params={"id": identifier}, resolve=True
-                )
-                logger.debug(
-                    "Successfully got user info",
-                    extra={
-                        "identifier": identifier,
-                        "has_full_user": bool(full_user_response.get("full_user")),
-                    },
-                )
-                break  # Success, stop trying other identifiers
-            except MtprotoHttpError as exc:
-                last_error = exc
-                logger.debug(
-                    "Failed to get user info with identifier",
-                    extra={
-                        "identifier": identifier,
-                        "error": str(exc),
-                    },
-                )
-                continue  # Try next identifier
-
-        if full_user_response is None:
+        try:
+            full_user_response, _ = await client.call_with_fallback(
+                "users.getFullUser",
+                identifiers=identifiers,
+                identifier_param="id",
+            )
+        except MtprotoHttpError as e:
             logger.info(
                 "MTProto failed for full user with all identifiers",
                 extra={
                     "user_reference": user_reference,
                     "username": username,
-                    "identifiers_tried": user_identifiers,
-                    "final_error": str(last_error) if last_error else "No error",
+                    "identifiers_tried": identifiers,
+                    "error": str(e),
                 },
             )
             return None
@@ -135,37 +107,27 @@ async def collect_channel_summary_by_id(
             mtproto_id = int(str_id[1:])
     identifiers.append(mtproto_id)
 
-    full_channel = None
-    last_error = None
-    successful_identifier = None
-
     with logfire.span(
         "Fetching channel summary via MTProto",
         user_reference=user_reference,
         channel_id=channel_id,
         username=username,
     ):
-        for identifier in identifiers:
-            try:
-                full_channel = await client.call(
-                    "channels.getFullChannel",
-                    params={"channel": identifier},
-                    resolve=True,
-                )
-                successful_identifier = identifier
-                break
-            except MtprotoHttpError as exc:
-                last_error = exc
-                continue
-
-        if full_channel is None:
+        try:
+            full_channel, successful_identifier = await client.call_with_fallback(
+                "channels.getFullChannel",
+                identifiers=identifiers,
+                identifier_param="channel",
+            )
+        except MtprotoHttpError as e:
             logger.info(
                 "Failed to load full channel via MTProto",
                 extra={
                     "user_reference": user_reference,
                     "channel_id": channel_id,
                     "username": username,
-                    "error": str(last_error),
+                    "identifiers_tried": identifiers,
+                    "error": str(e),
                 },
             )
             return None

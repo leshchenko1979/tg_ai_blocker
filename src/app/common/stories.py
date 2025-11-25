@@ -35,42 +35,36 @@ class StorySummary:
 
 
 @logfire.instrument()
-async def collect_user_stories(user_id: int) -> Optional[str]:
+async def collect_user_stories(
+    user_id: int, username: Optional[str] = None
+) -> Optional[str]:
     """
     Collects stories for a user and formats them into a summary string.
     Returns None if no stories found or error occurs.
     """
     client = get_mtproto_client()
 
-    with logfire.span("Collecting user stories", user_id=user_id):
+    with logfire.span("Collecting user stories", user_id=user_id, username=username):
         try:
-            # stories.getPeerStories requires a peer input.
-            # For a user, we can try using the user ID directly if we have an access hash,
-            # but usually we just provide the ID and hope the bridge/client resolves it.
-            # The bridge's 'resolve=True' should handle basic ID->InputPeer resolution
-            # if the user is known to the session.
-
-            # Only try to get pinned stories as spam relies on them
-            # stories.getPeerStories often returns nothing for non-contacts
-            stories_data = []
+            # Try identifiers in order: username first (if available), then user_id
+            identifiers = []
+            if username:
+                identifiers.append(username)
+            identifiers.append(user_id)
 
             try:
-                pinned_response = await client.call(
+                pinned_response, _ = await client.call_with_fallback(
                     "stories.getPinnedStories",
-                    params={"peer": user_id, "offset_id": 0, "limit": 5},
-                    resolve=True,
+                    identifiers=identifiers,
+                    identifier_param="peer",
+                    params={"offset_id": 0, "limit": 5},
                 )
                 stories_data = pinned_response.get("stories", [])
-            except Exception as e:
-                # Fallback to regular stories if pinned fails, or just log
-                logger.debug(f"Failed to fetch pinned stories for {user_id}: {e}")
-                # Optional: try regular stories if pinned fails?
-                # For now let's rely on pinned as requested, but maybe keep regular as fallback?
-                # User said "all spam relies on the pinned stories... so we need to get only them"
-                # But regular getPeerStories might return active 24h stories which could also be spam.
-                # Let's prioritize pinned but maybe keep regular as a backup if pinned is empty?
-                # Re-reading: "so we need to get only them".
-                # Okay, strict interpretation: ONLY pinned stories.
+            except MtprotoHttpError as e:
+                logger.debug(
+                    f"Failed to fetch pinned stories for all identifiers {identifiers}: {e}"
+                )
+                return None
 
             if not stories_data:
                 return None

@@ -156,6 +156,7 @@ async def get_weekly_stats(chat_ids: Sequence[int]) -> Dict[int, Dict[str, int]]
         "message_spam_check_failed",
         "message_from_group_admin_skipped",
         "message_from_channel_bot_skipped",
+        "message_from_admin_skipped",
     } | spam_tags
 
     sql = f"""

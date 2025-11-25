@@ -1,11 +1,14 @@
+import logging
 import os
 import ssl
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 import logfire
 
 from .utils import retry_on_network_error
+
+logger = logging.getLogger(__name__)
 
 
 class MtprotoHttpError(RuntimeError):
@@ -74,6 +77,7 @@ class MtprotoHttpClient:
         resolve: bool = True,
         timeout: int = 15,
     ) -> Dict[str, Any]:
+        """Make a single MTProto API call"""
         payload: Dict[str, Any] = {"resolve": resolve}
         if params is not None:
             payload["params"] = params
@@ -81,6 +85,49 @@ class MtprotoHttpClient:
             payload["params_json"] = params_json
 
         return await self._post(method, payload, timeout=timeout)
+
+    async def call_with_fallback(
+        self,
+        method: str,
+        identifiers: List[Any],
+        identifier_param: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        resolve: bool = True,
+        timeout: int = 15,
+    ) -> tuple[Dict[str, Any], Any]:
+        """
+        Try multiple identifiers for a parameter until one succeeds.
+        Returns (result, successful_identifier).
+        Default resolve=True since MTProto calls typically need entity resolution.
+        """
+        for identifier in identifiers:
+            try:
+                call_params = params.copy() if params else {}
+                call_params[identifier_param] = identifier
+                result = await self.call(
+                    method, params=call_params, resolve=resolve, timeout=timeout
+                )
+                return result, identifier
+            except MtprotoHttpError as e:
+                # Only retry on 500 Internal Server Error, not other 5xx errors
+                error_msg = str(e)
+                if "error 500" in error_msg:  # Only retry on 500 Internal Server Error
+                    logger.debug(
+                        f"500 error with {identifier_param}={identifier}, trying next: {e}"
+                    )
+                    continue
+                else:
+                    # Client error (4xx), other 5xx errors, or other errors - don't retry with different identifier
+                    logger.debug(
+                        f"Non-retryable error with {identifier_param}={identifier}, not retrying: {e}"
+                    )
+                    raise
+
+        # All identifiers failed
+        raise MtprotoHttpError(
+            f"All identifiers failed for {identifier_param}: {identifiers}"
+        )
 
     @retry_on_network_error
     async def _post(
