@@ -146,6 +146,13 @@ end_section
 
 start_section "🧹 Cleanup & Security"
 
+# Clean up old Docker images for this project to prevent disk bloat
+echo "Cleaning up old tg-ai-blocker Docker images..."
+ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "
+    # Remove images containing 'tg-ai-blocker' but exclude the currently running image
+    docker images --format 'table {{.Repository}}\t{{.ID}}\t{{.CreatedAt}}' | grep tg-ai-blocker | head -n -1 | awk '{print \$2}' | xargs -r docker rmi
+"
+
 # Clean up source files after successful deployment
 echo "Cleaning up source files on the server (preserving docker-compose and .env for Sablier)..."
 ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && rm -rf src app"
