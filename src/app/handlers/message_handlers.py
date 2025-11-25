@@ -1,9 +1,12 @@
+import asyncio
 import logging
+from typing import cast
 
 from aiogram import types
 
 from ..common.bot import bot
 from ..common.linked_channel import (
+    LinkedChannelSummary,
     collect_channel_summary_by_id,
     collect_linked_channel_summary,
 )
@@ -72,10 +75,6 @@ async def handle_moderated_message(message: types.Message) -> str:
             return reason
 
         message_text, forward_info, is_story = build_forward_info(message)
-
-        await track_message_processing_start(
-            chat_id, user_id, message_text, bool(forward_info)
-        )
 
         spam_score, bio = await get_spam_score_and_bio(
             message, message_text, group, is_story
@@ -285,18 +284,6 @@ def build_forward_info(message) -> tuple[str, list[str], bool]:
     return message_text, forward_info, is_story
 
 
-async def track_message_processing_start(chat_id, user_id, message_text, is_forwarded):
-    await track_group_event(
-        chat_id,
-        "message_processing_started",
-        {
-            "user_id": user_id,
-            "message_text": message_text,
-            "is_forwarded": is_forwarded,
-        },
-    )
-
-
 async def get_and_check_group(chat_id):
     group = await get_group(chat_id)
 
@@ -365,23 +352,6 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
         user = message.from_user
         name = user.full_name
 
-        # Only collect stories if it's a comment thread (message_thread_id is present)
-        # or if we are in a group where we want strict checking.
-        # Assuming for now we check stories for all user messages in moderated groups
-        try:
-            stories_context = await collect_user_stories(
-                user.id, username=user.username
-            )
-        except Exception as exc:
-            logger.info(
-                "Failed to collect user stories",
-                extra={
-                    "user_id": user.id,
-                    "username": user.username,
-                    "error": str(exc),
-                },
-            )
-
         try:
             user_with_bio = await bot.get_chat(user.id)
             bio = user_with_bio.bio if user_with_bio else None
@@ -389,15 +359,53 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
             pass
 
         if getattr(message, "message_thread_id", None):
+            # Only collect stories when user replies to a channel post (in discussion threads)
+            # Run stories and linked channel collection in parallel for better performance
+            stories_task = collect_user_stories(user.id, username=user.username)
+            linked_channel_task = collect_linked_channel_summary(
+                user.id, username=user.username
+            )
+
             try:
-                summary = await collect_linked_channel_summary(
-                    user.id, username=user.username
+                results = await asyncio.gather(
+                    stories_task, linked_channel_task, return_exceptions=True
                 )
-                if summary:
-                    channel_fragment = summary.to_prompt_fragment()
-            except Exception as exc:  # noqa: BLE001 - log and fall back gracefully
+                stories_result = results[0]
+                linked_channel_result = results[1]
+
+                # Handle stories result
+                if isinstance(stories_result, Exception):
+                    logger.info(
+                        "Failed to collect user stories",
+                        extra={
+                            "user_id": user.id,
+                            "username": user.username,
+                            "error": str(stories_result),
+                        },
+                    )
+                elif stories_result is not None:
+                    stories_context = cast(str, stories_result)
+
+                # Handle linked channel result
+                if isinstance(linked_channel_result, Exception):
+                    logger.info(
+                        "Failed to collect linked channel summary",
+                        extra={
+                            "user_id": user.id,
+                            "username": user.username,
+                            "error": str(linked_channel_result),
+                        },
+                    )
+                else:
+                    # linked_channel_result is not an Exception here
+                    if linked_channel_result is not None:
+                        summary = cast(LinkedChannelSummary, linked_channel_result)
+                        channel_fragment = summary.to_prompt_fragment()
+
+            except Exception as exc:
+                # Fallback in case gather itself fails
                 logger.info(
-                    "Failed to collect linked channel summary",
+                    "Failed to collect stories and linked channel data in parallel",
                     extra={
                         "user_id": user.id,
                         "username": user.username,

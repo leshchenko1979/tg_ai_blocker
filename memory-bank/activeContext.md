@@ -5,7 +5,7 @@
   - `collect_channel_summary_by_id` now accepts an optional `username` parameter.
   - It attempts to resolve the channel via username first, then falls back to ID. This matches the behavior of `collect_linked_channel_summary` and improves reliability for channels not yet seen by the MTProto bridge.
   - Updated `message_handlers.py` to pass `sender_chat.username` when collecting stats for channel senders.
-  - **New Feature**: Implemented story-based spam detection. The bot now collects user stories via MTProto `stories.getPinnedStories` ONLY.
+  - **New Feature**: Implemented story-based spam detection. The bot now collects user stories via MTProto `stories.getPinnedStories` ONLY when users reply to channel posts (in discussion threads).
   - **Investigation Finding**: Spam attacks rely on pinned stories in profiles. Regular `stories.getPeerStories` is noisy or empty for non-contacts. We now exclusively check `stories.getPinnedStories` to catch the "Trojan horse" profile attack.
   - **Classifier Update**: Updated system prompt to treat suspicious content in stories (links, crypto scams, "check profile" calls) as high-confidence spam indicators, even if the message text is benign.
   - Treat linked channels with subscribers < 10, posts < 50, and age_delta < 10 months as suspicious.

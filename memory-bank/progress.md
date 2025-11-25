@@ -4,7 +4,7 @@
 - Spam classifier with:
   - Text analysis
   - Linked channel context (suspicious channel detection)
-  - **Story-based spam detection** (new)
+  - **Story-based spam detection** (restricted to replies to channel posts)
 - Billing via Telegram Stars
 - Mixpanel tracking hooks
 - PostgreSQL data layer
