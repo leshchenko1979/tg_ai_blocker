@@ -149,38 +149,40 @@ async def deduct_credits_from_admins(group_id: int, amount: int) -> int:
             return admin_row["admin_id"]
 
 
-async def cleanup_inaccessible_group(conn, group_id: int) -> None:
-    """Remove group and all its associations when it becomes inaccessible"""
-    logger.info(f"Cleaning up inaccessible group {group_id}")
+async def cleanup_group_data(group_id: int) -> None:
+    """Clean up all database records for a group"""
+    logger.info(f"Cleaning up database records for group {group_id}")
 
-    # Remove all admin associations
-    await conn.execute(
-        """
-        DELETE FROM group_administrators
-        WHERE group_id = $1
-        """,
-        group_id,
-    )
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Remove all admin associations
+        await conn.execute(
+            """
+            DELETE FROM group_administrators
+            WHERE group_id = $1
+            """,
+            group_id,
+        )
 
-    # Remove approved members
-    await conn.execute(
-        """
-        DELETE FROM approved_members
-        WHERE group_id = $1
-        """,
-        group_id,
-    )
+        # Remove approved members
+        await conn.execute(
+            """
+            DELETE FROM approved_members
+            WHERE group_id = $1
+            """,
+            group_id,
+        )
 
-    # Remove the group itself
-    await conn.execute(
-        """
-        DELETE FROM groups
-        WHERE group_id = $1
-        """,
-        group_id,
-    )
+        # Remove the group itself
+        await conn.execute(
+            """
+            DELETE FROM groups
+            WHERE group_id = $1
+            """,
+            group_id,
+        )
 
-    logger.info(f"Successfully cleaned up group {group_id}")
+    logger.info(f"Successfully cleaned up database records for group {group_id}")
 
 
 async def get_admin_groups(admin_id: int) -> List[Dict]:
@@ -198,6 +200,8 @@ async def get_admin_groups(admin_id: int) -> List[Dict]:
         )
 
         groups = []
+        inaccessible_groups = []
+
         for row in rows:
             try:
                 chat = await bot.get_chat(row["group_id"])
@@ -211,9 +215,10 @@ async def get_admin_groups(admin_id: int) -> List[Dict]:
             except TelegramBadRequest as e:
                 if "chat not found" in str(e).lower():
                     logger.warning(
-                        f"Chat {row['group_id']} not found, cleaning up", exc_info=True
+                        f"Chat {row['group_id']} not found, will clean up",
+                        exc_info=True,
                     )
-                    await cleanup_inaccessible_group(conn, row["group_id"])
+                    inaccessible_groups.append(row["group_id"])
                 else:
                     logger.error(
                         f"Telegram error getting chat {row['group_id']}: {e}",
@@ -225,6 +230,13 @@ async def get_admin_groups(admin_id: int) -> List[Dict]:
                     f"Error getting chat {row['group_id']}: {e}", exc_info=True
                 )
                 continue
+
+        # Clean up inaccessible groups (after the loop to avoid connection issues)
+        for group_id in inaccessible_groups:
+            try:
+                await cleanup_group_data(group_id)
+            except Exception as e:
+                logger.error(f"Failed to cleanup inaccessible group {group_id}: {e}")
 
         # Update Mixpanel profile with current group count
         mp.people_set(admin_id, {"managed_groups_count": len(groups)})

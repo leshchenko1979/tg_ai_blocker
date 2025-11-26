@@ -1,14 +1,37 @@
 import logging
 
+import logfire
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardMarkup
 
-from ..database.group_operations import cleanup_inaccessible_group, get_pool
+from ..database.group_operations import cleanup_group_data
 from .utils import retry_on_network_error
+from .bot import bot
 
 logger = logging.getLogger(__name__)
 
 
+@logfire.instrument(extract_args=True, record_return=True)
+async def perform_complete_group_cleanup(group_id: int) -> bool:
+    """Perform complete group cleanup: leave chat and clean database. Returns success status."""
+    try:
+        # Leave the group first (bot operation)
+        await bot.leave_chat(group_id)
+
+        # Clean up database records (database operation)
+        await cleanup_group_data(group_id)
+
+        return True
+
+    except Exception as cleanup_e:
+        logger.error(
+            f"Failed to perform complete cleanup for group {group_id}: {cleanup_e}",
+            exc_info=True,
+        )
+        return False
+
+
+@logfire.instrument(extract_args=True, record_return=True)
 async def notify_admins_with_fallback_and_cleanup(
     bot,
     admin_ids: list[int],
@@ -18,6 +41,7 @@ async def notify_admins_with_fallback_and_cleanup(
     cleanup_if_group_fails: bool = True,
     parse_mode: str = "HTML",
     reply_markup: InlineKeyboardMarkup | None = None,
+    assume_human_admins: bool = False,
 ) -> dict:
     """
     Notifies all admins in private, falls back to group if none are reachable.
@@ -27,16 +51,42 @@ async def notify_admins_with_fallback_and_cleanup(
     """
     notified_private = []
     unreachable = []
+    bots_skipped = []
     last_admin_info = None
 
     for admin_id in admin_ids:
         try:
-            # Get admin chat info with retry
-            @retry_on_network_error
-            async def get_chat_info():
-                return await bot.get_chat(admin_id)
+            # Fast path: if admins are pre-filtered, skip expensive bot detection
+            if assume_human_admins:
+                # Skip bot detection entirely - trust the caller
+                admin_chat = None
+            else:
+                # Get admin chat info with retry (expensive API call)
+                @retry_on_network_error
+                async def get_chat_info():
+                    return await bot.get_chat(admin_id)
 
-            admin_chat = await get_chat_info()
+                admin_chat = await get_chat_info()
+
+                # Check if this is a bot account
+                is_bot = False
+                if getattr(admin_chat, "type", None) == "private":
+                    # Primary check: API-reported bot status
+                    is_bot = getattr(admin_chat, "is_bot", False)
+
+                    # Additional check: negative IDs indicate channels/bots
+                    if not is_bot and admin_id < 0:
+                        is_bot = True
+                        logfire.warning(
+                            f"Detected channel/bot account {admin_id} with negative ID"
+                        )
+
+                if is_bot:
+                    logfire.info(
+                        f"Skipping bot admin {admin_id} ({getattr(admin_chat, 'first_name', 'Unknown')}) - cannot send messages to bots"
+                    )
+                    bots_skipped.append(admin_id)
+                    continue
 
             # Send message with retry
             @retry_on_network_error
@@ -52,7 +102,10 @@ async def notify_admins_with_fallback_and_cleanup(
             await send_private_message()
 
             notified_private.append(admin_id)
-            last_admin_info = admin_chat
+            # Use admin_chat if available, otherwise we'll handle fallback without it
+            if admin_chat:
+                last_admin_info = admin_chat
+            logger.debug(f"Successfully notified admin {admin_id} in private")
         except Exception as e:
             # Check if this is a content parsing error vs access/permission error
             if isinstance(e, TelegramBadRequest):
@@ -100,6 +153,7 @@ async def notify_admins_with_fallback_and_cleanup(
     result = {
         "notified_private": notified_private,
         "unreachable": unreachable,
+        "bots_skipped": bots_skipped,
         "group_notified": False,
         "group_cleaned_up": False,
     }
@@ -108,75 +162,56 @@ async def notify_admins_with_fallback_and_cleanup(
         return result
 
     # No admins reachable in private, send group message
-    logger.info(
-        f"All private notifications failed for chat {group_id}, attempting group fallback"
-    )
-
-    mention = None
-    if last_admin_info:
-        if getattr(last_admin_info, "username", None):
-            # Usernames should not be escaped - they are literal text
-            mention = f"@{last_admin_info.username}"
-        else:
-            mention = (
-                f'<a href="tg://user?id={last_admin_info.id}">админ</a>'
-                if parse_mode == "HTML"
-                else f"[админ](tg://user?id={last_admin_info.id})"
-            )
-        logger.info(f"Using mention '{mention}' for group fallback in chat {group_id}")
-    else:
-        mention = "админ"
-        logger.warning(
-            f"No admin info available for group fallback in chat {group_id}, using generic mention"
-        )
-
-    group_message = group_message_template.format(mention=mention)
-    logger.info(
-        f"Sending group fallback message to chat {group_id}: {group_message[:100]}..."
-    )
-
-    try:
-
-        @retry_on_network_error
-        async def send_group_message():
-            return await bot.send_message(
-                group_id,
-                group_message,
-                parse_mode=parse_mode,
-                disable_web_page_preview=True,
-            )
-
-        await send_group_message()
-        result["group_notified"] = True
-        logger.info(f"Successfully sent group fallback notification to chat {group_id}")
-        return result
-    except Exception as group_e:
-        logger.warning(
-            f"Failed to send group fallback notification to chat {group_id}: {group_e}",
-            exc_info=True,
-        )
-        if cleanup_if_group_fails:
-            logger.info(f"Starting cleanup process for inaccessible group {group_id}")
-            try:
-                # Leave the group first
-                await bot.leave_chat(group_id)
-                logger.info(f"Successfully left inaccessible group {group_id}")
-
-                # Clean up database records
-                pool = await get_pool()
-                async with pool.acquire() as conn:
-                    await cleanup_inaccessible_group(conn, group_id)
-                logger.info(
-                    f"Successfully cleaned up group {group_id} and its admins from database due to unreachable admins."
+    with logfire.span("group_fallback_attempt", group_id=group_id):
+        mention = None
+        if last_admin_info:
+            if getattr(last_admin_info, "username", None):
+                # Usernames should not be escaped - they are literal text
+                mention = f"@{last_admin_info.username}"
+            else:
+                mention = (
+                    f'<a href="tg://user?id={last_admin_info.id}">админ</a>'
+                    if parse_mode == "HTML"
+                    else f"[админ](tg://user?id={last_admin_info.id})"
                 )
-                result["group_cleaned_up"] = True
-            except Exception as cleanup_e:
-                logger.error(
-                    f"Failed to cleanup inaccessible group {group_id}: {cleanup_e}",
-                    exc_info=True,
-                )
-        else:
             logger.info(
-                f"Cleanup disabled for group {group_id}, leaving group accessible despite notification failure"
+                f"Using mention '{mention}' for group fallback in chat {group_id}"
             )
-        return result
+        else:
+            mention = "админ"
+            logger.warning(
+                f"No admin info available for group fallback in chat {group_id}, using generic mention"
+            )
+
+        group_message = group_message_template.format(mention=mention)
+        logger.info(
+            f"Sending group fallback message to chat {group_id}: {group_message[:100]}..."
+        )
+
+        try:
+
+            @retry_on_network_error
+            async def send_group_message():
+                return await bot.send_message(
+                    group_id,
+                    group_message,
+                    parse_mode=parse_mode,
+                    disable_web_page_preview=True,
+                )
+
+            await send_group_message()
+            result["group_notified"] = True
+            return result
+        except Exception as group_e:
+            logger.warning(
+                f"Failed to send group fallback notification to chat {group_id}: {group_e}",
+                exc_info=True,
+            )
+            if cleanup_if_group_fails:
+                cleanup_success = await perform_complete_group_cleanup(group_id)
+                result["group_cleaned_up"] = cleanup_success
+            else:
+                logger.info(
+                    f"Cleanup disabled for group {group_id}, leaving group accessible despite notification failure"
+                )
+            return result

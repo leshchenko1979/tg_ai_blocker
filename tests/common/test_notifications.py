@@ -26,22 +26,10 @@ class TestNotifyAdminsWithCleanup:
         mock_bot.get_chat.side_effect = Exception("Cannot reach admin")
         mock_bot.send_message.side_effect = Exception("Cannot send message")
 
-        with (
-            patch("src.app.common.notifications.get_pool") as mock_get_pool,
-            patch(
-                "src.app.common.notifications.cleanup_inaccessible_group"
-            ) as mock_cleanup,
-            patch("src.app.common.notifications.logger") as mock_logger,
-        ):
-            # Mock database connection
-            mock_pool = MagicMock()
-            mock_conn = MagicMock()
-            mock_pool.acquire.return_value.__aenter__ = AsyncMock(
-                return_value=mock_conn
-            )
-            mock_pool.acquire.return_value.__aexit__ = AsyncMock(return_value=None)
-            mock_get_pool.return_value = mock_pool
-
+        with patch(
+            "src.app.common.notifications.perform_complete_group_cleanup",
+            return_value=True,
+        ) as mock_cleanup:
             result = await notify_admins_with_fallback_and_cleanup(
                 mock_bot,
                 admin_ids,
@@ -53,11 +41,8 @@ class TestNotifyAdminsWithCleanup:
             # Should attempt to get admin chats (twice per admin due to retry fallback)
             assert mock_bot.get_chat.call_count == len(admin_ids) * 2
 
-            # Should leave the group
-            mock_bot.leave_chat.assert_called_once_with(group_id)
-
-            # Should clean up database
-            mock_cleanup.assert_called_once_with(mock_conn, group_id)
+            # Should call the complete cleanup function
+            mock_cleanup.assert_called_once_with(group_id)
 
             # Should return cleanup result
             assert result["group_cleaned_up"] is True
@@ -97,12 +82,9 @@ class TestNotifyAdminsWithCleanup:
         mock_bot.get_chat.side_effect = Exception("Cannot reach admin")
         mock_bot.send_message.side_effect = Exception("Cannot send message")
 
-        with (
-            patch("src.app.common.notifications.get_pool") as mock_get_pool,
-            patch(
-                "src.app.common.notifications.cleanup_inaccessible_group"
-            ) as mock_cleanup,
-        ):
+        with patch(
+            "src.app.common.notifications.perform_complete_group_cleanup"
+        ) as mock_cleanup:
             result = await notify_admins_with_fallback_and_cleanup(
                 mock_bot,
                 admin_ids,
@@ -111,9 +93,7 @@ class TestNotifyAdminsWithCleanup:
                 cleanup_if_group_fails=False,  # Disabled
             )
 
-            # Should not leave group or clean database
-            mock_bot.leave_chat.assert_not_called()
-            mock_get_pool.assert_not_called()
+            # Should not call cleanup function
             mock_cleanup.assert_not_called()
 
             # Should return no cleanup result

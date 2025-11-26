@@ -164,6 +164,12 @@ async def create_procedures(conn: asyncpg.Connection):
             LANGUAGE plpgsql
             AS $$
             BEGIN
+                -- Filter out bot accounts (negative IDs indicate channels/bots)
+                CREATE TEMP TABLE temp_admin_ids AS
+                SELECT admin_id
+                FROM unnest(p_admin_ids) AS admin_id
+                WHERE admin_id > 0;  -- Only positive IDs (users)
+
                 -- Ensure admins exist in administrators table
                 INSERT INTO administrators (admin_id, username, credits, created_at, last_active)
                 SELECT
@@ -172,7 +178,7 @@ async def create_procedures(conn: asyncpg.Connection):
                     p_initial_credits,
                     NOW(),
                     NOW()
-                FROM unnest(p_admin_ids) AS admin_id
+                FROM temp_admin_ids
                 ON CONFLICT (admin_id) DO NOTHING;
 
                 -- Create/update group
@@ -196,7 +202,10 @@ async def create_procedures(conn: asyncpg.Connection):
 
                 INSERT INTO group_administrators (group_id, admin_id)
                 SELECT p_group_id, admin_id
-                FROM unnest(p_admin_ids) AS admin_id;
+                FROM temp_admin_ids;
+
+                -- Clean up temp table
+                DROP TABLE temp_admin_ids;
             END;
             $$;
 

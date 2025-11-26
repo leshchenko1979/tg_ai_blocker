@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List
 
+import logfire
 from aiogram import F, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import or_f
@@ -125,7 +126,11 @@ async def _handle_permission_update(
             admins = await bot.get_chat_administrators(chat_id)
             admin_ids = [admin.user.id for admin in admins if not admin.user.is_bot]
             await _notify_admins_about_rights(
-                chat_id, chat_title, event.chat.username, admin_ids
+                chat_id,
+                chat_title,
+                event.chat.username,
+                admin_ids,
+                assume_human_admins=True,
             )
         else:
             # Send promo message when we get all required rights
@@ -198,7 +203,11 @@ async def _handle_bot_added(
 
     if not has_admin_rights:
         await _notify_admins_about_rights(
-            chat_id, chat_title, event.chat.username, [admin_id]
+            chat_id,
+            chat_title,
+            event.chat.username,
+            [admin_id],
+            assume_human_admins=True,
         )
     else:
         # Only send promo message if we have admin rights
@@ -237,17 +246,28 @@ async def _handle_bot_removed(
     new_status: str,
 ) -> None:
     """Handle bot being removed from a group."""
-    # Skip notifications if the chat is a channel
-    if getattr(event.chat, "type", None) == "channel":
-        logger.info(
-            f"Bot removed from channel {chat_id} ('{chat_title}'), skipping notifications."
-        )
-        return
-    logger.info(f"Bot removed from chat '{chat_title}' ({chat_id})")
+    # Log who performed the removal
+    removed_by = getattr(event.from_user, "first_name", "Unknown")
+    removed_by_username = getattr(event.from_user, "username", None)
+    removed_by_info = (
+        f"{removed_by} (@{removed_by_username})" if removed_by_username else removed_by
+    )
+
+    logger.info(
+        f"Bot removed from chat '{chat_title}' ({chat_id}) by {removed_by_info}"
+    )
 
     group = await get_group(chat_id)
     if group and group.admin_ids:
+        # Filter out bots from admin list - only notify human admins
+        human_admin_ids = []
         for current_admin_id in group.admin_ids:
+            # Skip known bot IDs and any ID that looks like a bot (negative IDs for channels, etc.)
+            if current_admin_id > 0:  # Only positive IDs are users (bots and humans)
+                # We can't easily check if it's a bot here without API calls,
+                # but we'll handle bot detection in the notification function
+                human_admin_ids.append(current_admin_id)
+
             mp.track(
                 current_admin_id,
                 "bot_removed_from_group",
@@ -255,19 +275,35 @@ async def _handle_bot_removed(
                     "group_id": chat_id,
                     "chat_title": chat_title,
                     "removed_by": admin_id,
+                    "removed_by_name": removed_by_info,
                     "status": new_status,
                     "timestamp": event.date.isoformat(),
                     "setup_step": "removed",
+                    "is_human_admin": current_admin_id in human_admin_ids,
                 },
             )
 
-        await _notify_admins_about_removal(
-            chat_id, chat_title, event.chat.username, group.admin_ids
-        )
+        if human_admin_ids:
+            await _notify_admins_about_removal(
+                chat_id,
+                chat_title,
+                event.chat.username,
+                human_admin_ids,
+                assume_human_admins=True,
+            )
+        else:
+            logger.warning(
+                f"No human admins found for group {chat_id} to notify about bot removal"
+            )
 
 
+@logfire.instrument(extract_args=True)
 async def _notify_admins_about_rights(
-    chat_id: int, chat_title: str, username: str | None, admin_ids: List[int]
+    chat_id: int,
+    chat_title: str,
+    username: str | None,
+    admin_ids: List[int],
+    assume_human_admins: bool = False,
 ) -> None:
     """Notify admins about required bot permissions."""
     private_message = (
@@ -284,6 +320,7 @@ async def _notify_admins_about_rights(
         "   • <b>Блокировка пользователей</b> - чтобы блокировать спамеров\n\n"
         "После настройки прав я смогу защищать группу! 🛡"
     )
+
     await notify_admins_with_fallback_and_cleanup(
         bot,
         admin_ids,
@@ -292,11 +329,17 @@ async def _notify_admins_about_rights(
         group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
         cleanup_if_group_fails=True,
         parse_mode="HTML",
+        assume_human_admins=assume_human_admins,
     )
 
 
+@logfire.instrument(extract_args=True)
 async def _notify_admins_about_removal(
-    chat_id: int, chat_title: str, username: str | None, admin_ids: List[int]
+    chat_id: int,
+    chat_title: str,
+    username: str | None,
+    admin_ids: List[int],
+    assume_human_admins: bool = False,
 ) -> None:
     """Notify admins when bot is removed from a group."""
     private_message = (
@@ -305,7 +348,8 @@ async def _notify_admins_about_removal(
         "Если это произошло случайно, вы можете добавить меня обратно "
         "и восстановить защиту группы."
     )
-    await notify_admins_with_fallback_and_cleanup(
+
+    result = await notify_admins_with_fallback_and_cleanup(
         bot,
         admin_ids,
         chat_id,
@@ -313,7 +357,14 @@ async def _notify_admins_about_removal(
         group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
         cleanup_if_group_fails=True,
         parse_mode="HTML",
+        assume_human_admins=assume_human_admins,
     )
+
+    # If group was cleaned up, log it prominently
+    if result["group_cleaned_up"]:
+        logfire.warning(
+            f"Group {chat_id} ('{chat_title}') was cleaned up due to inability to notify admins after bot removal"
+        )
 
 
 async def _send_promo_message(
@@ -450,6 +501,7 @@ async def handle_member_service_message(message: types.Message) -> str:
                         group_message_template="{mention}, у меня нет права удалять сервисные сообщения. Пожалуйста, дайте мне право 'Удаление сообщений'!",
                         cleanup_if_group_fails=True,
                         parse_mode="HTML",
+                        assume_human_admins=True,
                     )
                     if (
                         not notification_result["notified_private"]
