@@ -93,7 +93,7 @@ async def initialize_new_admin(admin_id: int) -> bool:
                 """
                 INSERT INTO administrators (
                     admin_id, credits, delete_spam, created_at, last_active
-                ) VALUES ($1, $2, true, NOW(), NOW())
+                ) VALUES ($1, $2, false, NOW(), NOW())
             """,
                 admin_id,
                 INITIAL_CREDITS,

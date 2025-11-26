@@ -67,7 +67,7 @@ async def handle_private_message(message: types.Message) -> str:
             "$first_name": user.first_name,
             "$last_name": user.last_name or "",
             "$name": user.username or user.first_name,
-            "delete_spam_enabled": True,
+            "delete_spam_enabled": False,
             "credits": INITIAL_CREDITS if is_new else await get_admin_credits(admin_id),
         },
     )

@@ -158,7 +158,11 @@ def format_admin_notification_message(
         )
     else:
         link = f"https://t.me/{message.chat.username}/{message.message_id}"
-        admin_msg += f'<a href="{link}">Ссылка на сообщение</a>'
+        admin_msg += (
+            f'<a href="{link}">Ссылка на сообщение</a>\n\n'
+            "<b>💡 Совет:</b> Используйте команду /mode, "
+            "чтобы переключиться в режим автоматического удаления спама."
+        )
 
     admin_msg += (
         "\n\n"

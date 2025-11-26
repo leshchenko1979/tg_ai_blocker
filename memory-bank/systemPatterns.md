@@ -11,8 +11,9 @@
     - **Linked Channel**: Checks for suspicious channel stats (low subs, new channel) via MTProto.
     - **User Stories**: Fetches user stories via MTProto `stories.getPeerStories` to detect hidden spam payloads (links, scam offers) in profiles.
   - **Decision**: LLM scores content based on text, profile bio, linked channel stats, and story content.
-  - **Action**: High scores (>50%) trigger auto-deletion and ban.
+  - **Action**: High scores (>50%) trigger either auto-deletion/ban (if admin has delete_spam=True) or notifications only (if delete_spam=False, new user default).
   - **Permission Failures**: "message can't be deleted" errors trigger admin notifications with private→group fallback.
+  - **User Mode Control**: /mode command allows users to toggle between notification-only and auto-deletion modes.
 - **Billing & Credits**: Telegram Stars payments handled by dedicated handlers coupled with database operations that maintain balances, histories, and automatic moderation toggles when credits drop.
 - **Linked Channel Extraction**: Direct MTProto approach with username-first resolution (bot API never provides linked channel information). Tries username first, then falls back to user ID. Essential for comprehensive spam detection requiring channel context.
 - **Channel Message Handling**: Messages sent on behalf of channels (sender_chat present) are moderated using the channel's ID (`sender_chat.id`) as the effective user ID. This prevents the generic "Channel Bot" user (136817688) from being approved and whitelisting all channel spam. The system distinguishes between linked channels (auto-forwards) and channel spam using `check_skip_channel_bot_message`.

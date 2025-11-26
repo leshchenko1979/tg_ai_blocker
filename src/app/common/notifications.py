@@ -5,8 +5,8 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardMarkup
 
 from ..database.group_operations import cleanup_group_data
-from .utils import retry_on_network_error
 from .bot import bot
+from .utils import retry_on_network_error
 
 logger = logging.getLogger(__name__)
 

@@ -46,7 +46,7 @@ async def test_initialize_new_user(patched_db_conn, clean_db):
         user = await get_admin(user_id)
         assert user is not None
         assert user.credits == INITIAL_CREDITS
-        assert user.delete_spam is True
+        assert user.delete_spam is False
 
 
 @pytest.mark.asyncio
@@ -56,25 +56,25 @@ async def test_toggle_spam_deletion(patched_db_conn, clean_db, sample_user):
         # Save the user first
         await save_admin(sample_user)
 
-        # Initial state should be True
+        # Initial state should be False (new default)
         initial_state = await get_spam_deletion_state(sample_user.admin_id)
-        assert initial_state is True
+        assert initial_state is False
 
-        # Toggle to False
-        new_state = await toggle_spam_deletion(sample_user.admin_id)
-        assert new_state is False
-
-        # Verify state is False
-        current_state = await get_spam_deletion_state(sample_user.admin_id)
-        assert current_state is False
-
-        # Toggle back to True
+        # Toggle to True
         new_state = await toggle_spam_deletion(sample_user.admin_id)
         assert new_state is True
 
-        # Verify state is True again
+        # Verify state is True
         current_state = await get_spam_deletion_state(sample_user.admin_id)
         assert current_state is True
+
+        # Toggle back to False
+        new_state = await toggle_spam_deletion(sample_user.admin_id)
+        assert new_state is False
+
+        # Verify state is False again
+        current_state = await get_spam_deletion_state(sample_user.admin_id)
+        assert current_state is False
 
 
 @pytest.mark.asyncio

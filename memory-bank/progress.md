@@ -19,3 +19,4 @@
 - `/stats` command updated to use direct Logfire queries for weekly metrics (processed/spam), removing the need for a local `stats` table and ensuring data consistency.
 - Fixed `UnboundLocalError` in callback handlers and improved robustness against "query is too old" errors by ensuring critical logic proceeds even if UI feedback fails.
 - **Bot Removal Notification System**: Optimized admin notification when bot gets kicked, with intelligent bot detection that skips expensive API calls for pre-filtered admin lists (~50-80% performance improvement). Enhanced logging shows who performed removal. Database-level bot filtering prevents GroupAnonymousBot contamination. Logfire instrumentation provides automatic observability.
+- **Safer User Onboarding**: New users now start in notification mode (no automatic spam deletion) to prevent false positives and user abandonment. Spam notifications include guidance about using /mode command to switch to deletion mode.

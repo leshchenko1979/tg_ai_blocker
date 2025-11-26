@@ -52,7 +52,7 @@ async def create_schema(conn: asyncpg.Connection):
                 admin_id BIGINT PRIMARY KEY,
                 username VARCHAR(255),
                 credits INTEGER DEFAULT 0 CHECK (credits >= 0),
-                delete_spam BOOLEAN DEFAULT true,
+                delete_spam BOOLEAN DEFAULT false,
                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 last_active TIMESTAMP NOT NULL DEFAULT NOW()
             );

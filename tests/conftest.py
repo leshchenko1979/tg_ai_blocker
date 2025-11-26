@@ -562,7 +562,7 @@ def sample_user():
         admin_id=123456,
         username="testuser",
         credits=50,
-        delete_spam=True,
+        delete_spam=False,
         created_at=datetime.now(),
         last_active=datetime.now(),
     )
