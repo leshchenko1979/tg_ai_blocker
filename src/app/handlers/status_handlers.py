@@ -173,8 +173,9 @@ async def _handle_bot_added(
         f"Bot added to chat {chat_id} ('{chat_title}') with status {new_status}"
     )
 
-    # Add only the admin who added the bot
-    await update_group_admins(chat_id, [admin_id])
+    # Add only the admin who added the bot (with username if available)
+    admin_username = getattr(event.from_user, 'username', None)
+    await update_group_admins(chat_id, [admin_id], [admin_username])
 
     # Track initial interaction
     mp.track(

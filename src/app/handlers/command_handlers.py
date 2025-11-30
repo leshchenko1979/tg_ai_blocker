@@ -9,11 +9,13 @@ from ..common.mp import mp
 from ..common.utils import get_affiliate_url, sanitize_html
 from ..database import (
     INITIAL_CREDITS,
+    get_admin,
     get_admin_credits,
     get_admin_stats,
     get_spam_deletion_state,
     get_spent_credits_last_week,
     initialize_new_admin,
+    save_admin,
     toggle_spam_deletion,
 )
 from .dp import dp
@@ -59,6 +61,13 @@ async def handle_help_command(message: types.Message) -> str:
     # Логика для /start
     if command == "/start":
         is_new = await initialize_new_admin(user_id)
+
+        # Update admin with username if available
+        if user.username:
+            admin = await get_admin(user_id)
+            if admin and (admin.username is None or admin.username != user.username):
+                admin.username = user.username
+                await save_admin(admin)
         if is_new:
             mp.track(
                 user_id,

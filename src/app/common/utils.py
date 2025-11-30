@@ -82,11 +82,14 @@ def remove_lines_to_fit_len(text: str, max_len: int) -> str:
     return text
 
 
-def sanitize_html(text: str) -> str:
+def sanitize_html(text: str | None) -> str:
     """
     Escapes special characters for Telegram HTML format.
     See: https://core.telegram.org/bots/api#html-style
     """
+    if text is None:
+        return ""
+
     # HTML entities that need to be escaped
     html_entities = {
         "&": "&amp;",  # Must be first

@@ -15,11 +15,13 @@ from ..common.mp import mp
 from ..common.utils import config, sanitize_llm_html
 from ..database import (
     add_spam_example,
+    get_admin,
     get_admin_credits,
     get_message_history,
     get_spam_examples,
     initialize_new_admin,
     remove_member_from_group,
+    save_admin,
     save_message,
 )
 from ..database.constants import INITIAL_CREDITS
@@ -56,8 +58,15 @@ async def handle_private_message(message: types.Message) -> str:
     # Трекинг получения приватного сообщения
     mp.track(admin_id, "private_message_received", {"message_text": admin_message})
 
-    # Initialize new administrator if needed
+    # Initialize new administrator if needed and update username
     is_new = await initialize_new_admin(admin_id)
+
+    # Update admin with username if available
+    if user.username:
+        admin = await get_admin(admin_id)
+        if admin and (admin.username is None or admin.username != user.username):
+            admin.username = user.username
+            await save_admin(admin)
 
     # Update Mixpanel profile with Telegram data
     mp.people_set(

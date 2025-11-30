@@ -329,8 +329,12 @@ async def remove_member_from_group(
                     )
 
 
-async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
-    """Update list of group administrators"""
+async def update_group_admins(
+    group_id: int,
+    admin_ids: List[int],
+    admin_usernames: Optional[List[Optional[str]]] = None,
+) -> None:
+    """Update list of group administrators with optional usernames"""
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -345,10 +349,37 @@ async def update_group_admins(group_id: int, admin_ids: List[int]) -> None:
                 group_id,
             )
 
-            # Add new admin
-            for admin_id in admin_ids:
-                # Initialize new admin if doesn't exist
-                await admin_operations.initialize_new_admin(admin_id)
+            # Handle both old format (just IDs) and new format (IDs with usernames)
+            usernames: List[Optional[str]] = (
+                admin_usernames
+                if admin_usernames is not None
+                else [None] * len(admin_ids)
+            )
+
+            # Ensure we have usernames for all admins
+            if len(usernames) != len(admin_ids):
+                raise ValueError(
+                    "admin_ids and admin_usernames must have the same length"
+                )
+
+            # Add/update admins
+            for admin_id, username in zip(admin_ids, usernames):
+                # Save or update admin with username if provided
+                admin = await admin_operations.get_admin(admin_id)
+                if admin is None:
+                    # Create new admin
+                    admin = admin_operations.Administrator(
+                        admin_id=admin_id,
+                        username=username,
+                        credits=admin_operations.INITIAL_CREDITS,
+                        delete_spam=False,
+                    )
+                else:
+                    # Update existing admin with username if not already set
+                    if admin.username is None and username is not None:
+                        admin.username = username
+
+                await admin_operations.save_admin(admin)
 
                 # Add as group administrator
                 await conn.execute(
