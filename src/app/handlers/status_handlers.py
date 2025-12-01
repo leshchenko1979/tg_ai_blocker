@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 @dp.my_chat_member()
-async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
+async def handle_bot_status_update(event: types.ChatMemberUpdated) -> str:
     """
     Handle updates to bot's status in chats.
     Called when bot is added to or removed from a chat.
@@ -33,15 +33,27 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
     old_status = event.old_chat_member.status
     chat_title = event.chat.title or "Unnamed Group"
 
+    # Handle updates from private chats (users blocking/unblocking the bot)
+    if event.chat.type == "private":
+        if new_status == "member":
+            return "bot_started_private"
+        elif new_status == "kicked":
+            return "bot_blocked_private"
+        return "bot_status_private_other"
+
     try:
         if new_status == old_status:
             await _handle_permission_update(event, chat_id, admin_id, chat_title)
-            return
+            return "bot_permissions_updated"
+
+        result_tag = "bot_status_updated"
 
         if new_status in ["administrator", "member", "restricted"]:
             await _handle_bot_added(event, chat_id, admin_id, chat_title, new_status)
+            result_tag = "bot_added_group"
         elif new_status in ["left", "kicked"]:
             await _handle_bot_removed(event, chat_id, admin_id, chat_title, new_status)
+            result_tag = "bot_removed_group"
 
         # Если бот добавлен в канал, отправляем инструкцию с ссылкой на обсуждение (если есть)
         if event.chat.type == "channel" and new_status in [
@@ -50,6 +62,8 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
             "restricted",
         ]:
             await send_wrong_channel_addition_instruction(event.chat, bot)
+
+        return result_tag
 
     except Exception as e:
         logger.error(
@@ -70,6 +84,7 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> None:
         raise
 
 
+@logfire.instrument(extract_args=True)
 async def _handle_permission_update(
     event: types.ChatMemberUpdated,
     chat_id: int,
@@ -131,6 +146,7 @@ async def _handle_permission_update(
                 event.chat.username,
                 admin_ids,
                 assume_human_admins=True,
+                is_already_admin=True,
             )
         else:
             # Send promo message when we get all required rights
@@ -161,6 +177,7 @@ async def _handle_permission_update(
                 )
 
 
+@logfire.instrument(extract_args=True)
 async def _handle_bot_added(
     event: types.ChatMemberUpdated,
     chat_id: int,
@@ -174,7 +191,7 @@ async def _handle_bot_added(
     )
 
     # Add only the admin who added the bot (with username if available)
-    admin_username = getattr(event.from_user, 'username', None)
+    admin_username = getattr(event.from_user, "username", None)
     await update_group_admins(chat_id, [admin_id], [admin_username])
 
     # Track initial interaction
@@ -209,6 +226,7 @@ async def _handle_bot_added(
             event.chat.username,
             [admin_id],
             assume_human_admins=True,
+            is_already_admin=(new_status == "administrator"),
         )
     else:
         # Only send promo message if we have admin rights
@@ -239,6 +257,7 @@ async def _handle_bot_added(
             )
 
 
+@logfire.instrument(extract_args=True)
 async def _handle_bot_removed(
     event: types.ChatMemberUpdated,
     chat_id: int,
@@ -305,17 +324,24 @@ async def _notify_admins_about_rights(
     username: str | None,
     admin_ids: List[int],
     assume_human_admins: bool = False,
+    is_already_admin: bool = False,
 ) -> None:
     """Notify admins about required bot permissions."""
+
+    if is_already_admin:
+        step_4 = "4. Найдите меня в списке администраторов"
+    else:
+        step_4 = "4. Нажмите 'Добавить администратора' и выберите меня"
+
     private_message = (
         "🤖 Приветствую! Для защиты группы мне нужны права администратора.\n\n"
         f"Группа: <b>{sanitize_html(chat_title)}</b>"
         f"{f' (@{username})' if username else ''}\n\n"
         "📱 Как настроить права:\n"
-        "1. Откройте настройки группы (три точки ⋮ сверху)\n"
-        "2. Выберите пункт 'Управление группой'\n"
-        "3. Нажмите 'Администраторы'\n"
-        "4. Найдите меня в списке администраторов\n"
+        "1. Откройте профиль группы\n"
+        "2. Нажмите 'Изменить' или 'Управление группой'\n"
+        "3. Перейдите в 'Администраторы'\n"
+        f"{step_4}\n"
         "5. Включите два права:\n"
         "   • <b>Удаление сообщений</b> - чтобы удалять спам\n"
         "   • <b>Блокировка пользователей</b> - чтобы блокировать спамеров\n\n"
