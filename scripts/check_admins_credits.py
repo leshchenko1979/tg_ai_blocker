@@ -19,21 +19,24 @@ async def check_admins_credits():
     try:
         # Получаем информацию о балансе админов
         rows = await conn.fetch("""
-            SELECT a.admin_id, a.credits, COUNT(DISTINCT g.group_id) as group_count
+            SELECT a.admin_id, a.username, a.credits, COUNT(DISTINCT g.group_id) as group_count
             FROM administrators a
             LEFT JOIN group_administrators ga ON a.admin_id = ga.admin_id
             LEFT JOIN groups g ON ga.group_id = g.group_id
-            GROUP BY a.admin_id, a.credits
+            GROUP BY a.admin_id, a.username, a.credits
+            HAVING COUNT(DISTINCT g.group_id) > 0
             ORDER BY a.credits DESC
         """)
 
         print("\nБаланс администраторов:")
-        print("-" * 50)
+        print("-" * 60)
         for row in rows:
+            username = row["username"] or "N/A"
             print(f"Admin ID: {row['admin_id']}")
+            print(f"Username: {username}")
             print(f"Звезды: {row['credits']}")
             print(f"Количество групп: {row['group_count']}")
-            print("-" * 50)
+            print("-" * 60)
 
         # Получаем статистику транзакций
         transactions = await conn.fetch("""
