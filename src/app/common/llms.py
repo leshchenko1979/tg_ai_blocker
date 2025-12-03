@@ -1,7 +1,9 @@
 import logging
 import os
+import ssl
 
 import aiohttp
+import certifi
 import logfire
 
 # Global variable to track the last successful OpenRouter model
@@ -53,7 +55,7 @@ def round_robin_with_start(models, start_model=None):
 
 
 @logfire.instrument()
-async def get_openrouter_response(messages, temperature=0.3):
+async def get_openrouter_response(messages, temperature=0.3, response_format=None):
     global _last_model
     headers = {
         "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
@@ -87,12 +89,22 @@ async def get_openrouter_response(messages, temperature=0.3):
     ]
     model_gen = round_robin_with_start(models, _last_model)
     last_exception = None
-    async with aiohttp.ClientSession() as session:
+
+    # Create SSL context with certifi certificates for proper SSL verification
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
+
+    async with aiohttp.ClientSession(connector=connector) as session:
         for _ in range(10):
             _last_model = next(model_gen)
             try:
                 result = await _request_openrouter(
-                    _last_model, messages, headers, session, temperature
+                    _last_model,
+                    messages,
+                    headers,
+                    session,
+                    temperature,
+                    response_format,
                 )
                 # Проверяем наличие ошибки в ответе
                 if err := result.get("error"):
@@ -110,8 +122,13 @@ async def get_openrouter_response(messages, temperature=0.3):
     raise RuntimeError("All OpenRouter models failed to provide a response")
 
 
-async def _request_openrouter(model, messages, headers, session, temperature=0.3):
+async def _request_openrouter(
+    model, messages, headers, session, temperature=0.3, response_format=None
+):
     data = {"model": model, "messages": messages, "temperature": temperature}
+    if response_format:
+        data["response_format"] = response_format
+
     with logfire.span(
         "OpenRouter request/response", model=model, messages=messages
     ) as span:

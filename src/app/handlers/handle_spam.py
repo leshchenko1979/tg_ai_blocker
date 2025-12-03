@@ -25,7 +25,9 @@ from ..database.group_operations import remove_member_from_group
 logger = logging.getLogger(__name__)
 
 
-async def handle_spam(message: types.Message, admin_ids: list[int]) -> str:
+async def handle_spam(
+    message: types.Message, admin_ids: list[int], reason: str | None = None
+) -> str:
     """
     Обработка спам-сообщений
     """
@@ -41,7 +43,9 @@ async def handle_spam(message: types.Message, admin_ids: list[int]) -> str:
         all_admins_delete = await check_admin_delete_preferences(admin_ids)
 
         # Уведомление администраторов...
-        notification_sent = await notify_admins(message, all_admins_delete, admin_ids)
+        notification_sent = await notify_admins(
+            message, all_admins_delete, admin_ids, reason
+        )
 
         if all_admins_delete:
             await handle_spam_message_deletion(message, admin_ids)
@@ -122,7 +126,7 @@ def create_admin_notification_keyboard(
 
 
 def format_admin_notification_message(
-    message: types.Message, all_admins_delete: bool
+    message: types.Message, all_admins_delete: bool, reason: str | None = None
 ) -> str:
     """
     Форматирует текст уведомления для администратора.
@@ -130,6 +134,7 @@ def format_admin_notification_message(
     Args:
         message: Спам-сообщение
         all_admins_delete: Флаг автоудаления спама
+        reason: Причина классификации как спам
 
     Returns:
         str: Отформатированный текст уведомления
@@ -145,11 +150,14 @@ def format_admin_notification_message(
         f" (@{message.from_user.username})" if message.from_user.username else ""
     )
 
+    reason_text = f"\n<b>Причина:</b> {reason}\n" if reason else ""
+
     admin_msg = (
         "⚠️ <b>ВТОРЖЕНИЕ!</b>\n\n"
         f"<b>Группа:</b> {message.chat.title}{chat_username_str}\n\n"
         f"<b>Нарушитель:</b> {message.from_user.full_name}{user_username_str}\n\n"
-        f"<b>Содержание угрозы:</b>\n<pre>{content_text}</pre>\n\n"
+        f"<b>Содержание угрозы:</b>\n<pre>{content_text}</pre>\n"
+        f"{reason_text}\n"
     )
 
     if all_admins_delete:
@@ -174,7 +182,10 @@ def format_admin_notification_message(
 
 
 async def notify_admins(
-    message: types.Message, all_admins_delete: bool, admin_ids: list[int]
+    message: types.Message,
+    all_admins_delete: bool,
+    admin_ids: list[int],
+    reason: str | None = None,
 ) -> bool:
     """
     Отправляет уведомления администраторам о спам-сообщении.
@@ -182,6 +193,8 @@ async def notify_admins(
     Args:
         message: Спам-сообщение
         all_admins_delete: Флаг автоудаления спама
+        admin_ids: IDs of admins to notify
+        reason: Причина классификации как спам
 
     Returns:
         bool: True если хотя бы одно уведомление отправлено успешно
@@ -190,7 +203,9 @@ async def notify_admins(
         return False
 
     # admin_ids are passed as parameter
-    private_message = format_admin_notification_message(message, all_admins_delete)
+    private_message = format_admin_notification_message(
+        message, all_admins_delete, reason
+    )
     keyboard = create_admin_notification_keyboard(message, all_admins_delete)
     result = await notify_admins_with_fallback_and_cleanup(
         bot,

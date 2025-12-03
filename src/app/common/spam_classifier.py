@@ -1,8 +1,9 @@
 import asyncio
+import json
 import logging
 import re
 import time
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import logfire
 
@@ -29,7 +30,8 @@ async def is_spam(
     admin_ids: List[int] | None = None,
     linked_channel_fragment: str | None = None,
     stories_context: str | None = None,
-):
+    reply_context: str | None = None,
+) -> Tuple[int, str]:
     """
     Классифицирует сообщение как спам или не спам
 
@@ -40,15 +42,24 @@ async def is_spam(
         admin_ids: Список ID администраторов для получения их персональных примеров спама (опционально)
 
     Returns:
-        int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
+        tuple[int, str]:
+            - int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
+            - str: Комментарий с причиной оценки
     """
     prompt = await get_system_prompt(
         admin_ids,
         include_linked_channel_guidance=linked_channel_fragment is not None,
         include_stories_guidance=stories_context is not None,
+        include_reply_context_guidance=reply_context is not None,
     )
     messages = get_messages(
-        comment, name, bio, prompt, linked_channel_fragment, stories_context
+        comment,
+        name,
+        bio,
+        prompt,
+        linked_channel_fragment,
+        stories_context,
+        reply_context,
     )
 
     last_response = None
@@ -56,17 +67,48 @@ async def is_spam(
     attempt = 0
     unknown_errors = 0
 
+    schema = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "spam_classification",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "is_spam": {
+                        "type": "boolean",
+                        "description": "True если сообщение является спамом, иначе False",
+                    },
+                    "confidence": {
+                        "type": "integer",
+                        "description": "Уверенность в классификации от 0 до 100",
+                        "minimum": 0,
+                        "maximum": 100,
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Причина такой классификации и какие элементы входящих данных содержат спам",
+                    },
+                },
+                "required": ["is_spam", "confidence", "reason"],
+                "additionalProperties": False,
+            },
+        },
+    }
+
     while unknown_errors < MAX_RETRIES:
         attempt += 1
         with logfire.span(f"Getting spam classifier response, attempt #{attempt}"):
             try:
-                response = await get_openrouter_response(messages, temperature=0.0)
+                response = await get_openrouter_response(
+                    messages, temperature=0.0, response_format=schema
+                )
                 last_response = response
                 logger.info(f"Spam classifier response: {response}")
-                score = extract_spam_score(response)
+                score, reason = extract_spam_score(response)
                 spam_score_gauge.set(score)
                 attempts_histogram.record(attempt)
-                return score
+                return score, reason
 
             except RateLimitExceeded as e:
                 if e.is_upstream_error:
@@ -115,6 +157,7 @@ async def get_system_prompt(
     admin_ids: Optional[List[int]] = None,
     include_linked_channel_guidance: bool = False,
     include_stories_guidance: bool = False,
+    include_reply_context_guidance: bool = False,
 ):
     """Get the full prompt with spam examples from database"""
     prompt = """Ты - классификатор спама. Администратор группы телеграм подает тебе
@@ -151,25 +194,31 @@ async def get_system_prompt(
 
 Считай это ВЫСОКИМ индикатором спама, даже если сам комментарий выглядит безобидно."""
 
+    if include_reply_context_guidance:
+        prompt += """
+
+Раздел <контекст_обсуждения> содержит текст поста, на который отвечает пользователь.
+
+ВЫСОКИЙ ИНДИКАТОР СПАМА: Комментарии, полностью не связанные с темой обсуждения.
+Это распространенная тактика мошенников: сначала "подружиться" через нерелевантные комментарии,
+затем в личных сообщениях предлагать инвестиции, криптовалюту или другие схемы.
+
+ПРИЗНАКИ ОТСУТСТВИЯ РЕЛЕВАНТНОСТИ:
+- Комментарий игнорирует основную тему оригинального поста
+- Переход на личные темы (книги, фильмы, хобби) без связи с обсуждением
+- Общие фразы вроде "интересно", "согласен" без конкретного отношения к контенту
+- Самореклама под видом "полезного совета" по несвязанной теме"""
+
     prompt += """
 
-ИСПОЛЬЗУЙ ФОРМАТ ОТВЕТА:
-<начало ответа>
-да ХХХ%
-<конец ответа>
-
-ИЛИ
-
-<начало ответа>
-нет ХХХ%
-<конец ответа>
-
-где ХХХ% - уровень твоей уверенности от 0 до 100.
-
-Больше ничего к ответу не добавляй.
+ИСПОЛЬЗУЙ JSON ФОРМАТ ОТВЕТА:
+{
+    "is_spam": boolean,
+    "confidence": integer (0-100),
+    "reason": string
+}
 
 ПРИМЕРЫ:
-
 """
 
     # Get spam examples, including user-specific examples
@@ -181,10 +230,16 @@ async def get_system_prompt(
             text=example["text"], name=example.get("name"), bio=example.get("bio")
         )
 
+        is_spam_ex = example["score"] > 0
+        confidence_ex = abs(example["score"])
+
         prompt += f"""
 {example_request}
 <ответ>
-{"да" if example["score"] > 0 else "нет"} {abs(example["score"])}%
+{{
+    "is_spam": {"true" if is_spam_ex else "false"},
+    "confidence": {confidence_ex}
+}}
 </ответ>
 """
     return prompt
@@ -197,9 +252,10 @@ def get_messages(
     prompt: str,
     linked_channel_fragment: str | None,
     stories_context: str | None = None,
+    reply_context: str | None = None,
 ):
     user_request = format_spam_request(
-        comment, name, bio, linked_channel_fragment, stories_context
+        comment, name, bio, linked_channel_fragment, stories_context, reply_context
     )
     user_message = f"""
 {user_request}
@@ -218,6 +274,7 @@ def format_spam_request(
     bio: Optional[str] = None,
     linked_channel_fragment: Optional[str] = None,
     stories_context: Optional[str] = None,
+    reply_context: Optional[str] = None,
 ) -> str:
     """
     Форматирует запрос для классификации спама.
@@ -251,15 +308,34 @@ def format_spam_request(
             f"<истории_пользователя>\n{stories_context}\n</истории_пользователя>\n"
         )
 
+    if reply_context:
+        request += f"<контекст_обсуждения>\n{reply_context}\n</контекст_обсуждения>\n"
+
     request += "</запрос>"
     return request
 
 
 def extract_spam_score(response: str):
     """
-    Извлекает оценку спама из ответа LLM, поддерживает любые теги <...> ... <...>, а также отсутствие открывающего тега
+    Извлекает оценку спама и причину из ответа LLM.
+    Поддерживает JSON формат и старый текстовый формат.
     """
-    # Ищем текст между любыми тегами <...> ... <...>
+    # First try to parse as JSON
+    try:
+        import json
+
+        data = json.loads(response)
+        if isinstance(data, dict):
+            is_spam = data.get("is_spam", False)
+            confidence = data.get("confidence", 0)
+            reason = data.get("reason", "No reason provided")
+
+            score = confidence if is_spam else -confidence
+            return score, reason
+    except (json.JSONDecodeError, KeyError, TypeError):
+        pass
+
+    # Fallback to old text format parsing
     flags = re.IGNORECASE | re.DOTALL
     match = re.search(r"<[^>]+>(.*?)<[^>]+>", response, flags=flags)
     if match:
@@ -268,12 +344,16 @@ def extract_spam_score(response: str):
         # Если есть только закрывающий тег, берём всё до него
         match_end = re.search(r"^(.*)<[^>]+>", response, flags=flags)
         answer = match_end[1].strip() if match_end else response.strip()
+
     parts = answer.lower().split()
     if len(parts) >= 2:
         if parts[0] == "да":
-            return int(parts[1].replace("%", "").strip())
+            score = int(parts[1].replace("%", "").strip())
+            return score, f"Классифицировано как спам с уверенностью {score}%"
         elif parts[0] == "нет":
-            return -int(parts[1].replace("%", "").strip())
+            score = -int(parts[1].replace("%", "").strip())
+            return score, f"Классифицировано как не спам с уверенностью {abs(score)}%"
+
     raise ExtractionFailedError(
         f"Failed to extract spam score from response: {response}"
     )

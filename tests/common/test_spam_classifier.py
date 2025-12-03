@@ -9,23 +9,25 @@ from src.app.common.spam_classifier import (
 
 
 @pytest.mark.parametrize(
-    "response,expected",
+    "response,expected_score,expected_reason",
     [
-        ("да 100%", 100),
-        ("нет 42%", -42),
-        ("<начало ответа> да 100% <конец ответа>", 100),
-        ("<начало ответа> нет 1% <конец ответа>", -1),
-        ("<abc> да 77% <xyz>", 77),
-        ("<ответ> нет 0% <end>", 0),
-        ("да 55% <любой тег>", 55),
-        ("нет 12% <abc>", -12),
-        ("<abc> да 99% <abc>", 99),
-        ("<abc> да 88% <zzz>", 88),
-        ("<abc> нет 66% <zzz>", -66),
+        ("да 100%", 100, "Классифицировано как спам с уверенностью 100%"),
+        ("нет 42%", -42, "Классифицировано как не спам с уверенностью 42%"),
+        ("<начало ответа> да 100% <конец ответа>", 100, "Классифицировано как спам с уверенностью 100%"),
+        ("<начало ответа> нет 1% <конец ответа>", -1, "Классифицировано как не спам с уверенностью 1%"),
+        ("<abc> да 77% <xyz>", 77, "Классифицировано как спам с уверенностью 77%"),
+        ("<ответ> нет 0% <end>", 0, "Классифицировано как не спам с уверенностью 0%"),
+        ("да 55% <любой тег>", 55, "Классифицировано как спам с уверенностью 55%"),
+        ("нет 12% <abc>", -12, "Классифицировано как не спам с уверенностью 12%"),
+        ("<abc> да 99% <abc>", 99, "Классифицировано как спам с уверенностью 99%"),
+        ("<abc> да 88% <zzz>", 88, "Классифицировано как спам с уверенностью 88%"),
+        ("<abc> нет 66% <zzz>", -66, "Классифицировано как не спам с уверенностью 66%"),
     ],
 )
-def test_extract_spam_score_valid(response, expected):
-    assert extract_spam_score(response) == expected
+def test_extract_spam_score_valid(response, expected_score, expected_reason):
+    score, reason = extract_spam_score(response)
+    assert score == expected_score
+    assert reason == expected_reason
 
 
 @pytest.mark.parametrize(
@@ -66,6 +68,14 @@ def test_format_spam_request_with_linked_channel():
     )
     assert "<связанный_канал>subscribers=100</связанный_канал>" in req
 
+
+def test_format_spam_request_with_reply_context():
+    req = format_spam_request(
+        "Hello",
+        reply_context="Original post text"
+    )
+    assert "<контекст_обсуждения>\nOriginal post text\n</контекст_обсуждения>" in req
+
 @pytest.mark.asyncio
 async def test_get_system_prompt_stories_guidance():
     with patch("src.app.common.spam_classifier.get_spam_examples", new_callable=AsyncMock) as mock_examples:
@@ -75,6 +85,25 @@ async def test_get_system_prompt_stories_guidance():
 
         assert "Раздел <истории_пользователя> содержит информацию" in prompt
         assert "Считай это ВЫСОКИМ индикатором спама" in prompt
+
+@pytest.mark.asyncio
+async def test_get_system_prompt_reply_context_guidance():
+    with patch("src.app.common.spam_classifier.get_spam_examples", new_callable=AsyncMock) as mock_examples:
+        mock_examples.return_value = []
+
+        prompt = await get_system_prompt(include_reply_context_guidance=True)
+
+        assert "Раздел <контекст_обсуждения> содержит текст поста" in prompt
+        assert "ВЫСОКИЙ ИНДИКАТОР СПАМА: Комментарии, полностью не связанные с темой обсуждения" in prompt
+
+@pytest.mark.asyncio
+async def test_get_system_prompt_no_reply_context_guidance():
+    with patch("src.app.common.spam_classifier.get_spam_examples", new_callable=AsyncMock) as mock_examples:
+        mock_examples.return_value = []
+
+        prompt = await get_system_prompt(include_reply_context_guidance=False)
+
+        assert "Раздел <контекст_обсуждения>" not in prompt
 
 @pytest.mark.asyncio
 async def test_get_system_prompt_no_guidance():

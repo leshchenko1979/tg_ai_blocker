@@ -221,7 +221,7 @@ class TestSpamDeletion:
             patch("src.app.handlers.message_handlers.bot") as mock_bot,
         ):
             mock_collect_summary.return_value = mock_summary
-            mock_is_spam.return_value = 85  # Spam score
+            mock_is_spam.return_value = (85, "Test spam reason")  # Spam score and reason
 
             mock_bot.get_chat = AsyncMock()  # Mock get_chat for bio fetch
 

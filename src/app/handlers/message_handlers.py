@@ -76,7 +76,7 @@ async def handle_moderated_message(message: types.Message) -> str:
 
         message_text, forward_info, is_story = build_forward_info(message)
 
-        spam_score, bio = await get_spam_score_and_bio(
+        spam_score, bio, reason = await get_spam_score_and_bio(
             message, message_text, group, is_story
         )
 
@@ -87,7 +87,7 @@ async def handle_moderated_message(message: types.Message) -> str:
         await track_spam_check_result(chat_id, user_id, spam_score, message_text, bio)
 
         return await process_spam_or_approve(
-            chat_id, user_id, spam_score, message, group.admin_ids
+            chat_id, user_id, spam_score, message, group.admin_ids, reason
         )
 
     except Exception as e:
@@ -309,13 +309,22 @@ async def check_known_member(chat_id, user_id):
 
 async def get_spam_score_and_bio(message, message_text, group, is_story):
     if is_story:
-        return 100, None
+        return 100, None, "Story forward"
 
     bio = None
     name = "Unknown"
     channel_fragment = None
     stories_context = None
+    reply_context = None
     admin_ids = group.admin_ids
+
+    # Extract reply context if this is a reply
+    if message.reply_to_message:
+        reply_context = (
+            message.reply_to_message.text
+            or message.reply_to_message.caption
+            or "[MEDIA_MESSAGE]"
+        )
 
     # Check if message is from a sender_chat (channel) that is NOT the group itself
     if message.sender_chat and message.sender_chat.id != message.chat.id:
@@ -413,18 +422,21 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
                     },
                 )
 
-    spam_score = await is_spam(
+    spam_score, reason = await is_spam(
         comment=message_text,
         name=name,
         bio=bio,
         admin_ids=admin_ids,
         linked_channel_fragment=channel_fragment,
         stories_context=stories_context,
+        reply_context=reply_context,
     )
-    return spam_score, bio
+    return spam_score, bio, reason
 
 
-async def track_spam_check_result(chat_id, user_id, spam_score, message_text, bio):
+async def track_spam_check_result(
+    chat_id, user_id, spam_score, message_text, bio, reason=None
+):
     await track_group_event(
         chat_id,
         "spam_check_result",
@@ -435,14 +447,17 @@ async def track_spam_check_result(chat_id, user_id, spam_score, message_text, bi
             "is_spam": spam_score > 50,
             "message_text": message_text,
             "user_bio": bio,
+            "reason": reason,
         },
     )
 
 
-async def process_spam_or_approve(chat_id, user_id, spam_score, message, admin_ids):
+async def process_spam_or_approve(
+    chat_id, user_id, spam_score, message, admin_ids, reason
+):
     if spam_score > 50:
         if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
-            await handle_spam(message, admin_ids)
+            await handle_spam(message, admin_ids, reason)
             return "message_spam_deleted"
 
     elif await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
