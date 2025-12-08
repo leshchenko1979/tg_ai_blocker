@@ -38,7 +38,7 @@ async def find_original_message(
     forward_date: datetime,
     admin_chat_ids: Sequence[int],
     search_days_back: int = 3,
-) -> Optional[Dict[str, int]]:
+) -> Optional[Dict[str, int | None]]:
     """
     Query Logfire to find the original message by user_id (if available), text, and date.
 
@@ -77,6 +77,7 @@ async def find_original_message(
     SELECT
         (attributes->'update'->'message'->>'message_id')::bigint as message_id,
         (attributes->'update'->'message'->'chat'->>'id')::bigint as chat_id,
+        (attributes->'update'->'message'->'from'->>'id')::bigint as user_id,
         start_timestamp
     FROM records
     WHERE
@@ -108,11 +109,16 @@ async def find_original_message(
             row = results["rows"][0]
             message_id = int(row["message_id"])
             chat_id = int(row["chat_id"])
+            user_id_result = int(row["user_id"]) if row.get("user_id") else None
             logger.info(
-                f"Found original message: message_id={message_id}, chat_id={chat_id}",
+                f"Found original message: message_id={message_id}, chat_id={chat_id}, user_id={user_id_result}",
                 extra={"logfire_lookup": "success"},
             )
-            return {"message_id": message_id, "chat_id": chat_id}
+            return {
+                "message_id": message_id,
+                "chat_id": chat_id,
+                "user_id": user_id_result,
+            }
         else:
             logger.info(
                 "No matching message found in Logfire",

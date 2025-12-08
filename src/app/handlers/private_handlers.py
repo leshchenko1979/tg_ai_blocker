@@ -488,6 +488,13 @@ async def extract_original_message_info(
             if lookup_result:
                 info["group_chat_id"] = lookup_result["chat_id"]
                 info["group_message_id"] = lookup_result["message_id"]
+                if not info["user_id"] and lookup_result.get("user_id"):
+                    info["user_id"] = lookup_result["user_id"]
+                    logger.info(
+                        f"Recovered user_id {info['user_id']} from Logfire",
+                        extra={"logfire_lookup": "user_recovered"},
+                    )
+
                 logger.info(
                     "Logfire lookup succeeded",
                     extra={
