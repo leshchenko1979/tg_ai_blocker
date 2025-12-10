@@ -329,8 +329,8 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                     extra={"user_id": user_id, "username": username, "error": str(exc)},
                 )
                 summary = None
-            if summary:
-                channel_fragment = summary.to_prompt_fragment()
+            if summary and summary.linked_channel:
+                channel_fragment = summary.linked_channel.to_prompt_fragment()
 
         try:
             await callback.answer(

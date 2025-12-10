@@ -31,6 +31,7 @@ async def is_spam(
     linked_channel_fragment: str | None = None,
     stories_context: str | None = None,
     reply_context: str | None = None,
+    account_age_context: str | None = None,
 ) -> Tuple[int, str]:
     """
     Классифицирует сообщение как спам или не спам
@@ -51,6 +52,7 @@ async def is_spam(
         include_linked_channel_guidance=linked_channel_fragment is not None,
         include_stories_guidance=stories_context is not None,
         include_reply_context_guidance=reply_context is not None,
+        include_account_age_guidance=account_age_context is not None,
     )
     messages = get_messages(
         comment,
@@ -60,6 +62,7 @@ async def is_spam(
         linked_channel_fragment,
         stories_context,
         reply_context,
+        account_age_context,
     )
 
     last_response = None
@@ -158,6 +161,7 @@ async def get_system_prompt(
     include_linked_channel_guidance: bool = False,
     include_stories_guidance: bool = False,
     include_reply_context_guidance: bool = False,
+    include_account_age_guidance: bool = False,
 ):
     """Get the full prompt with spam examples from database"""
     prompt = """Ты - классификатор спама. Администратор группы телеграм подает тебе
@@ -193,6 +197,18 @@ async def get_system_prompt(
 - Ссылки на другие каналы
 
 Считай это ВЫСОКИМ индикатором спама, даже если сам комментарий выглядит безобидно."""
+
+    if include_account_age_guidance:
+        prompt += """
+
+Раздел <возраст_аккаунта> содержит информацию о "возрасте" (давности) фотографии профиля пользователя.
+Это мощный индикатор спама, так как спамеры часто создают аккаунты и сразу начинают рассылку.
+
+Интерпретация:
+- `photo_age=unknown` или отсутствует фото: ВЫСОКИЙ риск спама для новых сообщений.
+- `photo_age=0mo` (меньше месяца): ВЫСОКИЙ риск спама. Вероятно, аккаунт "свежий".
+- `photo_age=1mo`...`3mo`: СРЕДНИЙ риск.
+- `photo_age > 12mo`: НИЗКИЙ риск (фактор доверия). Старое фото говорит о долгоживущем аккаунте."""
 
     if include_reply_context_guidance:
         prompt += """
@@ -253,9 +269,16 @@ def get_messages(
     linked_channel_fragment: str | None,
     stories_context: str | None = None,
     reply_context: str | None = None,
+    account_age_context: str | None = None,
 ):
     user_request = format_spam_request(
-        comment, name, bio, linked_channel_fragment, stories_context, reply_context
+        comment,
+        name,
+        bio,
+        linked_channel_fragment,
+        stories_context,
+        reply_context,
+        account_age_context,
     )
     user_message = f"""
 {user_request}
@@ -275,6 +298,7 @@ def format_spam_request(
     linked_channel_fragment: Optional[str] = None,
     stories_context: Optional[str] = None,
     reply_context: Optional[str] = None,
+    account_age_context: Optional[str] = None,
 ) -> str:
     """
     Форматирует запрос для классификации спама.
@@ -307,6 +331,9 @@ def format_spam_request(
         request += (
             f"<истории_пользователя>\n{stories_context}\n</истории_пользователя>\n"
         )
+
+    if account_age_context:
+        request += f"<возраст_аккаунта>\n{account_age_context}\n</возраст_аккаунта>\n"
 
     if reply_context:
         request += f"<контекст_обсуждения>\n{reply_context}\n</контекст_обсуждения>\n"

@@ -7,6 +7,7 @@ from src.app.common.linked_channel import (
     collect_linked_channel_summary,
     collect_channel_summary_by_id,
     LinkedChannelSummary,
+    UserContext,
 )
 
 
@@ -22,10 +23,15 @@ class TestLinkedChannelExtraction:
         mock_client = MagicMock()
 
         # Mock call_with_fallback for both getFullUser and getFullChannel
-        mock_client.call_with_fallback = AsyncMock(side_effect=[
-            ({"full_user": {"personal_channel_id": 67890}}, user_id),  # getFullUser
-            ({"full_chat": {"participants_count": 1000}}, 67890),     # getFullChannel
-        ])
+        mock_client.call_with_fallback = AsyncMock(
+            side_effect=[
+                (
+                    {"full_user": {"personal_channel_id": 67890}},
+                    user_id,
+                ),  # getFullUser
+                ({"full_chat": {"participants_count": 1000}}, 67890),  # getFullChannel
+            ]
+        )
 
         # Mock call for messages.getHistory (only remaining call)
         mock_client.call = AsyncMock(return_value={"messages": [], "count": 0})
@@ -52,12 +58,14 @@ class TestLinkedChannelExtraction:
             assert mock_client.call.call_count == 1
 
             # Verify we got the expected result
-            assert isinstance(result, LinkedChannelSummary)
-            assert result.subscribers == 1000
+            assert isinstance(result, UserContext)
+            assert result.linked_channel is not None
+            assert isinstance(result.linked_channel, LinkedChannelSummary)
+            assert result.linked_channel.subscribers == 1000
             assert (
-                result.total_posts == 0
+                result.linked_channel.total_posts == 0
             )  # From the mocked messages.getHistory response
-            assert result.post_age_delta is None  # Channel has no posts
+            assert result.linked_channel.post_age_delta is None  # Channel has no posts
 
     @pytest.mark.asyncio
     async def test_collect_linked_channel_summary_no_linked_channel(self):
@@ -66,18 +74,18 @@ class TestLinkedChannelExtraction:
 
         # Mock MTProto client - user has no linked channel
         mock_client = MagicMock()
-        mock_client.call_with_fallback = AsyncMock(return_value=(
-            {"full_user": {}},  # No personal_channel_id
-            user_id
-        ))
+        mock_client.call_with_fallback = AsyncMock(
+            return_value=({"full_user": {}}, user_id)  # No personal_channel_id
+        )
 
         with patch(
             "src.app.common.linked_channel.get_mtproto_client", return_value=mock_client
         ):
             result = await collect_linked_channel_summary(user_id)
 
-            # Should return None when no linked channel
-            assert result is None
+            # Should return UserContext with None linked_channel when no linked channel
+            assert isinstance(result, UserContext)
+            assert result.linked_channel is None
 
             # Verify call_with_fallback was called
             mock_client.call_with_fallback.assert_called_once()
@@ -89,10 +97,12 @@ class TestLinkedChannelExtraction:
         username = "testchannel"
 
         mock_client = MagicMock()
-        mock_client.call_with_fallback = AsyncMock(return_value=(
-            {"full_chat": {"participants_count": 500}},
-            username  # successful identifier
-        ))
+        mock_client.call_with_fallback = AsyncMock(
+            return_value=(
+                {"full_chat": {"participants_count": 500}},
+                username,  # successful identifier
+            )
+        )
         mock_client.call = AsyncMock(return_value={"messages": [], "count": 0})
 
         with patch(
@@ -104,7 +114,9 @@ class TestLinkedChannelExtraction:
             mock_client.call_with_fallback.assert_called_once()
             call_args = mock_client.call_with_fallback.call_args
             assert call_args[0][0] == "channels.getFullChannel"
-            assert call_args[1]["identifiers"] == [username, 12345]  # username first, then mtproto_id
+            assert (
+                call_args[1]["identifiers"] == [username, 12345]
+            )  # username first, then mtproto_id
             assert call_args[1]["identifier_param"] == "channel"
 
             # Verify result
@@ -120,10 +132,12 @@ class TestLinkedChannelExtraction:
         mock_client = MagicMock()
 
         # Mock call_with_fallback to simulate fallback behavior (username fails, ID succeeds)
-        mock_client.call_with_fallback = AsyncMock(return_value=(
-            {"full_chat": {"participants_count": 500}},
-            mtproto_id  # successful identifier (ID, not username)
-        ))
+        mock_client.call_with_fallback = AsyncMock(
+            return_value=(
+                {"full_chat": {"participants_count": 500}},
+                mtproto_id,  # successful identifier (ID, not username)
+            )
+        )
         mock_client.call = AsyncMock(return_value={"messages": [], "count": 0})
 
         with patch(
@@ -135,7 +149,9 @@ class TestLinkedChannelExtraction:
             mock_client.call_with_fallback.assert_called_once()
             call_args = mock_client.call_with_fallback.call_args
             assert call_args[0][0] == "channels.getFullChannel"
-            assert call_args[1]["identifiers"] == [username, mtproto_id]  # username first, then ID
+            assert (
+                call_args[1]["identifiers"] == [username, mtproto_id]
+            )  # username first, then ID
             assert call_args[1]["identifier_param"] == "channel"
 
             # Verify result

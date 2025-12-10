@@ -18,8 +18,13 @@ from ..common.bot import bot
 from ..common.mp import mp
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.tracking import track_group_event, track_spam_detection
-from ..common.utils import get_spam_guide_url, retry_on_network_error, sanitize_html
-from ..database import get_admin
+from ..common.utils import (
+    get_setup_guide_url,
+    get_spam_guide_url,
+    retry_on_network_error,
+    sanitize_html,
+)
+from ..database import get_admins_map
 from ..database.group_operations import remove_member_from_group
 
 logger = logging.getLogger(__name__)
@@ -49,7 +54,9 @@ async def handle_spam(
 
         if all_admins_delete:
             await handle_spam_message_deletion(message, admin_ids)
-            await ban_user_for_spam(message.chat.id, message.from_user.id)
+            await ban_user_for_spam(
+                message.chat.id, message.from_user.id, admin_ids, message.chat.title
+            )
             return "spam_auto_deleted"
 
         return (
@@ -81,8 +88,12 @@ async def check_admin_delete_preferences(admin_ids: list[int]) -> bool:
     Returns:
         bool: True если все админы включили автоудаление, False иначе
     """
+    if not admin_ids:
+        return False
+
+    admins_map = await get_admins_map(admin_ids)
     for admin_id in admin_ids:
-        admin_user = await get_admin(admin_id)
+        admin_user = admins_map.get(admin_id)
         if not admin_user or not admin_user.delete_spam:
             return False
     return True
@@ -123,6 +134,103 @@ def create_admin_notification_keyboard(
             ),
         ]
     return InlineKeyboardMarkup(inline_keyboard=[row])
+
+
+def format_missing_permission_message(chat_title: str, permission_name: str) -> str:
+    """
+    Форматирует сообщение о отсутствии прав доступа.
+
+    Args:
+        chat_title: Название группы
+        permission_name: Название отсутствующего права
+
+    Returns:
+        str: Отформатированное сообщение для администраторов
+    """
+    # Map permission names to user-friendly descriptions
+    permission_descriptions = {
+        "Удаление сообщений": "удалять спам-сообщения",
+        "Блокировка пользователей": "блокировать пользователей",
+    }
+
+    action_description = permission_descriptions.get(
+        permission_name, permission_name.lower()
+    )
+
+    return (
+        f"❗️ У меня нет права {action_description}. "
+        f"Пожалуйста, дайте мне право '{permission_name}' для полной защиты.\n\n"
+        f"Группа: <b>{sanitize_html(chat_title)}</b>\n\n"
+        f'<a href="{get_setup_guide_url()}">ℹ️ Как выдать права боту</a>'
+    )
+
+
+async def handle_permission_error(
+    error: Exception,
+    chat_id: int,
+    admin_ids: list[int] | None,
+    group_title: str | None,
+    permission_name: str,
+    action_description: str,
+) -> bool:
+    """
+    Обрабатывает ошибки связанные с отсутствием прав доступа.
+
+    Args:
+        error: Исключение, которое произошло
+        chat_id: ID чата
+        admin_ids: Список ID администраторов для уведомления
+        group_title: Название группы
+        permission_name: Название отсутствующего права
+        action_description: Описание действия, которое пытались выполнить
+
+    Returns:
+        bool: True если это была ошибка прав доступа, False иначе
+    """
+    if not isinstance(error, TelegramBadRequest):
+        return False
+
+    error_message = str(error).lower()
+    is_permission_error = (
+        "not enough rights" in error_message
+        or "need administrator rights" in error_message
+        or "chat admin required" in error_message
+        or "can_delete_messages" in error_message
+        or "can_restrict_members" in error_message
+        or "message can't be deleted" in error_message
+    )
+
+    if is_permission_error:
+        logger.warning(
+            f"Cannot {action_description} in chat {chat_id}: {error}",
+            exc_info=True,
+        )
+        # Notify admins about missing permission
+        if admin_ids:
+            try:
+                display_title = group_title or str(chat_id)
+                await notify_admins_with_fallback_and_cleanup(
+                    bot,
+                    admin_ids,
+                    chat_id,
+                    private_message=format_missing_permission_message(
+                        display_title, permission_name
+                    ),
+                    group_message_template=(
+                        f"{{mention}}, у меня нет права {permission_name}. "
+                        f"Пожалуйста, дайте мне право '{permission_name}'!\n\n"
+                        f'<a href="{get_setup_guide_url()}">ℹ️ Как выдать права боту</a>'
+                    ),
+                    cleanup_if_group_fails=True,
+                    parse_mode="HTML",
+                )
+            except Exception as notify_exc:
+                logger.warning(
+                    f"Failed to notify admins about missing rights for {action_description}: {notify_exc}"
+                )
+        return True
+
+    return False
 
 
 def format_admin_notification_message(
@@ -253,53 +361,16 @@ async def handle_spam_message_deletion(
             },
         )
     except TelegramBadRequest as e:
-        # Check for deletion errors that indicate permission issues
-        error_message = str(e).lower()
-        is_deletion_error = (
-            "not enough rights" in error_message
-            or "need administrator rights" in error_message
-            or "chat admin required" in error_message
-            or "can_delete_messages" in error_message
-            or "message can't be deleted" in error_message
-        )
-
-        if is_deletion_error:
-            logger.warning(
-                f"Cannot delete spam message {message.message_id} in chat {message.chat.id}: {e}",
-                exc_info=True,
-            )
-            # Notify admins about missing permission - if this fails, cleanup will happen
-            if admin_ids:  # Only notify if there are admins to notify
-                try:
-                    group_title = message.chat.title or ""
-                    notification_result = await notify_admins_with_fallback_and_cleanup(
-                        bot,
-                        admin_ids,
-                        message.chat.id,
-                        private_message=(
-                            "❗️ У меня нет права удалять спам-сообщения в группе. "
-                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы.\n\nГруппа: <b>{sanitize_html(group_title)}</b>"
-                        ),
-                        group_message_template="{mention}, у меня нет права удалять спам-сообщения. Пожалуйста, дайте мне право 'Удаление сообщений'!",
-                        cleanup_if_group_fails=True,
-                        parse_mode="HTML",
-                    )
-                    if (
-                        not notification_result["notified_private"]
-                        and not notification_result["group_notified"]
-                    ):
-                        logger.error(
-                            f"Failed to notify admins about missing spam deletion rights - all notification methods failed for chat {message.chat.id}, cleanup initiated"
-                        )
-                    elif notification_result["group_cleaned_up"]:
-                        logger.info(
-                            f"Group {message.chat.id} cleaned up due to inability to notify admins about missing delete permissions for spam"
-                        )
-                except Exception as notify_exc:
-                    logger.warning(
-                        f"Failed to notify admins about missing rights for spam deletion: {notify_exc}"
-                    )
-        else:
+        # Handle permission errors using unified helper
+        if not await handle_permission_error(
+            e,
+            message.chat.id,
+            admin_ids,
+            message.chat.title,
+            "Удаление сообщений",
+            "delete spam message",
+        ):
+            # Not a permission error, log as general error
             logger.warning(
                 f"Could not delete spam message {message.message_id} in chat {message.chat.id}: {e}",
                 exc_info=True,
@@ -315,12 +386,19 @@ async def handle_spam_message_deletion(
         )
 
 
-async def ban_user_for_spam(chat_id: int, user_id: int) -> None:
+async def ban_user_for_spam(
+    chat_id: int,
+    user_id: int,
+    admin_ids: list[int] | None = None,
+    group_title: str | None = None,
+) -> None:
     """
     Банит пользователя в группе и удаляет из approved_members.
     Args:
         chat_id: ID чата
         user_id: ID пользователя
+        admin_ids: Список ID администраторов для уведомления об ошибках
+        group_title: Название группы (для уведомлений)
     """
     try:
 
@@ -333,6 +411,20 @@ async def ban_user_for_spam(chat_id: int, user_id: int) -> None:
 
         await ban_spam_user()
         logger.info(f"Banned user {user_id} in chat {chat_id} for spam")
+    except TelegramBadRequest as e:
+        # Handle permission errors using unified helper
+        if not await handle_permission_error(
+            e,
+            chat_id,
+            admin_ids,
+            group_title,
+            "Блокировка пользователей",
+            "ban user",
+        ):
+            # Not a permission error, log as general error
+            logger.warning(
+                f"Failed to ban user {user_id} in chat {chat_id}: {e}", exc_info=True
+            )
     except Exception as e:
         logger.warning(
             f"Failed to ban user {user_id} in chat {chat_id}: {e}", exc_info=True

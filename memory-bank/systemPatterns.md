@@ -10,7 +10,8 @@
   - **Context Enrichment**:
     - **Linked Channel**: Checks for suspicious channel stats (low subs, new channel) via MTProto.
     - **User Stories**: Fetches user stories via MTProto `stories.getPeerStories` to detect hidden spam payloads (links, scam offers) in profiles.
-  - **Decision**: LLM scores content based on text, profile bio, linked channel stats, and story content.
+    - **Account Age**: Estimates account age via User ID range and checks profile photo date via `users.getFullUser` to penalize brand new accounts (ID > 6B, recent photo).
+  - **Decision**: LLM scores content based on text, profile bio, linked channel stats, stories, and account age.
   - **Action**: High scores (>50%) trigger either auto-deletion/ban (if admin has delete_spam=True) or notifications only (if delete_spam=False, new user default).
   - **Permission Failures**: "message can't be deleted" errors trigger admin notifications with private→group fallback.
   - **User Mode Control**: /mode command allows users to toggle between notification-only and auto-deletion modes.

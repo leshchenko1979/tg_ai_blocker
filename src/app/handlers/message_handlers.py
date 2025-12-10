@@ -7,6 +7,7 @@ from aiogram import types
 from ..common.bot import bot
 from ..common.linked_channel import (
     LinkedChannelSummary,
+    UserContext,
     collect_channel_summary_by_id,
     collect_linked_channel_summary,
 )
@@ -314,6 +315,7 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
     bio = None
     name = "Unknown"
     channel_fragment = None
+    account_info_fragment = None
     stories_context = None
     reply_context = None
     admin_ids = group.admin_ids
@@ -380,7 +382,7 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
                     stories_task, linked_channel_task, return_exceptions=True
                 )
                 stories_result = results[0]
-                linked_channel_result = results[1]
+                user_context_result = results[1]
 
                 # Handle stories result
                 if isinstance(stories_result, Exception):
@@ -395,21 +397,28 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
                 elif stories_result is not None:
                     stories_context = cast(str, stories_result)
 
-                # Handle linked channel result
-                if isinstance(linked_channel_result, Exception):
+                # Handle linked channel/user context result
+                if isinstance(user_context_result, Exception):
                     logger.info(
                         "Failed to collect linked channel summary",
                         extra={
                             "user_id": user.id,
                             "username": user.username,
-                            "error": str(linked_channel_result),
+                            "error": str(user_context_result),
                         },
                     )
                 else:
-                    # linked_channel_result is not an Exception here
-                    if linked_channel_result is not None:
-                        summary = cast(LinkedChannelSummary, linked_channel_result)
-                        channel_fragment = summary.to_prompt_fragment()
+                    # user_context_result is not an Exception here
+                    if user_context_result is not None:
+                        user_context = cast(UserContext, user_context_result)
+                        if user_context.linked_channel:
+                            channel_fragment = (
+                                user_context.linked_channel.to_prompt_fragment()
+                            )
+                        if user_context.account_info:
+                            account_info_fragment = (
+                                user_context.account_info.to_prompt_fragment()
+                            )
 
             except Exception as exc:
                 # Fallback in case gather itself fails
@@ -430,6 +439,7 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
         linked_channel_fragment=channel_fragment,
         stories_context=stories_context,
         reply_context=reply_context,
+        account_age_context=account_info_fragment,
     )
     return spam_score, bio, reason
 

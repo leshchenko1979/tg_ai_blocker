@@ -32,14 +32,58 @@ class LinkedChannelSummary:
         return "; ".join(parts)
 
 
+@dataclass(slots=True)
+class UserAccountInfo:
+    user_id: int
+    profile_photo_date: Optional[datetime] = None
+
+    @property
+    def photo_age_months(self) -> Optional[int]:
+        if not self.profile_photo_date:
+            return None
+        now = datetime.now(timezone.utc)
+        return (
+            (now.year - self.profile_photo_date.year) * 12
+            + now.month
+            - self.profile_photo_date.month
+        )
+
+    def to_prompt_fragment(self) -> str:
+        parts = []
+
+        # Only use photo age for prompt, ignore ID as per new robust strategy
+        age_months = self.photo_age_months
+
+        if age_months is not None:
+            # Ensure non-negative
+            age_months = max(0, age_months)
+            parts.append(f"photo_age={age_months}mo")
+        else:
+            parts.append("photo_age=unknown")
+
+        return "; ".join(parts)
+
+
+@dataclass(slots=True)
+class UserContext:
+    linked_channel: Optional[LinkedChannelSummary] = None
+    account_info: Optional[UserAccountInfo] = None
+
+
 @logfire.instrument()
-async def collect_linked_channel_summary(
+async def collect_user_context(
     user_reference: str | int,
     username: Optional[str] = None,
-) -> Optional[LinkedChannelSummary]:
+) -> UserContext:
+    """
+    Collects user context including linked channel summary and account age signals.
+    """
     client = get_mtproto_client()
+    linked_channel_summary = None
+    account_info = None
+
     with logfire.span(
-        "Collecting linked channel summary via MTProto (direct)",
+        "Collecting user context via MTProto",
         user_reference=user_reference,
         username=username,
     ):
@@ -49,12 +93,32 @@ async def collect_linked_channel_summary(
             identifiers.append(username)
         identifiers.append(user_reference)
 
+        full_user = {}
         try:
             full_user_response, _ = await client.call_with_fallback(
                 "users.getFullUser",
                 identifiers=identifiers,
                 identifier_param="id",
             )
+            full_user = full_user_response.get("full_user") or {}
+
+            # Extract Account Info
+            user_id = full_user.get("id")
+            if not user_id and isinstance(user_reference, int):
+                user_id = user_reference
+
+            # Fallback to user_reference if int and not found in response (unlikely for success)
+            if user_id:
+                profile_photo = full_user.get("profile_photo")
+                photo_date = None
+                if profile_photo and isinstance(profile_photo, dict):
+                    photo_date = _extract_date(profile_photo.get("date"))
+
+                account_info = UserAccountInfo(
+                    user_id=int(user_id),
+                    profile_photo_date=photo_date,
+                )
+
         except MtprotoHttpError as e:
             logger.info(
                 "MTProto failed for full user with all identifiers",
@@ -65,20 +129,28 @@ async def collect_linked_channel_summary(
                     "error": str(e),
                 },
             )
-            return None
+            # Proceed without full user info (returns empty context)
+            pass
 
-    full_user = full_user_response.get("full_user") or {}
-    personal_channel_id = full_user.get("personal_channel_id")
-    if not personal_channel_id:
-        logfire.debug(
-            "User has no linked channel in profile",
-            user_reference=user_reference,
-            full_user_keys=list(full_user.keys()),
-        )
-        return None
+        # Extract Linked Channel
+        personal_channel_id = full_user.get("personal_channel_id")
+        if personal_channel_id:
+            channel_id = int(personal_channel_id)
+            linked_channel_summary = await collect_channel_summary_by_id(
+                channel_id, user_reference
+            )
+        else:
+            logfire.debug(
+                "User has no linked channel in profile",
+                user_reference=user_reference,
+                full_user_keys=list(full_user.keys()),
+            )
 
-    channel_id = int(personal_channel_id)
-    return await collect_channel_summary_by_id(channel_id, user_reference)
+    return UserContext(linked_channel=linked_channel_summary, account_info=account_info)
+
+
+# Alias for backward compatibility if needed, but we will refactor usage
+collect_linked_channel_summary = collect_user_context
 
 
 @logfire.instrument()
@@ -215,10 +287,9 @@ async def _fetch_channel_edge_message(
     return message, total
 
 
-def _extract_message_date(message: Optional[Dict[str, Any]]) -> Optional[datetime]:
-    if not message:
+def _extract_date(timestamp: Any) -> Optional[datetime]:
+    if not timestamp:
         return None
-    timestamp = message.get("date")
     if isinstance(timestamp, int):
         return datetime.fromtimestamp(timestamp, tz=timezone.utc)
     if isinstance(timestamp, str):
@@ -226,6 +297,12 @@ def _extract_message_date(message: Optional[Dict[str, Any]]) -> Optional[datetim
             # Strings returned by the bridge are ISO8601 with timezone
             return datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         except ValueError:
-            logfire.debug("Failed to parse message date", timestamp=timestamp)
+            logfire.debug("Failed to parse date", timestamp=timestamp)
             return None
     return None
+
+
+def _extract_message_date(message: Optional[Dict[str, Any]]) -> Optional[datetime]:
+    if not message:
+        return None
+    return _extract_date(message.get("date"))

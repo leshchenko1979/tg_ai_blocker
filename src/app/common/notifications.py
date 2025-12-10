@@ -210,8 +210,20 @@ async def notify_admins_with_fallback_and_cleanup(
             if cleanup_if_group_fails:
                 cleanup_success = await perform_complete_group_cleanup(group_id)
                 result["group_cleaned_up"] = cleanup_success
+                if cleanup_success:
+                    logger.info(
+                        f"Group {group_id} cleaned up due to inability to notify admins - all notification methods failed"
+                    )
             else:
                 logger.info(
                     f"Cleanup disabled for group {group_id}, leaving group accessible despite notification failure"
                 )
+
+            # Log specific error if all notifications failed
+            if not result["notified_private"] and not result["group_notified"]:
+                logger.error(
+                    f"Failed to notify admins - all notification methods failed for chat {group_id}"
+                    + (", cleanup initiated" if cleanup_if_group_fails else "")
+                )
+
             return result

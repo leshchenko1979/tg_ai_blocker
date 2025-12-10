@@ -1,23 +1,29 @@
-# What works
+## Progress
+
+### What works
 - Telegram webhook server
 - aiogram handlers
-- Spam classifier with:
-  - Text analysis
-  - Linked channel context (suspicious channel detection)
-  - **Story-based spam detection** (restricted to replies to channel posts)
+- Spam classifier (LLM + Context + Stories + Account Age)
 - Billing via Telegram Stars
-- Mixpanel tracking hooks
+- Mixpanel tracking
 - PostgreSQL data layer
-- MTProto bridge enrichment
-- Telegram logging handler (with logfire spans and properly initialized metrics)
-- A `/health` endpoint returning plain `ok` for Sablier probes are live
-- Comment-spam prompt now interprets linked-channel fragments with explicit suspicion thresholds.
-- Linked channel extraction optimized with username-first resolution (tries username before user ID) and direct MTProto-only approach (bot API calls removed). **Improved for channel senders (sender_chat) to also use username resolution.**
-- Logfire client-based message lookup implemented for reliable spam deletion from forwarded reports, scoped to admin-managed chats with 3-day search window; now supports hidden user forwards where user_id is not available.
-- **Hidden User ID Recovery**: Logfire lookup now retrieves `user_id` from historical records, allowing the bot to ban spammers even when reported via "hidden user" forwards.
-- Permission failure handling unified across spam and service message deletion: when bot encounters "message can't be deleted" or other permission errors, admins are notified with private→group fallback and groups are left/cleaned from DB when all notification methods fail.
-- Fixed channel bot approval bug: Messages sent by channels now use the channel's ID for moderation instead of the generic Channel Bot ID, preventing accidental whitelisting of all channel spam.
-- `/stats` command updated to use direct Logfire queries for weekly metrics (processed/spam), removing the need for a local `stats` table and ensuring data consistency.
-- Fixed `UnboundLocalError` in callback handlers and improved robustness against "query is too old" errors by ensuring critical logic proceeds even if UI feedback fails.
-- **Bot Removal Notification System**: Optimized admin notification when bot gets kicked, with intelligent bot detection that skips expensive API calls for pre-filtered admin lists (~50-80% performance improvement). Enhanced logging shows who performed removal. Database-level bot filtering prevents GroupAnonymousBot contamination. Logfire instrumentation provides automatic observability.
-- **Safer User Onboarding**: New users now start in notification mode (no automatic spam deletion) to prevent false positives and user abandonment. Spam notifications include guidance about using /mode command to switch to deletion mode.
+- MTProto bridge
+- Telegram logging handler
+- **Robust Permission Handling**:
+  - Message deletion permission checks.
+  - **User ban permission checks** (New: notifies admins if ban fails).
+- Admin Notifications:
+  - Private chat priority
+  - Group chat fallback
+  - Automatic cleanup if unreachable
+- Linked Channel detection (Username-first resolution)
+- Logfire message lookup
+- Hidden User ID Recovery
+
+### What's left to build
+- [ ] Comprehensive "shadow mode" for testing new classifiers without affecting users.
+- [ ] Advanced billing dashboard for admins.
+- [ ] More granular spam categories in reporting.
+
+### Known Issues
+- [ ] `TelegramBadRequest` for "message to delete not found" can still be noisy in logs (harmless race condition).
