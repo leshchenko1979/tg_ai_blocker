@@ -59,6 +59,34 @@ async def get_admin(admin_id: int) -> Optional[Administrator]:
         )
 
 
+async def get_admins_map(admin_ids: list[int]) -> dict[int, Administrator]:
+    """Retrieve multiple administrators information from PostgreSQL in a single query"""
+    if not admin_ids:
+        return {}
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT * FROM administrators WHERE admin_id = ANY($1::bigint[])
+        """,
+            admin_ids,
+        )
+
+        return {
+            row["admin_id"]: Administrator(
+                admin_id=row["admin_id"],
+                username=row["username"],
+                credits=row["credits"],
+                is_active=True,  # Always true if record exists
+                delete_spam=row["delete_spam"],
+                created_at=row["created_at"],
+                last_updated=row["last_active"],
+            )
+            for row in rows
+        }
+
+
 async def get_admin_credits(admin_id: int) -> int:
     """Retrieve administrator credits"""
     pool = await get_pool()
@@ -238,11 +266,23 @@ async def get_admin_stats(admin_id: int) -> Dict[str, Any]:
     groups = await get_admin_groups(admin_id)
 
     if not groups:
+        # Fetch spam examples count for this admin even when they have no groups
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            spam_examples_count = await conn.fetchval(
+                """
+                SELECT COUNT(*)
+                FROM spam_examples
+                WHERE admin_id = $1
+                """,
+                admin_id,
+            )
         return {
             "global": {
                 "processed": 0,
                 "spam": 0,
                 "approved": 0,
+                "spam_examples": spam_examples_count or 0,
             },
             "groups": [],
         }

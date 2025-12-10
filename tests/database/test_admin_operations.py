@@ -3,6 +3,7 @@ import pytest
 from app.database import (
     get_admin,
     get_admin_credits,
+    get_admin_stats,
     get_spam_deletion_state,
     get_spent_credits_last_week,
     initialize_new_admin,
@@ -205,3 +206,34 @@ async def test_get_spent_credits_last_week(patched_db_conn, clean_db):
 
     # Should sum up only transactions with negative amounts from last 7 days
     assert spent_credits == 55
+
+
+@pytest.mark.asyncio
+async def test_get_admin_stats_no_groups(patched_db_conn, clean_db):
+    """Test get_admin_stats for admin with no groups includes spam_examples key"""
+    admin_id = 123456
+
+    async with clean_db.acquire() as conn:
+        # Initialize admin
+        await initialize_new_admin(admin_id)
+
+        # Get stats for admin with no groups
+        stats = await get_admin_stats(admin_id)
+
+    # Verify structure
+    assert "global" in stats
+    assert "groups" in stats
+    assert stats["groups"] == []
+
+    # Verify global stats includes spam_examples key (the bug we fixed)
+    global_stats = stats["global"]
+    assert "processed" in global_stats
+    assert "spam" in global_stats
+    assert "approved" in global_stats
+    assert "spam_examples" in global_stats  # This key was missing before the fix
+
+    # Verify values for admin with no groups
+    assert global_stats["processed"] == 0
+    assert global_stats["spam"] == 0
+    assert global_stats["approved"] == 0
+    assert global_stats["spam_examples"] == 0
