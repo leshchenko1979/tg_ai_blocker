@@ -27,3 +27,4 @@
 
 ### Known Issues
 - [ ] `TelegramBadRequest` for "message to delete not found" can still be noisy in logs (harmless race condition).
+- [x] **Fixed**: HTML parsing errors in admin notifications due to unescaped HTML entities in chat titles and user names (causing "Unsupported start tag" Telegram API errors).

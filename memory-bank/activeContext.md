@@ -10,8 +10,10 @@
 - **Recent Fixes**:
   - **Silent Failures Fixed**: Previously, failed bans were logged but admins were unaware. Now they get notified.
   - **Code Cleanup**: Removed redundant logging blocks from `handle_spam.py` after centralizing logic in `notifications.py`.
+  - **HTML Parsing Error Fixed**: Fixed malformed HTML in admin spam notifications by properly escaping chat titles and user names that contained HTML entities like `<`, `>`, `&`, and `"` (prevented "Unsupported start tag" Telegram API errors).
 - **Immediate Next Steps**:
   - Verify logfire traces to ensure new notifications fire correctly.
   - Monitor for "cleaned up" groups where permissions are completely revoked.
 
 - **Testing Status**: ✅ **Logic Implemented** - Added notifications for ban failures, centralized logging, and help links (including group fallbacks).
+- **Documentation**: Added comprehensive Admin Registration & Notification Behavior documentation to systemPatterns.md with Mermaid diagrams showing the flows and failure modes discovered during investigation.
