@@ -24,3 +24,64 @@
 - **Observability & Incident Response**: All warnings/errors funnel through the standard logging stack with full tracebacks; `logger.warning` must include `exc_info=True` when exceptions exist. Incidents emit Mixpanel events, critical failures notify the admin chat, and recurring issues get grouped for trend analysis and frequency tracking.
 - **Telegram Messaging Conventions**: Outbound messages respect Telegram limits and escape reserved characters for HTML mode. AI prompts include explicit HTML formatting instructions.
 - **Graceful Shutdown**: On SIGINT/SIGTERM, `aiohttp` triggers shutdown hooks that clean up resources in order: stop background tasks, close bot session, close DB pool.
+- **Admin Registration & Notification Behavior**: Admins are auto-registered when they add the bot to groups, but notifications fail for admins who haven't started private chats. See Admin Registration Flow diagram below.
+
+## Admin Registration & Notification Flow
+
+### When Admins Get Added to Database
+```mermaid
+flowchart TD
+    A[User adds bot to group] --> B{Does user exist in admins table?}
+    B -->|No| C[Create new admin record with initial credits]
+    B -->|Yes| D[Update existing admin with username if needed]
+    C --> E[Add to group_administrators table]
+    D --> E
+    E --> F[Admin registered successfully]
+```
+
+**Key Points:**
+- Admin registration happens automatically when bot is added to group
+- No requirement for admin to have started private chat
+- Initial credits (100) assigned to new admins
+- Admin can be registered without ever interacting with bot privately
+
+### Notification Failure Scenario
+```mermaid
+flowchart TD
+    A[Spam message detected] --> B[Get admin IDs from database]
+    B --> C[Try private notification to each admin]
+    C --> D{Admin started private chat?}
+    D -->|No| E[Private message FAILS - Telegram blocks unsolicited messages]
+    D -->|Yes| F[Private message succeeds]
+    E --> G[Try group fallback message]
+    F --> H[Notification complete]
+    G --> I{Can bot post in group?}
+    I -->|Yes| J[Group message posted, bot stays]
+    I -->|No| K[Group message FAILS, cleanup_if_group_fails=True]
+    K --> L[Bot leaves group + database cleanup]
+```
+
+**Failure Impact:**
+- Private notifications fail silently for admins who haven't started chats
+- Group fallback messages posted instead (confusing UX)
+- Bot may exit group if it can't post fallback messages
+- Core spam detection/deletion still works, but notifications are broken
+
+### Admin Onboarding Experience
+```mermaid
+flowchart TD
+    A[Admin adds bot to group] --> B[Admin auto-registered in DB]
+    B --> C[Bot sends permission setup message]
+    C --> D{Admin starts private chat?}
+    D -->|No| E[Notifications fail, group fallbacks posted]
+    D -->|Yes| F[Admin sends /start]
+    F --> G{Admin exists in DB?}
+    G -->|Yes| H[Shows 'existing user' message - skips intro]
+    G -->|No| I[Shows welcome intro + initial credits]
+    H --> J[Normal notification flow works]
+```
+
+**UX Problems:**
+- Admins miss onboarding experience (welcome text, feature explanation)
+- Get confusing group messages instead of clean private notifications
+- Appear to have "broken" bot until they start private chat

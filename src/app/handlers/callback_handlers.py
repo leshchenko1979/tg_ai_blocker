@@ -164,8 +164,8 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
                 },
             )
             summary = None
-        if summary:
-            channel_fragment = summary.to_prompt_fragment()
+        if summary and summary.linked_channel:
+            channel_fragment = summary.linked_channel.to_prompt_fragment()
 
         # Все тяжелые операции параллельно
         async with asyncio.TaskGroup() as tg:
