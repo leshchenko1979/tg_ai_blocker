@@ -125,6 +125,7 @@ async def get_openrouter_response(messages, temperature=0.3, response_format=Non
 async def _request_openrouter(
     model, messages, headers, session, temperature=0.3, response_format=None
 ):
+    api_base = os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")
     data = {"model": model, "messages": messages, "temperature": temperature}
     if response_format:
         data["response_format"] = response_format
@@ -134,7 +135,7 @@ async def _request_openrouter(
     ) as span:
         try:
             async with session.post(
-                "https://openrouter.ai/api/v1/chat/completions",
+                f"{api_base.rstrip('/')}/chat/completions",
                 headers=headers,
                 json=data,
                 timeout=aiohttp.ClientTimeout(total=15),
