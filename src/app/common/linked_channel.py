@@ -17,6 +17,7 @@ class LinkedChannelSummary:
     subscribers: Optional[int]
     total_posts: Optional[int]
     post_age_delta: Optional[int]
+    recent_posts_content: Optional[list[str]] = None
 
     def to_prompt_fragment(self) -> str:
         if self.post_age_delta is None or self.post_age_delta < 0:
@@ -29,6 +30,21 @@ class LinkedChannelSummary:
             f"total_posts={self.total_posts if self.total_posts is not None else 'unknown'}",
             f"age_delta={post_age_str}",
         ]
+
+        # Include recent posts content if available
+        if self.recent_posts_content:
+            # Limit to first 3 posts and truncate each to 200 chars to avoid token bloat
+            content_snippets = []
+            for i, content in enumerate(self.recent_posts_content[:3]):
+                if content.strip():
+                    truncated = content[:200].strip()
+                    if len(content) > 200:
+                        truncated += "..."
+                    content_snippets.append(f"post_{i+1}: {truncated}")
+
+            if content_snippets:
+                parts.append(f"recent_posts=[{'; '.join(content_snippets)}]")
+
         return "; ".join(parts)
 
 
@@ -233,10 +249,16 @@ async def collect_channel_summary_by_id(
         delta_days = (newest_post_date - oldest_post_date).days
         post_age_delta = max(delta_days // 30, 0)
 
+    # Fetch recent posts content for spam analysis
+    recent_posts_content = await _fetch_recent_posts_content(
+        client, peer_to_use, limit=5
+    )
+
     summary = LinkedChannelSummary(
         subscribers=subscribers,
         total_posts=total_posts,
         post_age_delta=post_age_delta,
+        recent_posts_content=recent_posts_content if recent_posts_content else None,
     )
 
     logfire.info(
@@ -285,6 +307,65 @@ async def _fetch_channel_edge_message(
     if total is None and messages:
         total = len(messages)
     return message, total
+
+
+@logfire.instrument()
+async def _fetch_recent_posts_content(
+    client: MtprotoHttpClient,
+    peer_reference: int | str,
+    limit: int = 5,
+) -> list[str]:
+    """
+    Fetch content from recent posts in a channel to analyze for spam indicators.
+    Returns list of text content from recent posts (excluding media-only posts).
+    """
+    params: Dict[str, Any] = {
+        "peer": peer_reference,
+        "offset_id": 0,
+        "offset_date": 0,
+        "add_offset": 0,
+        "limit": limit,
+        "max_id": 0,
+        "min_id": 0,
+        "hash": 0,
+    }
+
+    try:
+        history = await client.call("messages.getHistory", params=params, resolve=True)
+    except MtprotoHttpError as exc:
+        logger.info(
+            "Failed to fetch recent posts content",
+            extra={"peer_reference": peer_reference, "error": str(exc)},
+        )
+        return []
+
+    messages = history.get("messages", [])
+    content_list = []
+
+    for message in messages:
+        # Extract text content from message
+        text_content = _extract_message_text(message)
+        if text_content and text_content.strip():
+            content_list.append(text_content.strip())
+
+    return content_list
+
+
+def _extract_message_text(message: Dict[str, Any]) -> str:
+    """Extract text content from a Telegram message."""
+    if not message:
+        return ""
+
+    # Direct message text
+    message_text = message.get("message", "")
+
+    # Caption from media messages
+    if not message_text:
+        media = message.get("media")
+        if media and isinstance(media, dict):
+            message_text = media.get("caption", "")
+
+    return message_text
 
 
 def _extract_date(timestamp: Any) -> Optional[datetime]:
