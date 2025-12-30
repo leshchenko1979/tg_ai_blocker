@@ -8,17 +8,21 @@
 - **Spam Decision Flow**: Updates route through filters that skip admins/service messages.
   - **Text Analysis**: Message content is analyzed by LLM.
   - **Context Enrichment**:
-    - **Linked Channel**: Checks for suspicious channel stats (low subs, new channel) via MTProto.
+    - **Linked Channel**: Checks for suspicious channel stats (low subs, new channel) via MTProto AND analyzes recent post content for spam indicators (porn, ads, scams).
     - **User Stories**: Fetches user stories via MTProto `stories.getPeerStories` to detect hidden spam payloads (links, scam offers) in profiles.
     - **Account Age**: Estimates account age via User ID range and checks profile photo date via `users.getFullUser` to penalize brand new accounts (ID > 6B, recent photo).
-  - **Decision**: LLM scores content based on text, profile bio, linked channel stats, stories, and account age.
+  - **Decision**: LLM scores content based on text, profile bio, linked channel stats/content, stories, and account age.
   - **Action**: High scores (>50%) trigger either auto-deletion/ban (if admin has delete_spam=True) or notifications only (if delete_spam=False, new user default).
   - **Permission Failures**: "message can't be deleted" errors trigger admin notifications with private→group fallback.
   - **User Mode Control**: /mode command allows users to toggle between notification-only and auto-deletion modes.
 - **Billing & Credits**: Telegram Stars payments handled by dedicated handlers coupled with database operations that maintain balances, histories, and automatic moderation toggles when credits drop.
 - **Linked Channel Extraction**: Direct MTProto approach with username-first resolution (bot API never provides linked channel information). Tries username first, then falls back to user ID. Essential for comprehensive spam detection requiring channel context.
 - **Channel Message Handling**: Messages sent on behalf of channels (sender_chat present) are moderated using the channel's ID (`sender_chat.id`) as the effective user ID. This prevents the generic "Channel Bot" user (136817688) from being approved and whitelisting all channel spam. The system distinguishes between linked channels (auto-forwards) and channel spam using `check_skip_channel_bot_message`.
-- **Configuration & Startup**: `.env` loaded in `src/app/main.py`, logging initialized before dispatcher registration (with `SKIP_LOGFIRE`/pytest detection skipping Logfire so local tests keep console output). Web app run via `aiohttp.web`. Tests rely on `pytest` with fixtures under `src/tests` mirroring production modules.
+- **Configuration & Startup**: `.env` loaded in `src/app/main.py`, logging initialized before dispatcher registration (with `SKIP_LOGFIRE`/pytest detection skipping Logfire so local tests keep console output). Web app run via `aiohttp.web`. Tests rely on `pytest` with fixtures under `tests/` mirroring production modules.
+- **Testing Structure**:
+  - **Unit Tests**: Fast, reliable tests using mocked dependencies and local test databases (SQLite/PostgreSQL). Run during deployment (83 tests).
+  - **Integration Tests**: Tests requiring external services (Telegram API) stored in `tests/integration/`. Excluded from deployment via `@pytest.mark.integration`.
+  - **Test Execution**: `pytest` with `--maxfail=1 --exitfirst -q` during deployment, only unit tests pass.
 - **Notification System**: Admin notifications use private→group fallback with optimized bot detection. Pre-filtered admin lists skip expensive API calls (assume_human_admins=True), while untrusted lists use full API validation. Bot removal events trigger enhanced logging showing who performed the removal. Database operations separated from business logic with dedicated cleanup functions. Logfire instrumentation provides automatic start/finish logging with argument extraction and return value recording.
 - **Database Integrity**: Stored procedures include bot filtering (negative IDs, known bot accounts). Admin lists prevent bot contamination through API validation and database-level checks. Cleanup operations properly separate connection management from business logic.
 - **Observability & Incident Response**: All warnings/errors funnel through the standard logging stack with full tracebacks; `logger.warning` must include `exc_info=True` when exceptions exist. Incidents emit Mixpanel events, critical failures notify the admin chat, and recurring issues get grouped for trend analysis and frequency tracking.

@@ -17,6 +17,8 @@
   - Group chat fallback
   - Automatic cleanup if unreachable
 - Linked Channel detection (Username-first resolution)
+- **Enhanced Channel Content Analysis**: ✅ **Tested & Working** - Now fetches and analyzes text content from recent posts, not just metadata (successfully detects porn/spam channels by content)
+- **Testing Infrastructure**: ✅ **Complete** - Proper separation of unit tests (83) from integration tests. Deployment runs only reliable unit tests.
 - Logfire message lookup
 - Hidden User ID Recovery
 
