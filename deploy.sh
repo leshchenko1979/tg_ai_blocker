@@ -61,7 +61,7 @@ black src
 
 # Run tests if not skipped
 if [ "$SKIP_TESTS" = false ]; then
-    echo "Running full test suite with SQLite..."
+    echo "Running unit tests with SQLite (integration tests are excluded by default)..."
     USE_SQLITE_TESTS=true python3 -m pytest tests --maxfail=1 --exitfirst -q
 
     if [ $? -ne 0 ]; then
