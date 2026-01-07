@@ -3,7 +3,7 @@
 ### What works
 - Telegram webhook server
 - aiogram handlers
-- Spam classifier (LLM + Context + Stories + Account Age)
+- Spam classifier (LLM + Context + Stories + Account Age + Discussion Context)
 - Billing via Telegram Stars
 - Mixpanel tracking
 - PostgreSQL data layer
@@ -19,6 +19,7 @@
 - Linked Channel detection (Username-first resolution)
 - **Enhanced Channel Content Analysis**: ✅ **Tested & Working** - Now fetches and analyzes text content from recent posts, not just metadata (successfully detects porn/spam channels by content)
 - **Testing Infrastructure**: ✅ **Complete** - Proper separation of unit tests (83) from integration tests. Deployment runs only reliable unit tests.
+- **Documentation**: ✅ **Updated PRD** - `PRD.md` synchronized with codebase and memory bank.
 - Logfire message lookup
 - Hidden User ID Recovery
 
