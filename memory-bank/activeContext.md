@@ -1,8 +1,10 @@
 ## Active Context
 
-- **Current Focus**: Bot behavior refinements and prompt optimization.
+- **Current Focus**: Database optimization and spam example curation.
 - **Key Decisions**:
-  - **Test Classification Fixed**: Corrected classification of database tests as unit tests (not integration tests), ensuring they run during deployment.
+  - **Global Baseline Optimization**: Promoted 15 high-quality examples to common and deduplicated the entire common list (removed 14 redundant/low-value items).
+  - **Spam Example Cleanup**: Reduced spam example counts for top two admins (85+ combined removals including common promotion).
+  - **Test Classification Fixed**: Corrected classification of database tests as unit tests.
   - **Pytest Markers**: Implemented proper test markers (`@pytest.mark.integration`) to exclude flaky integration tests from deployment.
   - **Test Organization**: Moved standalone integration test scripts to dedicated `tests/integration/` directory.
   - **Deployment Safety**: Deployment now runs only reliable unit tests (83 tests) excluding external service dependencies.
