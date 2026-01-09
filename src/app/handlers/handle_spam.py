@@ -258,13 +258,17 @@ def format_admin_notification_message(
         f" (@{message.from_user.username})" if message.from_user.username else ""
     )
 
-    reason_text = f"\n<b>Причина:</b> {sanitize_html(reason)}\n" if reason else ""
+    reason_text = (
+        f"<b>Причина:</b><blockquote collapsed>{sanitize_html(reason)}</blockquote>\n"
+        if reason
+        else ""
+    )
 
     admin_msg = (
         "⚠️ <b>ВТОРЖЕНИЕ!</b>\n\n"
         f"<b>Группа:</b> {sanitize_html(message.chat.title)}{chat_username_str}\n\n"
         f"<b>Нарушитель:</b> {sanitize_html(message.from_user.full_name)}{user_username_str}\n\n"
-        f"<b>Содержание угрозы:</b>\n<pre>{content_text}</pre>\n"
+        f"<b>Содержание угрозы:</b>\n<blockquote collapsed>{content_text}</blockquote>\n"
         f"{reason_text}\n"
     )
 
