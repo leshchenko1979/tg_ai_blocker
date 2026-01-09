@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Landing page for AI Anti-Spam Bot",
   "scripts": {
-    "build": "tailwindcss build src/input.css -o dist/output.css --content \"src/**/*.{html,js}\" --minify && cp src/index.html dist/index.html",
+    "build": "node build.js",
     "watch": "tailwindcss build src/input.css -o dist/output.css --content \"src/**/*.{html,js}\" --watch",
     "dev": "npm run watch",
     "preview": "cd dist && python3 -m http.server 8080",
@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.19",
+    "fs-extra": "^11.2.0",
     "gh-pages": "^6.3.0",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4"
