@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Anti-Spam Bot - Умная защита ваших чатов</title>
+    <meta name="description"
+        content="Забудьте о ручном удалении спама. Наш ИИ анализирует контекст и профили участников 24/7.">
+    <link rel="stylesheet" href="output.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="dns-prefetch" href="//t.me">
+</head>
+
+<body>
+    <a href="#main-content" class="skip-link">Перейти к основному содержимому</a>
+    <!-- Header -->
+    <header class="fixed top-0 w-full bg-slate-900/90 backdrop-blur-md border-b border-slate-700 z-50">
+        <div class="container flex justify-between items-center py-4 px-4 mx-auto max-w-6xl">
+            <div class="text-2xl font-bold flex items-center gap-2">
+                <span class="text-blue-500">🛡️</span> AI Anti-Spam
+            </div>
+            <nav class="hidden md:flex items-center gap-8">
+                <a href="https://t.me/ai_antispam" class="nav-link">Канал</a>
+                <a href="https://t.me/ai_spam_blocker_bot" class="nav-link-primary">
+                    Добавить в Telegram
+                </a>
+            </nav>
+            <a href="https://t.me/ai_spam_blocker_bot" class="nav-link-mobile" aria-label="Добавить бота в Telegram">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1 .53-1.42.52-.47-.01-1.37-.26-2.03-.48-.82-.27-1.47-.42-1.42-.88.03-.24.35-.49.96-.75 3.78-1.65 6.31-2.74 7.58-3.27 3.61-1.5 4.35-1.76 4.84-1.77.11 0 .35.03.51.16.13.11.17.26.19.37.02.12.02.24.01.37z" />
+                </svg>
+            </a>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="main-content" class="pt-32 pb-20 px-4">
+        <div class="container mx-auto max-w-4xl text-center">
+            <h1 class="text-4xl md:text-7xl font-bold mb-8 tracking-tight">
+                Отдыхайте, пока <span class="text-blue-500">ИИ</span> охраняет ваши чаты
+            </h1>
+            <p class="text-xl md:text-2xl text-slate-400 mb-12 leading-relaxed">
+                Вам больше не нужно дежурить 24/7, чтобы удалять спам. Наш бот берет эту работу на себя,
+                анализируя контекст и профили участников.
+            </p>
+            <div class="flex flex-col md:flex-row gap-4 justify-center">
+                <a href="https://t.me/ai_spam_blocker_bot" class="btn-hero-primary"
+                    aria-label="Запустить AI Anti-Spam бота">
+                    Запустить бота
+                </a>
+                <a href="https://t.me/ai_antispam/14" class="btn-hero-secondary"
+                    aria-label="Посмотреть инструкцию по настройке">
+                    Инструкция
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Live Examples Section -->
+    <section class="py-24 bg-slate-800/50">
+        <div class="section-container">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">Реальные кейсы блокировок</h2>
+                <p class="text-slate-400 text-lg">Посмотрите, как ИИ распознает сложные схемы спама</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Example 1: Betting -->
+                <div class="flex flex-col gap-4">
+                    <div class="tg-message">
+                        <div class="tg-author">Алексей</div>
+                        <p class="tg-text">Я Алексей и я изменю твоё мышление в сфере беттинга! Развиваюсь в
+                            спортивной аналитике более 10 лет! Захожу только на мужские КФ 2+/3+ и зарабатываю на этом!
+                            Уже забрал 6 победу подряд. Переходите в профиль...</p>
+                        <div class="tg-time">14:02</div>
+                    </div>
+                    <div class="spam-blocked-card">
+                        <div class="spam-blocked-header">
+                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                        </div>
+                        <p class="spam-blocked-reason">Причина: Скам-беттинг, навязчивая реклама услуг, призыв к
+                            переходу в профиль.</p>
+                    </div>
+                </div>
+
+                <!-- Example 2: Book Bait -->
+                <div class="flex flex-col gap-4">
+                    <div class="tg-message">
+                        <div class="tg-author">Дмитрий</div>
+                        <p class="tg-text">Ребята, нашел крутую книгу по трейдингу "Сделано, чтобы прилипать". В ней
+                            раскрывается мысль: почему одни идеи запоминаются... Кому будет интересно - могу скинуть,
+                            взамен ничего не прошу 🤝</p>
+                        <div class="tg-time">15:30</div>
+                    </div>
+                    <div class="spam-blocked-card">
+                        <div class="spam-blocked-header">
+                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                        </div>
+                        <p class="spam-blocked-reason">Причина: Скрытый спам. Попытка увода пользователей в личные
+                            сообщения через "бесплатную" раздачу материалов.</p>
+                    </div>
+                </div>
+
+                <!-- Example 3: Trojan Horse -->
+                <div class="flex flex-col gap-4">
+                    <div class="tg-message">
+                        <div class="tg-author">Марина</div>
+                        <p class="tg-text">Привет всем! Как настроение сегодня? 🌸</p>
+                        <div class="tg-time">16:15</div>
+                    </div>
+                    <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
+                        Проверка био: "Заработок от 500$ в день, ссылка в закрепе 👇"
+                    </div>
+                    <div class="spam-blocked-card">
+                        <div class="spam-blocked-header">
+                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                        </div>
+                        <p class="spam-blocked-reason">Причина: "Троянский конь". Безобидное сообщение при наличии
+                            рекламного оффера в био профиля.</p>
+                    </div>
+                </div>
+
+                <!-- Example 4: Debt Scam -->
+                <div class="flex flex-col gap-4">
+                    <div class="tg-message">
+                        <div class="tg-author">Finance Expert</div>
+                        <p class="tg-text">Есть кредиты, которые давят? Напиши, подскажем, как избавиться без новых
+                            займов. Помогли уже сотням людей...</p>
+                        <div class="tg-time">10:45</div>
+                    </div>
+                    <div class="spam-blocked-card">
+                        <div class="spam-blocked-header">
+                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                        </div>
+                        <p class="spam-blocked-reason">Причина: Финансовое мошенничество, реклама сомнительных услуг
+                            по списанию долгов.</p>
+                    </div>
+                </div>
+
+                <!-- Example 5: Job Scam -->
+                <div class="flex flex-col gap-4">
+                    <div class="tg-message">
+                        <div class="tg-author">HR Manager</div>
+                        <p class="tg-text">Ищу человека для раскладки журналов по ящикам. Маршрут по району, всё
+                            покажем. Выплаты в конце дня. Кому интересно — в ЛС.</p>
+                        <div class="tg-time">11:20</div>
+                    </div>
+                    <div class="spam-blocked-card">
+                        <div class="spam-blocked-header">
+                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                        </div>
+                        <p class="spam-blocked-reason">Причина: Скам-вакансии. Нелегальные или мошеннические
+                            предложения работы с оплатой "в конце дня".</p>
+                    </div>
+                </div>
+
+                <!-- Example 6: Subtle Real Estate -->
+                <div class="flex flex-col gap-4">
+                    <div class="tg-message">
+                        <div class="tg-author">Юлия</div>
+                        <p class="tg-text">А что, коттеджи у аэропорта сейчас в тренде? Или я что-то пропустила? 🙃
+                            Видела вчера пару объявлений по очень странным ценам...</p>
+                        <div class="tg-time">12:10</div>
+                    </div>
+                    <div class="spam-blocked-card">
+                        <div class="spam-blocked-header">
+                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                        </div>
+                        <p class="spam-blocked-reason">Причина: Скрытая реклама недвижимости через имитацию
+                            обсуждения (native ad imitation).</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="section-padding">
+        <div class="section-container">
+            <h2 class="section-title">Почему доверяют нам</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-12">
+                <div class="feature-item">
+                    <div class="feature-icon">🧘
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Ваше спокойствие</h3>
+                    <p class="text-slate-400">Бот работает 24/7 без выходных. Забудьте о бесконечной проверке чата — мы
+                        уведомим вас только о важном.</p>
+                </div>
+
+                <div class="feature-item">
+                    <div class="feature-icon">🧠
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Глубокий анализ</h3>
+                    <p class="text-slate-400">Мы не просто ищем слова. ИИ понимает контекст, анализирует био, истории и
+                        даже связанные каналы пользователя.</p>
+                </div>
+
+                <div class="feature-item">
+                    <div class="feature-icon">🛡️
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Умный бан</h3>
+                    <p class="text-slate-400">При обнаружении спама бот мгновенно удаляет сообщение и банит нарушителя,
+                        предотвращая повторные атаки.</p>
+                </div>
+
+                <div class="feature-item">
+                    <div class="feature-icon">⚙️
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Гибкая настройка</h3>
+                    <p class="text-slate-400">Настраивайте уровни строгости, белые списки и правила под нужды именно
+                        вашего сообщества.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="section-padding" id="faq">
+        <div class="container mx-auto max-w-3xl">
+            <h2 class="section-title">Частые вопросы</h2>
+            <div class="space-y-4">
+                <!-- FAQ Item 1 -->
+                <div class="faq-item">
+                    <button class="faq-button" onclick="toggleFaq(this)">
+                        <span>Нужно ли давать боту права администратора?</span>
+                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div class="faq-content">
+                        <p>Да, это необходимо для работы. Бот должен иметь права на удаление сообщений и блокировку
+                            пользователей (бан). Без этих прав он не сможет защищать чат от спамеров.</p>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 2 -->
+                <div class="faq-item">
+                    <button class="faq-button" onclick="toggleFaq(this)">
+                        <span>Читает ли бот личные переписки?</span>
+                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div class="faq-content">
+                        <p>Нет. Бот работает только в групповых чатах, куда вы его добавили. Он обрабатывает сообщения
+                            исключительно для проверки на спам и не сохраняет историю вашей переписки.</p>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 3 -->
+                <div class="faq-item">
+                    <button class="faq-button" onclick="toggleFaq(this)">
+                        <span>Что делать, если бот забанил по ошибке?</span>
+                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div class="faq-content">
+                        <p>Ложные срабатывания крайне редки (менее 0.1%). Если это произошло, вы можете разбанить
+                            пользователя вручную через настройки группы. Мы также постоянно обучаем ИИ, чтобы исключить
+                            такие ситуации.</p>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 4 -->
+                <div class="faq-item">
+                    <button class="faq-button" onclick="toggleFaq(this)">
+                        <span>Сколько стоит использование?</span>
+                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div class="faq-content">
+                        <p>У бота есть бесплатный базовый тариф, которого достаточно для большинства небольших чатов.
+                            Для крупных сообществ с высокой активностью предусмотрены расширенные тарифы с
+                            дополнительными возможностями настройки.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final CTA Section -->
+    <section class="py-24 px-4">
+        <div class="container mx-auto max-w-5xl">
+            <div class="cta-section">
+                <div class="cta-background"></div>
+                <div class="relative z-10">
+                    <h2 class="text-3xl md:text-5xl font-bold mb-6 text-white">Забудьте о спаме раз и навсегда</h2>
+                    <p class="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
+                        Подключите защиту за 1 минуту и верните спокойствие в ваше сообщество.
+                        Без сложных настроек и регистрации.
+                    </p>
+                    <a href="https://t.me/ai_spam_blocker_bot"
+                        class="bg-white text-blue-600 hover:bg-blue-50 font-bold text-xl px-10 py-5 rounded-2xl shadow-xl transition-all hover:scale-105 inline-block">
+                        Подключить защиту бесплатно
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Latest Updates Section -->
+    <section class="py-24 bg-slate-800/30">
+        <div class="container mx-auto max-w-5xl px-4">
+            <h2 class="section-title">Новости и гайды</h2>
+            <div class="space-y-6">
+                <a href="https://t.me/ai_antispam/36" class="news-card">
+                    <div class="text-blue-500 font-bold text-sm mb-2">09 декабря 2025</div>
+                    <h3 class="text-xl font-bold mb-2">Проверка возраста аккаунта</h3>
+                    <p class="text-slate-400">Теперь бот умеет определять дату создания аккаунта. Свежие профили — один
+                        из главных признаков спам-ботов.</p>
+                </a>
+
+                <a href="https://t.me/ai_antispam/17" class="news-card">
+                    <div class="text-blue-500 font-bold text-sm mb-2">06 ноября 2025</div>
+                    <h3 class="text-xl font-bold mb-2">Многоходовочки спамеров в комментариях</h3>
+                    <p class="text-slate-400">Разбираем новые тактики: как спам-боты маскируются под обычных
+                        пользователей и используют "зоны невидимости" для обычных ботов.</p>
+                </a>
+
+                <a href="https://t.me/ai_antispam/14" class="news-card">
+                    <div class="text-blue-500 font-bold text-sm mb-2">13 мая 2025</div>
+                    <h3 class="text-xl font-bold mb-2">Как подключить бота за 2 минуты</h3>
+                    <p class="text-slate-400">Пошаговая инструкция по настройке модерации комментариев в каналах и
+                        защиты групп.</p>
+                </a>
+
+                <div class="text-center pt-8">
+                    <a href="https://t.me/ai_antispam"
+                        class="text-blue-400 hover:text-blue-300 font-bold border-b border-blue-400/30 pb-1">
+                        Все новости в канале проекта →
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-20 border-t border-slate-800">
+        <div class="section-container flex flex-col md:flex-row justify-between items-center gap-8">
+            <div class="text-center md:text-left">
+                <div class="text-2xl font-bold mb-2">AI Anti-Spam</div>
+                <p class="text-slate-500 text-sm">© 2026 AI Anti-Spam Bot. Все права защищены.</p>
+            </div>
+            <div class="flex flex-wrap justify-center gap-8 text-sm font-semibold">
+                <a href="https://t.me/ai_antispam" class="footer-link">Новости</a>
+                <a href="https://t.me/ai_antispam/14" class="footer-link">Настройка</a>
+                <a href="https://t.me/ai_antispam/7" class="footer-link">О проекте</a>
+                <a href="https://t.me/ai_spam_blocker_bot" class="text-blue-500">Запустить бота</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        function toggleFaq(button) {
+            const item = button.parentElement;
+            const isActive = item.classList.contains('active');
+
+            // Close all items
+            document.querySelectorAll('.faq-item').forEach(el => {
+                el.classList.remove('active');
+            });
+
+            // If wasn't active, open it
+            if (!isActive) {
+                item.classList.add('active');
+            }
+        }
+    </script>
+</body>
+
+</html>

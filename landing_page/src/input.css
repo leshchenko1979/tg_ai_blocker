@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-900 text-white font-sans leading-relaxed;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200;
+  }
+
+  .btn-secondary {
+    @apply bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200;
+  }
+
+  .section-padding {
+    @apply py-16 px-4;
+  }
+
+  .container {
+    @apply max-w-6xl mx-auto;
+  }
+
+  .tg-message {
+    position: relative;
+    background: #2b3948;
+    border-radius: 12px;
+    padding: 12px;
+    max-width: 90%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .tg-message::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    bottom: 12px;
+    width: 16px;
+    height: 16px;
+    background: #2b3948;
+    clip-path: polygon(100% 0, 0 100%, 100% 100%);
+  }
+
+  /* Hero buttons */
+  .btn-hero-primary {
+    @apply bg-blue-600 hover:bg-blue-500 text-white font-bold text-xl px-10 py-5 rounded-2xl shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-1 active:translate-y-0;
+  }
+
+  .btn-hero-secondary {
+    @apply bg-slate-800 hover:bg-slate-700 text-white font-bold text-xl px-10 py-5 rounded-2xl transition-all;
+  }
+
+  /* Section containers */
+  .section-container {
+    @apply container mx-auto max-w-6xl px-4;
+  }
+
+  .section-title {
+    @apply text-3xl md:text-5xl font-bold text-center mb-16;
+  }
+
+  .section-padding {
+    @apply py-24 px-4;
+  }
+
+  /* Feature icons */
+  .feature-icon {
+    @apply w-20 h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center mb-6 text-3xl;
+  }
+
+  .feature-item {
+    @apply flex flex-col items-center text-center;
+  }
+
+  /* Spam examples */
+  .spam-blocked-card {
+    @apply bg-red-500/10 border border-red-500/20 rounded-xl p-4;
+  }
+
+  .spam-blocked-header {
+    @apply flex items-center gap-2 text-red-500 font-bold text-sm mb-1;
+  }
+
+  .spam-blocked-reason {
+    @apply text-xs text-red-200/70;
+  }
+
+  /* News cards */
+  .news-card {
+    @apply block bg-slate-800 hover:bg-slate-700 p-6 rounded-2xl border border-slate-700 transition-all hover:border-blue-500/50;
+  }
+
+  /* Navigation links */
+  .nav-link {
+    @apply hover:text-blue-400 transition-colors;
+  }
+
+  .nav-link-primary {
+    @apply bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-6 rounded-full transition-all hover:scale-105 active:scale-95;
+  }
+
+  .nav-link-mobile {
+    @apply md:hidden bg-blue-600 p-2 rounded-full;
+  }
+
+  /* Telegram message elements */
+  .tg-author {
+    @apply text-blue-400 font-bold text-sm mb-1;
+  }
+
+  .tg-text {
+    @apply text-[15px];
+  }
+
+  .tg-time {
+    @apply text-right text-[11px] text-slate-500 mt-1;
+  }
+
+  /* Footer links */
+  .footer-link {
+    @apply hover:text-blue-400 transition-colors;
+  }
+
+  /* Accessibility */
+  .skip-link {
+    @apply absolute left-[-999px] bg-blue-600 text-white px-4 py-2 rounded z-50 focus:left-4 transition-all;
+  }
+
+  /* FAQ Accordion */
+  .faq-item {
+    @apply border border-slate-700 rounded-2xl bg-slate-800/50 overflow-hidden transition-all duration-300;
+  }
+
+  .faq-button {
+    @apply w-full flex justify-between items-center p-6 text-left font-bold text-lg hover:bg-slate-700/50 transition-colors;
+  }
+
+  .faq-content {
+    @apply px-6 text-slate-400 overflow-hidden max-h-0 transition-all duration-300 ease-in-out;
+  }
+
+  .faq-item.active .faq-content {
+    @apply py-6 border-t border-slate-700/50 max-h-96;
+  }
+
+  .faq-icon {
+    @apply w-6 h-6 transition-transform duration-300;
+  }
+
+  .faq-item.active .faq-icon {
+    @apply rotate-180;
+  }
+
+  /* Final CTA */
+  .cta-section {
+    @apply relative overflow-hidden bg-blue-600 rounded-3xl p-8 md:p-16 text-center shadow-2xl shadow-blue-500/20 mx-4;
+  }
+
+  .cta-background {
+    @apply absolute inset-0 opacity-10 bg-gradient-to-br from-white to-transparent;
+  }
+}
