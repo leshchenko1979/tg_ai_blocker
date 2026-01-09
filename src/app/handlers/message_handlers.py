@@ -6,7 +6,6 @@ from aiogram import types
 
 from ..common.bot import bot
 from ..common.linked_channel import (
-    LinkedChannelSummary,
     UserContext,
     collect_channel_summary_by_id,
     collect_linked_channel_summary,

@@ -10,3 +10,4 @@ profile_output
 aiogram_types.cache
 .cursorrules
 .cursor/mcp.json
+.ruff_cache
