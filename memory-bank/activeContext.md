@@ -26,3 +26,4 @@
 - **Testing Status**: ✅ **Testing Infrastructure Complete** - All 83 unit tests pass during deployment, integration tests properly excluded.
 - **Previous Work Complete**: ✅ **Channel Content Analysis** - Successfully tested with real porn channel (@kotnikova_yana). Classifier now correctly identifies spam with 100% confidence by analyzing recent post content.
 - **Prompt Optimization**: ✅ **Private Message Prompt Cleaned** - Removed redundant `/start` command content from LLM prompt for cleaner conversation context.
+- **Edited Message Handling**: ✅ **Added Handler for Edited Messages** - Edited messages now return "edited_message_ignored" tag instead of generic "unhandled" for better Logfire observability. Handler does nothing else - edited messages are not moderated.

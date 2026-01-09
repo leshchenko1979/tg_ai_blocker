@@ -104,6 +104,15 @@ async def handle_moderated_message(message: types.Message) -> str:
         raise
 
 
+@dp.edited_message()
+async def handle_edited_message(message: types.Message) -> str:
+    """
+    Handles edited message updates.
+    Only tags the span and does nothing else - edited messages are not moderated.
+    """
+    return "edited_message_ignored"
+
+
 @dp.channel_post()
 async def handle_channel_post(message: types.Message):
     """

@@ -24,6 +24,7 @@
 - **MTProto Optimization**: ✅ **Peer Resolution Optimized** - Eliminated 90%+ failing numeric ID calls by requiring username-only resolution.
 - Logfire message lookup
 - Hidden User ID Recovery
+- **Edited Message Handling**: ✅ **Added Handler for Edited Messages** - Edited messages now return "edited_message_ignored" tag instead of generic "unhandled" for better Logfire observability. Handler does nothing else - edited messages are not moderated.
 
 ### What's left to build
 - [ ] Comprehensive "shadow mode" for testing new classifiers without affecting users.

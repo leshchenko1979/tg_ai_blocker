@@ -5,7 +5,7 @@
   - `src/app/common` encapsulates integrations: Telegram bot client, LLM providers, Mixpanel tracking, notifications, shared utilities, and spam classifier logic.
   - `src/app/handlers` are organized by intent (callbacks, commands, payments, spam handling) and register with the dispatcher via side effects on import.
 - **Data Access Layer**: `src/app/database` offers explicit operation modules (admins, groups, messages, spam examples) built atop a PostgreSQL connection helper, keeping SQL isolated from business logic.
-- **Spam Decision Flow**: Updates route through filters that skip admins/service messages.
+- **Spam Decision Flow**: Updates route through filters that skip admins/service messages and edited messages.
   - **Text Analysis**: Message content is analyzed by LLM.
   - **Context Enrichment**:
     - **Linked Channel**: Checks for suspicious channel stats (low subs, new channel) via MTProto AND analyzes recent post content for spam indicators (porn, ads, scams).
