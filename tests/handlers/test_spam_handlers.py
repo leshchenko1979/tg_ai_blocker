@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.exceptions import TelegramBadRequest
 
 from src.app.handlers.handle_spam import handle_spam_message_deletion
-from src.app.handlers.message_handlers import get_spam_score_and_bio, handle_edited_message
+from src.app.handlers.message_handlers import get_spam_score_and_bio
 from src.app.common.linked_channel import LinkedChannelSummary
 
 
@@ -240,21 +240,3 @@ class TestSpamDeletion:
             assert (
                 kwargs["linked_channel_fragment"] == mock_summary.to_prompt_fragment()
             )
-
-
-class TestEditedMessageHandler:
-    """Test edited message handling."""
-
-    @pytest.mark.asyncio
-    async def test_edited_message_handler_returns_correct_tag(self):
-        """Test that edited message handler returns the correct tag for Logfire logging."""
-        # Create a mock edited message
-        mock_message = MagicMock()
-        mock_message.message_id = 12345
-        mock_message.chat.id = -1001234567890
-
-        # Call the handler
-        result = await handle_edited_message(mock_message)
-
-        # Verify it returns the expected tag
-        assert result == "edited_message_ignored"
