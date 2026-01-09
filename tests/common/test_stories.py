@@ -33,7 +33,7 @@ async def test_collect_user_stories_success(mock_mtproto_client):
         123456  # successful identifier
     ))
 
-    result = await collect_user_stories(123456)
+    result = await collect_user_stories(123456, username="testuser")
 
     assert result is not None
     assert "Caption: Check out my new project!" in result
@@ -44,29 +44,29 @@ async def test_collect_user_stories_success(mock_mtproto_client):
     mock_mtproto_client.call_with_fallback.assert_called_once()
     args = mock_mtproto_client.call_with_fallback.call_args
     assert args[0][0] == "stories.getPinnedStories"
-    assert args[1]["identifiers"] == [123456]
+    assert args[1]["identifiers"] == ["testuser"]
     assert args[1]["identifier_param"] == "peer"
 
 @pytest.mark.asyncio
 async def test_collect_user_stories_no_stories(mock_mtproto_client):
-    mock_mtproto_client.call_with_fallback = AsyncMock(return_value=({"stories": []}, 123456))
-    result = await collect_user_stories(123456)
+    mock_mtproto_client.call_with_fallback = AsyncMock(return_value=({"stories": []}, "testuser"))
+    result = await collect_user_stories(123456, username="testuser")
     assert result is None
 
 @pytest.mark.asyncio
 async def test_collect_user_stories_deleted(mock_mtproto_client):
     mock_mtproto_client.call_with_fallback = AsyncMock(return_value=(
         {"stories": [{"_": "storyItemDeleted", "id": 123}]},
-        123456
+        "testuser"
     ))
-    result = await collect_user_stories(123456)
+    result = await collect_user_stories(123456, username="testuser")
     assert result is None
 
 @pytest.mark.asyncio
 async def test_collect_user_stories_error(mock_mtproto_client):
     from src.app.common.mtproto_client import MtprotoHttpError
     mock_mtproto_client.call_with_fallback = AsyncMock(side_effect=MtprotoHttpError("MTProto error"))
-    result = await collect_user_stories(123456)
+    result = await collect_user_stories(123456, username="testuser")
     assert result is None
 
 def test_story_summary_formatting():

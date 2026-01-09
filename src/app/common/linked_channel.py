@@ -40,7 +40,7 @@ class LinkedChannelSummary:
                     truncated = content[:200].strip()
                     if len(content) > 200:
                         truncated += "..."
-                    content_snippets.append(f"post_{i+1}: {truncated}")
+                    content_snippets.append(f"post_{i + 1}: {truncated}")
 
             if content_snippets:
                 parts.append(f"recent_posts=[{'; '.join(content_snippets)}]")
@@ -103,11 +103,12 @@ async def collect_user_context(
         user_reference=user_reference,
         username=username,
     ):
-        # Try username first if available, then fall back to user ID
-        identifiers = []
-        if username:
-            identifiers.append(username)
-        identifiers.append(user_reference)
+        # Only use username for peer resolution (numeric IDs almost always fail)
+        if not username:
+            logfire.debug("No username available, skipping user context collection")
+            return UserContext()
+
+        identifiers = [username]
 
         full_user = {}
         try:
@@ -182,18 +183,20 @@ async def collect_channel_summary_by_id(
     client = get_mtproto_client()
 
     identifiers = []
+
+    # Prefer username for channel resolution if available
     if username:
         identifiers.append(username)
-
-    # Convert Bot API ID (negative -100...) to MTProto ID (positive, without -100)
-    mtproto_id = channel_id
-    if channel_id < 0:
-        str_id = str(channel_id)
-        if str_id.startswith("-100"):
-            mtproto_id = int(str_id[4:])
-        elif str_id.startswith("-"):
-            mtproto_id = int(str_id[1:])
-    identifiers.append(mtproto_id)
+    else:
+        # Convert Bot API ID (negative -100...) to MTProto ID (positive, without -100)
+        mtproto_id = channel_id
+        if channel_id < 0:
+            str_id = str(channel_id)
+            if str_id.startswith("-100"):
+                mtproto_id = int(str_id[4:])
+            elif str_id.startswith("-"):
+                mtproto_id = int(str_id[1:])
+        identifiers.append(mtproto_id)
 
     with logfire.span(
         "Fetching channel summary via MTProto",

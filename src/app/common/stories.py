@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -46,11 +45,12 @@ async def collect_user_stories(
 
     with logfire.span("Collecting user stories", user_id=user_id, username=username):
         try:
-            # Try identifiers in order: username first (if available), then user_id
-            identifiers = []
-            if username:
-                identifiers.append(username)
-            identifiers.append(user_id)
+            # Only use username for peer resolution (numeric IDs almost always fail)
+            if not username:
+                logger.debug("No username available, skipping stories collection")
+                return None
+
+            identifiers = [username]
 
             try:
                 pinned_response, _ = await client.call_with_fallback(

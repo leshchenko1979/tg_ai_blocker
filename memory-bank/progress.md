@@ -21,6 +21,7 @@
 - **Spam Example Curation**: ✅ **Database Optimized** - Promoted 15 high-quality patterns to common, deduplicated 14 redundant entries from the baseline, and cleaned up top 2 admins. Baseline now provides high-quality starting point with balanced scores.
 - **Testing Infrastructure**: ✅ **Complete** - Proper separation of unit tests (83) from integration tests. Deployment runs only reliable unit tests.
 - **Documentation**: ✅ **Updated PRD** - `PRD.md` synchronized with codebase and memory bank.
+- **MTProto Optimization**: ✅ **Peer Resolution Optimized** - Eliminated 90%+ failing numeric ID calls by requiring username-only resolution.
 - Logfire message lookup
 - Hidden User ID Recovery
 

@@ -39,14 +39,14 @@ class TestLinkedChannelExtraction:
         with patch(
             "src.app.common.linked_channel.get_mtproto_client", return_value=mock_client
         ):
-            result = await collect_linked_channel_summary(user_id)
+            result = await collect_linked_channel_summary(user_id, username="testuser")
 
             # Verify call_with_fallback was called for both getFullUser and getFullChannel
             assert mock_client.call_with_fallback.call_count == 2
             # First call: getFullUser
             first_call = mock_client.call_with_fallback.call_args_list[0]
             assert first_call[0][0] == "users.getFullUser"
-            assert first_call[1]["identifiers"] == [user_id]
+            assert first_call[1]["identifiers"] == ["testuser"]
             assert first_call[1]["identifier_param"] == "id"
             # Second call: getFullChannel
             second_call = mock_client.call_with_fallback.call_args_list[1]
@@ -81,7 +81,7 @@ class TestLinkedChannelExtraction:
         with patch(
             "src.app.common.linked_channel.get_mtproto_client", return_value=mock_client
         ):
-            result = await collect_linked_channel_summary(user_id)
+            result = await collect_linked_channel_summary(user_id, username="testuser")
 
             # Should return UserContext with None linked_channel when no linked channel
             assert isinstance(result, UserContext)
@@ -115,16 +115,16 @@ class TestLinkedChannelExtraction:
             call_args = mock_client.call_with_fallback.call_args
             assert call_args[0][0] == "channels.getFullChannel"
             assert (
-                call_args[1]["identifiers"] == [username, 12345]
-            )  # username first, then mtproto_id
+                call_args[1]["identifiers"] == [username]
+            )  # only username since it's available
             assert call_args[1]["identifier_param"] == "channel"
 
             # Verify result
             assert result.subscribers == 500
 
     @pytest.mark.asyncio
-    async def test_collect_channel_summary_by_id_fallback_to_id(self):
-        """Test that collect_channel_summary_by_id falls back to ID if username fails."""
+    async def test_collect_channel_summary_by_id_uses_only_username(self):
+        """Test that collect_channel_summary_by_id uses only username when available."""
         channel_id = -10012345
         mtproto_id = 12345
         username = "testchannel"
@@ -150,8 +150,8 @@ class TestLinkedChannelExtraction:
             call_args = mock_client.call_with_fallback.call_args
             assert call_args[0][0] == "channels.getFullChannel"
             assert (
-                call_args[1]["identifiers"] == [username, mtproto_id]
-            )  # username first, then ID
+                call_args[1]["identifiers"] == [username]
+            )  # only username since it's available
             assert call_args[1]["identifier_param"] == "channel"
 
             # Verify result

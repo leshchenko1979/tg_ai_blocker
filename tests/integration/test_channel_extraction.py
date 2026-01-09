@@ -185,18 +185,20 @@ async def collect_channel_summary_by_id(
     client = get_mtproto_client()
 
     identifiers = []
+
+    # Prefer username for channel resolution if available
     if username:
         identifiers.append(username)
-
-    # Convert Bot API ID (negative -100...) to MTProto ID (positive, without -100)
-    mtproto_id = channel_id
-    if channel_id < 0:
-        str_id = str(channel_id)
-        if str_id.startswith("-100"):
-            mtproto_id = int(str_id[4:])
-        elif str_id.startswith("-"):
-            mtproto_id = int(str_id[1:])
-    identifiers.append(mtproto_id)
+    else:
+        # Convert Bot API ID (negative -100...) to MTProto ID (positive, without -100)
+        mtproto_id = channel_id
+        if channel_id < 0:
+            str_id = str(channel_id)
+            if str_id.startswith("-100"):
+                mtproto_id = int(str_id[4:])
+            elif str_id.startswith("-"):
+                mtproto_id = int(str_id[1:])
+        identifiers.append(mtproto_id)
 
     try:
         full_channel, successful_identifier = await client.call_with_fallback(

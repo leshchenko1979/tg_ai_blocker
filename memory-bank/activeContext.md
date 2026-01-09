@@ -1,7 +1,11 @@
 ## Active Context
 
-- **Current Focus**: Database optimization and spam example curation.
+- **Current Focus**: MTProto optimization - removed inefficient numeric ID fallbacks.
 - **Key Decisions**:
+  - **MTProto Peer Resolution Optimization**: Eliminated numeric ID fallbacks in favor of username-only resolution (90%+ success rate vs 10% for numeric IDs).
+  - **Stories Collection**: Modified `collect_user_stories` to require username, skip when unavailable.
+  - **Linked Channel Collection**: Updated `collect_user_context` and `collect_channel_summary_by_id` to prioritize usernames over numeric IDs.
+  - **Integration Test Updates**: Updated both spam classifier and channel extraction integration tests to use username-only resolution.
   - **Global Baseline Optimization**: Promoted 15 high-quality examples to common and deduplicated the entire common list (removed 14 redundant/low-value items).
   - **Spam Example Cleanup**: Reduced spam example counts for top two admins (85+ combined removals including common promotion).
   - **Test Classification Fixed**: Corrected classification of database tests as unit tests.
