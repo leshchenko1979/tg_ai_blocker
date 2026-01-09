@@ -1,6 +1,7 @@
 ## Tech Context
 
 - **Language & Runtime**: Python 3.12+ (project typed for 3.13) running on macOS locally; production expects Linux with Telegram webhook hosting.
+- **Landing Page**: Static HTML/CSS/JS built with Tailwind CSS, deployed via GitHub Actions to GitHub Pages.
 - **Frameworks & Libraries**:
   - `aiohttp` for webhook server, `aiogram` for Telegram bot routing.
   - `asyncpg` for PostgreSQL access, structured via database operation modules.
@@ -13,6 +14,7 @@
 - **Tooling**:
   - Formatting enforced via project conventions; prefer ASCII. Testing through `pytest`. Use `python3`/`pip3` and `zsh` per environment note.
   - `deploy_scalene.sh` spins up the Scalene-instrumented stack (Dockerfile.scalene + docker-compose.scalene.yml) under `/data/projects/tg-ai-blocker-scalene`, capturing reports in `profiles/` (Scalene runs with `--html --json --outfile /app/profiles/scalene_report`). VS Code task `Deploy Scalene Profiling` runs the script locally.
+  - **Landing Page Development**: `npm run watch` for live CSS rebuilding during development, `npm run build` for production CSS generation. GitHub Actions workflow deploys to GitHub Pages on changes to `landing_page/` directory.
 - **Error Notification**: `TelegramLogHandler` uses a queue-based approach with background task to send WARNING+ level logs to admin chat. Includes throttling (10/min) and deduplication (15s). ERROR/CRITICAL messages bypass throttling but retain deduplication to ensure critical errors are notified while preventing spam.
 - **Testing Infrastructure**:
   - **Unit Tests**: 83 tests covering core functionality with mocked dependencies and local SQLite test databases. Run during deployment.

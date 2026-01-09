@@ -25,6 +25,7 @@
 - Logfire message lookup
 - Hidden User ID Recovery
 - **Edited Message Handling**: ✅ **Added Handler for Edited Messages** - Edited messages now return "edited_message_ignored" tag instead of generic "unhandled" for better Logfire observability. Handler does nothing else - edited messages are not moderated.
+- **Landing Page**: ✅ **Complete** - Professional Russian landing page with Tailwind CSS, real spam examples, FAQ, strong CTA, optimized styling, improved accessibility, and automated CI/CD deployment to GitHub Pages.
 
 ### What's left to build
 - [ ] Comprehensive "shadow mode" for testing new classifiers without affecting users.

@@ -19,7 +19,9 @@
   - **Pytest Configuration**: Updated `pytest.ini` with markers and default exclusion of integration tests.
   - **Test Structure**: Organized integration tests (Telegram API dependent) separately from unit tests.
   - **Prompt Optimization**: Streamlined private message system prompt by removing redundant `/start` command information.
+  - **Landing Page Finalized**: Built professional Russian landing page with Tailwind CSS. Added **FAQ section** and **Final CTA** block to increase conversion. Optimized styling with custom utility classes and improved accessibility.
 - **Immediate Next Steps**:
+  - Monitor landing page deployment.
   - Monitor deployment reliability with improved test suite.
   - Consider adding more comprehensive integration test coverage for critical paths.
 
