@@ -1,0 +1,12 @@
+__pycache__
+.env
+.vscode/
+test.ipynb
+.pytest_cache
+/__pycache__
+.coverage
+import.log
+profile_output
+aiogram_types.cache
+.cursorrules
+.cursor/mcp.json

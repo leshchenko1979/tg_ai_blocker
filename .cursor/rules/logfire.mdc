@@ -1,0 +1,61 @@
+---
+description: Logfire logs analytics
+alwaysApply: false
+---
+1. Структура логов:
+   - Используется поле `start_timestamp` вместо `timestamp`
+   - Уровни логирования (числовые):
+     - error = 17
+     - warn = 13
+     - info = 9
+     - debug = 5
+     - trace = 3
+
+2. Анализ ошибок в логах:
+   - Всегда получать полный exception traceback для анализа (и для error, и для warning)
+   - Проверять контекст ошибки через поля:
+     - exception.type - тип исключения
+     - exception.message - сообщение об ошибке
+     - exception.stacktrace - полный стектрейс
+     - code.filepath - путь к файлу
+     - code.function - имя функции
+     - code.lineno - номер строки
+   - Анализировать цепочку вызовов для определения корневой причины
+   - Учитывать параллельные операции, которые могли повлиять на ошибку
+   - При неясной причине проверять логи за более широкий период
+   - Не игнорировать warning логи - они могут указывать на потенциальные проблемы
+
+
+3. Доступ к данным обновлений в Logfire:
+   - Данные обновлений, приходящих от Telegram, хранятся в поле `attributes->>'update'`
+   - Информация о чате: `attributes->'update'->'message'->'chat'`
+   - Информация о пользователе: `attributes->'update'->'message'->'from'`
+   - Текст сообщения: `attributes->'update'->'message'->>'text'`
+   - Для агрегации по дням использовать: `DATE_TRUNC('day', start_timestamp)`
+
+4. Примеры SQL-запросов для Logfire:
+   ```sql
+   -- Подсчет сообщений по дням
+   SELECT
+     DATE_TRUNC('day', start_timestamp) as day,
+     COUNT(*) as total_records,
+     COUNT(DISTINCT attributes->'update'->'message'->'chat'->>'id') as unique_chats,
+     COUNT(DISTINCT attributes->'update'->'message'->'from'->>'id') as unique_users
+   FROM records
+   WHERE start_timestamp >= '2025-04-07'
+     AND attributes->>'update' IS NOT NULL
+   GROUP BY DATE_TRUNC('day', start_timestamp)
+   ```
+
+5. Особенности работы с данными:
+   - Всегда проверять наличие `attributes->>'update'` через IS NOT NULL
+   - Учитывать вложенность JSON-структуры при извлечении данных
+   - Использовать ->>'field' для извлечения текста, ->'field' для объектов
+   - При агрегации учитывать возможность NULL значений в полях
+
+6. Типовая структура получаемого апдейта:
+```
+{'update_id': 726082068, 'message': {'message_id': 12132, 'from': {'id': 7856711520, 'is_bot': False, 'first_name': 'Виктория | Недвижимость на Юге России', 'is_premium': True}, 'chat': {'id': -1001660382870, 'title': 'Chat Павел Боровиков', 'type': 'supergroup'}, 'date': 1747396952, 'message_thread_id': 12126, 'reply_to_message': {'message_id': 12126, 'from': {'id': 777000, 'is_bot': False, 'first_name': 'Telegram'}, 'sender_chat': {'id': -1001406194622, 'title': 'Павел Боровиков', 'username': 'pborovikov', 'type': 'channel'}, 'chat': {'id': -1001660382870, 'title': 'Chat Павел Боровиков', 'type': 'supergroup'}, 'date': 1747396858, 'forward_origin': {'type': 'channel', 'chat': {'id': -1001406194622, 'title': 'Павел Боровиков', 'username': 'pborovikov', 'type': 'channel'}, 'message_id': 3745, 'date': 1747396855}, 'is_automatic_forward': True, 'forward_from_chat': {'id': -1001406194622, 'title': 'Павел Боровиков', 'username': 'pborovikov', 'type': 'channel'}, 'forward_from_message_id': 3745, 'forward_date': 1747396855, 'video': {'duration': 23, 'width': 464, 'height': 848, 'file_name': 'IMG_0089.MP4', 'mime_type': 'video/mp4', 'thumbnail': {'file_id': 'AAMCAgADHQJi926WAAIvXmgnKPpNiMU5baBN2udP_LJ5-uktAAIscgAC4TM5SYpxezkGsI2pAQAHbQADNgQ', 'file_unique_id': 'AQADLHIAAuEzOUly', 'file_size': 10562, 'width': 175, 'height': 320}, 'thumb': {'file_id': 'AAMCAgADHQJi926WAAIvXmgnKPpNiMU5baBN2udP_LJ5-uktAAIscgAC4TM5SYpxezkGsI2pAQAHbQADNgQ', 'file_unique_id': 'AQADLHIAAuEzOUly', 'file_size': 10562, 'width': 175, 'height': 320}, 'file_id': 'BAACAgIAAx0CYvdulgACL15oJyj6TYjFOW2gTdrnT_yyefrpLQACLHIAAuEzOUmKcXs5BrCNqTYE', 'file_unique_id': 'AgADLHIAAuEzOUk', 'file_size': 4412379}, 'caption': '''Весна - время загородки\n\nДавненько не публиковал никаких интересных коттеджей, а они есть у нас. Есть за 350.000.000₽, а есть и за 24.500.000₽, как этот интересный вариант с потрясающими гигантскими окнами, высотой 6 метров и просто невероятной ванной комнатой, площадью 22 м2 (сейчас студии в некоторых проектах меньшей площадью).\n\nОдним словом, если бы я искал себе загородный дом, то, пожалуй именно такой''', 'caption_entities': [{'offset': 131, 'length': 12, 'type': 'text_link', 'url': 'https://kuligovskaya.ru/catalog/zagorodnaya-nedvizhimost/zhizn-v-novom-svete-dom-s-panoramnymi-oknami/'}]}, 'text': 'Какой замечательный выбор! 🌿'}}
+```
+
+7. При поиске по span_id используй `WHERE span_id LIKE '%...%'`.
