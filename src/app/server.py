@@ -66,7 +66,7 @@ async def handle_update(request: web.Request) -> web.Response:
             span.tags = (
                 [result]
                 if result is not None and result != UNHANDLED
-                else ["unhandled"]
+                else [extract_update_type_ignored(json)]
             )
 
             return web.json_response({"message": "Processed successfully"})
@@ -91,6 +91,20 @@ async def handle_update(request: web.Request) -> web.Response:
                 serve_time = time.time() - update_time
                 span.set_attribute("serve_time", serve_time)
                 serve_time_histogram.record(serve_time)
+
+
+def extract_update_type_ignored(json: dict) -> str:
+    """Extract update type from JSON and return it with '_ignored' suffix."""
+    # Remove 'update_id' from keys to find the update type
+    update_keys = [key for key in json.keys() if key != "update_id"]
+
+    if len(update_keys) == 1:
+        return f"{update_keys[0]}_ignored"
+    elif len(update_keys) == 0:
+        return "empty_update_ignored"
+    else:
+        # Multiple update types (shouldn't happen in valid Telegram updates)
+        return "multiple_types_ignored"
 
 
 def extract_chat_or_user(json: dict) -> str:
