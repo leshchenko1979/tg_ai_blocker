@@ -259,7 +259,7 @@ def format_admin_notification_message(
     )
 
     reason_text = (
-        f"<b>Причина:</b><blockquote collapsed>{sanitize_html(reason)}</blockquote>\n"
+        f"<b>Причина:</b><blockquote expandable>{sanitize_html(reason)}</blockquote>\n"
         if reason
         else ""
     )
@@ -268,7 +268,7 @@ def format_admin_notification_message(
         "⚠️ <b>ВТОРЖЕНИЕ!</b>\n\n"
         f"<b>Группа:</b> {sanitize_html(message.chat.title)}{chat_username_str}\n\n"
         f"<b>Нарушитель:</b> {sanitize_html(message.from_user.full_name)}{user_username_str}\n\n"
-        f"<b>Содержание угрозы:</b>\n<blockquote collapsed>{content_text}</blockquote>\n"
+        f"<b>Содержание угрозы:</b>\n<blockquote expandable>{content_text}</blockquote>\n\n"
         f"{reason_text}\n"
     )
 
