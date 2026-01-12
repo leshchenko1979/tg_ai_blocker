@@ -235,9 +235,11 @@ async def collect_channel_summary_by_id(
     peer_to_use = successful_identifier
 
     # Fetch recent posts content for spam analysis - this also gives us the newest message and total count
-    recent_posts_content, newest_message, total_posts = await _fetch_recent_posts_content(
-        client, peer_to_use, limit=5
-    )
+    (
+        recent_posts_content,
+        newest_message,
+        total_posts,
+    ) = await _fetch_recent_posts_content(client, peer_to_use, limit=5)
 
     newest_post_date = _extract_message_date(newest_message)
     oldest_post_date = None
