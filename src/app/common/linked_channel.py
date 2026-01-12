@@ -234,8 +234,9 @@ async def collect_channel_summary_by_id(
     # Use the identifier that worked for the history call to ensure consistency
     peer_to_use = successful_identifier
 
-    newest_message, total_posts = await _fetch_channel_edge_message(
-        client, peer_to_use, limit_offset=None
+    # Fetch recent posts content for spam analysis - this also gives us the newest message and total count
+    recent_posts_content, newest_message, total_posts = await _fetch_recent_posts_content(
+        client, peer_to_use, limit=5
     )
 
     newest_post_date = _extract_message_date(newest_message)
@@ -251,11 +252,6 @@ async def collect_channel_summary_by_id(
     if newest_post_date and oldest_post_date:
         delta_days = (newest_post_date - oldest_post_date).days
         post_age_delta = max(delta_days // 30, 0)
-
-    # Fetch recent posts content for spam analysis
-    recent_posts_content = await _fetch_recent_posts_content(
-        client, peer_to_use, limit=5
-    )
 
     summary = LinkedChannelSummary(
         subscribers=subscribers,
@@ -317,10 +313,13 @@ async def _fetch_recent_posts_content(
     client: MtprotoHttpClient,
     peer_reference: int | str,
     limit: int = 5,
-) -> list[str]:
+) -> tuple[list[str], Optional[Dict[str, Any]], Optional[int]]:
     """
     Fetch content from recent posts in a channel to analyze for spam indicators.
-    Returns list of text content from recent posts (excluding media-only posts).
+    Returns tuple of (content_list, newest_message, total_count).
+    - content_list: list of text content from recent posts (excluding media-only posts)
+    - newest_message: the most recent message (first in results)
+    - total_count: total number of messages in the channel
     """
     params: Dict[str, Any] = {
         "peer": peer_reference,
@@ -340,10 +339,12 @@ async def _fetch_recent_posts_content(
             "Failed to fetch recent posts content",
             extra={"peer_reference": peer_reference, "error": str(exc)},
         )
-        return []
+        return [], None, None
 
     messages = history.get("messages", [])
     content_list = []
+    newest_message = messages[0] if messages else None
+    total_count = history.get("count")
 
     for message in messages:
         # Extract text content from message
@@ -351,7 +352,7 @@ async def _fetch_recent_posts_content(
         if text_content and text_content.strip():
             content_list.append(text_content.strip())
 
-    return content_list
+    return content_list, newest_message, total_count
 
 
 def _extract_message_text(message: Dict[str, Any]) -> str:

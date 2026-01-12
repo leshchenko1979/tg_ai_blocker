@@ -33,7 +33,7 @@ class TestLinkedChannelExtraction:
             ]
         )
 
-        # Mock call for messages.getHistory (now called twice: for edge messages and recent posts)
+        # Mock call for messages.getHistory (called once for recent posts content)
         mock_client.call = AsyncMock(return_value={"messages": [], "count": 0})
 
         with patch(
@@ -54,8 +54,8 @@ class TestLinkedChannelExtraction:
             assert second_call[1]["identifiers"] == [67890]
             assert second_call[1]["identifier_param"] == "channel"
 
-            # Verify regular call was made for messages.getHistory (now called twice)
-            assert mock_client.call.call_count == 2
+            # Verify regular call was made for messages.getHistory (called once for recent posts)
+            assert mock_client.call.call_count == 1
 
             # Verify we got the expected result
             assert isinstance(result, UserContext)
