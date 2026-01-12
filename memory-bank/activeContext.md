@@ -19,11 +19,11 @@
   - **Pytest Configuration**: Updated `pytest.ini` with markers and default exclusion of integration tests.
   - **Test Structure**: Organized integration tests (Telegram API dependent) separately from unit tests.
   - **Prompt Optimization**: Streamlined private message system prompt by removing redundant `/start` command information.
-  - **Landing Page Finalized**: Built professional Russian landing page with Tailwind CSS. Added **FAQ section** and **Final CTA** block to increase conversion. Optimized styling with custom utility classes and improved accessibility.
+    - **Landing Page Finalized**: Built professional Russian landing page with Tailwind CSS. Added **FAQ section** and **Final CTA** block to increase conversion. Optimized styling with custom utility classes and improved accessibility. Explicitly clarified Telegram focus in all copy.
 - **Immediate Next Steps**:
-  - Monitor landing page deployment.
-  - Monitor deployment reliability with improved test suite.
-  - Consider adding more comprehensive integration test coverage for critical paths.
+    - Monitor landing page deployment on GitHub Pages.
+    - Clean up any remaining development server processes.
+    - Finalize marketing review and monitor conversion rates.
 
 - **Testing Status**: ✅ **Testing Infrastructure Complete** - All 83 unit tests pass during deployment, integration tests properly excluded.
 - **Previous Work Complete**: ✅ **Channel Content Analysis** - Successfully tested with real porn channel (@kotnikova_yana). Classifier now correctly identifies spam with 100% confidence by analyzing recent post content.
