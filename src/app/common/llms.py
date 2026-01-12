@@ -83,7 +83,7 @@ async def get_openrouter_response(messages, temperature=0.3, response_format=Non
         # "google/gemini-2.0-flash-exp:free", 57/25
         # "minimax/minimax-m2:free", removed by OpenRouter
         # "kwaipilot/kat-coder-pro:free", free period ended on Jan 12, 2026
-        "openai/gpt-oss-20b:free",
+        # "openai/gpt-oss-20b:free", rate limited upstream too often
         "tngtech/deepseek-r1t2-chimera:free",
         # "qwen/qwen3-30b-a3b:free", removed by OpenRouter
         "arcee-ai/trinity-mini:free",
