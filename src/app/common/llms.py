@@ -82,10 +82,15 @@ async def get_openrouter_response(messages, temperature=0.3, response_format=Non
         # "deepseek/deepseek-chat-v3-0324:free", 53/9
         # "google/gemini-2.0-flash-exp:free", 57/25
         # "minimax/minimax-m2:free", removed by OpenRouter
-        "kwaipilot/kat-coder-pro:free",
+        # "kwaipilot/kat-coder-pro:free", free period ended on Jan 12, 2026
         "openai/gpt-oss-20b:free",
         "tngtech/deepseek-r1t2-chimera:free",
-        "qwen/qwen3-30b-a3b:free",
+        # "qwen/qwen3-30b-a3b:free", removed by OpenRouter
+        "arcee-ai/trinity-mini:free",
+        "mistralai/devstral-2512:free",
+        "nvidia/nemotron-3-nano-30b-a3b:free",
+        "xiaomi/mimo-v2-flash:free",
+        "qwen/qwen3-coder:free",
     ]
     model_gen = round_robin_with_start(models, _last_model)
     last_exception = None
