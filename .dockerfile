@@ -11,9 +11,9 @@ RUN set -eux; \
     pip uninstall -y uv; \
     rm -rf /root/.cache/uv
 
-COPY src/app ./app
-
 COPY .env PRD.md config.yaml ./
+
+COPY src/app ./app
 
 EXPOSE 8080
 
