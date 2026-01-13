@@ -29,3 +29,4 @@
 - **Previous Work Complete**: ✅ **Channel Content Analysis** - Successfully tested with real porn channel (@kotnikova_yana). Classifier now correctly identifies spam with 100% confidence by analyzing recent post content.
 - **Prompt Optimization**: ✅ **Private Message Prompt Cleaned** - Removed redundant `/start` command content from LLM prompt for cleaner conversation context.
 - **Edited Message Handling**: ✅ **Added Handler for Edited Messages** - Edited messages now return "edited_message_ignored" tag instead of generic "unhandled" for better Logfire observability. Handler does nothing else - edited messages are not moderated.
+- **Logfire Message Lookup**: ✅ **Integration Test Created** - Added comprehensive test showing that forwarded channel messages can be successfully recovered from Logfire traces, even when forward metadata extraction fails. Test verifies the exact message from trace 019b5e2c87ecf0c47aeb7591b9c35dcb can be found.

@@ -454,7 +454,7 @@ async def extract_original_message_info(
         info["group_message_id"] = origin.message_id
 
     if not info["user_id"]:
-        logger.warning(
+        logger.info(
             "Cannot determine forwarded user id for spam example",
             extra={
                 "forward_from": bool(original_message.forward_from),
@@ -498,7 +498,7 @@ async def extract_original_message_info(
                     },
                 )
             else:
-                logger.info(
+                logger.warning(
                     "Logfire lookup failed to find message",
                     extra={
                         "logfire_lookup": "miss",
