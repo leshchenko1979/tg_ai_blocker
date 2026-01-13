@@ -19,6 +19,7 @@
   - **Pytest Configuration**: Updated `pytest.ini` with markers and default exclusion of integration tests.
   - **Test Structure**: Organized integration tests (Telegram API dependent) separately from unit tests.
   - **Prompt Optimization**: Streamlined private message system prompt by removing redundant `/start` command information.
+    - **Reply Context Guidance Fixed**: Clarified LLM prompt for `<контекст_обсуждения>` section to explicitly state it's only for evaluating user comment relevance, not for scoring the context content itself as spam. Added explicit warnings against evaluating discussion context for spam.
     - **Landing Page Finalized**: Built professional Russian landing page with Tailwind CSS. Added **FAQ section** and **Final CTA** block to increase conversion. Optimized styling with custom utility classes and improved accessibility. Explicitly clarified Telegram focus in all copy.
 - **Immediate Next Steps**:
     - Monitor landing page deployment on GitHub Pages.

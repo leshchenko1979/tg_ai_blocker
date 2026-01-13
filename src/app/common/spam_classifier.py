@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import re
 import time
@@ -164,83 +163,106 @@ async def get_system_prompt(
     include_account_age_guidance: bool = False,
 ):
     """Get the full prompt with spam examples from database"""
-    prompt = """Ты - классификатор спама. Администратор группы телеграм подает тебе
-тексты сообщений от пользователей, а также их имена и биографии из профиля,
-а ты должен определить, спам это или нет, и дать оценку своей уверенности в процентах."""
+    prompt = """You are a spam message classifier for Telegram groups.
+
+Your task: Analyze user messages and determine if they are spam or legitimate.
+You will receive the message text, user name, and profile bio.
+Return a spam score from -100 to +100, where:
+- Positive scores = spam (0 to 100)
+- Negative scores = legitimate (-100 to 0)
+- Zero = uncertain
+
+Also provide a confidence percentage (0-100) and a brief explanation."""
 
     if include_linked_channel_guidance:
         prompt += """
 
-Раздел <связанный канал> содержит данные о канале, привязанном к профилю автора.
+## LINKED CHANNEL ANALYSIS
+This section contains information about a channel linked to the user's profile.
 
-Обращай внимание на эти поля:
-- subscribers — количество подписчиков канала
-- total_posts — сколько постов опубликовано за всё время
-- age_delta — разница между первым и последним постом (в месяцах, формат "11mo")
-- recent_posts — содержание последних постов канала (если доступно)
+Key metrics to evaluate:
+- subscribers: Number of channel subscribers
+- total_posts: Total posts ever published
+- age_delta: Channel age in months (format: "11mo")
+- recent_posts: Content from recent channel posts (if available)
 
-Считай пользователя подозрительным, если у него одновременно:
+Consider the user HIGH RISK if ALL of these are true:
 - subscribers < 10
 - total_posts < 50
 - age_delta < 10mo
 
-АНАЛИЗИРУЙ СОДЕРЖАНИЕ ПОСТОВ: Если recent_posts содержит признаки порно-контента, рекламы,
-мошенничества, спама или других подозрительных материалов, это ВЫСОКИЙ индикатор спама,
-даже если основной комментарий выглядит безобидно. Каналы с порно-контентом часто используются
-для привлечения трафика через невинные комментарии."""
+CONTENT ANALYSIS: Examine recent_posts for spam indicators like:
+- Pornographic content
+- Advertising or promotions
+- Scams or fraudulent offers
+- Spam patterns
+
+If recent_posts contain suspicious content, this is a STRONG spam indicator,
+even if the current message appears innocent. Porn channels often use innocent comments
+to drive traffic to their profiles."""
 
     if include_stories_guidance:
         prompt += """
 
-Раздел <истории_пользователя> содержит информацию из актуальных сторис профиля автора.
-Спамеры часто используют сторис для размещения рекламы, ссылок на каналы или мошеннических предложений,
-оставляя при этом "чистый" комментарий, чтобы спровоцировать пользователя зайти в профиль.
+## USER STORIES ANALYSIS
+This section contains content from the user's active profile stories.
 
-Если в историях есть:
-- Рекламные ссылки
-- Призывы перейти в канал/профиль
-- Предложения заработка, криптовалют, инвестиций
-- Ссылки на другие каналы
+Spammers frequently use stories to hide promotional content, links, or scam offers
+while posting "clean" comments to lure people into viewing their profile.
 
-Считай это ВЫСОКИМ индикатором спама, даже если сам комментарий выглядит безобидно."""
+Flag as HIGH SPAM if stories contain:
+- Advertising links or promotions
+- Calls to join channels or follow profiles
+- Money-making offers, crypto, or investment schemes
+- Links to other channels or external sites
+
+This is a strong spam indicator even if the message itself appears legitimate."""
 
     if include_account_age_guidance:
         prompt += """
 
-Раздел <возраст_аккаунта> содержит информацию о "возрасте" (давности) фотографии профиля пользователя.
-Это мощный индикатор спама, так как спамеры часто создают аккаунты и сразу начинают рассылку.
+## ACCOUNT AGE ANALYSIS
+This section shows the age of the user's profile photo.
 
-Интерпретация:
-- `photo_age=unknown` или отсутствует фото: ВЫСОКИЙ риск спама для новых сообщений.
-- `photo_age=0mo` (меньше месяца): ВЫСОКИЙ риск спама. Вероятно, аккаунт "свежий".
-- `photo_age=1mo`...`3mo`: СРЕДНИЙ риск.
-- `photo_age > 12mo`: НИЗКИЙ риск (фактор доверия). Старое фото говорит о долгоживущем аккаунте."""
+Account age is a powerful spam indicator because spammers create new accounts
+and immediately start posting spam.
+
+Risk assessment:
+- photo_age=unknown OR no photo: HIGH spam risk for new messages
+- photo_age=0mo (less than 1 month): HIGH spam risk - likely brand new account
+- photo_age=1mo to 3mo: MEDIUM spam risk
+- photo_age > 12mo: LOW spam risk - established account with old photo"""
 
     if include_reply_context_guidance:
         prompt += """
 
-Раздел <контекст_обсуждения> содержит текст поста, на который отвечает пользователь.
+## DISCUSSION CONTEXT ANALYSIS
+This section contains the original post that the user is replying to.
 
-ВЫСОКИЙ ИНДИКАТОР СПАМА: Комментарии, полностью не связанные с темой обсуждения.
-Это распространенная тактика мошенников: сначала "подружиться" через нерелевантные комментарии,
-затем в личных сообщениях предлагать инвестиции, криптовалюту или другие схемы.
+IMPORTANT: This context is provided ONLY to evaluate if the user's reply is relevant.
+DO NOT score this context content as spam - it may contain any type of content.
 
-ПРИЗНАКИ ОТСУТСТВИЯ РЕЛЕВАНТНОСТИ:
-- Комментарий игнорирует основную тему оригинального поста
-- Переход на личные темы (книги, фильмы, хобби) без связи с обсуждением
-- Общие фразы вроде "интересно", "согласен" без конкретного отношения к контенту
-- Самореклама под видом "полезного совета" по несвязанной теме"""
+HIGH SPAM INDICATOR: User replies that are completely unrelated to the discussion topic.
+This is a common scam tactic: post irrelevant comments to "befriend" users,
+then send investment/crypto offers via private messages.
+
+Signs of irrelevant replies:
+- Reply ignores the main topic of the original post
+- Shifts to personal topics (books, movies, hobbies) with no connection
+- Generic phrases like "interesting" or "I agree" without specific reference
+- Self-promotion disguised as "helpful advice" on unrelated topics"""
 
     prompt += """
 
-ИСПОЛЬЗУЙ JSON ФОРМАТ ОТВЕТА:
+## RESPONSE FORMAT
+Always respond with valid JSON in this exact format:
 {
-    "is_spam": boolean,
-    "confidence": integer (0-100),
-    "reason": string
+    "is_spam": true/false,
+    "confidence": 0-100,
+    "reason": "Brief explanation of your decision"
 }
 
-ПРИМЕРЫ:
+## SPAM CLASSIFICATION EXAMPLES
 """
 
     # Get spam examples, including user-specific examples
@@ -286,10 +308,8 @@ def get_messages(
         reply_context,
         account_age_context,
     )
-    user_message = f"""
-{user_request}
-<ответ>
-"""
+    user_message = f"""{user_request}
+Analyze this message and respond with JSON spam classification."""
 
     return [
         {"role": "system", "content": prompt},
@@ -307,44 +327,61 @@ def format_spam_request(
     account_age_context: Optional[str] = None,
 ) -> str:
     """
-    Форматирует запрос для классификации спама.
+    Format a spam classification request for the LLM.
 
     Args:
-        text: Текст сообщения
-        name: Имя отправителя (опционально)
-        bio: Биография отправителя (опционально)
+        text: Message text to classify
+        name: Sender's name (optional)
+        bio: Sender's bio (optional)
+        linked_channel_fragment: Linked channel info (optional)
+        stories_context: User stories content (optional)
+        reply_context: Original post being replied to (optional)
+        account_age_context: Account age info (optional)
 
     Returns:
-        str: Отформатированный запрос
+        str: Formatted request with clear section headers
     """
-    request = f"""
-<запрос>
-<текст сообщения>
+    request = f"""MESSAGE TO CLASSIFY:
 {text}
-</текст сообщения>
+
 """
 
     if name:
-        request += f"<имя>{name}</имя>\n"
+        request += f"""USER NAME:
+{name}
+
+"""
 
     if bio:
-        request += f"<биография>{bio}</биография>\n"
+        request += f"""USER BIO:
+{bio}
+
+"""
 
     if linked_channel_fragment:
-        request += f"<связанный_канал>{linked_channel_fragment}</связанный_канал>\n"
+        request += f"""LINKED CHANNEL INFO:
+{linked_channel_fragment}
+
+"""
 
     if stories_context:
-        request += (
-            f"<истории_пользователя>\n{stories_context}\n</истории_пользователя>\n"
-        )
+        request += f"""USER STORIES CONTENT:
+{stories_context}
+
+"""
 
     if account_age_context:
-        request += f"<возраст_аккаунта>\n{account_age_context}\n</возраст_аккаунта>\n"
+        request += f"""ACCOUNT AGE INFO:
+{account_age_context}
+
+"""
 
     if reply_context:
-        request += f"<контекст_обсуждения>\n{reply_context}\n</контекст_обсуждения>\n"
+        request += f"""ORIGINAL POST BEING REPLIED TO:
+{reply_context}
 
-    request += "</запрос>"
+"""
+
     return request
 
 

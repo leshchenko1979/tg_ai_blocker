@@ -3,7 +3,7 @@
 ### What works
 - Telegram webhook server
 - aiogram handlers
-- Spam classifier (LLM + Context + Stories + Account Age + Discussion Context)
+- Spam classifier (LLM + Context + Stories + Account Age + Discussion Context with relevance evaluation)
 - Billing via Telegram Stars
 - Mixpanel tracking
 - PostgreSQL data layer

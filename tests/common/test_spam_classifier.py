@@ -46,9 +46,9 @@ def test_extract_spam_score_invalid(response):
 
 def test_format_spam_request_basic():
     req = format_spam_request("Hello", "User", "Bio")
-    assert "<текст сообщения>\nHello\n</текст сообщения>" in req
-    assert "<имя>User</имя>" in req
-    assert "<биография>Bio</биография>" in req
+    assert "MESSAGE TO CLASSIFY:\nHello" in req
+    assert "USER NAME:\nUser" in req
+    assert "USER BIO:\nBio" in req
     assert "<истории_пользователя>" not in req
     assert "<связанный_канал>" not in req
 
@@ -59,14 +59,14 @@ def test_format_spam_request_with_stories():
         "Bio",
         stories_context="Caption: spam story"
     )
-    assert "<истории_пользователя>\nCaption: spam story\n</истории_пользователя>" in req
+    assert "USER STORIES CONTENT:\nCaption: spam story" in req
 
 def test_format_spam_request_with_linked_channel():
     req = format_spam_request(
         "Hello",
         linked_channel_fragment="subscribers=100"
     )
-    assert "<связанный_канал>subscribers=100</связанный_канал>" in req
+    assert "LINKED CHANNEL INFO:\nsubscribers=100" in req
 
 
 def test_format_spam_request_with_reply_context():
@@ -74,7 +74,7 @@ def test_format_spam_request_with_reply_context():
         "Hello",
         reply_context="Original post text"
     )
-    assert "<контекст_обсуждения>\nOriginal post text\n</контекст_обсуждения>" in req
+    assert "ORIGINAL POST BEING REPLIED TO:\nOriginal post text" in req
 
 @pytest.mark.asyncio
 async def test_get_system_prompt_stories_guidance():
@@ -83,8 +83,8 @@ async def test_get_system_prompt_stories_guidance():
 
         prompt = await get_system_prompt(include_stories_guidance=True)
 
-        assert "Раздел <истории_пользователя> содержит информацию" in prompt
-        assert "Считай это ВЫСОКИМ индикатором спама" in prompt
+        assert "## USER STORIES ANALYSIS" in prompt
+        assert "Flag as HIGH SPAM if stories contain:" in prompt
 
 @pytest.mark.asyncio
 async def test_get_system_prompt_reply_context_guidance():
@@ -93,8 +93,10 @@ async def test_get_system_prompt_reply_context_guidance():
 
         prompt = await get_system_prompt(include_reply_context_guidance=True)
 
-        assert "Раздел <контекст_обсуждения> содержит текст поста" in prompt
-        assert "ВЫСОКИЙ ИНДИКАТОР СПАМА: Комментарии, полностью не связанные с темой обсуждения" in prompt
+        assert "## DISCUSSION CONTEXT ANALYSIS" in prompt
+        assert "IMPORTANT: This context is provided ONLY to evaluate if the user's reply is relevant." in prompt
+        assert "DO NOT score this context content as spam" in prompt
+        assert "HIGH SPAM INDICATOR: User replies that are completely unrelated to the discussion topic." in prompt
 
 @pytest.mark.asyncio
 async def test_get_system_prompt_no_reply_context_guidance():
