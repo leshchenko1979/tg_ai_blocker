@@ -362,6 +362,10 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
 
             # Добавляем удаление сообщения из группы, если есть информация о нем
             if info.get("group_chat_id") and info.get("group_message_id"):
+                logger.info(
+                    f"Adding message deletion task: chat_id={info['group_chat_id']}, message_id={info['group_message_id']}",
+                    extra={"message_deletion": "task_added"},
+                )
                 tasks.append(
                     bot.delete_message(
                         chat_id=info["group_chat_id"],
@@ -371,10 +375,20 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
             else:
                 logger.warning(
                     "Group chat ID or message ID not found in info, skipping message deletion",
-                    extra={"message_deletion": "skipped"},
+                    extra={
+                        "message_deletion": "skipped",
+                        "group_chat_id": info.get("group_chat_id"),
+                        "group_message_id": info.get("group_message_id"),
+                    },
                 )
 
         await asyncio.gather(*tasks)
+
+        if action == "spam":
+            logger.info(
+                f"Spam example processing completed: user_removed={bool(info.get('user_id'))}, message_deleted={bool(info.get('group_chat_id') and info.get('group_message_id'))}",
+                extra={"spam_example_processing": "completed"},
+            )
 
         mp.track(
             admin_id,
