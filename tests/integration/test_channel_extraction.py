@@ -9,7 +9,7 @@ import os
 from dotenv import load_dotenv
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 
 # Load environment variables first
 load_dotenv()
@@ -20,9 +20,6 @@ os.environ["MTPROTO_HTTP_DISABLE_SSL_VERIFY"] = "1"
 # Add src to path for mtproto_client import
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-import aiohttp
-import ssl
-import certifi
 from app.common.mtproto_client import (
     MtprotoHttpClient,
     MtprotoHttpError,

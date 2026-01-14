@@ -12,7 +12,7 @@ from ..common.linked_channel import collect_linked_channel_summary
 from ..common.llms import get_openrouter_response
 from ..common.logfire_lookup import find_original_message
 from ..common.mp import mp
-from ..common.utils import config, sanitize_llm_html
+from ..common.utils import sanitize_llm_html
 from ..database import (
     add_spam_example,
     get_admin,

@@ -5,6 +5,7 @@ import asyncpg
 
 load_dotenv()
 
+
 async def count_groups_with_disabled_moderation():
     # Получаем параметры подключения из переменных окружения с теми же значениями по умолчанию
     conn = await asyncpg.connect(
@@ -12,7 +13,7 @@ async def count_groups_with_disabled_moderation():
         port=int(os.getenv("PG_PORT", "5432")),
         user=os.getenv("PG_USER", "postgres"),
         password=os.getenv("PG_PASSWORD", ""),
-        database=os.getenv("PG_DB", "ai_spam_bot")
+        database=os.getenv("PG_DB", "ai_spam_bot"),
     )
 
     try:
@@ -27,6 +28,7 @@ async def count_groups_with_disabled_moderation():
         print(f"Количество групп с отключенной модерацией: {disabled}")
     finally:
         await conn.close()
+
 
 if __name__ == "__main__":
     asyncio.run(count_groups_with_disabled_moderation())

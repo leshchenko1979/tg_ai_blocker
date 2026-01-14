@@ -1,5 +1,3 @@
-import pytest
-
 from src.app.server import extract_update_type_ignored
 
 
@@ -10,7 +8,7 @@ class TestExtractUpdateTypeIgnored:
         """Test extraction of edited_message update type."""
         json_update = {
             "update_id": 123456,
-            "edited_message": {"message_id": 123, "chat": {"id": -100123}}
+            "edited_message": {"message_id": 123, "chat": {"id": -100123}},
         }
 
         result = extract_update_type_ignored(json_update)
@@ -20,7 +18,7 @@ class TestExtractUpdateTypeIgnored:
         """Test extraction of message update type."""
         json_update = {
             "update_id": 123456,
-            "message": {"message_id": 123, "chat": {"id": -100123}}
+            "message": {"message_id": 123, "chat": {"id": -100123}},
         }
 
         result = extract_update_type_ignored(json_update)
@@ -30,7 +28,7 @@ class TestExtractUpdateTypeIgnored:
         """Test extraction of callback_query update type."""
         json_update = {
             "update_id": 123456,
-            "callback_query": {"id": "123", "data": "test"}
+            "callback_query": {"id": "123", "data": "test"},
         }
 
         result = extract_update_type_ignored(json_update)
@@ -40,7 +38,7 @@ class TestExtractUpdateTypeIgnored:
         """Test extraction of inline_query update type."""
         json_update = {
             "update_id": 123456,
-            "inline_query": {"id": "123", "query": "test"}
+            "inline_query": {"id": "123", "query": "test"},
         }
 
         result = extract_update_type_ignored(json_update)
@@ -48,9 +46,7 @@ class TestExtractUpdateTypeIgnored:
 
     def test_empty_update(self):
         """Test handling of update with only update_id."""
-        json_update = {
-            "update_id": 123456
-        }
+        json_update = {"update_id": 123456}
 
         result = extract_update_type_ignored(json_update)
         assert result == "empty_update_ignored"
@@ -60,7 +56,7 @@ class TestExtractUpdateTypeIgnored:
         json_update = {
             "update_id": 123456,
             "message": {"message_id": 123},
-            "callback_query": {"id": "123"}
+            "callback_query": {"id": "123"},
         }
 
         result = extract_update_type_ignored(json_update)

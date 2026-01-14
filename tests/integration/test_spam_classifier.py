@@ -9,7 +9,7 @@ import os
 from dotenv import load_dotenv
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 
 # Load environment variables first
 load_dotenv()

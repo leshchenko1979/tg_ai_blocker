@@ -1,4 +1,6 @@
 import logging
+
+import logfire
 from typing import Any, Dict, List, Optional
 
 from ..common.utils import clean_alert_text
@@ -47,6 +49,7 @@ async def get_spam_examples(
         ]
 
 
+@logfire.instrument(extract_args=True)
 async def add_spam_example(
     text: str,
     score: int,

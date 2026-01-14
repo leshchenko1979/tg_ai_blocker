@@ -425,8 +425,11 @@ async def test_pool():
     if USE_SQLITE:
         # Register datetime adapters to avoid deprecation warnings (Python 3.12+)
         import sqlite3
+
         sqlite3.register_adapter(datetime, lambda dt: dt.isoformat())
-        sqlite3.register_converter("TIMESTAMP", lambda ts: datetime.fromisoformat(ts.decode()))
+        sqlite3.register_converter(
+            "TIMESTAMP", lambda ts: datetime.fromisoformat(ts.decode())
+        )
 
         # Create SQLite in-memory database
         sqlite_conn = await aiosqlite.connect(SQLITE_DB_PATH)

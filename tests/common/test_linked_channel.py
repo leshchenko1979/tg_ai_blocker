@@ -114,9 +114,9 @@ class TestLinkedChannelExtraction:
             mock_client.call_with_fallback.assert_called_once()
             call_args = mock_client.call_with_fallback.call_args
             assert call_args[0][0] == "channels.getFullChannel"
-            assert (
-                call_args[1]["identifiers"] == [username]
-            )  # only username since it's available
+            assert call_args[1]["identifiers"] == [
+                username
+            ]  # only username since it's available
             assert call_args[1]["identifier_param"] == "channel"
 
             # Verify result
@@ -149,9 +149,9 @@ class TestLinkedChannelExtraction:
             mock_client.call_with_fallback.assert_called_once()
             call_args = mock_client.call_with_fallback.call_args
             assert call_args[0][0] == "channels.getFullChannel"
-            assert (
-                call_args[1]["identifiers"] == [username]
-            )  # only username since it's available
+            assert call_args[1]["identifiers"] == [
+                username
+            ]  # only username since it's available
             assert call_args[1]["identifier_param"] == "channel"
 
             # Verify result

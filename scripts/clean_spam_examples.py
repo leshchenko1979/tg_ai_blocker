@@ -2,7 +2,8 @@ from dotenv import load_dotenv
 
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Загружаем переменные окружения до импортов
 load_dotenv()
@@ -26,7 +27,7 @@ async def clean_spam_examples():
 
         cleaned = 0
         for row in rows:
-            original_text = row['text']
+            original_text = row["text"]
             cleaned_text = clean_alert_text(original_text)
 
             if cleaned_text != original_text:
@@ -34,7 +35,7 @@ async def clean_spam_examples():
                 await conn.execute(
                     "UPDATE spam_examples SET text = $1 WHERE id = $2",
                     cleaned_text,
-                    row['id']
+                    row["id"],
                 )
                 cleaned += 1
                 logger.info(f"Cleaned example {row['id']}")

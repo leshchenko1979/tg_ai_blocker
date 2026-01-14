@@ -52,12 +52,9 @@ source .env
 start_section "🔧 Code Quality & Testing"
 
 # Run isort to sort imports
-echo "Running isort..."
-isort src
-
-# Run black for code formatting
-echo "Running black..."
-black src
+echo "Running ruff..."
+ruff check --fix src --ignore E402,F403
+ruff format src
 
 # Run tests if not skipped
 if [ "$SKIP_TESTS" = false ]; then
