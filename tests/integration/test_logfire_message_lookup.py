@@ -12,6 +12,7 @@ in Logfire even when user_id extraction from forward metadata fails.
 import asyncio
 import os
 import sys
+import pytest
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -24,6 +25,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 from app.common.logfire_lookup import find_original_message
 
 
+@pytest.mark.integration
 async def test_logfire_message_lookup():
     """
     Test that logfire message lookup can find the original message from trace 019b5e2c87ecf0c47aeb7591b9c35dcb.
@@ -105,6 +107,7 @@ async def test_logfire_message_lookup():
         return False
 
 
+@pytest.mark.integration
 async def test_logfire_message_lookup_without_user_id():
     """
     Test that logfire message lookup can find messages even when user_id is None.

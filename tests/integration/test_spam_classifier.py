@@ -4,6 +4,7 @@ Test spam classifier with the @kotnikova_yana channel content
 """
 
 import asyncio
+import pytest
 import sys
 import os
 from dotenv import load_dotenv
@@ -248,6 +249,7 @@ async def collect_channel_summary_by_id(
     return summary
 
 
+@pytest.mark.integration
 async def test_spam_classifier():
     """Test spam classifier with the @kotnikova_yana channel content."""
     channel_id = -1003388711152  # @kotnikova_yana

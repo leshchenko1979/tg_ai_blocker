@@ -20,7 +20,7 @@
 - Linked Channel detection (Username-first resolution)
 - **Enhanced Channel Content Analysis**: ✅ **Tested & Working** - Now fetches and analyzes text content from recent posts, not just metadata (successfully detects porn/spam channels by content)
 - **Spam Example Curation**: ✅ **Database Optimized** - Promoted 15 high-quality patterns to common, deduplicated 14 redundant entries from the baseline, and cleaned up top 2 admins. Baseline now provides high-quality starting point with balanced scores.
-- **Testing Infrastructure**: ✅ **Complete** - Proper separation of unit tests (83) from integration tests. Deployment runs only reliable unit tests.
+- **Testing Infrastructure**: ✅ **Complete** - Proper separation of unit tests (83) from integration tests. pytest.ini addopts correctly excludes integration tests from deployment. All integration tests properly marked with `@pytest.mark.integration`.
 - **Documentation**: ✅ **Updated PRD** - `PRD.md` synchronized with codebase and memory bank.
 - **MTProto Optimization**: ✅ **Peer Resolution Optimized** - Eliminated 90%+ failing numeric ID calls by requiring username-only resolution.
 - **Logfire Message Lookup**: ✅ **Integration Test Created** - Added `test_logfire_message_lookup.py` that proves the system can successfully recover forwarded channel messages from Logfire traces, even when forward metadata extraction fails initially.

@@ -4,6 +4,7 @@ Live test script to extract channel content for @kotnikova_yana (ID: -1003388711
 """
 
 import asyncio
+import pytest
 import sys
 import os
 from dotenv import load_dotenv
@@ -247,6 +248,8 @@ async def collect_channel_summary_by_id(
     return summary
 
 
+@pytest.mark.integration
+@pytest.mark.integration
 async def test_channel_extraction():
     """Test channel content extraction for the problematic channel."""
     channel_id = -1003388711152  # @kotnikova_yana

@@ -19,7 +19,7 @@
 - **Testing Infrastructure**:
   - **Unit Tests**: 83 tests covering core functionality with mocked dependencies and local SQLite test databases. Run during deployment.
   - **Integration Tests**: Standalone scripts in `tests/integration/` testing external service dependencies (Telegram API). Excluded from deployment.
-  - **Pytest Configuration**: Markers (`@pytest.mark.integration`) and default exclusion (`-m "not integration"`) ensure deployment reliability.
+  - **Pytest Configuration**: Markers (`@pytest.mark.integration`) and default exclusion (`-m "not integration"`) ensure deployment reliability. **CRITICAL**: All integration test functions MUST have `@pytest.mark.integration` decorator for pytest.ini addopts to work properly.
   - **Linked Channel Testing**: Comprehensive test suite in `tests/common/test_linked_channel.py` with CSV-driven test cases validates bot vs MTProto extraction methods. Includes SSL bypass for local MTProto testing.
 - **Logfire Instrumentation**: Functions use `@logfire.instrument()` with `extract_args=True` and `record_return=True` for automatic start/finish logging with argument extraction and return value recording. Default messages used (function names). Manual spans added for significant sub-operations within instrumented functions.
 - **Database Schema**: PostgreSQL stored procedures include bot filtering to prevent system accounts from being added as group admins. Connection management separated from business logic with dedicated cleanup functions.

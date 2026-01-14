@@ -59,7 +59,7 @@ ruff format src
 # Run tests if not skipped
 if [ "$SKIP_TESTS" = false ]; then
     echo "Running unit tests with SQLite (integration tests are excluded by default)..."
-    USE_SQLITE_TESTS=true python3 -m pytest tests --maxfail=1 --exitfirst -q
+    USE_SQLITE_TESTS=true python3 -m pytest tests --maxfail=1 --exitfirst -q --full-trace
 
     if [ $? -ne 0 ]; then
         echo -e "${RED}Tests failed! Aborting deployment.${NC}"

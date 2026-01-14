@@ -43,6 +43,7 @@ MODELS = [
 
 
 _last_model = random.choice(MODELS)
+logger.debug("Initially chosen model: %s", _last_model)
 
 
 class LLMException(Exception):
@@ -85,6 +86,7 @@ def round_robin_with_start(models, start_model=None):
         yield models[idx]
         yield models[idx]
         idx = (idx + 1) % n
+        logger.debug("Switched model: %s", models[idx])
 
 
 @logfire.instrument()
