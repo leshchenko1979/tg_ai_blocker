@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 import ssl
 
 import aiohttp
@@ -9,7 +10,39 @@ import logfire
 # Global variable to track the last successful OpenRouter model
 logger = logging.getLogger(__name__)
 
-_last_model = None
+# Below commented out models are given with X/Y numbers - that is failure to success ratio
+
+MODELS = [
+    # "qwen/qwen3-14b:free", 74/47
+    # "google/gemma-3-12b-it:free", Context window 8K - too small
+    # "google/gemma-3-27b-it:free", Context window 8K - too small
+    # "nvidia/nemotron-nano-9b-v2:free", false positives
+    # "deepseek/deepseek-chat-v3.1:free", success rate 0%
+    # "openai/gpt-oss-120b:free", success rate 0%
+    # "z-ai/glm-4.5-air:free", success rate 57.14%
+    # "qwen/qwen3-coder:free", success rate 37.5%
+    # "moonshotai/kimi-k2:free", success rate 0%
+    # "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", success rate 20%
+    # "tencent/hunyuan-a13b-instruct:free", success rate 0%
+    # "mistralai/mistral-small-3.2-24b-instruct:free", success rate 50%
+    # "deepseek/deepseek-r1-0528:free", success rate 0%
+    # "qwen/qwen3-235b-a22b:free", success rate 37.5%
+    # "deepseek/deepseek-chat-v3-0324:free", 53/9
+    # "google/gemini-2.0-flash-exp:free", 57/25
+    # "minimax/minimax-m2:free", removed by OpenRouter
+    # "kwaipilot/kat-coder-pro:free", free period ended on Jan 12, 2026
+    # "openai/gpt-oss-20b:free", rate limited upstream too often
+    # "tngtech/deepseek-r1t2-chimera:free", success rate 40%
+    # "qwen/qwen3-30b-a3b:free", removed by OpenRouter
+    "arcee-ai/trinity-mini:free",
+    "mistralai/devstral-2512:free",
+    "nvidia/nemotron-3-nano-30b-a3b:free",
+    "xiaomi/mimo-v2-flash:free",
+    "qwen/qwen3-coder:free",
+]
+
+
+_last_model = random.choice(MODELS)
 
 
 class LLMException(Exception):
@@ -62,37 +95,7 @@ async def get_openrouter_response(messages, temperature=0.3, response_format=Non
         "Content-Type": "application/json",
     }
 
-    # Below commented out models are given with X/Y numbers - that is failure to success ratio
-
-    models = [
-        # "qwen/qwen3-14b:free", 74/47
-        # "google/gemma-3-12b-it:free", Context window 8K - too small
-        # "google/gemma-3-27b-it:free", Context window 8K - too small
-        # "nvidia/nemotron-nano-9b-v2:free", false positives
-        # "deepseek/deepseek-chat-v3.1:free", success rate 0%
-        # "openai/gpt-oss-120b:free", success rate 0%
-        # "z-ai/glm-4.5-air:free", success rate 57.14%
-        # "qwen/qwen3-coder:free", success rate 37.5%
-        # "moonshotai/kimi-k2:free", success rate 0%
-        # "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", success rate 20%
-        # "tencent/hunyuan-a13b-instruct:free", success rate 0%
-        # "mistralai/mistral-small-3.2-24b-instruct:free", success rate 50%
-        # "deepseek/deepseek-r1-0528:free", success rate 0%
-        # "qwen/qwen3-235b-a22b:free", success rate 37.5%
-        # "deepseek/deepseek-chat-v3-0324:free", 53/9
-        # "google/gemini-2.0-flash-exp:free", 57/25
-        # "minimax/minimax-m2:free", removed by OpenRouter
-        # "kwaipilot/kat-coder-pro:free", free period ended on Jan 12, 2026
-        # "openai/gpt-oss-20b:free", rate limited upstream too often
-        # "tngtech/deepseek-r1t2-chimera:free", success rate 40%
-        # "qwen/qwen3-30b-a3b:free", removed by OpenRouter
-        "arcee-ai/trinity-mini:free",
-        "mistralai/devstral-2512:free",
-        "nvidia/nemotron-3-nano-30b-a3b:free",
-        "xiaomi/mimo-v2-flash:free",
-        "qwen/qwen3-coder:free",
-    ]
-    model_gen = round_robin_with_start(models, _last_model)
+    model_gen = round_robin_with_start(MODELS, _last_model)
     last_exception = None
 
     # Create SSL context with certifi certificates for proper SSL verification
