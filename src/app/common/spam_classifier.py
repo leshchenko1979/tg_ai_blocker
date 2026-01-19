@@ -186,10 +186,10 @@ Key metrics to evaluate:
 - age_delta: Channel age in months (format: "11mo")
 - recent_posts: Content from recent channel posts (if available)
 
-Consider the user HIGH RISK if ALL of these are true:
-- subscribers < 10
-- total_posts < 50
-- age_delta < 10mo
+Consider the user HIGH RISK if these are true:
+- subscribers < 200
+- total_posts < 10
+- age_delta < 5mo
 
 CONTENT ANALYSIS: Examine recent_posts for spam indicators like:
 - Pornographic content

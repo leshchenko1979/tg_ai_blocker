@@ -37,10 +37,7 @@ class LinkedChannelSummary:
             content_snippets = []
             for i, content in enumerate(self.recent_posts_content[:3]):
                 if content.strip():
-                    truncated = content[:200].strip()
-                    if len(content) > 200:
-                        truncated += "..."
-                    content_snippets.append(f"post_{i + 1}: {truncated}")
+                    content_snippets.append(f"post_{i + 1}: {content.strip()}")
 
             if content_snippets:
                 parts.append(f"recent_posts=[{'; '.join(content_snippets)}]")
