@@ -23,6 +23,13 @@
   - **Unit Tests**: Fast, reliable tests using mocked dependencies and local test databases (SQLite/PostgreSQL). Run during deployment (83 tests).
   - **Integration Tests**: Tests requiring external services (Telegram API) stored in `tests/integration/`. Excluded from deployment via `@pytest.mark.integration`.
   - **Test Execution**: `pytest` with `--maxfail=1 --exitfirst -q` during deployment, only unit tests pass.
+- **LLM Model Evaluation**:
+  - **Evaluation Script**: `scripts/eval_llm_models.py` provides comprehensive testing infrastructure for spam classification models.
+  - **Balanced Test Cases**: Automatically balances spam vs legitimate examples from database to prevent skewed accuracy metrics.
+  - **Model Isolation**: Temporarily overrides MODELS list to test individual models without affecting global state.
+  - **Hierarchical Progress Bars**: Uses `tqdm` with `position` parameters (0 for models, 1 for test cases, `leave=False` for inner bars) to prevent display conflicts.
+  - **Results Storage**: Automatically saves complete evaluation results to `eval_results/` directory as timestamped JSON files with full metadata.
+  - **DRY Architecture**: Helper functions eliminate repetitive code for error handling, formatting, and calculations.
 - **Notification System**: Admin notifications use private→group fallback with optimized bot detection. Pre-filtered admin lists skip expensive API calls (assume_human_admins=True), while untrusted lists use full API validation. Bot removal events trigger enhanced logging showing who performed the removal. Database operations separated from business logic with dedicated cleanup functions. Logfire instrumentation provides automatic start/finish logging with argument extraction and return value recording.
 - **Database Integrity**: Stored procedures include bot filtering (negative IDs, known bot accounts). Admin lists prevent bot contamination through API validation and database-level checks. Cleanup operations properly separate connection management from business logic.
 - **Spam Examples Context Storage**: When new context elements are added to spam classification (e.g., `stories_context`, `reply_context`, `account_age_context`), they must be:

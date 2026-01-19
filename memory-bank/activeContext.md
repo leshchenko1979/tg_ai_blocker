@@ -1,14 +1,15 @@
 ## Active Context
 
-- **Current Focus**: Enhanced spam classification with context field storage - completed implementation of stories_context, reply_context, account_age_context storage and retrieval.
+- **Current Focus**: LLM Model Evaluation Infrastructure - completed comprehensive evaluation script for testing spam classification accuracy across multiple models with hierarchical progress tracking and JSON results storage.
 - **Key Decisions**:
-  - **Context Field Storage**: Three-state system (NULL for historical, '[EMPTY]' for checked-but-empty, content for found data) to maintain accurate context information.
-  - **Logfire Trace Recovery**: Extract context fields from classification traces when creating examples from forwarded messages.
-  - **Backward Compatibility**: Existing examples work unchanged while new examples include full context.
+  - **Balanced Test Cases**: Ensures both spam and legitimate examples are used for proper accuracy metrics (prevents artificially high scores from spam-only testing).
+  - **Hierarchical Progress Bars**: Implemented proper tqdm positioning (`position=0` for models, `position=1, leave=False` for test cases) to prevent display conflicts.
+  - **JSON Results Storage**: Automatic saving of complete evaluation results to `eval_results/` directory with full metadata, excluded from git.
 - **Recent Implementation**:
-  - **Enhanced Spam Examples**: ✅ **Complete** - Full context field storage system with database migration, Logfire integration, and three-state prompt formatting.
-  - **Production Deployment**: ✅ **Complete** - Migration run on production database, deployment process updated.
+  - **LLM Evaluation Script**: ✅ **Complete** - Comprehensive testing infrastructure with progress bars, balanced examples, hierarchical tqdm, JSON results storage, and model isolation.
+  - **Gemma Default Model**: ✅ **Complete** - Set `google/gemma-3-27b-it:free` as default model on module load instead of random selection.
+  - **DRY Codebase**: ✅ **Complete** - Eliminated repetitive patterns in evaluation script (error handling, confusion matrix formatting, percentage calculations).
 - **Immediate Next Steps**:
-  - Monitor spam classification accuracy improvements with enhanced context.
-  - Consider comprehensive "shadow mode" for testing new classifiers.
-  - Evaluate advanced billing dashboard requirements.
+  - Run comprehensive evaluation across all active models to establish baseline performance metrics.
+  - Monitor evaluation script usage and refine based on admin feedback.
+  - Consider automated model selection based on evaluation results.

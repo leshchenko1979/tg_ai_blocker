@@ -43,8 +43,8 @@ MODELS = [
 ]
 
 
-_last_model = random.choice(MODELS)
-logger.debug("Initially chosen model: %s", _last_model)
+_last_model = "google/gemma-3-27b-it:free"  # Default to gemma model
+logger.debug("🎯 DEFAULT MODEL SET: %s", _last_model)
 
 
 class LLMException(Exception):

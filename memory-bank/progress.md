@@ -29,6 +29,7 @@
     - **Landing Page**: ✅ **Complete** - Professional Russian landing page with Tailwind CSS, real spam examples, FAQ, strong CTA, optimized styling, improved accessibility, and automated CI/CD deployment to GitHub Pages. Explicitly emphasizes Telegram spam protection.
 - **Handler Return Values**: ✅ **Fixed** - All Telegram update handlers now return descriptive strings instead of None, preventing "_ignored" tags in logfire traces. Fixed payment handlers (`handle_buy_command`, `handle_buy_stars_callback`, `process_pre_checkout_query`, `process_successful_payment`) and command handlers (`cmd_ref`).
 - **Enhanced Spam Examples Context Storage**: ✅ **Complete** - Added `stories_context`, `reply_context`, `account_age_context` fields to spam examples database with three-state differentiation (NULL for historical, '[EMPTY]' for checked-but-empty, content for found). Logfire trace recovery enables context extraction from forwarded messages. Examples now include full classification context for improved LLM training effectiveness.
+- **LLM Model Evaluation Infrastructure**: ✅ **Complete** - Comprehensive evaluation script (`scripts/eval_llm_models.py`) with balanced test cases, hierarchical tqdm progress bars, JSON results storage, model isolation, and detailed accuracy metrics (precision, recall, F1). Includes automatic result persistence to `eval_results/` directory and git exclusion.
 
 ### What's left to build
 - [ ] Comprehensive "shadow mode" for testing new classifiers without affecting users.
