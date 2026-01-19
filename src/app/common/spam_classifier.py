@@ -89,7 +89,8 @@ async def is_spam(
                     },
                     "reason": {
                         "type": "string",
-                        "description": "Причина такой классификации и какие элементы входящих данных содержат спам",
+                        "description": "Причина такой классификации и на основании каких элементов "
+                        "входящих данных сделан такой вывод. Пиши по-русски.",
                     },
                 },
                 "required": ["is_spam", "confidence", "reason"],
@@ -259,7 +260,7 @@ Always respond with valid JSON in this exact format:
 {
     "is_spam": true/false,
     "confidence": 0-100,
-    "reason": "Brief explanation of your decision"
+    "reason": "Причина такой классификации и на основании каких элементов входящих данных сделан такой вывод. Пиши по-русски."
 }
 
 ## SPAM CLASSIFICATION EXAMPLES
