@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @dp.message(Command("buy"))
-async def handle_buy_command(message: types.Message) -> None:
+async def handle_buy_command(message: types.Message) -> str:
     """
     Обрабатывает команду покупки звезд
     Показывает меню с разными пакетами звезд
@@ -55,10 +55,11 @@ async def handle_buy_command(message: types.Message) -> None:
         parse_mode="HTML",
         disable_web_page_preview=True,
     )
+    return "command_buy_menu_shown"
 
 
 @dp.callback_query(F.data.startswith("buy_stars:"))
-async def handle_buy_stars_callback(callback: types.CallbackQuery):
+async def handle_buy_stars_callback(callback: types.CallbackQuery) -> str:
     """
     Обрабатывает выбор количества звезд для покупки
     """
@@ -82,16 +83,18 @@ async def handle_buy_stars_callback(callback: types.CallbackQuery):
         currency="XTR",
         prices=[types.LabeledPrice(label=f"{stars_amount} звезд", amount=stars_amount)],
     )
+    return "callback_buy_stars_selected"
 
 
 @dp.pre_checkout_query()
-async def process_pre_checkout_query(pre_checkout_query: types.PreCheckoutQuery):
+async def process_pre_checkout_query(pre_checkout_query: types.PreCheckoutQuery) -> str:
     """Обработчик предварительной проверки платежа"""
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+    return "pre_checkout_processed"
 
 
 @dp.message(F.successful_payment)
-async def process_successful_payment(message: types.Message):
+async def process_successful_payment(message: types.Message) -> str:
     """Обработчик успешного платежа"""
     admin_id = message.from_user.id
     stars_amount = message.successful_payment.total_amount
@@ -130,6 +133,7 @@ async def process_successful_payment(message: types.Message):
             )
 
         await send_payment_confirmation()
+        return "payment_successful_processed"
 
     except Exception as e:
         # Трекинг ошибок

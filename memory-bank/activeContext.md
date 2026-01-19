@@ -1,33 +1,12 @@
 ## Active Context
 
-- **Current Focus**: MTProto optimization - removed inefficient numeric ID fallbacks.
+- **Current Focus**: Handler return values - fixed handlers returning None causing "_ignored" logfire tags.
 - **Key Decisions**:
-  - **MTProto Peer Resolution Optimization**: Eliminated numeric ID fallbacks in favor of username-only resolution (90%+ success rate vs 10% for numeric IDs).
-  - **Stories Collection**: Modified `collect_user_stories` to require username, skip when unavailable.
-  - **Linked Channel Collection**: Updated `collect_user_context` and `collect_channel_summary_by_id` to prioritize usernames over numeric IDs.
-  - **Integration Test Updates**: Updated both spam classifier and channel extraction integration tests to use username-only resolution.
-  - **Global Baseline Optimization**: Promoted 15 high-quality examples to common and deduplicated the entire common list (removed 14 redundant/low-value items).
-  - **Spam Example Cleanup**: Reduced spam example counts for top two admins (85+ combined removals including common promotion).
-  - **Test Classification Fixed**: Corrected classification of database tests as unit tests.
-  - **Pytest Markers**: Implemented proper test markers (`@pytest.mark.integration`) to exclude flaky integration tests from deployment.
-  - **Test Organization**: Moved standalone integration test scripts to dedicated `tests/integration/` directory.
-  - **Deployment Safety**: Deployment now runs only reliable unit tests (83 tests) excluding external service dependencies.
-  - **Private Message Prompt Cleaned**: Removed `/start` command content from private message reply prompt to avoid redundancy and focus on core conversation context.
+  - **Handler Return Values**: All Telegram update handlers must return descriptive strings for proper logfire tagging instead of being marked "_ignored".
+  - **Payment Handler Fixes**: Fixed `handle_buy_command`, `handle_buy_stars_callback`, `process_pre_checkout_query`, and `process_successful_payment` to return appropriate tags.
+  - **Command Handler Fixes**: Fixed `cmd_ref` handler to return "command_ref_sent" instead of None.
 - **Recent Implementation**:
-  - **PRD Updated**: Synchronized `PRD.md` with current codebase and memory bank (added deep context analysis details, tech stack, and commands).
-  - **Unit vs Integration Separation**: Database tests using local test databases are now correctly classified as unit tests.
-  - **Pytest Configuration**: Updated `pytest.ini` with markers and default exclusion of integration tests.
-  - **Test Structure**: Organized integration tests (Telegram API dependent) separately from unit tests.
-  - **Prompt Optimization**: Streamlined private message system prompt by removing redundant `/start` command information.
-    - **Reply Context Guidance Fixed**: Clarified LLM prompt for `<контекст_обсуждения>` section to explicitly state it's only for evaluating user comment relevance, not for scoring the context content itself as spam. Added explicit warnings against evaluating discussion context for spam.
-    - **Landing Page Finalized**: Built professional Russian landing page with Tailwind CSS. Added **FAQ section** and **Final CTA** block to increase conversion. Optimized styling with custom utility classes and improved accessibility. Explicitly clarified Telegram focus in all copy.
+  - **Logfire Handler Tagging**: ✅ **Fixed** - All handlers now return descriptive strings instead of None, preventing "_ignored" tags in logfire traces.
 - **Immediate Next Steps**:
-    - Monitor landing page deployment on GitHub Pages.
-    - Clean up any remaining development server processes.
-    - Finalize marketing review and monitor conversion rates.
-
-- **Testing Status**: ✅ **Testing Infrastructure Complete** - All 83 unit tests pass during deployment, integration tests properly excluded.
-- **Previous Work Complete**: ✅ **Channel Content Analysis** - Successfully tested with real porn channel (@kotnikova_yana). Classifier now correctly identifies spam with 100% confidence by analyzing recent post content.
-- **Prompt Optimization**: ✅ **Private Message Prompt Cleaned** - Removed redundant `/start` command content from LLM prompt for cleaner conversation context.
-- **Edited Message Handling**: ✅ **Added Handler for Edited Messages** - Edited messages now return "edited_message_ignored" tag instead of generic "unhandled" for better Logfire observability. Handler does nothing else - edited messages are not moderated.
-- **Logfire Message Lookup**: ✅ **Integration Test Created** - Added comprehensive test showing that forwarded channel messages can be successfully recovered from Logfire traces, even when forward metadata extraction fails. Test verifies the exact message from trace 019b5e2c87ecf0c47aeb7591b9c35dcb can be found.
+  - Monitor handler performance and logfire trace accuracy.
+  - Consider adding handler return value validation in future development.

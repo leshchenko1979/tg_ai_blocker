@@ -1,6 +1,6 @@
 ## System Patterns
 
-- **Runtime Architecture**: `aiohttp` web application exposes Telegram webhook endpoint, forwards updates to a shared `aiogram` dispatcher hosted in `src/app/handlers`. Execution wrapped with `logfire` spans for observability and guarded by timeout/error helpers. Logfire metrics (histograms and gauges) initialized once at module level to ensure proper recording.
+- **Runtime Architecture**: `aiohttp` web application exposes Telegram webhook endpoint, forwards updates to a shared `aiogram` dispatcher hosted in `src/app/handlers`. Execution wrapped with `logfire` spans for observability and guarded by timeout/error helpers. Logfire metrics (histograms and gauges) initialized once at module level to ensure proper recording. Handler return values determine logfire span tags - handlers must return descriptive strings to avoid "_ignored" tagging.
 - **Bot Composition**:
   - `src/app/common` encapsulates integrations: Telegram bot client, LLM providers, Mixpanel tracking, notifications, shared utilities, and spam classifier logic.
   - `src/app/handlers` are organized by intent (callbacks, commands, payments, spam handling) and register with the dispatcher via side effects on import.

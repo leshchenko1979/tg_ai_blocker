@@ -296,7 +296,7 @@ async def handle_mode_command(message: types.Message) -> str:
 
 
 @dp.message(Command("ref"), F.chat.type == "private")
-async def cmd_ref(message: types.Message):
+async def cmd_ref(message: types.Message) -> str:
     """Объясняет, как получить официальную реферальную ссылку Telegram Partner Program"""
     await message.answer(
         "<b>Как получить свою реферальную ссылку для этого бота:</b>\n\n"
@@ -307,3 +307,4 @@ async def cmd_ref(message: types.Message):
         f"<i>Подробнее: {get_affiliate_url()}</i>",
         parse_mode="HTML",
     )
+    return "command_ref_sent"
