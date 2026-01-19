@@ -10,7 +10,10 @@ from aiogram.filters import or_f
 from ..common.bot import bot
 from ..common.linked_channel import collect_linked_channel_summary
 from ..common.llms import get_openrouter_response
-from ..common.logfire_lookup import find_original_message
+from ..common.logfire_lookup import (
+    find_original_message,
+    find_spam_classification_context,
+)
 from ..common.mp import mp
 from ..common.utils import sanitize_llm_html
 from ..database import (
@@ -345,6 +348,9 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                 score=100 if action == "spam" else -100,
                 admin_id=admin_id,
                 linked_channel_fragment=channel_fragment,
+                stories_context=info.get("stories_context"),
+                reply_context=info.get("reply_context"),
+                account_age_context=info.get("account_age_context"),
             ),
             bot.edit_message_text(
                 chat_id=callback.message.chat.id,
@@ -441,6 +447,9 @@ async def extract_original_message_info(
         "username": None,
         "group_chat_id": None,
         "group_message_id": None,
+        "stories_context": None,
+        "reply_context": None,
+        "account_age_context": None,
     }
 
     origin = original_message.forward_origin
@@ -511,6 +520,70 @@ async def extract_original_message_info(
                         "user_id_provided": info["user_id"] is not None,
                     },
                 )
+
+                # Try to find spam classification context for this message
+                if info["group_message_id"] and info["group_chat_id"]:
+                    context_result = await find_spam_classification_context(
+                        message_id=info["group_message_id"],
+                        chat_id=info["group_chat_id"],
+                        user_id=info["user_id"],
+                        forward_date=original_message.forward_date
+                        or original_message.date,
+                    )
+
+                    if context_result:
+                        # Store context fields, converting None to '[EMPTY]' for checked-but-empty
+                        info["stories_context"] = (
+                            (
+                                "[EMPTY]"
+                                if context_result["stories_context"] is None
+                                else context_result["stories_context"]
+                            )
+                            if context_result["stories_context"] is not None
+                            else None
+                        )
+
+                        info["reply_context"] = (
+                            (
+                                "[EMPTY]"
+                                if context_result["reply_context"] is None
+                                else context_result["reply_context"]
+                            )
+                            if context_result["reply_context"] is not None
+                            else None
+                        )
+
+                        info["account_age_context"] = (
+                            (
+                                "[EMPTY]"
+                                if context_result["account_age_context"] is None
+                                else context_result["account_age_context"]
+                            )
+                            if context_result["account_age_context"] is not None
+                            else None
+                        )
+
+                        logger.info(
+                            "Context extraction succeeded",
+                            extra={
+                                "context_extraction": "success",
+                                "stories_found": info["stories_context"] != "[EMPTY]"
+                                and info["stories_context"] is not None,
+                                "reply_found": info["reply_context"] != "[EMPTY]"
+                                and info["reply_context"] is not None,
+                                "age_found": info["account_age_context"] != "[EMPTY]"
+                                and info["account_age_context"] is not None,
+                            },
+                        )
+                    else:
+                        # No context found in traces - leave as None (unknown state)
+                        info["stories_context"] = None
+                        info["reply_context"] = None
+                        info["account_age_context"] = None
+                        logger.info(
+                            "No context found in Logfire traces",
+                            extra={"context_extraction": "miss"},
+                        )
             else:
                 logger.warning(
                     "Logfire lookup failed to find message",

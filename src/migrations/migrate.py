@@ -68,15 +68,68 @@ async def migrate(conn: Any) -> List[str]:
     return operations
 
 
-async def main():
+async def add_context_columns_migration(conn: Any) -> List[str]:
+    """
+    Add context columns to existing spam_examples table.
+    This migration adds stories_context, reply_context, and account_age_context columns.
+    """
+    operations = []
+    print("Starting context columns migration...")
+
+    async with conn.transaction():
+        # Add stories_context column
+        await conn.execute(
+            "ALTER TABLE spam_examples ADD COLUMN IF NOT EXISTS stories_context TEXT"
+        )
+        operations.append("Added stories_context column")
+        print("✓ Added stories_context column")
+
+        # Add reply_context column
+        await conn.execute(
+            "ALTER TABLE spam_examples ADD COLUMN IF NOT EXISTS reply_context TEXT"
+        )
+        operations.append("Added reply_context column")
+        print("✓ Added reply_context column")
+
+        # Add account_age_context column
+        await conn.execute(
+            "ALTER TABLE spam_examples ADD COLUMN IF NOT EXISTS account_age_context TEXT"
+        )
+        operations.append("Added account_age_context column")
+        print("✓ Added account_age_context column")
+
+    print(
+        f"Context columns migration completed successfully. {len(operations)} operations performed."
+    )
+    return operations
+
+
+async def run_context_columns_migration():
+    """Run the context columns migration manually."""
     print("Creating database if it doesn't exist...")
     await create_database()
     print("Getting database pool...")
     pool = await get_pool()
-    print("Migrating database...")
+    print("Running context columns migration...")
     async with pool.acquire() as conn:
         print("Acquired connection from pool")
-        await migrate(conn)
+        await add_context_columns_migration(conn)
+
+
+async def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--add-context-columns":
+        # Run specific migration to add context columns
+        await run_context_columns_migration()
+    else:
+        # Run full migration
+        print("Creating database if it doesn't exist...")
+        await create_database()
+        print("Getting database pool...")
+        pool = await get_pool()
+        print("Migrating database...")
+        async with pool.acquire() as conn:
+            print("Acquired connection from pool")
+            await migrate(conn)
 
 
 if __name__ == "__main__":

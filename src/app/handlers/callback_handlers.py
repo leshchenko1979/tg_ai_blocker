@@ -181,6 +181,9 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
                     bio=author_info.bio if author_info else None,
                     admin_id=admin_id,
                     linked_channel_fragment=channel_fragment,
+                    stories_context=None,  # Not available for user approvals
+                    reply_context=None,  # Not available for user approvals
+                    account_age_context=None,  # Not available for user approvals
                 )
             )
 

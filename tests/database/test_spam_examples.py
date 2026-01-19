@@ -239,3 +239,117 @@ async def test_remove_spam_example_not_found(patched_db_conn, clean_db):
 
         # Verify
         assert result is False
+
+
+@pytest.mark.asyncio
+async def test_add_spam_example_with_context_fields(patched_db_conn, clean_db):
+    """Test adding and retrieving spam examples with context fields"""
+    async with clean_db.acquire() as conn:
+        admin_id = 12345
+
+        # First ensure admin exists in administrators table
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, 'testadmin', 100)
+            ON CONFLICT DO NOTHING
+        """,
+            admin_id,
+        )
+
+        # Test data with context fields
+        example_data = {
+            "text": "Test message with context",
+            "score": 85,
+            "name": "Test User",
+            "bio": "Test bio",
+            "stories_context": "Story content here",
+            "reply_context": "Original reply message",
+            "account_age_context": "Account age: 2mo",
+        }
+
+        # Add example with context fields
+        result = await add_spam_example(
+            text=example_data["text"],
+            score=example_data["score"],
+            name=example_data["name"],
+            bio=example_data["bio"],
+            admin_id=admin_id,
+            stories_context=example_data["stories_context"],
+            reply_context=example_data["reply_context"],
+            account_age_context=example_data["account_age_context"],
+        )
+
+        # Verify addition succeeded
+        assert result is True
+
+        # Retrieve examples
+        examples = await get_spam_examples([admin_id])
+
+        # Verify we have one example
+        assert len(examples) == 1
+        example = examples[0]
+
+        # Verify all fields including context fields
+        assert example["text"] == example_data["text"]
+        assert example["score"] == example_data["score"]
+        assert example["name"] == example_data["name"]
+        assert example["bio"] == example_data["bio"]
+        assert example["stories_context"] == example_data["stories_context"]
+        assert example["reply_context"] == example_data["reply_context"]
+        assert example["account_age_context"] == example_data["account_age_context"]
+
+
+@pytest.mark.asyncio
+async def test_add_spam_example_with_empty_context_markers(patched_db_conn, clean_db):
+    """Test adding spam examples with '[EMPTY]' markers for checked-but-empty context"""
+    async with clean_db.acquire() as conn:
+        admin_id = 67890
+
+        # First ensure admin exists in administrators table
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, 'testadmin2', 100)
+            ON CONFLICT DO NOTHING
+        """,
+            admin_id,
+        )
+
+        # Test data with some empty context markers
+        example_data = {
+            "text": "Message with empty context",
+            "score": 70,
+            "name": "Another User",
+            "bio": "Another bio",
+            "stories_context": "[EMPTY]",  # Checked but no stories
+            "reply_context": "Some reply content",  # Found reply context
+            "account_age_context": "[EMPTY]",  # Checked but no age info
+        }
+
+        # Add example with mixed context states
+        result = await add_spam_example(
+            text=example_data["text"],
+            score=example_data["score"],
+            name=example_data["name"],
+            bio=example_data["bio"],
+            admin_id=admin_id,
+            stories_context=example_data["stories_context"],
+            reply_context=example_data["reply_context"],
+            account_age_context=example_data["account_age_context"],
+        )
+
+        # Verify addition succeeded
+        assert result is True
+
+        # Retrieve examples
+        examples = await get_spam_examples([admin_id])
+
+        # Verify we have one example
+        assert len(examples) == 1
+        example = examples[0]
+
+        # Verify context fields with markers
+        assert example["stories_context"] == "[EMPTY]"
+        assert example["reply_context"] == "Some reply content"
+        assert example["account_age_context"] == "[EMPTY]"

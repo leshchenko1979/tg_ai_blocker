@@ -19,7 +19,7 @@ async def get_spam_examples(
             # Get both common and user-specific examples for multiple admins
             rows = await conn.fetch(
                 """
-                SELECT text, name, bio, score, linked_channel_fragment
+                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context
                 FROM spam_examples
                 WHERE admin_id IS NULL OR admin_id = ANY($1)
                 ORDER BY created_at DESC
@@ -30,7 +30,7 @@ async def get_spam_examples(
             # Get only common examples
             rows = await conn.fetch(
                 """
-                SELECT text, name, bio, score, linked_channel_fragment
+                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context
                 FROM spam_examples
                 WHERE admin_id IS NULL
                 ORDER BY created_at DESC
@@ -44,6 +44,9 @@ async def get_spam_examples(
                 "bio": row["bio"],
                 "score": row["score"],
                 "linked_channel_fragment": row["linked_channel_fragment"],
+                "stories_context": row["stories_context"],
+                "reply_context": row["reply_context"],
+                "account_age_context": row["account_age_context"],
             }
             for row in rows
         ]
@@ -57,6 +60,9 @@ async def add_spam_example(
     bio: Optional[str] = None,
     admin_id: Optional[int] = None,
     linked_channel_fragment: Optional[str] = None,
+    stories_context: Optional[str] = None,
+    reply_context: Optional[str] = None,
+    account_age_context: Optional[str] = None,
 ) -> bool:
     """Add a new spam example to PostgreSQL"""
     pool = await get_pool()
@@ -87,9 +93,12 @@ async def add_spam_example(
                         score,
                         admin_id,
                         linked_channel_fragment,
+                        stories_context,
+                        reply_context,
+                        account_age_context,
                         created_at
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
                 """,
                     cleaned_text,
                     name,
@@ -97,6 +106,9 @@ async def add_spam_example(
                     score,
                     admin_id,
                     linked_channel_fragment,
+                    stories_context,
+                    reply_context,
+                    account_age_context,
                 )
                 return True
             except Exception as e:

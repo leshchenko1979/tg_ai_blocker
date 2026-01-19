@@ -134,3 +134,93 @@ async def test_get_system_prompt_no_guidance():
         prompt = await get_system_prompt(include_stories_guidance=False)
 
         assert "Раздел <истории_пользователя>" not in prompt
+
+
+def test_format_spam_request_null_context_skipped():
+    """Test that NULL context fields are skipped entirely"""
+    req = format_spam_request(
+        "Hello",
+        "User",
+        "Bio",
+        stories_context=None,
+        reply_context=None,
+        account_age_context=None
+    )
+
+    # Verify basic fields are present
+    assert "MESSAGE TO CLASSIFY:\nHello" in req
+    assert "USER NAME:\nUser" in req
+    assert "USER BIO:\nBio" in req
+
+    # Verify NULL context fields are NOT included
+    assert "USER STORIES CONTENT:" not in req
+    assert "ACCOUNT AGE INFO:" not in req
+    assert "ORIGINAL POST BEING REPLIED TO:" not in req
+
+
+def test_format_spam_request_empty_marker_shows_metadata():
+    """Test that '[EMPTY]' markers show with metadata"""
+    req = format_spam_request(
+        "Hello",
+        "User",
+        "Bio",
+        stories_context="[EMPTY]",
+        account_age_context="[EMPTY]"
+    )
+
+    # Verify metadata is shown for empty markers
+    assert "USER STORIES CONTENT:\n[checked, none found]" in req
+    assert "ACCOUNT AGE INFO:\n[checked, none found]" in req
+
+    # Verify regular fields are still present
+    assert "MESSAGE TO CLASSIFY:\nHello" in req
+    assert "USER NAME:\nUser" in req
+    assert "USER BIO:\nBio" in req
+
+
+def test_format_spam_request_content_shows_normally():
+    """Test that actual content shows normally"""
+    req = format_spam_request(
+        "Hello",
+        "User",
+        "Bio",
+        stories_context="Actual story content",
+        reply_context="Original post content",
+        account_age_context="Account age: 3mo"
+    )
+
+    # Verify content is shown normally
+    assert "USER STORIES CONTENT:\nActual story content" in req
+    assert "ORIGINAL POST BEING REPLIED TO:\nOriginal post content" in req
+    assert "ACCOUNT AGE INFO:\nAccount age: 3mo" in req
+
+    # Verify basic fields are present
+    assert "MESSAGE TO CLASSIFY:\nHello" in req
+    assert "USER NAME:\nUser" in req
+    assert "USER BIO:\nBio" in req
+
+
+def test_format_spam_request_mixed_states():
+    """Test mixed NULL, '[EMPTY]', and content states"""
+    req = format_spam_request(
+        "Hello",
+        "User",
+        "Bio",
+        stories_context="[EMPTY]",  # Checked but empty
+        reply_context="Reply content",  # Found content
+        account_age_context=None  # Not checked (NULL)
+    )
+
+    # '[EMPTY]' should show with metadata
+    assert "USER STORIES CONTENT:\n[checked, none found]" in req
+
+    # Content should show normally
+    assert "ORIGINAL POST BEING REPLIED TO:\nReply content" in req
+
+    # NULL should be skipped entirely
+    assert "ACCOUNT AGE INFO:" not in req
+
+    # Basic fields should be present
+    assert "MESSAGE TO CLASSIFY:\nHello" in req
+    assert "USER NAME:\nUser" in req
+    assert "USER BIO:\nBio" in req

@@ -22,6 +22,7 @@ class ExtractionFailedError(Exception):
     pass
 
 
+@logfire.instrument(extract_args=True)
 async def is_spam(
     comment: str,
     name: str | None = None,
@@ -272,7 +273,13 @@ Always respond with valid JSON in this exact format:
     # Add examples to prompt
     for example in examples:
         example_request = format_spam_request(
-            text=example["text"], name=example.get("name"), bio=example.get("bio")
+            text=example["text"],
+            name=example.get("name"),
+            bio=example.get("bio"),
+            linked_channel_fragment=example.get("linked_channel_fragment"),
+            stories_context=example.get("stories_context"),
+            reply_context=example.get("reply_context"),
+            account_age_context=example.get("account_age_context"),
         )
 
         is_spam_ex = example["score"] > 0
@@ -365,20 +372,38 @@ def format_spam_request(
 
 """
 
-    if stories_context:
-        request += f"""USER STORIES CONTENT:
+    if stories_context is not None:
+        if stories_context == "[EMPTY]":
+            request += """USER STORIES CONTENT:
+[checked, none found]
+
+"""
+        else:
+            request += f"""USER STORIES CONTENT:
 {stories_context}
 
 """
 
-    if account_age_context:
-        request += f"""ACCOUNT AGE INFO:
+    if account_age_context is not None:
+        if account_age_context == "[EMPTY]":
+            request += """ACCOUNT AGE INFO:
+[checked, none found]
+
+"""
+        else:
+            request += f"""ACCOUNT AGE INFO:
 {account_age_context}
 
 """
 
-    if reply_context:
-        request += f"""ORIGINAL POST BEING REPLIED TO:
+    if reply_context is not None:
+        if reply_context == "[EMPTY]":
+            request += """ORIGINAL POST BEING REPLIED TO:
+[checked, none found]
+
+"""
+        else:
+            request += f"""ORIGINAL POST BEING REPLIED TO:
 {reply_context}
 
 """

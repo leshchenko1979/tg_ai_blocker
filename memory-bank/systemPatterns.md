@@ -25,6 +25,48 @@
   - **Test Execution**: `pytest` with `--maxfail=1 --exitfirst -q` during deployment, only unit tests pass.
 - **Notification System**: Admin notifications use private→group fallback with optimized bot detection. Pre-filtered admin lists skip expensive API calls (assume_human_admins=True), while untrusted lists use full API validation. Bot removal events trigger enhanced logging showing who performed the removal. Database operations separated from business logic with dedicated cleanup functions. Logfire instrumentation provides automatic start/finish logging with argument extraction and return value recording.
 - **Database Integrity**: Stored procedures include bot filtering (negative IDs, known bot accounts). Admin lists prevent bot contamination through API validation and database-level checks. Cleanup operations properly separate connection management from business logic.
+- **Spam Examples Context Storage**: When new context elements are added to spam classification (e.g., `stories_context`, `reply_context`, `account_age_context`), they must be:
+  - Added to the `spam_examples` database schema as TEXT columns
+  - Stored when spam examples are created via `add_spam_example()`
+  - Retrieved and included when examples are formatted for prompts in `get_system_prompt()`
+  - This ensures examples maintain the full context that was available during classification, improving their effectiveness as training examples
+  - **Context Field State Differentiation**: Three states must be distinguished:
+    - **NULL**: Historical examples (created before context feature) - unknown if context was checked. Skip context sections in prompt formatting.
+    - **'[EMPTY]' marker**: Context was checked but found empty (e.g., user has no stories, message wasn't a reply, account age couldn't be determined). Show in prompts with metadata like "Stories: [checked, none found]".
+    - **Content**: Context was checked and data found. Show full context normally in prompts.
+  - When storing examples: Use NULL for unknown state, `'[EMPTY]'` for checked-but-empty, actual content for found data
+  - When formatting prompts: Skip NULL sections, show `'[EMPTY]'` with metadata, show content normally
+
+### Context Field State Handling
+
+```mermaid
+flowchart TD
+    A[Context Field State] --> B[NULL - Historical]
+    A --> C[Empty String '[EMPTY]' - Checked but Empty]
+    A --> D[Content - Checked and Found]
+
+    B --> B1[Example created before context feature]
+    B --> B2[Unknown if context was checked]
+    B --> B3[Skip in prompt formatting]
+
+    C --> C1[Context extraction attempted]
+    C --> C2[No data found - user has no stories/reply/age info]
+    C --> C3[Show in prompt with metadata: checked, none found]
+
+    D --> D1[Context extraction successful]
+    D --> D2[Actual context data available]
+    D --> D3[Show full context in prompt]
+
+    style B fill:#ffcccc
+    style C fill:#ffffcc
+    style D fill:#ccffcc
+```
+
+**Implementation Rules:**
+- Store NULL when context state is unknown (historical examples)
+- Store `'[EMPTY]'` when context was checked but found empty
+- Store actual content when context was checked and found
+- In prompt formatting: NULL → skip section, `'[EMPTY]'` → show with metadata, content → show normally
 - **Observability & Incident Response**: All warnings/errors funnel through the standard logging stack with full tracebacks; `logger.warning` must include `exc_info=True` when exceptions exist. Incidents emit Mixpanel events, critical failures notify the admin chat, and recurring issues get grouped for trend analysis and frequency tracking.
 - **Telegram Messaging Conventions**: Outbound messages respect Telegram limits and escape reserved characters for HTML mode. AI prompts include explicit HTML formatting instructions.
 - **Graceful Shutdown**: On SIGINT/SIGTERM, `aiohttp` triggers shutdown hooks that clean up resources in order: stop background tasks, close bot session, close DB pool.

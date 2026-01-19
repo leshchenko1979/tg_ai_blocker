@@ -321,6 +321,9 @@ async def create_sqlite_schema(conn):
             bio TEXT,
             score INTEGER NOT NULL,
             linked_channel_fragment TEXT,
+            stories_context TEXT,
+            reply_context TEXT,
+            account_age_context TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (admin_id) REFERENCES administrators(admin_id)
         );
