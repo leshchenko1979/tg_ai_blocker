@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 MODELS = [
     # "qwen/qwen3-14b:free", 74/47
     # "google/gemma-3-12b-it:free", Context window 8K - too small
-    # "google/gemma-3-27b-it:free", Context window 8K - too small
+    "google/gemma-3-27b-it:free",
     # "nvidia/nemotron-nano-9b-v2:free", false positives
     # "deepseek/deepseek-chat-v3.1:free", success rate 0%
     # "openai/gpt-oss-120b:free", success rate 0%
@@ -39,6 +39,7 @@ MODELS = [
     "nvidia/nemotron-3-nano-30b-a3b:free",
     "xiaomi/mimo-v2-flash:free",
     # "qwen/qwen3-coder:free",  success rate 42%
+    "meta-llama/llama-3.3-70b-instruct:free",
 ]
 
 
