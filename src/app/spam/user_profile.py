@@ -1,86 +1,25 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import logfire
 
-from .mtproto_client import MtprotoHttpClient, MtprotoHttpError, get_mtproto_client
+from .context_types import (
+    ContextResult,
+    ContextStatus,
+    LinkedChannelSummary,
+    UserAccountInfo,
+    UserContext,
+)
+from ..common.mtproto_client import (
+    MtprotoHttpClient,
+    MtprotoHttpError,
+    get_mtproto_client,
+)
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(slots=True)
-class LinkedChannelSummary:
-    subscribers: Optional[int]
-    total_posts: Optional[int]
-    post_age_delta: Optional[int]
-    recent_posts_content: Optional[list[str]] = None
-
-    def to_prompt_fragment(self) -> str:
-        if self.post_age_delta is None or self.post_age_delta < 0:
-            post_age_str = "unknown"
-        else:
-            post_age_str = f"{self.post_age_delta}mo"
-
-        parts = [
-            f"subscribers={self.subscribers if self.subscribers is not None else 'unknown'}",
-            f"total_posts={self.total_posts if self.total_posts is not None else 'unknown'}",
-            f"age_delta={post_age_str}",
-        ]
-
-        # Include recent posts content if available
-        if self.recent_posts_content:
-            # Limit to first 3 posts and truncate each to 200 chars to avoid token bloat
-            content_snippets = []
-            for i, content in enumerate(self.recent_posts_content[:3]):
-                if content.strip():
-                    content_snippets.append(f"post_{i + 1}: {content.strip()}")
-
-            if content_snippets:
-                parts.append(f"recent_posts=[{'; '.join(content_snippets)}]")
-
-        return "; ".join(parts)
-
-
-@dataclass(slots=True)
-class UserAccountInfo:
-    user_id: int
-    profile_photo_date: Optional[datetime] = None
-
-    @property
-    def photo_age_months(self) -> Optional[int]:
-        if not self.profile_photo_date:
-            return None
-        now = datetime.now(timezone.utc)
-        return (
-            (now.year - self.profile_photo_date.year) * 12
-            + now.month
-            - self.profile_photo_date.month
-        )
-
-    def to_prompt_fragment(self) -> str:
-        parts = []
-
-        # Only use photo age for prompt, ignore ID as per new robust strategy
-        age_months = self.photo_age_months
-
-        if age_months is not None:
-            # Ensure non-negative
-            age_months = max(0, age_months)
-            parts.append(f"photo_age={age_months}mo")
-        else:
-            parts.append("photo_age=unknown")
-
-        return "; ".join(parts)
-
-
-@dataclass(slots=True)
-class UserContext:
-    linked_channel: Optional[LinkedChannelSummary] = None
-    account_info: Optional[UserAccountInfo] = None
 
 
 @logfire.instrument()
@@ -92,8 +31,8 @@ async def collect_user_context(
     Collects user context including linked channel summary and account age signals.
     """
     client = get_mtproto_client()
-    linked_channel_summary = None
-    account_info = None
+    linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
+    account_info_result = ContextResult(status=ContextStatus.EMPTY)
 
     with logfire.span(
         "Collecting user context via MTProto",
@@ -103,7 +42,17 @@ async def collect_user_context(
         # Only use username for peer resolution (numeric IDs almost always fail)
         if not username:
             logfire.debug("No username available, skipping user context collection")
-            return UserContext()
+            return UserContext(
+                stories=ContextResult(
+                    status=ContextStatus.SKIPPED, error="No username available"
+                ),
+                linked_channel=ContextResult(
+                    status=ContextStatus.SKIPPED, error="No username available"
+                ),
+                account_info=ContextResult(
+                    status=ContextStatus.SKIPPED, error="No username available"
+                ),
+            )
 
         identifiers = [username]
 
@@ -128,10 +77,15 @@ async def collect_user_context(
                 if profile_photo and isinstance(profile_photo, dict):
                     photo_date = _extract_date(profile_photo.get("date"))
 
-                account_info = UserAccountInfo(
-                    user_id=int(user_id),
-                    profile_photo_date=photo_date,
+                account_info_result = ContextResult(
+                    status=ContextStatus.FOUND,
+                    content=UserAccountInfo(
+                        user_id=int(user_id),
+                        profile_photo_date=photo_date,
+                    ),
                 )
+            else:
+                account_info_result = ContextResult(status=ContextStatus.EMPTY)
 
         except MtprotoHttpError as e:
             logger.info(
@@ -143,28 +97,34 @@ async def collect_user_context(
                     "error": str(e),
                 },
             )
-            # Proceed without full user info (returns empty context)
-            pass
+            account_info_result = ContextResult(
+                status=ContextStatus.FAILED, error=str(e)
+            )
 
         # Extract Linked Channel
         personal_channel_id = full_user.get("personal_channel_id")
         if personal_channel_id:
             channel_id = int(personal_channel_id)
-            linked_channel_summary = await collect_channel_summary_by_id(
+            channel_result = await collect_channel_summary_by_id(
                 channel_id, user_reference
             )
+            linked_channel_result = channel_result
         else:
             logfire.debug(
                 "User has no linked channel in profile",
                 user_reference=user_reference,
                 full_user_keys=list(full_user.keys()),
             )
+            linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
 
-    return UserContext(linked_channel=linked_channel_summary, account_info=account_info)
-
-
-# Alias for backward compatibility if needed, but we will refactor usage
-collect_linked_channel_summary = collect_user_context
+    # Stories will be collected separately, so we return SKIPPED for now
+    return UserContext(
+        stories=ContextResult(
+            status=ContextStatus.SKIPPED, error="Stories collected separately"
+        ),
+        linked_channel=linked_channel_result,
+        account_info=account_info_result,
+    )
 
 
 @logfire.instrument()
@@ -172,10 +132,9 @@ async def collect_channel_summary_by_id(
     channel_id: int,
     user_reference: str | int = "unknown",
     username: Optional[str] = None,
-) -> Optional[LinkedChannelSummary]:
+) -> ContextResult[LinkedChannelSummary]:
     """
     Collects summary stats for a specific channel ID.
-    Reuses logic previously embedded in collect_linked_channel_summary.
     """
     client = get_mtproto_client()
 
@@ -218,7 +177,7 @@ async def collect_channel_summary_by_id(
                     "error": str(e),
                 },
             )
-            return None
+            return ContextResult(status=ContextStatus.FAILED, error=str(e))
 
     subscribers = full_channel.get("full_chat", {}).get("participants_count")
     logfire.debug(
@@ -269,7 +228,7 @@ async def collect_channel_summary_by_id(
         post_age_delta=post_age_delta,
     )
 
-    return summary
+    return ContextResult(status=ContextStatus.FOUND, content=summary)
 
 
 @logfire.instrument()

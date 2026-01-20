@@ -7,7 +7,12 @@ from typing import List, Optional, Tuple
 import logfire
 
 from ..database.spam_examples import get_spam_examples
-from .llms import LocationNotSupported, RateLimitExceeded, get_openrouter_response
+from .context_types import ContextResult, ContextStatus, SpamClassificationContext
+from ..common.llms import (
+    LocationNotSupported,
+    RateLimitExceeded,
+    get_openrouter_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,44 +30,39 @@ class ExtractionFailedError(Exception):
 @logfire.instrument(extract_args=True)
 async def is_spam(
     comment: str,
-    name: str | None = None,
-    bio: str | None = None,
     admin_ids: List[int] | None = None,
-    linked_channel_fragment: str | None = None,
-    stories_context: str | None = None,
-    reply_context: str | None = None,
-    account_age_context: str | None = None,
+    context: SpamClassificationContext | None = None,
 ) -> Tuple[int, str]:
     """
     Классифицирует сообщение как спам или не спам
 
     Args:
         comment: Текст сообщения
-        name: Имя отправителя (опционально)
-        bio: Биография отправителя (опционально)
         admin_ids: Список ID администраторов для получения их персональных примеров спама (опционально)
+        context: Контекстная информация для классификации (опционально)
 
     Returns:
         tuple[int, str]:
             - int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
             - str: Комментарий с причиной оценки
     """
+    # Use empty context if none provided
+    if context is None:
+        context = SpamClassificationContext()
+
     prompt = await get_system_prompt(
         admin_ids,
-        include_linked_channel_guidance=linked_channel_fragment is not None,
-        include_stories_guidance=stories_context is not None,
-        include_reply_context_guidance=reply_context is not None,
-        include_account_age_guidance=account_age_context is not None,
+        include_linked_channel_guidance=context.include_linked_channel_guidance,
+        include_stories_guidance=context.include_stories_guidance,
+        include_reply_context_guidance=context.include_reply_guidance,
+        include_account_age_guidance=context.include_account_age_guidance,
     )
     messages = get_messages(
         comment,
-        name,
-        bio,
+        context.name,
+        context.bio,
         prompt,
-        linked_channel_fragment,
-        stories_context,
-        reply_context,
-        account_age_context,
+        context,
     )
 
     last_response = None
@@ -144,11 +144,10 @@ async def is_spam(
                 unknown_errors += 1
 
     logger.warning(
-        "Spam classifier failed after %s attempts. comment=%r, name=%r, bio=%r, response=%r, last_error=%r",
+        "Spam classifier failed after %s attempts. comment=%r, context=%r, response=%r, last_error=%r",
         MAX_RETRIES,
         comment,
-        name,
-        bio,
+        context,
         last_response,
         last_error,
     )
@@ -272,14 +271,32 @@ Always respond with valid JSON in this exact format:
 
     # Add examples to prompt
     for example in examples:
-        example_request = format_spam_request(
-            text=example["text"],
+        # Create context from example data
+        example_context = SpamClassificationContext(
             name=example.get("name"),
             bio=example.get("bio"),
-            linked_channel_fragment=example.get("linked_channel_fragment"),
-            stories_context=example.get("stories_context"),
-            reply_context=example.get("reply_context"),
-            account_age_context=example.get("account_age_context"),
+            linked_channel=ContextResult(
+                status=ContextStatus.FOUND,
+                content=example.get("linked_channel_fragment"),
+            )
+            if example.get("linked_channel_fragment")
+            else None,
+            stories=ContextResult(
+                status=ContextStatus.FOUND, content=example.get("stories_context")
+            )
+            if example.get("stories_context")
+            else None,
+            reply=example.get("reply_context"),
+            account_age=ContextResult(
+                status=ContextStatus.FOUND, content=example.get("account_age_context")
+            )
+            if example.get("account_age_context")
+            else None,
+        )
+
+        example_request = format_spam_request(
+            text=example["text"],
+            context=example_context,
         )
 
         is_spam_ex = example["score"] > 0
@@ -302,19 +319,11 @@ def get_messages(
     name: str | None,
     bio: str | None,
     prompt: str,
-    linked_channel_fragment: str | None,
-    stories_context: str | None = None,
-    reply_context: str | None = None,
-    account_age_context: str | None = None,
+    context: SpamClassificationContext,
 ):
     user_request = format_spam_request(
         comment,
-        name,
-        bio,
-        linked_channel_fragment,
-        stories_context,
-        reply_context,
-        account_age_context,
+        context,
     )
     user_message = f"""{user_request}
 Analyze this message and respond with JSON spam classification."""
@@ -327,84 +336,95 @@ Analyze this message and respond with JSON spam classification."""
 
 def format_spam_request(
     text: str,
-    name: Optional[str] = None,
-    bio: Optional[str] = None,
-    linked_channel_fragment: Optional[str] = None,
-    stories_context: Optional[str] = None,
-    reply_context: Optional[str] = None,
-    account_age_context: Optional[str] = None,
+    context: Optional[SpamClassificationContext] = None,
 ) -> str:
     """
     Format a spam classification request for the LLM.
 
     Args:
         text: Message text to classify
-        name: Sender's name (optional)
-        bio: Sender's bio (optional)
-        linked_channel_fragment: Linked channel info (optional)
-        stories_context: User stories content (optional)
-        reply_context: Original post being replied to (optional)
-        account_age_context: Account age info (optional)
+        context: Spam classification context with all optional context data
 
     Returns:
         str: Formatted request with clear section headers
     """
+    # Use empty context if none provided
+    if context is None:
+        context = SpamClassificationContext()
     request = f"""MESSAGE TO CLASSIFY:
 {text}
 
 """
 
-    if name:
+    if context.name:
         request += f"""USER NAME:
-{name}
+{context.name}
 
 """
 
-    if bio:
+    if context.bio:
         request += f"""USER BIO:
-{bio}
+{context.bio}
 
 """
 
-    if linked_channel_fragment:
+    if context.linked_channel and context.linked_channel.status.name == "FOUND":
         request += f"""LINKED CHANNEL INFO:
-{linked_channel_fragment}
+{context.linked_channel.content}
+
+"""
+    elif context.linked_channel and context.linked_channel.status.name == "EMPTY":
+        request += """LINKED CHANNEL INFO:
+no channel linked
+
+"""
+    elif context.linked_channel and context.linked_channel.status.name == "FAILED":
+        request += f"""LINKED CHANNEL INFO:
+verification failed: {context.linked_channel.error}
 
 """
 
-    if stories_context is not None:
-        if stories_context == "[EMPTY]":
-            request += """USER STORIES CONTENT:
-[checked, none found]
+    if context.stories and context.stories.status.name == "FOUND":
+        request += f"""USER STORIES CONTENT:
+{context.stories.content}
 
 """
-        else:
-            request += f"""USER STORIES CONTENT:
-{stories_context}
+    elif context.stories and context.stories.status.name == "EMPTY":
+        request += """USER STORIES CONTENT:
+no stories posted
 
 """
-
-    if account_age_context is not None:
-        if account_age_context == "[EMPTY]":
-            request += """ACCOUNT AGE INFO:
-[checked, none found]
-
-"""
-        else:
-            request += f"""ACCOUNT AGE INFO:
-{account_age_context}
+    elif context.stories and context.stories.status.name == "FAILED":
+        request += f"""USER STORIES CONTENT:
+verification failed: {context.stories.error}
 
 """
 
-    if reply_context is not None:
-        if reply_context == "[EMPTY]":
+    if context.account_age and context.account_age.status.name == "FOUND":
+        request += f"""ACCOUNT AGE INFO:
+{context.account_age.content}
+
+"""
+    elif context.account_age and context.account_age.status.name == "EMPTY":
+        request += """ACCOUNT AGE INFO:
+no photo on the account
+
+"""
+    elif context.account_age and context.account_age.status.name == "FAILED":
+        request += f"""ACCOUNT AGE INFO:
+verification failed: {context.account_age.error}
+
+"""
+
+    if context.reply is not None:
+        if context.reply == "[EMPTY]":
             request += """ORIGINAL POST BEING REPLIED TO:
 [checked, none found]
 
 """
         else:
             request += f"""ORIGINAL POST BEING REPLIED TO:
-{reply_context}
+{context.reply}
 
 """
 

@@ -5,7 +5,7 @@ from aiogram import F, types
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
-from ..common.linked_channel import collect_linked_channel_summary
+from ..spam.user_profile import collect_user_context
 from ..common.mp import mp
 from ..common.utils import load_config, retry_on_network_error
 from ..database.group_operations import add_member
@@ -151,21 +151,21 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
 
         channel_fragment = None
         try:
-            summary = await collect_linked_channel_summary(
+            user_context = await collect_user_context(
                 author_id, username=author_info.username if author_info else None
             )
         except Exception as exc:  # noqa: BLE001
             logger.info(
-                "Failed to load linked channel for author",
+                "Failed to load user context for author",
                 extra={
                     "author_id": author_id,
                     "username": author_info.username if author_info else None,
                     "error": str(exc),
                 },
             )
-            summary = None
-        if summary and summary.linked_channel:
-            channel_fragment = summary.linked_channel.to_prompt_fragment()
+            user_context = None
+        if user_context and user_context.linked_channel.status == "found":
+            channel_fragment = user_context.linked_channel.content.to_prompt_fragment()
 
         # Все тяжелые операции параллельно
         async with asyncio.TaskGroup() as tg:

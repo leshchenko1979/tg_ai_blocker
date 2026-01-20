@@ -2,8 +2,9 @@
 import asyncio
 import os
 import sys
-from dotenv import load_dotenv
+
 from aiogram import Bot
+from dotenv import load_dotenv
 
 # Add project root to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

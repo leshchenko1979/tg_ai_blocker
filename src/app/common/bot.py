@@ -1,13 +1,11 @@
 import os
+import sys
 
 from aiogram import Bot
 
 bot = Bot(token=os.getenv("BOT_TOKEN"))
 
-import os
-
 # Admin chat ID is now loaded from config.yaml
-import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 

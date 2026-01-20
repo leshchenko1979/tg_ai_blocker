@@ -7,7 +7,7 @@
   - `asyncpg` for PostgreSQL access, structured via database operation modules.
   - `python-dotenv` for configuration loading, `logfire` for tracing/logging/metrics, `mixpanel` for analytics, `tenacity` for retries.
   - `tqdm` (dev dependency) for progress bars in evaluation scripts.
-- **Project Layout**: Source lives under `src/app`, grouped into `common`, `handlers`, `database`, plus `logging_setup.py` and `main.py` (containing both application logic and server setup). Tests mirror structure under `tests/` at project root using `pytest`. Integration tests requiring external services isolated in `tests/integration/`.
+- **Project Layout**: Source lives under `src/app`, grouped into `common`, `spam`, `handlers`, `database`, plus `logging_setup.py` and `main.py` (containing both application logic and server setup). Tests mirror structure under `tests/` at project root using `pytest`. Integration tests requiring external services isolated in `tests/integration/`.
 - **Configuration**: Secrets pulled from `.env` (restricted). Startup script runs `dotenv.load_dotenv()` before initializing logging and handlers. Mixpanel tracking must respect admin-centric IDs per workspace rules.
 - **Configuration Handling**: Secrets live in `.env`; contents remain off-limits, but developers can run `source .env` to load required environment variables without reading the file directly.
 - **Infrastructure Assumptions**: Telegram webhook served over HTTPS (Traefik + Sablier managed), PostgreSQL reachable only via the remote host `94.250.254.232` using SSH (user `root`, DB user `postgres`). All database commands must execute on that server—local access is unavailable. Deployments rely on Docker Compose and require preserving `.env` and `docker-compose.yml`.
@@ -18,7 +18,7 @@
   - **Landing Page Development**: `npm run watch` for live CSS rebuilding during development, `npm run build` for production CSS generation. GitHub Actions workflow deploys to GitHub Pages on changes to `landing_page/` directory.
 - **Error Notification**: `TelegramLogHandler` uses a queue-based approach with background task to send WARNING+ level logs to admin chat. Includes throttling (10/min) and deduplication (15s). ERROR/CRITICAL messages bypass throttling but retain deduplication to ensure critical errors are notified while preventing spam.
 - **Testing Infrastructure**:
-  - **Unit Tests**: 91 tests covering core functionality with mocked dependencies and local SQLite test databases. Run during deployment.
+  - **Unit Tests**: 93 tests covering core functionality with mocked dependencies and local SQLite test databases. Run during deployment.
   - **Integration Tests**: Standalone scripts in `tests/integration/` testing external service dependencies (Telegram API). Excluded from deployment.
   - **Pytest Configuration**: Markers (`@pytest.mark.integration`) and default exclusion (`-m "not integration"`) ensure deployment reliability. **CRITICAL**: All integration test functions MUST have `@pytest.mark.integration` decorator for pytest.ini addopts to work properly.
   - **Linked Channel Testing**: Comprehensive test suite in `tests/common/test_linked_channel.py` with CSV-driven test cases validates bot vs MTProto extraction methods. Includes SSL bypass for local MTProto testing.

@@ -4,7 +4,8 @@ from typing import Any, Dict, List, Optional
 
 import logfire
 
-from .mtproto_client import MtprotoHttpError, get_mtproto_client
+from .context_types import ContextResult, ContextStatus
+from ..common.mtproto_client import MtprotoHttpError, get_mtproto_client
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,10 @@ class StorySummary:
 @logfire.instrument()
 async def collect_user_stories(
     user_id: int, username: Optional[str] = None
-) -> Optional[str]:
+) -> ContextResult[str]:
     """
     Collects stories for a user and formats them into a summary string.
-    Returns None if no stories found or error occurs.
+    Returns ContextResult with appropriate status.
     """
     client = get_mtproto_client()
 
@@ -48,7 +49,9 @@ async def collect_user_stories(
             # Only use username for peer resolution (numeric IDs almost always fail)
             if not username:
                 logger.debug("No username available, skipping stories collection")
-                return None
+                return ContextResult(
+                    status=ContextStatus.SKIPPED, error="No username available"
+                )
 
             identifiers = [username]
 
@@ -64,10 +67,10 @@ async def collect_user_stories(
                 logger.debug(
                     f"Failed to fetch pinned stories for all identifiers {identifiers}: {e}"
                 )
-                return None
+                return ContextResult(status=ContextStatus.FAILED, error=str(e))
 
             if not stories_data:
-                return None
+                return ContextResult(status=ContextStatus.EMPTY)
 
             summaries = []
             for story in stories_data:
@@ -91,20 +94,22 @@ async def collect_user_stories(
                 summaries.append(summary.to_string())
 
             if not summaries:
-                return None
+                return ContextResult(status=ContextStatus.EMPTY)
 
-            return "\n".join(summaries)
+            return ContextResult(
+                status=ContextStatus.FOUND, content="\n".join(summaries)
+            )
 
         except MtprotoHttpError as e:
             logger.info(
                 "Failed to fetch user stories",
                 extra={"user_id": user_id, "error": str(e)},
             )
-            return None
+            return ContextResult(status=ContextStatus.FAILED, error=str(e))
         except Exception as e:
             logger.error(
                 "Unexpected error fetching user stories",
                 extra={"user_id": user_id, "error": str(e)},
                 exc_info=True,
             )
-            return None
+            return ContextResult(status=ContextStatus.FAILED, error=str(e))

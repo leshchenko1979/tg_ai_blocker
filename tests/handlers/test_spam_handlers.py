@@ -4,7 +4,7 @@ from aiogram.exceptions import TelegramBadRequest
 
 from src.app.handlers.handle_spam import handle_spam_message_deletion
 from src.app.handlers.message_handlers import get_spam_score_and_bio
-from src.app.common.linked_channel import LinkedChannelSummary
+from src.app.spam.context_types import LinkedChannelSummary
 
 
 class MockTelegramBadRequest(TelegramBadRequest):
@@ -83,7 +83,6 @@ class TestSpamDeletion:
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
             ) as mock_notify,
             patch("src.app.handlers.handle_spam.track_group_event") as mock_track,
-            patch("src.app.handlers.handle_spam.logger") as mock_logger,
         ):
             # Mock permission error
             permission_error = MockTelegramBadRequest(
@@ -168,7 +167,6 @@ class TestSpamDeletion:
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
             ) as mock_notify,
             patch("src.app.handlers.handle_spam.track_group_event") as mock_track,
-            patch("src.app.handlers.handle_spam.logger") as mock_logger,
         ):
             # Mock permission error
             permission_error = MockTelegramBadRequest("Chat admin required")
@@ -199,46 +197,38 @@ class TestSpamDeletion:
         mock_message.sender_chat.title = "Channel Bot"
         mock_message.sender_chat.type = "channel"
         mock_message.chat.id = -1001503592176  # Different group ID
+        mock_message.reply_to_message = None  # No reply in this test
 
         # Mock group
         mock_group = MagicMock()
         mock_group.admin_ids = [123]
 
-        # Mock summary result
-        mock_summary = LinkedChannelSummary(
-            subscribers=1000, total_posts=500, post_age_delta=12
-        )
-
         with (
-            patch(
-                "src.app.handlers.message_handlers.collect_channel_summary_by_id",
-                new_callable=AsyncMock,
-            ) as mock_collect_summary,
             patch(
                 "src.app.handlers.message_handlers.is_spam", new_callable=AsyncMock
             ) as mock_is_spam,
             patch("src.app.handlers.message_handlers.bot") as mock_bot,
         ):
-            mock_collect_summary.return_value = mock_summary
             mock_is_spam.return_value = (
                 85,
                 "Test spam reason",
             )  # Spam score and reason
 
-            mock_bot.get_chat = AsyncMock()  # Mock get_chat for bio fetch
+            # Mock get_chat to return an object with description = None
+            mock_chat_info = MagicMock()
+            mock_chat_info.description = None
+            mock_bot.get_chat = AsyncMock(return_value=mock_chat_info)
 
             await get_spam_score_and_bio(
                 mock_message, "test message", mock_group, False
             )
 
-            # Verify collect_channel_summary_by_id was called with correct ID
-            mock_collect_summary.assert_called_once()
-            call_args = mock_collect_summary.call_args
-            assert call_args[0][0] == -1002916411724
-
-            # Verify is_spam received the channel fragment
+            # Verify is_spam received the context with basic channel info
             mock_is_spam.assert_called_once()
             kwargs = mock_is_spam.call_args[1]
-            assert (
-                kwargs["linked_channel_fragment"] == mock_summary.to_prompt_fragment()
-            )
+            context = kwargs["context"]
+            assert context.name == "Channel Bot"  # sender_chat.title
+            assert context.bio is None  # No bio for channels in this test
+            assert context.linked_channel is None  # No linked channel collection for channels
+            assert context.stories is None  # No stories collection for channels
+            assert context.reply is None  # No reply in this test

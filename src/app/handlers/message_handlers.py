@@ -1,17 +1,11 @@
-import asyncio
 import logging
-from typing import cast
 
 from aiogram import types
 
 from ..common.bot import bot
-from ..common.linked_channel import (
-    UserContext,
-    collect_channel_summary_by_id,
-    collect_linked_channel_summary,
-)
-from ..common.spam_classifier import is_spam
-from ..common.stories import collect_user_stories
+from ..spam.context_collector import collect_complete_user_context
+from ..spam.spam_classifier import is_spam
+from ..spam.context_types import SpamClassificationContext
 from ..common.tracking import track_group_event
 from ..common.utils import retry_on_network_error
 from ..database import (
@@ -313,9 +307,7 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
 
     bio = None
     name = "Unknown"
-    channel_fragment = None
-    account_info_fragment = None
-    stories_context = None
+    user_context = None
     reply_context = None
     admin_ids = group.admin_ids
 
@@ -340,22 +332,8 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
         except Exception:
             pass
 
-        try:
-            summary = await collect_channel_summary_by_id(
-                subject_id,
-                user_reference=f"sender_chat_{subject_id}",
-                username=message.sender_chat.username,
-            )
-            if summary:
-                channel_fragment = summary.to_prompt_fragment()
-        except Exception as exc:
-            logger.info(
-                "Failed to collect channel summary for sender_chat",
-                extra={
-                    "sender_chat_id": subject_id,
-                    "error": str(exc),
-                },
-            )
+        # For channel senders, we don't collect user context (stories, linked channels, etc.)
+        # as channels don't have personal profiles in the same way
 
     elif message.from_user:
         # User sender
@@ -369,60 +347,15 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
             pass
 
         if getattr(message, "message_thread_id", None):
-            # Only collect stories when user replies to a channel post (in discussion threads)
-            # Run stories and linked channel collection in parallel for better performance
-            stories_task = collect_user_stories(user.id, username=user.username)
-            linked_channel_task = collect_linked_channel_summary(
-                user.id, username=user.username
-            )
-
+            # Only collect user context when user replies to a channel post (in discussion threads)
+            # Use the new context collector that aggregates stories and profile info in parallel
             try:
-                results = await asyncio.gather(
-                    stories_task, linked_channel_task, return_exceptions=True
+                user_context = await collect_complete_user_context(
+                    user.id, username=user.username
                 )
-                stories_result = results[0]
-                user_context_result = results[1]
-
-                # Handle stories result
-                if isinstance(stories_result, Exception):
-                    logger.info(
-                        "Failed to collect user stories",
-                        extra={
-                            "user_id": user.id,
-                            "username": user.username,
-                            "error": str(stories_result),
-                        },
-                    )
-                elif stories_result is not None:
-                    stories_context = cast(str, stories_result)
-
-                # Handle linked channel/user context result
-                if isinstance(user_context_result, Exception):
-                    logger.info(
-                        "Failed to collect linked channel summary",
-                        extra={
-                            "user_id": user.id,
-                            "username": user.username,
-                            "error": str(user_context_result),
-                        },
-                    )
-                else:
-                    # user_context_result is not an Exception here
-                    if user_context_result is not None:
-                        user_context = cast(UserContext, user_context_result)
-                        if user_context.linked_channel:
-                            channel_fragment = (
-                                user_context.linked_channel.to_prompt_fragment()
-                            )
-                        if user_context.account_info:
-                            account_info_fragment = (
-                                user_context.account_info.to_prompt_fragment()
-                            )
-
             except Exception as exc:
-                # Fallback in case gather itself fails
                 logger.info(
-                    "Failed to collect stories and linked channel data in parallel",
+                    "Failed to collect complete user context",
                     extra={
                         "user_id": user.id,
                         "username": user.username,
@@ -430,15 +363,20 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
                     },
                 )
 
-    spam_score, reason = await is_spam(
-        comment=message_text,
+    # Create classification context
+    context = SpamClassificationContext(
         name=name,
         bio=bio,
+        linked_channel=user_context.linked_channel if user_context else None,
+        stories=user_context.stories if user_context else None,
+        reply=reply_context,
+        account_age=user_context.account_info if user_context else None,
+    )
+
+    spam_score, reason = await is_spam(
+        comment=message_text,
         admin_ids=admin_ids,
-        linked_channel_fragment=channel_fragment,
-        stories_context=stories_context,
-        reply_context=reply_context,
-        account_age_context=account_info_fragment,
+        context=context,
     )
     return spam_score, bio, reason
 

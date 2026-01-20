@@ -2,7 +2,8 @@
 
 - **Runtime Architecture**: `aiohttp` web application exposes Telegram webhook endpoint, forwards updates to a shared `aiogram` dispatcher hosted in `src/app/handlers`. Execution wrapped with `logfire` spans for observability and guarded by timeout/error helpers. Logfire metrics (histograms and gauges) initialized once at module level to ensure proper recording. Handler return values determine logfire span tags - handlers must return descriptive strings to avoid "_ignored" tagging.
 - **Bot Composition**:
-  - `src/app/common` encapsulates integrations: Telegram bot client, LLM providers, Mixpanel tracking, notifications, shared utilities, and spam classifier logic.
+  - `src/app/common` encapsulates integrations: Telegram bot client, LLM providers, Mixpanel tracking, notifications, and shared utilities.
+  - `src/app/spam` contains spam detection and context collection: classifier logic, context types, user profile analysis, and story processing.
   - `src/app/handlers` are organized by intent (callbacks, commands, payments, spam handling) and register with the dispatcher via side effects on import.
 - **Data Access Layer**: `src/app/database` offers explicit operation modules (admins, groups, messages, spam examples) built atop a PostgreSQL connection helper, keeping SQL isolated from business logic.
 - **Spam Decision Flow**: Updates route through filters that skip admins/service messages and edited messages.
@@ -22,7 +23,7 @@
 - **Testing Structure**:
   - **Unit Tests**: Fast, reliable tests using mocked dependencies and local test databases (SQLite/PostgreSQL). Run during deployment (83 tests).
   - **Integration Tests**: Tests requiring external services (Telegram API) stored in `tests/integration/`. Excluded from deployment via `@pytest.mark.integration`.
-  - **Test Execution**: `pytest` with `--maxfail=1 --exitfirst -q` during deployment, only unit tests pass.
+  - **Test Execution**: `pytest` with `--maxfail=1 --exitfirst -q` during deployment, only unit tests pass (93 total).
 - **LLM Model Evaluation**:
   - **Evaluation Script**: `scripts/eval_llm_models.py` provides comprehensive testing infrastructure for spam classification models.
   - **Balanced Test Cases**: Automatically balances spam vs legitimate examples from database to prevent skewed accuracy metrics.
@@ -32,48 +33,68 @@
   - **DRY Architecture**: Helper functions eliminate repetitive code for error handling, formatting, and calculations.
 - **Notification System**: Admin notifications use private→group fallback with optimized bot detection. Pre-filtered admin lists skip expensive API calls (assume_human_admins=True), while untrusted lists use full API validation. Bot removal events trigger enhanced logging showing who performed the removal. Database operations separated from business logic with dedicated cleanup functions. Logfire instrumentation provides automatic start/finish logging with argument extraction and return value recording.
 - **Database Integrity**: Stored procedures include bot filtering (negative IDs, known bot accounts). Admin lists prevent bot contamination through API validation and database-level checks. Cleanup operations properly separate connection management from business logic.
-- **Spam Examples Context Storage**: When new context elements are added to spam classification (e.g., `stories_context`, `reply_context`, `account_age_context`), they must be:
-  - Added to the `spam_examples` database schema as TEXT columns
-  - Stored when spam examples are created via `add_spam_example()`
-  - Retrieved and included when examples are formatted for prompts in `get_system_prompt()`
-  - This ensures examples maintain the full context that was available during classification, improving their effectiveness as training examples
-  - **Context Field State Differentiation**: Three states must be distinguished:
-    - **NULL**: Historical examples (created before context feature) - unknown if context was checked. Skip context sections in prompt formatting.
-    - **'[EMPTY]' marker**: Context was checked but found empty (e.g., user has no stories, message wasn't a reply, account age couldn't be determined). Show in prompts with metadata like "Stories: [checked, none found]".
-    - **Content**: Context was checked and data found. Show full context normally in prompts.
-  - When storing examples: Use NULL for unknown state, `'[EMPTY]'` for checked-but-empty, actual content for found data
-  - When formatting prompts: Skip NULL sections, show `'[EMPTY]'` with metadata, show content normally
+- **Context Preparation Contract**: All context preparation code (stories, account age, linked channel, reply context) MUST follow a strict ContextResult contract using status enums to distinguish between extraction states:
 
-### Context Field State Handling
+### Context State Contract
 
-```mermaid
-flowchart TD
-    A[Context Field State] --> B[NULL - Historical]
-    A --> C[Empty String '[EMPTY]' - Checked but Empty]
-    A --> D[Content - Checked and Found]
+**ContextResult Status Enum:**
+- **`FOUND`** - **Data Found**: Context extraction succeeded and found data. Section is **included** in prompt with actual content.
+- **`EMPTY`** - **Checked But Absent**: Context extraction succeeded but found no data (user has no photo/stories/channel). Section is **included** in prompt with user-friendly message.
+- **`FAILED`** - **API Error**: Context extraction failed due to API errors. Section is **included** in prompt with error message.
+- **`SKIPPED`** - **Not Attempted**: Context extraction was not attempted (missing username, no permission, etc.). Section is **omitted** from prompt entirely.
 
-    B --> B1[Example created before context feature]
-    B --> B2[Unknown if context was checked]
-    B --> B3[Skip in prompt formatting]
-
-    C --> C1[Context extraction attempted]
-    C --> C2[No data found - user has no stories/reply/age info]
-    C --> C3[Show in prompt with metadata: checked, none found]
-
-    D --> D1[Context extraction successful]
-    D --> D2[Actual context data available]
-    D --> D3[Show full context in prompt]
-
-    style B fill:#ffcccc
-    style C fill:#ffffcc
-    style D fill:#ccffcc
-```
+**AI-Friendly Messages for `EMPTY` Status:**
+- Account Age: `"no photo on the account"`
+- Stories: `"no stories posted"`
+- Linked Channel: `"no channel linked"`
+- Reply Context: `"not a reply"` (or similar)
 
 **Implementation Rules:**
-- Store NULL when context state is unknown (historical examples)
-- Store `'[EMPTY]'` when context was checked but found empty
-- Store actual content when context was checked and found
-- In prompt formatting: NULL → skip section, `'[EMPTY]'` → show with metadata, content → show normally
+
+1. **Collection Functions** (e.g., `collect_user_stories()`, `collect_user_context()`):
+   - **ALWAYS return `ContextResult` object** - never return raw strings or None
+   - Use `ContextStatus.SKIPPED` if extraction cannot be attempted (no username, missing permissions)
+   - Use `ContextStatus.FAILED` if API calls fail (network errors, rate limits, auth errors)
+   - Use `ContextStatus.EMPTY` if extraction succeeded but found no data (empty list, no photo, no channel)
+   - Use `ContextStatus.FOUND` with content if extraction succeeded and data found
+
+2. **Prompt Formatting** (`format_spam_request()`):
+   - **Omit section entirely** if `status == "SKIPPED"` (not attempted)
+   - **Include section with user-friendly message** if `status == "EMPTY"`
+   - **Include section with error message** if `status == "FAILED"`
+   - **Include section with content** if `status == "FOUND"`
+
+4. **State Flow Example:**
+```mermaid
+flowchart TD
+    A[Context Collection] --> B{Extraction Possible?}
+    B -->|No username/permissions| C[Return ContextResult.SKIPPED]
+    B -->|API call attempted| D{API Success?}
+    D -->|Failed| E[Return ContextResult.FAILED]
+    D -->|Success| F{Data Found?}
+    F -->|Empty result| G[Return ContextResult.EMPTY]
+    F -->|Data found| H[Return ContextResult.FOUND]
+
+    C --> I[Skip Section in Prompt]
+    E --> J[Show Error Message]
+    G --> K[Show AI-Friendly Message]
+    H --> L[Show Content]
+```
+
+**Critical Rules:**
+- **ALWAYS return ContextResult** - collection functions must wrap results in ContextResult objects
+- **Use appropriate status enums** - distinguish between SKIPPED (not attempted), FAILED (API error), EMPTY (checked but no data), FOUND (data found)
+- **Prompt formatting handles all statuses** - no special handling needed in calling code
+- **SKIPPED vs FAILED distinction** - SKIPPED for missing prerequisites (no username), FAILED for API/technical errors
+- **ContextResult reconstruction** - Database strings are converted back to full ContextResult objects with proper status
+
+- **Spam Examples Context Storage**: Context elements are stored as TEXT columns in spam_examples database for backward compatibility, but converted to ContextResult objects during classification:
+  - **Database Storage Format**:
+    - **NULL**: Historical examples or skipped context - converted to `None` (no ContextResult created)
+    - **'[EMPTY]' string**: Context checked but empty - converted to `ContextResult(status=EMPTY)`
+    - **Content string**: Context found - converted to `ContextResult(status=FOUND, content=stored_string)`
+  - **Context Reconstruction**: When loading examples for prompts, stored strings are converted back to ContextResult objects with appropriate status enums
+  - **Storage Logic**: Context collection results are serialized to strings for database storage but maintain full status information through ContextResult reconstruction
 - **Observability & Incident Response**: All warnings/errors funnel through the standard logging stack with full tracebacks; `logger.warning` must include `exc_info=True` when exceptions exist. Incidents emit Mixpanel events, critical failures notify the admin chat, and recurring issues get grouped for trend analysis and frequency tracking.
 - **Telegram Messaging Conventions**: Outbound messages respect Telegram limits and escape reserved characters for HTML mode. AI prompts include explicit HTML formatting instructions.
 - **Graceful Shutdown**: On SIGINT/SIGTERM, `aiohttp` triggers shutdown hooks that clean up resources in order: stop background tasks, close bot session, close DB pool.

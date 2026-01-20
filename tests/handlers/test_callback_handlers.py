@@ -27,10 +27,10 @@ async def test_handle_spam_ignore_callback_answer_error():
     with (
         patch("src.app.handlers.callback_handlers.bot") as mock_bot,
         patch("src.app.handlers.callback_handlers.add_spam_example") as mock_add_spam,
-        patch("src.app.handlers.callback_handlers.mp") as mock_mp,
         patch("src.app.handlers.callback_handlers.add_member") as mock_add_member,
+        patch("src.app.handlers.callback_handlers.mp") as mock_mp,
         patch(
-            "src.app.handlers.callback_handlers.collect_linked_channel_summary",
+            "src.app.handlers.callback_handlers.collect_user_context",
             new_callable=AsyncMock,
         ) as mock_collect,
     ):
@@ -40,7 +40,13 @@ async def test_handle_spam_ignore_callback_answer_error():
         )
         mock_bot.edit_message_text = AsyncMock()
         mock_bot.unban_chat_member = AsyncMock()
-        mock_collect.return_value = None
+        # Mock UserContext return
+        from src.app.spam.context_types import UserContext, ContextResult, ContextStatus
+        mock_collect.return_value = UserContext(
+            stories=ContextResult(status=ContextStatus.EMPTY),
+            linked_channel=ContextResult(status=ContextStatus.EMPTY),
+            account_info=ContextResult(status=ContextStatus.EMPTY)
+        )
 
         # Run handler
         result = await handle_spam_ignore_callback(callback)

@@ -3,11 +3,11 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.app.common.linked_channel import (
-    collect_linked_channel_summary,
+from src.app.spam.context_types import ContextStatus
+from src.app.spam.context_types import LinkedChannelSummary, UserContext
+from src.app.spam.user_profile import (
+    collect_user_context,
     collect_channel_summary_by_id,
-    LinkedChannelSummary,
-    UserContext,
 )
 
 
@@ -15,8 +15,8 @@ class TestLinkedChannelExtraction:
     """Test the refactored linked channel extraction that goes directly to MTProto."""
 
     @pytest.mark.asyncio
-    async def test_collect_linked_channel_summary_uses_mtproto_directly(self):
-        """Test that collect_linked_channel_summary goes directly to MTProto without bot calls."""
+    async def test_collect_user_context_uses_mtproto_directly(self):
+        """Test that collect_user_context goes directly to MTProto without bot calls."""
         user_id = 12345
 
         # Mock MTProto client
@@ -37,9 +37,9 @@ class TestLinkedChannelExtraction:
         mock_client.call = AsyncMock(return_value={"messages": [], "count": 0})
 
         with patch(
-            "src.app.common.linked_channel.get_mtproto_client", return_value=mock_client
+            "src.app.spam.user_profile.get_mtproto_client", return_value=mock_client
         ):
-            result = await collect_linked_channel_summary(user_id, username="testuser")
+            result = await collect_user_context(user_id, username="testuser")
 
             # Verify call_with_fallback was called for both getFullUser and getFullChannel
             assert mock_client.call_with_fallback.call_count == 2
@@ -60,15 +60,17 @@ class TestLinkedChannelExtraction:
             # Verify we got the expected result
             assert isinstance(result, UserContext)
             assert result.linked_channel is not None
-            assert isinstance(result.linked_channel, LinkedChannelSummary)
-            assert result.linked_channel.subscribers == 1000
+            from src.app.spam.context_types import ContextStatus
+            assert result.linked_channel.status == ContextStatus.FOUND
+            assert isinstance(result.linked_channel.content, LinkedChannelSummary)
+            assert result.linked_channel.content.subscribers == 1000
             assert (
-                result.linked_channel.total_posts == 0
+                result.linked_channel.content.total_posts == 0
             )  # From the mocked messages.getHistory response
-            assert result.linked_channel.post_age_delta is None  # Channel has no posts
+            assert result.linked_channel.content.post_age_delta is None  # Channel has no posts
 
     @pytest.mark.asyncio
-    async def test_collect_linked_channel_summary_no_linked_channel(self):
+    async def test_collect_user_context_no_linked_channel(self):
         """Test handling of users without linked channels."""
         user_id = 12345
 
@@ -79,13 +81,14 @@ class TestLinkedChannelExtraction:
         )
 
         with patch(
-            "src.app.common.linked_channel.get_mtproto_client", return_value=mock_client
+            "src.app.spam.user_profile.get_mtproto_client", return_value=mock_client
         ):
-            result = await collect_linked_channel_summary(user_id, username="testuser")
+            result = await collect_user_context(user_id, username="testuser")
 
-            # Should return UserContext with None linked_channel when no linked channel
+            # Should return UserContext with empty linked_channel when no linked channel
             assert isinstance(result, UserContext)
-            assert result.linked_channel is None
+            from src.app.spam.context_types import ContextStatus
+            assert result.linked_channel.status == ContextStatus.EMPTY
 
             # Verify call_with_fallback was called
             mock_client.call_with_fallback.assert_called_once()
@@ -106,7 +109,7 @@ class TestLinkedChannelExtraction:
         mock_client.call = AsyncMock(return_value={"messages": [], "count": 0})
 
         with patch(
-            "src.app.common.linked_channel.get_mtproto_client", return_value=mock_client
+            "src.app.spam.user_profile.get_mtproto_client", return_value=mock_client
         ):
             result = await collect_channel_summary_by_id(channel_id, username=username)
 
@@ -120,7 +123,8 @@ class TestLinkedChannelExtraction:
             assert call_args[1]["identifier_param"] == "channel"
 
             # Verify result
-            assert result.subscribers == 500
+            assert result.status == ContextStatus.FOUND
+            assert result.content.subscribers == 500
 
     @pytest.mark.asyncio
     async def test_collect_channel_summary_by_id_uses_only_username(self):
@@ -141,7 +145,7 @@ class TestLinkedChannelExtraction:
         mock_client.call = AsyncMock(return_value={"messages": [], "count": 0})
 
         with patch(
-            "src.app.common.linked_channel.get_mtproto_client", return_value=mock_client
+            "src.app.spam.user_profile.get_mtproto_client", return_value=mock_client
         ):
             result = await collect_channel_summary_by_id(channel_id, username=username)
 
@@ -155,4 +159,5 @@ class TestLinkedChannelExtraction:
             assert call_args[1]["identifier_param"] == "channel"
 
             # Verify result
-            assert result.subscribers == 500
+            assert result.status == ContextStatus.FOUND
+            assert result.content.subscribers == 500

@@ -4,13 +4,14 @@ Live test script to extract channel content for @kotnikova_yana (ID: -1003388711
 """
 
 import asyncio
-import pytest
-import sys
 import os
-from dotenv import load_dotenv
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+
+import pytest
+from dotenv import load_dotenv
 
 # Load environment variables first
 load_dotenv()

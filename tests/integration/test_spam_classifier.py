@@ -26,7 +26,8 @@ from app.common.mtproto_client import (
     MtprotoHttpError,
     get_mtproto_client,
 )
-from app.common.spam_classifier import is_spam
+from app.spam.spam_classifier import is_spam
+from app.spam.context_types import SpamClassificationContext, ContextResult, ContextStatus
 
 
 # Copy the necessary classes and functions directly
@@ -258,58 +259,66 @@ async def test_spam_classifier():
     print("=" * 70)
 
     # Extract channel data
-    print("🔍 Extracting channel information...")
+    print("?? Extracting channel information...")
     channel_summary = await collect_channel_summary_by_id(
         channel_id, user_reference="test"
     )
 
     if not channel_summary:
-        print("❌ Failed to extract channel data")
+        print("? Failed to extract channel data")
         return
 
-    print("\n✅ Channel data extracted successfully!")
-    print(f"📊 Subscribers: {channel_summary.subscribers}")
-    print(f"📝 Total posts: {channel_summary.total_posts}")
-    print(f"📅 Age delta: {channel_summary.post_age_delta} months")
+    print("\n? Channel data extracted successfully!")
+    print(f"?? Subscribers: {channel_summary.subscribers}")
+    print(f"?? Total posts: {channel_summary.total_posts}")
+    print(f"?? Age delta: {channel_summary.post_age_delta} months")
 
     # Test message that would be posted from this channel
-    test_message = "Пусть будет больше света ☀️"
+    test_message = "????? ????? ?????? ????? ??"
 
-    print(f"\n📨 Test message: '{test_message}'")
-    print("👤 Sender: Котникова Яна (@kotnikova_yana)")
+    print(f"\n?? Test message: '{test_message}'")
+    print("?? Sender: ????????? ??? (@kotnikova_yana)")
     # Prepare channel fragment for classifier
     linked_channel_fragment = channel_summary.to_prompt_fragment()
-    print(f"\n🔗 Channel info for classifier: {linked_channel_fragment}")
+    print(f"\n?? Channel info for classifier: {linked_channel_fragment}")
 
-    print("\n🤖 Running spam classifier...")
+    print("\n?? Running spam classifier...")
     print("-" * 50)
 
     try:
+        # Create classification context
+        context = SpamClassificationContext(
+            name="????????? ???",
+            linked_channel=ContextResult(
+                status=ContextStatus.FOUND,
+                content=linked_channel_fragment
+            ) if linked_channel_fragment else None
+        )
+
         # Call the spam classifier
         score, reason = await is_spam(
             comment=test_message,
-            name="Котникова Яна",
-            linked_channel_fragment=linked_channel_fragment,
+            context=context,
         )
 
-        print("🎯 Classification Results:")
+        print("?? Classification Results:")
         print(f"   Score: {score}")
         print(f"   Is Spam: {'YES' if score > 0 else 'NO'}")
         print(f"   Confidence: {abs(score)}%")
         print(f"   Reason: {reason}")
 
-        print("\n📊 Interpretation:")
+        print("\n?? Interpretation:")
         if score > 50:
-            print("   🚨 HIGH SPAM - Message should be blocked/deleted")
+            print("   ?? HIGH SPAM - Message should be blocked/deleted")
         elif score > 0:
-            print("   ⚠️  MODERATE SPAM - Message flagged for review")
+            print("   ??  MODERATE SPAM - Message flagged for review")
         elif score == 0:
-            print("   🤔 NEUTRAL - Unclear classification")
+            print("   ?? NEUTRAL - Unclear classification")
         else:
-            print("   ✅ NOT SPAM - Message should be allowed")
+            print("   ? NOT SPAM - Message should be allowed")
 
     except Exception as e:
-        print(f"❌ Spam classifier failed: {e}")
+        print(f"? Spam classifier failed: {e}")
         import traceback
 
         traceback.print_exc()

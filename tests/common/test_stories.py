@@ -1,11 +1,11 @@
 import pytest
 from unittest.mock import AsyncMock, patch
-from src.app.common.stories import collect_user_stories, StorySummary
+from src.app.spam.stories import collect_user_stories, StorySummary
 
 
 @pytest.fixture
 def mock_mtproto_client():
-    with patch("src.app.common.stories.get_mtproto_client") as mock:
+    with patch("src.app.spam.stories.get_mtproto_client") as mock:
         client = AsyncMock()
         mock.return_value = client
         yield client
@@ -44,10 +44,11 @@ async def test_collect_user_stories_success(mock_mtproto_client):
 
     result = await collect_user_stories(123456, username="testuser")
 
-    assert result is not None
-    assert "Caption: Check out my new project!" in result
-    assert "Link: http://spam.com" in result
-    assert "Caption: Just a photo" in result
+    assert result.status.name == "FOUND"
+    assert result.content is not None
+    assert "Caption: Check out my new project!" in result.content
+    assert "Link: http://spam.com" in result.content
+    assert "Caption: Just a photo" in result.content
 
     # Verify call_with_fallback was called
     mock_mtproto_client.call_with_fallback.assert_called_once()
@@ -59,31 +60,35 @@ async def test_collect_user_stories_success(mock_mtproto_client):
 
 @pytest.mark.asyncio
 async def test_collect_user_stories_no_stories(mock_mtproto_client):
+    from src.app.spam.context_types import ContextStatus
     mock_mtproto_client.call_with_fallback = AsyncMock(
         return_value=({"stories": []}, "testuser")
     )
     result = await collect_user_stories(123456, username="testuser")
-    assert result is None
+    assert result.status == ContextStatus.EMPTY
 
 
 @pytest.mark.asyncio
 async def test_collect_user_stories_deleted(mock_mtproto_client):
+    from src.app.spam.context_types import ContextStatus
     mock_mtproto_client.call_with_fallback = AsyncMock(
         return_value=({"stories": [{"_": "storyItemDeleted", "id": 123}]}, "testuser")
     )
     result = await collect_user_stories(123456, username="testuser")
-    assert result is None
+    assert result.status == ContextStatus.EMPTY
 
 
 @pytest.mark.asyncio
 async def test_collect_user_stories_error(mock_mtproto_client):
     from src.app.common.mtproto_client import MtprotoHttpError
+    from src.app.spam.context_types import ContextStatus
 
     mock_mtproto_client.call_with_fallback = AsyncMock(
         side_effect=MtprotoHttpError("MTProto error")
     )
     result = await collect_user_stories(123456, username="testuser")
-    assert result is None
+    assert result.status == ContextStatus.FAILED
+    assert result.error == "MTProto error"
 
 
 def test_story_summary_formatting():
