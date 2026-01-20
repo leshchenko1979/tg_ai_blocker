@@ -37,7 +37,9 @@ def _should_skip_logfire() -> bool:
 def setup_logging():
     global _telegram_handler
     if _should_skip_logfire():
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.WARNING)
+        # Set own code to DEBUG level even in test mode (propagates to all app.* loggers)
+        logging.getLogger("app").setLevel(logging.DEBUG)
         return
 
     if not debug:
@@ -66,10 +68,14 @@ def setup_logging():
                 _telegram_handler,
                 _stream_handler,
             ],
-            level=logging.DEBUG,
+            level=logging.WARNING,  # 3rd party modules default to WARNING
         )
+
+        # Set own code to DEBUG level (propagates to all app.* loggers)
+        logging.getLogger("app").setLevel(logging.DEBUG)
+
         logfire.install_auto_tracing(
-            modules=["app.database", "app.handlers"],
+            modules=["app.database", "app.handlers", "app.spam"],
             min_duration=0.01,
             check_imported_modules="ignore",
         )
@@ -83,13 +89,3 @@ def register_telegram_logging_loop(loop):
 def get_telegram_handler() -> TelegramLogHandler | None:
     """Get the TelegramLogHandler instance for cleanup purposes."""
     return _telegram_handler
-
-
-# Silence known chatty loggers
-CHATTY_LOGGERS = [
-    "hpack.hpack",
-    "httpcore",
-    "aiohttp.access",
-]
-for logger_name in CHATTY_LOGGERS:
-    logging.getLogger(logger_name).setLevel(logging.WARNING)
