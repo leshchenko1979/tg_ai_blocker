@@ -1,4 +1,4 @@
-from src.app.server import extract_update_type_ignored
+from src.app.main import extract_update_type_ignored
 
 
 class TestExtractUpdateTypeIgnored:

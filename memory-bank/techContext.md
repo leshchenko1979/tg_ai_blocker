@@ -7,7 +7,7 @@
   - `asyncpg` for PostgreSQL access, structured via database operation modules.
   - `python-dotenv` for configuration loading, `logfire` for tracing/logging/metrics, `mixpanel` for analytics, `tenacity` for retries.
   - `tqdm` (dev dependency) for progress bars in evaluation scripts.
-- **Project Layout**: Source lives under `src/app`, grouped into `common`, `handlers`, `database`, plus `logging_setup.py`, `main.py`, and `server.py`. Tests mirror structure under `tests/` at project root using `pytest`. Integration tests requiring external services isolated in `tests/integration/`.
+- **Project Layout**: Source lives under `src/app`, grouped into `common`, `handlers`, `database`, plus `logging_setup.py` and `main.py` (containing both application logic and server setup). Tests mirror structure under `tests/` at project root using `pytest`. Integration tests requiring external services isolated in `tests/integration/`.
 - **Configuration**: Secrets pulled from `.env` (restricted). Startup script runs `dotenv.load_dotenv()` before initializing logging and handlers. Mixpanel tracking must respect admin-centric IDs per workspace rules.
 - **Configuration Handling**: Secrets live in `.env`; contents remain off-limits, but developers can run `source .env` to load required environment variables without reading the file directly.
 - **Infrastructure Assumptions**: Telegram webhook served over HTTPS (Traefik + Sablier managed), PostgreSQL reachable only via the remote host `94.250.254.232` using SSH (user `root`, DB user `postgres`). All database commands must execute on that server—local access is unavailable. Deployments rely on Docker Compose and require preserving `.env` and `docker-compose.yml`.
