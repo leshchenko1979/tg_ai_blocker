@@ -400,9 +400,18 @@ verification failed: {context.stories.error}
 
 """
 
-    if context.account_age and context.account_age.status.name == "FOUND":
+    if (
+        context.account_age
+        and context.account_age.status.name == "FOUND"
+        and context.account_age.content
+    ):
+        # Handle both UserAccountInfo objects and legacy string content
+        if hasattr(context.account_age.content, "to_prompt_fragment"):
+            content_str = context.account_age.content.to_prompt_fragment()
+        else:
+            content_str = str(context.account_age.content)
         request += f"""ACCOUNT AGE INFO:
-{context.account_age.content}
+{content_str}
 
 """
     elif context.account_age and context.account_age.status.name == "EMPTY":
