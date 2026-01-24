@@ -5,6 +5,7 @@ services:
       dockerfile: .dockerfile
     container_name: tg-ai-blocker
     mem_limit: 256mb
+    mem_reservation: 128mb
     cpus: 0.5
     restart: unless-stopped
     env_file:
@@ -20,7 +21,6 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.tg-ai-blocker.rule=Host(`tg-ai-blocker.redevest.ru`) && (Path(`/`) || Path(`/health`))"
       - "traefik.http.routers.tg-ai-blocker.entryPoints=websecure"
-      - "traefik.http.routers.tg-ai-blocker.tls={}"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health').read() == b'ok' else 1)\""]
       interval: 30s
