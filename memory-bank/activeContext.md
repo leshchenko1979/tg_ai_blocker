@@ -1,16 +1,17 @@
 ## Active Context
 
-- **Current Focus**: Code Architecture & Quality - completed comprehensive reorganization of spam detection modules and code quality improvements.
+- **Current Focus**: Advanced Context Collection - implemented on-demand user bot subscription for comprehensive spam detection.
 - **Key Decisions**:
-  - **Domain Separation**: Moved all spam-related functionality (`spam_classifier.py`, context collection modules) from `src/app/common/` to dedicated `src/app/spam/` directory for better organization.
-  - **Context Types Architecture**: Consolidated context handling with `ContextResult` generic wrapper, clear status enums, and unified data structures.
-  - **Code Quality Standards**: Implemented comprehensive linting cleanup reducing errors from 74 to 57, with main application code now fully clean.
+  - **On-Demand Subscription**: User bot subscribes to monitored chats when needed for context collection, rather than proactively on bot addition.
+  - **Unified Context Collection**: Single subscription check at the top level enables both linked channel and stories collection for users without usernames.
+  - **Simplified MTProto Calls**: Replaced fallback call patterns with direct single calls for better performance and clarity.
+  - **Code Consolidation**: Merged subscription utilities into single module with DRY helper functions.
 - **Recent Implementation**:
-  - **Module Reorganization**: ✅ **Complete** - Moved 5 spam-related modules to dedicated `src/app/spam/` directory with proper import updates across 15+ files.
-  - **Testing Infrastructure**: ✅ **Complete** - All 93 tests passing after reorganization, including complex integration tests and database constraint validation.
-  - **Linting Standards**: ✅ **Complete** - Comprehensive ruff cleanup with systematic fixes for unused imports, bare exceptions, import ordering, and variable cleanup.
-  - **Context Collection Contract**: ✅ **Complete** - Robust three-state context handling (Found/Empty/Failed) with proper error propagation and prompt formatting.
+  - **User Bot Subscription System**: ✅ **Complete** - On-demand subscription to monitored chats enables context collection for users without usernames using MTProto user_id resolution.
+  - **Context Collection Enhancement**: ✅ **Complete** - Both linked channel and stories collection now work for all users, regardless of username availability.
+  - **MTProto Optimization**: ✅ **Complete** - Simplified all MTProto API calls to use single identifiers instead of fallback patterns.
+  - **Code Quality**: ✅ **Complete** - Merged utility modules, eliminated circular imports, and achieved clean single-responsibility architecture.
 - **Immediate Next Steps**:
-  - Run LLM model evaluation to establish baseline performance metrics with the cleaned codebase.
-  - Monitor system stability and consider shadow mode for classifier testing.
-  - Review potential improvements to admin dashboard and billing analytics.
+  - Run LLM model evaluation to establish baseline performance metrics.
+  - Monitor system stability and context collection effectiveness.
+  - Consider adding subscription status caching to reduce API calls.

@@ -22,40 +22,34 @@ class TestLinkedChannelExtraction:
         # Mock MTProto client
         mock_client = MagicMock()
 
-        # Mock call_with_fallback for both getFullUser and getFullChannel
-        mock_client.call_with_fallback = AsyncMock(
+        # Mock call for users.getFullUser, channels.getFullChannel, and messages.getHistory
+        mock_client.call = AsyncMock(
             side_effect=[
-                (
-                    {"full_user": {"personal_channel_id": 67890}},
-                    user_id,
-                ),  # getFullUser
-                ({"full_chat": {"participants_count": 1000}}, 67890),  # getFullChannel
+                {"full_user": {"personal_channel_id": 67890}},  # users.getFullUser
+                {"full_chat": {"participants_count": 1000}},   # channels.getFullChannel
+                {"messages": [], "count": 0},                  # messages.getHistory (recent posts)
             ]
         )
-
-        # Mock call for messages.getHistory (called once for recent posts content)
-        mock_client.call = AsyncMock(return_value={"messages": [], "count": 0})
 
         with patch(
             "src.app.spam.user_profile.get_mtproto_client", return_value=mock_client
         ):
             result = await collect_user_context(user_id, username="testuser")
 
-            # Verify call_with_fallback was called for both getFullUser and getFullChannel
-            assert mock_client.call_with_fallback.call_count == 2
-            # First call: getFullUser
-            first_call = mock_client.call_with_fallback.call_args_list[0]
+            # Verify call was made for users.getFullUser, channels.getFullChannel, and messages.getHistory
+            assert mock_client.call.call_count == 3
+            # First call: users.getFullUser
+            first_call = mock_client.call.call_args_list[0]
             assert first_call[0][0] == "users.getFullUser"
-            assert first_call[1]["identifiers"] == ["testuser"]
-            assert first_call[1]["identifier_param"] == "id"
-            # Second call: getFullChannel
-            second_call = mock_client.call_with_fallback.call_args_list[1]
+            assert first_call[1]["params"]["id"] == "testuser"
+            # Second call: channels.getFullChannel
+            second_call = mock_client.call.call_args_list[1]
             assert second_call[0][0] == "channels.getFullChannel"
-            assert second_call[1]["identifiers"] == [67890]
-            assert second_call[1]["identifier_param"] == "channel"
+            assert second_call[1]["params"]["channel"] == 67890
 
-            # Verify regular call was made for messages.getHistory (called once for recent posts)
-            assert mock_client.call.call_count == 1
+            # Third call: messages.getHistory (recent posts)
+            third_call = mock_client.call.call_args_list[2]
+            assert third_call[0][0] == "messages.getHistory"
 
             # Verify we got the expected result
             assert isinstance(result, UserContext)
@@ -76,8 +70,8 @@ class TestLinkedChannelExtraction:
 
         # Mock MTProto client - user has no linked channel
         mock_client = MagicMock()
-        mock_client.call_with_fallback = AsyncMock(
-            return_value=({"full_user": {}}, user_id)  # No personal_channel_id
+        mock_client.call = AsyncMock(
+            return_value={"full_user": {}}  # No personal_channel_id
         )
 
         with patch(
@@ -90,8 +84,8 @@ class TestLinkedChannelExtraction:
             from src.app.spam.context_types import ContextStatus
             assert result.linked_channel.status == ContextStatus.EMPTY
 
-            # Verify call_with_fallback was called
-            mock_client.call_with_fallback.assert_called_once()
+            # Verify call was made
+            mock_client.call.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_collect_channel_summary_by_id_uses_username(self):
@@ -100,27 +94,24 @@ class TestLinkedChannelExtraction:
         username = "testchannel"
 
         mock_client = MagicMock()
-        mock_client.call_with_fallback = AsyncMock(
-            return_value=(
-                {"full_chat": {"participants_count": 500}},
-                username,  # successful identifier
-            )
+        mock_client.call = AsyncMock(
+            side_effect=[
+                {"full_chat": {"participants_count": 500}},  # channels.getFullChannel
+                {"messages": [], "count": 0},                # messages.getHistory (recent posts)
+                {"messages": [], "count": 0},                # messages.getHistory (edge message)
+            ]
         )
-        mock_client.call = AsyncMock(return_value={"messages": [], "count": 0})
 
         with patch(
             "src.app.spam.user_profile.get_mtproto_client", return_value=mock_client
         ):
             result = await collect_channel_summary_by_id(channel_id, username=username)
 
-            # Verify call_with_fallback was called with username first
-            mock_client.call_with_fallback.assert_called_once()
-            call_args = mock_client.call_with_fallback.call_args
-            assert call_args[0][0] == "channels.getFullChannel"
-            assert call_args[1]["identifiers"] == [
-                username
-            ]  # only username since it's available
-            assert call_args[1]["identifier_param"] == "channel"
+            # Verify call was made with username
+            assert mock_client.call.call_count >= 1  # At least channels.getFullChannel call
+            first_call = mock_client.call.call_args_list[0]
+            assert first_call[0][0] == "channels.getFullChannel"
+            assert first_call[1]["params"]["channel"] == username
 
             # Verify result
             assert result.status == ContextStatus.FOUND
@@ -135,28 +126,24 @@ class TestLinkedChannelExtraction:
 
         mock_client = MagicMock()
 
-        # Mock call_with_fallback to simulate fallback behavior (username fails, ID succeeds)
-        mock_client.call_with_fallback = AsyncMock(
-            return_value=(
-                {"full_chat": {"participants_count": 500}},
-                mtproto_id,  # successful identifier (ID, not username)
-            )
+        # Mock call to return channel data (uses username since it's available)
+        mock_client.call = AsyncMock(
+            side_effect=[
+                {"full_chat": {"participants_count": 500}},  # channels.getFullChannel
+                {"messages": [], "count": 0},                # messages.getHistory (recent posts)
+            ]
         )
-        mock_client.call = AsyncMock(return_value={"messages": [], "count": 0})
 
         with patch(
             "src.app.spam.user_profile.get_mtproto_client", return_value=mock_client
         ):
             result = await collect_channel_summary_by_id(channel_id, username=username)
 
-            # Verify call_with_fallback was called with both identifiers
-            mock_client.call_with_fallback.assert_called_once()
-            call_args = mock_client.call_with_fallback.call_args
-            assert call_args[0][0] == "channels.getFullChannel"
-            assert call_args[1]["identifiers"] == [
-                username
-            ]  # only username since it's available
-            assert call_args[1]["identifier_param"] == "channel"
+            # Verify call was made with username (preferred when available)
+            assert mock_client.call.call_count >= 1
+            first_call = mock_client.call.call_args_list[0]
+            assert first_call[0][0] == "channels.getFullChannel"
+            assert first_call[1]["params"]["channel"] == username
 
             # Verify result
             assert result.status == ContextStatus.FOUND

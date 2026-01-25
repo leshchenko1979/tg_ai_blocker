@@ -31,12 +31,15 @@
 - **Enhanced Spam Examples Context Storage**: ✅ **Complete** - Added `stories_context`, `reply_context`, `account_age_context` fields to spam examples database with three-state differentiation (NULL for historical, '[EMPTY]' for checked-but-empty, content for found). Logfire trace recovery enables context extraction from forwarded messages. Examples now include full classification context for improved LLM training effectiveness.
 - **LLM Model Evaluation Infrastructure**: ✅ **Complete** - Comprehensive evaluation script (`scripts/eval_llm_models.py`) with balanced test cases, hierarchical tqdm progress bars, JSON results storage, model isolation, and detailed accuracy metrics (precision, recall, F1). Includes automatic result persistence to `eval_results/` directory and git exclusion.
 - **Code Architecture & Quality**: ✅ **Complete** - Comprehensive module reorganization moving spam detection logic to dedicated `src/app/spam/` directory. Implemented robust context collection architecture with `ContextResult` wrapper and clear status contracts. Achieved significant code quality improvements with systematic linting cleanup (74→57 errors) and all 93 tests passing.
+- **Advanced Context Collection**: ✅ **Complete** - On-demand user bot subscription system enables comprehensive spam detection for all users, regardless of username availability. Unified subscription logic with DRY helpers, simplified MTProto calls, and merged utility modules for clean architecture.
 
 ### What's left to build
 - [ ] Comprehensive "shadow mode" for testing new classifiers without affecting users.
 - [ ] Advanced billing dashboard for admins.
 - [ ] More granular spam categories in reporting.
+- [ ] Subscription status caching to reduce MTProto API calls.
 
 ### Known Issues
 - [ ] `TelegramBadRequest` for "message to delete not found" can still be noisy in logs (harmless race condition).
+- [x] **Fixed**: User bot subscription now properly skips private chats (without usernames) and continues with context collection if user bot already has access.
 - [x] **Fixed**: HTML parsing errors in admin notifications due to unescaped HTML entities in chat titles and user names (causing "Unsupported start tag" Telegram API errors).

@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 async def collect_user_context(
     user_reference: str | int,
     username: Optional[str] = None,
+    chat_id: Optional[int] = None,
 ) -> UserContext:
     """
     Collects user context including linked channel summary and account age signals.
@@ -38,30 +39,39 @@ async def collect_user_context(
         "Collecting user context via MTProto",
         user_reference=user_reference,
         username=username,
+        chat_id=chat_id,
     ):
-        # Only use username for peer resolution (numeric IDs almost always fail)
-        if not username:
-            logfire.debug("No username available, skipping user context collection")
-            return UserContext(
-                stories=ContextResult(
-                    status=ContextStatus.SKIPPED, error="No username available"
-                ),
-                linked_channel=ContextResult(
-                    status=ContextStatus.SKIPPED, error="No username available"
-                ),
-                account_info=ContextResult(
-                    status=ContextStatus.SKIPPED, error="No username available"
-                ),
-            )
-
-        identifiers = [username]
+        # Set up identifier: prefer username, but use user_id if no username
+        # (subscription check is handled at higher level)
+        if username:
+            identifier = username
+        else:
+            # Using user_id directly (subscription already verified at higher level)
+            user_id = user_reference if isinstance(user_reference, int) else None
+            if not user_id:
+                logfire.error("No username and invalid user_reference for user_id-based collection")
+                return UserContext(
+                    stories=ContextResult(
+                        status=ContextStatus.FAILED,
+                        error="Invalid user reference for user_id-based collection",
+                    ),
+                    linked_channel=ContextResult(
+                        status=ContextStatus.FAILED,
+                        error="Invalid user reference for user_id-based collection",
+                    ),
+                    account_info=ContextResult(
+                        status=ContextStatus.FAILED,
+                        error="Invalid user reference for user_id-based collection",
+                    ),
+                )
+            identifier = user_id
 
         full_user = {}
         try:
-            full_user_response, _ = await client.call_with_fallback(
+            full_user_response = await client.call(
                 "users.getFullUser",
-                identifiers=identifiers,
-                identifier_param="id",
+                params={"id": identifier},
+                resolve=True,
             )
             full_user = full_user_response.get("full_user") or {}
 
@@ -89,25 +99,21 @@ async def collect_user_context(
 
         except MtprotoHttpError as e:
             logger.info(
-                "MTProto failed for full user with all identifiers",
+                "MTProto failed for full user",
                 extra={
                     "user_reference": user_reference,
                     "username": username,
-                    "identifiers_tried": identifiers,
+                    "identifier_used": identifier,
                     "error": str(e),
                 },
             )
-            account_info_result = ContextResult(
-                status=ContextStatus.FAILED, error=str(e)
-            )
+            account_info_result = ContextResult(status=ContextStatus.FAILED, error=str(e))
 
         # Extract Linked Channel
         personal_channel_id = full_user.get("personal_channel_id")
         if personal_channel_id:
             channel_id = int(personal_channel_id)
-            channel_result = await collect_channel_summary_by_id(
-                channel_id, user_reference
-            )
+            channel_result = await collect_channel_summary_by_id(channel_id, user_reference)
             linked_channel_result = channel_result
         else:
             logfire.debug(
@@ -119,9 +125,7 @@ async def collect_user_context(
 
     # Stories will be collected separately, so we return SKIPPED for now
     return UserContext(
-        stories=ContextResult(
-            status=ContextStatus.SKIPPED, error="Stories collected separately"
-        ),
+        stories=ContextResult(status=ContextStatus.SKIPPED, error="Stories collected separately"),
         linked_channel=linked_channel_result,
         account_info=account_info_result,
     )
@@ -138,11 +142,9 @@ async def collect_channel_summary_by_id(
     """
     client = get_mtproto_client()
 
-    identifiers = []
-
-    # Prefer username for channel resolution if available
+    # Use username if available, otherwise convert Bot API ID to MTProto format
     if username:
-        identifiers.append(username)
+        channel_identifier = username
     else:
         # Convert Bot API ID (negative -100...) to MTProto ID (positive, without -100)
         mtproto_id = channel_id
@@ -152,7 +154,7 @@ async def collect_channel_summary_by_id(
                 mtproto_id = int(str_id[4:])
             elif str_id.startswith("-"):
                 mtproto_id = int(str_id[1:])
-        identifiers.append(mtproto_id)
+        channel_identifier = mtproto_id
 
     with logfire.span(
         "Fetching channel summary via MTProto",
@@ -161,10 +163,10 @@ async def collect_channel_summary_by_id(
         username=username,
     ):
         try:
-            full_channel, successful_identifier = await client.call_with_fallback(
+            full_channel = await client.call(
                 "channels.getFullChannel",
-                identifiers=identifiers,
-                identifier_param="channel",
+                params={"channel": channel_identifier},
+                resolve=True,
             )
         except MtprotoHttpError as e:
             logger.info(
@@ -173,7 +175,7 @@ async def collect_channel_summary_by_id(
                     "user_reference": user_reference,
                     "channel_id": channel_id,
                     "username": username,
-                    "identifiers_tried": identifiers,
+                    "identifier_used": channel_identifier,
                     "error": str(e),
                 },
             )
@@ -188,7 +190,7 @@ async def collect_channel_summary_by_id(
     )
 
     # Use the identifier that worked for the history call to ensure consistency
-    peer_to_use = successful_identifier
+    peer_to_use = channel_identifier
 
     # Fetch recent posts content for spam analysis - this also gives us the newest message and total count
     (

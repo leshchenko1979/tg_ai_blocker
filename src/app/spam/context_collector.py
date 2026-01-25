@@ -7,6 +7,7 @@ import logfire
 from .context_types import ContextResult, ContextStatus, UserContext
 from .stories import collect_user_stories
 from .user_profile import collect_user_context
+from .user_context_utils import ensure_user_context_collectable
 
 logger = logging.getLogger(__name__)
 
@@ -15,17 +16,47 @@ logger = logging.getLogger(__name__)
 async def collect_complete_user_context(
     user_id: int,
     username: Optional[str] = None,
+    chat_id: Optional[int] = None,
+    message_id: Optional[int] = None,
+    chat_username: Optional[str] = None,
 ) -> UserContext:
     """
     Collects complete user context including stories and profile info in parallel.
     Returns a UserContext with ContextResult objects for each context type.
     """
     with logfire.span(
-        "Collecting complete user context", user_id=user_id, username=username
+        "Collecting complete user context",
+        user_id=user_id,
+        username=username,
+        chat_id=chat_id,
     ):
+        # Check if we need to subscribe user bot for context collection (when username is None)
+        if username is None and chat_id is not None and message_id is not None:
+            subscription_success = await ensure_user_context_collectable(
+                chat_id, user_id, message_id, chat_username
+            )
+        else:
+            subscription_success = (
+                True  # No subscription needed if we have username or missing params
+            )
+
+        if not subscription_success:
+            # Subscription failed, skip all context collection
+            return UserContext(
+                stories=ContextResult(
+                    status=ContextStatus.SKIPPED, error="User bot subscription failed"
+                ),
+                linked_channel=ContextResult(
+                    status=ContextStatus.SKIPPED, error="User bot subscription failed"
+                ),
+                account_info=ContextResult(
+                    status=ContextStatus.SKIPPED, error="User bot subscription failed"
+                ),
+            )
+
         # Run stories and profile collection in parallel
-        stories_task = collect_user_stories(user_id, username)
-        profile_task = collect_user_context(user_id, username)
+        stories_task = collect_user_stories(user_id, username, chat_id)
+        profile_task = collect_user_context(user_id, username, chat_id)
 
         try:
             results = await asyncio.gather(

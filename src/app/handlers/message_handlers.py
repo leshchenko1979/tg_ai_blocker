@@ -51,9 +51,7 @@ async def handle_moderated_message(message: types.Message) -> str:
 
         # Check if sender is an admin - skip immediately without expensive operations
         if user_id in group.admin_ids:
-            await track_group_event(
-                chat_id, "message_from_admin_skipped", {"user_id": user_id}
-            )
+            await track_group_event(chat_id, "message_from_admin_skipped", {"user_id": user_id})
             return "message_from_admin_skipped"
 
         # Check if sender is approved - skip before expensive operations
@@ -128,9 +126,7 @@ async def send_wrong_channel_addition_instruction(chat, bot):
                 discussion_link = f"https://t.me/{username}"
 
         except Exception as e:
-            logger.warning(
-                f"Не удалось получить связанную группу обсуждения: {e}", exc_info=True
-            )
+            logger.warning(f"Не удалось получить связанную группу обсуждения: {e}", exc_info=True)
 
     instruction = (
         f"❗️ Бот был добавлен в канал <b>{channel_title}</b>, а не в группу обсуждений.\n\n"
@@ -266,9 +262,7 @@ def build_forward_info(message) -> tuple[str, list[str], bool]:
     if message.sender_chat and message.sender_chat.type == "channel":
         channel_title = message.sender_chat.title
         channel_username = (
-            f" (@{message.sender_chat.username})"
-            if message.sender_chat.username
-            else ""
+            f" (@{message.sender_chat.username})" if message.sender_chat.username else ""
         )
         forward_info.append(f"Posted by channel: {channel_title}{channel_username}")
 
@@ -294,9 +288,7 @@ async def get_and_check_group(chat_id):
 
 async def check_known_member(chat_id, user_id):
     if await is_member_in_group(chat_id, user_id):
-        await track_group_event(
-            chat_id, "message_skipped_known_member", {"user_id": user_id}
-        )
+        await track_group_event(chat_id, "message_skipped_known_member", {"user_id": user_id})
         return True
     return False
 
@@ -314,9 +306,7 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
     # Extract reply context if this is a reply
     if message.reply_to_message:
         reply_context = (
-            message.reply_to_message.text
-            or message.reply_to_message.caption
-            or "[MEDIA_MESSAGE]"
+            message.reply_to_message.text or message.reply_to_message.caption or "[MEDIA_MESSAGE]"
         )
 
     # Check if message is from a sender_chat (channel) that is NOT the group itself
@@ -351,7 +341,11 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
             # Use the new context collector that aggregates stories and profile info in parallel
             try:
                 user_context = await collect_complete_user_context(
-                    user.id, username=user.username
+                    user.id,
+                    username=user.username,
+                    chat_id=message.chat.id,
+                    message_id=message.message_id,
+                    chat_username=getattr(message.chat, "username", None),
                 )
             except Exception as exc:
                 logger.info(
@@ -381,9 +375,7 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
     return spam_score, bio, reason
 
 
-async def track_spam_check_result(
-    chat_id, user_id, spam_score, message_text, bio, reason=None
-):
+async def track_spam_check_result(chat_id, user_id, spam_score, message_text, bio, reason=None):
     await track_group_event(
         chat_id,
         "spam_check_result",
@@ -399,9 +391,7 @@ async def track_spam_check_result(
     )
 
 
-async def process_spam_or_approve(
-    chat_id, user_id, spam_score, message, admin_ids, reason
-):
+async def process_spam_or_approve(chat_id, user_id, spam_score, message, admin_ids, reason):
     if spam_score > 50:
         if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
             await handle_spam(message, admin_ids, reason)

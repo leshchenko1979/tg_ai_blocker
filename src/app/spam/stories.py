@@ -36,7 +36,7 @@ class StorySummary:
 
 @logfire.instrument()
 async def collect_user_stories(
-    user_id: int, username: Optional[str] = None
+    user_id: int, username: Optional[str] = None, chat_id: Optional[int] = None
 ) -> ContextResult[str]:
     """
     Collects stories for a user and formats them into a summary string.
@@ -44,28 +44,24 @@ async def collect_user_stories(
     """
     client = get_mtproto_client()
 
-    with logfire.span("Collecting user stories", user_id=user_id, username=username):
+    with logfire.span(
+        "Collecting user stories", user_id=user_id, username=username, chat_id=chat_id
+    ):
         try:
-            # Only use username for peer resolution (numeric IDs almost always fail)
-            if not username:
-                logger.debug("No username available, skipping stories collection")
-                return ContextResult(
-                    status=ContextStatus.SKIPPED, error="No username available"
-                )
-
-            identifiers = [username]
+            # Set up identifier: prefer username, but use user_id if no username
+            # (subscription check is handled at higher level)
+            peer_identifier = username if username else user_id
 
             try:
-                pinned_response, _ = await client.call_with_fallback(
-                    "stories.getPinnedStories",
-                    identifiers=identifiers,
-                    identifier_param="peer",
-                    params={"offset_id": 0, "limit": 5},
+                peer_response = await client.call(
+                    "stories.getPeerStories",
+                    params={"peer": peer_identifier},
+                    resolve=True,
                 )
-                stories_data = pinned_response.get("stories", [])
+                stories_data = peer_response.get("stories", {}).get("stories", [])
             except MtprotoHttpError as e:
                 logger.debug(
-                    f"Failed to fetch pinned stories for all identifiers {identifiers}: {e}"
+                    f"Failed to fetch pinned stories for identifier {peer_identifier}: {e}"
                 )
                 return ContextResult(status=ContextStatus.FAILED, error=str(e))
 
@@ -96,9 +92,7 @@ async def collect_user_stories(
             if not summaries:
                 return ContextResult(status=ContextStatus.EMPTY)
 
-            return ContextResult(
-                status=ContextStatus.FOUND, content="\n".join(summaries)
-            )
+            return ContextResult(status=ContextStatus.FOUND, content="\n".join(summaries))
 
         except MtprotoHttpError as e:
             logger.info(

@@ -43,5 +43,23 @@ useLibraryCodeForTypes = true
 reportMissingImports = true
 reportMissingTypeStubs = false
 
+[tool.ruff.lint]
+# Allow star imports in __init__.py files (standard Python practice)
+extend-ignore = [
+    "F403",  # `from .module import *` used; unable to detect undefined names
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Allow imports after environment setup in scripts
+"scripts/*.py" = ["E402"]
+# Allow imports after path setup in integration tests
+"tests/integration/*.py" = ["E402"]
+# Allow imports after environment and path setup in main app and migrations
+"src/app/main.py" = ["E402"]
+"src/migrations/*.py" = ["E402"]
+"tests/conftest.py" = ["E402"]
+# Allow unused database connections in tests (they're used implicitly)
+"tests/**/*.py" = ["F841"]
+
 [tool.logfire]
 ignore_no_config = true
