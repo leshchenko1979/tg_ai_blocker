@@ -4,7 +4,6 @@ from aiogram.exceptions import TelegramBadRequest
 
 from src.app.handlers.handle_spam import handle_spam_message_deletion
 from src.app.handlers.message_handlers import get_spam_score_and_bio
-from src.app.spam.context_types import LinkedChannelSummary
 
 
 class MockTelegramBadRequest(TelegramBadRequest):

@@ -77,9 +77,7 @@ async def notify_admins_with_fallback_and_cleanup(
                     # Additional check: negative IDs indicate channels/bots
                     if not is_bot and admin_id < 0:
                         is_bot = True
-                        logfire.warning(
-                            f"Detected channel/bot account {admin_id} with negative ID"
-                        )
+                        logfire.warning(f"Detected channel/bot account {admin_id} with negative ID")
 
                 if is_bot:
                     logfire.info(
@@ -111,10 +109,7 @@ async def notify_admins_with_fallback_and_cleanup(
             if isinstance(e, TelegramBadRequest):
                 # Check for specific parsing errors in the message
                 error_msg = str(e)
-                if (
-                    "can't parse entities" in error_msg
-                    or "Unsupported start tag" in error_msg
-                ):
+                if "can't parse entities" in error_msg or "Unsupported start tag" in error_msg:
                     logger.error(
                         f"Content parsing error when notifying admin {admin_id}: {e}. "
                         "This indicates malformed HTML in the notification message content.",
@@ -135,9 +130,7 @@ async def notify_admins_with_fallback_and_cleanup(
                     )
                     unreachable.append(admin_id)
             else:
-                logger.info(
-                    f"Failed to notify admin {admin_id} in private: {e}", exc_info=True
-                )
+                logger.info(f"Failed to notify admin {admin_id} in private: {e}", exc_info=True)
                 unreachable.append(admin_id)
             try:
 
@@ -174,9 +167,7 @@ async def notify_admins_with_fallback_and_cleanup(
                     if parse_mode == "HTML"
                     else f"[админ](tg://user?id={last_admin_info.id})"
                 )
-            logger.info(
-                f"Using mention '{mention}' for group fallback in chat {group_id}"
-            )
+            logger.info(f"Using mention '{mention}' for group fallback in chat {group_id}")
         else:
             mention = "админ"
             logger.warning(
@@ -184,9 +175,7 @@ async def notify_admins_with_fallback_and_cleanup(
             )
 
         group_message = group_message_template.format(mention=mention)
-        logger.info(
-            f"Sending group fallback message to chat {group_id}: {group_message[:100]}..."
-        )
+        logger.info(f"Sending group fallback message to chat {group_id}: {group_message[:100]}...")
 
         try:
 

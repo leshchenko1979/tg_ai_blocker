@@ -74,9 +74,7 @@ async def handle_update(request: web.Request) -> web.Response:
     with logfire.span(extract_chat_or_user(json), update=json) as span:
         try:
             # Wrap the update handling in a timeout
-            result = await asyncio.wait_for(
-                dp.feed_raw_update(bot, json), timeout=WEBHOOK_TIMEOUT
-            )
+            result = await asyncio.wait_for(dp.feed_raw_update(bot, json), timeout=WEBHOOK_TIMEOUT)
 
             # Add tag based on handler result
             span.tags = (
@@ -100,9 +98,7 @@ async def handle_update(request: web.Request) -> web.Response:
             return await handle_unhandled_exception(span, e, json)
 
         finally:
-            update_time = get_dotted_path(json, "*.edit_date") or get_dotted_path(
-                json, "*.date"
-            )
+            update_time = get_dotted_path(json, "*.edit_date") or get_dotted_path(json, "*.date")
             if update_time:
                 serve_time = time.time() - update_time
                 span.set_attribute("serve_time", serve_time)
@@ -199,9 +195,7 @@ def extract_ids_from_update(json: dict) -> Tuple[Optional[int], Optional[int]]:
     return chat_id, admin_id
 
 
-async def handle_timeout(
-    span: logfire.LogfireSpan, json: dict, elapsed: float
-) -> web.Response:
+async def handle_timeout(span: logfire.LogfireSpan, json: dict, elapsed: float) -> web.Response:
     """Handle timeout error"""
     logger.warning(f"Webhook processing timed out after {elapsed:.2f} seconds")
     span.tags = ["webhook_timeout"]
@@ -231,16 +225,12 @@ async def handle_temporary_error(
     remaining: float,
 ) -> web.Response:
     """Handle rate limit or location not supported error"""
-    error_type = (
-        "rate_limit" if isinstance(e, RateLimitExceeded) else "location_not_supported"
-    )
+    error_type = "rate_limit" if isinstance(e, RateLimitExceeded) else "location_not_supported"
     span.tags = [error_type]
 
     if remaining < 5:  # If less than 5 seconds remaining
         error_type_msg = (
-            "Rate limit"
-            if isinstance(e, RateLimitExceeded)
-            else "Location not supported"
+            "Rate limit" if isinstance(e, RateLimitExceeded) else "Location not supported"
         )
         logger.warning(
             f"{error_type_msg} hit but no time for retries",

@@ -68,9 +68,7 @@ async def handle_deactivation(chat_id: int) -> None:
         bot_info = await bot.me()
         ref_link = f"https://t.me/{bot_info.username}?start={min_credits_admin.user.id}"
 
-        await send_group_deactivation_message(
-            chat_id, ref_link, min_credits_admin, min_credits
-        )
+        await send_group_deactivation_message(chat_id, ref_link, min_credits_admin, min_credits)
         await notify_admins_about_deactivation(admins, chat.title, ref_link)
 
 

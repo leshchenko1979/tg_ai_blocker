@@ -8,8 +8,7 @@ try:
     from logfire.query_client import LogfireQueryClient
 except ImportError:
     raise ImportError(
-        "logfire package is required for message lookup. "
-        "Install with: pip install logfire"
+        "logfire package is required for message lookup. Install with: pip install logfire"
     )
 
 logger = logging.getLogger(__name__)

@@ -183,9 +183,7 @@ async def get_spam_deletion_state(admin_id: int) -> bool:
         """,
             admin_id,
         )
-        return (
-            bool(state) if state is not None else True
-        )  # Default to True if not found
+        return bool(state) if state is not None else True  # Default to True if not found
 
 
 async def get_spent_credits_last_week(admin_id: int) -> int:

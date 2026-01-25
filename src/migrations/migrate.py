@@ -85,9 +85,7 @@ async def add_context_columns_migration(conn: Any) -> List[str]:
         print("✓ Added stories_context column")
 
         # Add reply_context column
-        await conn.execute(
-            "ALTER TABLE spam_examples ADD COLUMN IF NOT EXISTS reply_context TEXT"
-        )
+        await conn.execute("ALTER TABLE spam_examples ADD COLUMN IF NOT EXISTS reply_context TEXT")
         operations.append("Added reply_context column")
         print("✓ Added reply_context column")
 

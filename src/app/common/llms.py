@@ -140,9 +140,7 @@ async def _request_openrouter(
     if response_format:
         data["response_format"] = response_format
 
-    with logfire.span(
-        "OpenRouter request/response", model=model, messages=messages
-    ) as span:
+    with logfire.span("OpenRouter request/response", model=model, messages=messages) as span:
         try:
             async with session.post(
                 f"{api_base.rstrip('/')}/chat/completions",

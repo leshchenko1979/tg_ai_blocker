@@ -27,7 +27,7 @@ import asyncio
 import os
 import sys
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 # Add project root to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

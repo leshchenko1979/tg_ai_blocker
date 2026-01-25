@@ -70,8 +70,7 @@ async def track_credits_deduction(
             (
                 a
                 for a in admins
-                if isinstance(a, (ChatMemberAdministrator, ChatMemberOwner))
-                and not a.user.is_bot
+                if isinstance(a, (ChatMemberAdministrator, ChatMemberOwner)) and not a.user.is_bot
             ),
             None,
         )

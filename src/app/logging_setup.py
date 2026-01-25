@@ -50,9 +50,7 @@ def setup_logging():
 
         _telegram_handler = TelegramLogHandler(bot=bot, chat_id=LESHCHENKO_CHAT_ID)
         _telegram_handler.setFormatter(
-            logging.Formatter(
-                "[%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-            )
+            logging.Formatter("[%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
         )
 
         _stream_handler = logging.StreamHandler()

@@ -97,17 +97,11 @@ async def handle_help_command(message: types.Message) -> str:
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(
-                    text="🚀 Как начать", callback_data="help_getting_started"
-                ),
-                InlineKeyboardButton(
-                    text="📚 Обучение бота", callback_data="help_training"
-                ),
+                InlineKeyboardButton(text="🚀 Как начать", callback_data="help_getting_started"),
+                InlineKeyboardButton(text="📚 Обучение бота", callback_data="help_training"),
             ],
             [
-                InlineKeyboardButton(
-                    text="⚙️ Что проверяется", callback_data="help_moderation"
-                ),
+                InlineKeyboardButton(text="⚙️ Что проверяется", callback_data="help_moderation"),
                 InlineKeyboardButton(text="💡 Команды", callback_data="help_commands"),
             ],
             [
@@ -223,9 +217,7 @@ async def handle_stats_command(message: types.Message) -> str:
             },
         )
         logger.error(f"Error handling stats command: {e}", exc_info=True)
-        await message.reply(
-            "Произошла ошибка при получении статистики.", parse_mode="HTML"
-        )
+        await message.reply("Произошла ошибка при получении статистики.", parse_mode="HTML")
         return "command_stats_error"
 
 
@@ -289,9 +281,7 @@ async def handle_mode_command(message: types.Message) -> str:
             },
         )
         logger.error(f"Error handling mode command: {e}", exc_info=True)
-        await message.reply(
-            "Произошла ошибка при изменении режима работы.", parse_mode="HTML"
-        )
+        await message.reply("Произошла ошибка при изменении режима работы.", parse_mode="HTML")
         return "command_mode_error"
 
 
