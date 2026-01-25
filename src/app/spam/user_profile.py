@@ -49,7 +49,9 @@ async def collect_user_context(
             # Using user_id directly (subscription already verified at higher level)
             user_id = user_reference if isinstance(user_reference, int) else None
             if not user_id:
-                logfire.error("No username and invalid user_reference for user_id-based collection")
+                logfire.error(
+                    "No username and invalid user_reference for user_id-based collection"
+                )
                 return UserContext(
                     stories=ContextResult(
                         status=ContextStatus.FAILED,
@@ -107,13 +109,17 @@ async def collect_user_context(
                     "error": str(e),
                 },
             )
-            account_info_result = ContextResult(status=ContextStatus.FAILED, error=str(e))
+            account_info_result = ContextResult(
+                status=ContextStatus.FAILED, error=str(e)
+            )
 
         # Extract Linked Channel
         personal_channel_id = full_user.get("personal_channel_id")
         if personal_channel_id:
             channel_id = int(personal_channel_id)
-            channel_result = await collect_channel_summary_by_id(channel_id, user_reference)
+            channel_result = await collect_channel_summary_by_id(
+                channel_id, user_reference
+            )
             linked_channel_result = channel_result
         else:
             logfire.debug(
@@ -125,7 +131,9 @@ async def collect_user_context(
 
     # Stories will be collected separately, so we return SKIPPED for now
     return UserContext(
-        stories=ContextResult(status=ContextStatus.SKIPPED, error="Stories collected separately"),
+        stories=ContextResult(
+            status=ContextStatus.SKIPPED, error="Stories collected separately"
+        ),
         linked_channel=linked_channel_result,
         account_info=account_info_result,
     )

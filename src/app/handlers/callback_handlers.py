@@ -55,7 +55,9 @@ async def handle_help_pages(callback: CallbackQuery) -> str:
     # Вычисляем всё на лету
     text_key = f"{callback_data}_text"
     return_value = f"{callback_data}_shown"
-    default_text = help_config.get("default_page_text", "Информация временно недоступна.")
+    default_text = help_config.get(
+        "default_page_text", "Информация временно недоступна."
+    )
 
     # Получаем текст страницы
     text = config.get(text_key, default_text)
@@ -63,7 +65,9 @@ async def handle_help_pages(callback: CallbackQuery) -> str:
     # Создаем кнопку "Назад"
     back_button_text = help_config.get("back_button_text", "⬅️ Назад к справке")
     back_button = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=back_button_text, callback_data="help_back")]]
+        inline_keyboard=[
+            [InlineKeyboardButton(text=back_button_text, callback_data="help_back")]
+        ]
     )
 
     await callback.message.edit_text(
@@ -116,7 +120,9 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
 
         # Быстрый ответ Telegram, чтобы избежать таймаута
         try:
-            await callback.answer("✅ Сообщение добавлено как безопасный пример", show_alert=False)
+            await callback.answer(
+                "✅ Сообщение добавлено как безопасный пример", show_alert=False
+            )
         except Exception:
             # Игнорируем ошибки ответа на колбэк (например, если он устарел),
             # чтобы не прерывать основную логику
@@ -163,7 +169,9 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
 
         # Все тяжелые операции параллельно
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(bot.unban_chat_member(group_id, author_id, only_if_banned=True))
+            tg.create_task(
+                bot.unban_chat_member(group_id, author_id, only_if_banned=True)
+            )
             tg.create_task(add_member(group_id, author_id))
             tg.create_task(
                 add_spam_example(
@@ -269,11 +277,15 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
 
             @retry_on_network_error
             async def delete_original_message():
-                return await bot.delete_message(int(original_chat_id), int(original_message_id))
+                return await bot.delete_message(
+                    int(original_chat_id), int(original_message_id)
+                )
 
             await delete_original_message()
         except Exception as e:
-            logger.warning(f"Failed to delete original spam message: {e}", exc_info=True)
+            logger.warning(
+                f"Failed to delete original spam message: {e}", exc_info=True
+            )
             await callback.answer("❌ Не удалось удалить сообщение", show_alert=True)
             return "callback_error_deleting_original"
 

@@ -48,7 +48,9 @@ async def handle_spam(
         all_admins_delete = await check_admin_delete_preferences(admin_ids)
 
         # Уведомление администраторов...
-        notification_sent = await notify_admins(message, all_admins_delete, admin_ids, reason)
+        notification_sent = await notify_admins(
+            message, all_admins_delete, admin_ids, reason
+        )
 
         if all_admins_delete:
             await handle_spam_message_deletion(message, admin_ids)
@@ -57,7 +59,9 @@ async def handle_spam(
             )
             return "spam_auto_deleted"
 
-        return "spam_admins_notified" if notification_sent else "spam_notification_failed"
+        return (
+            "spam_admins_notified" if notification_sent else "spam_notification_failed"
+        )
 
     except Exception as e:
         logger.error(f"Error handling spam: {e}", exc_info=True)
@@ -149,7 +153,9 @@ def format_missing_permission_message(chat_title: str, permission_name: str) -> 
         "Блокировка пользователей": "блокировать пользователей",
     }
 
-    action_description = permission_descriptions.get(permission_name, permission_name.lower())
+    action_description = permission_descriptions.get(
+        permission_name, permission_name.lower()
+    )
 
     return (
         f"❗️ У меня нет права {action_description}. "
@@ -248,7 +254,9 @@ def format_admin_notification_message(
     # Escape HTML entities in content to prevent parsing errors
     content_text = sanitize_html(content_text)
     chat_username_str = f" (@{message.chat.username})" if message.chat.username else ""
-    user_username_str = f" (@{message.from_user.username})" if message.from_user.username else ""
+    user_username_str = (
+        f" (@{message.from_user.username})" if message.from_user.username else ""
+    )
 
     reason_text = (
         f"<b>Причина:</b><blockquote expandable>{sanitize_html(reason)}</blockquote>\n"
@@ -265,7 +273,9 @@ def format_admin_notification_message(
     )
 
     if all_admins_delete:
-        admin_msg += "<b>Вредоносное сообщение уничтожено, пользователь заблокирован.</b>"
+        admin_msg += (
+            "<b>Вредоносное сообщение уничтожено, пользователь заблокирован.</b>"
+        )
     else:
         link = f"https://t.me/{message.chat.username}/{message.message_id}"
         admin_msg += (
@@ -305,7 +315,9 @@ async def notify_admins(
         return False
 
     # admin_ids are passed as parameter
-    private_message = format_admin_notification_message(message, all_admins_delete, reason)
+    private_message = format_admin_notification_message(
+        message, all_admins_delete, reason
+    )
     keyboard = create_admin_notification_keyboard(message, all_admins_delete)
     result = await notify_admins_with_fallback_and_cleanup(
         bot,
@@ -320,7 +332,9 @@ async def notify_admins(
     return bool(result["notified_private"]) or bool(result["group_notified"])
 
 
-async def handle_spam_message_deletion(message: types.Message, admin_ids: list[int]) -> None:
+async def handle_spam_message_deletion(
+    message: types.Message, admin_ids: list[int]
+) -> None:
     """
     Удаляет спам-сообщение и отправляет событие в Mixpanel.
 
@@ -337,7 +351,9 @@ async def handle_spam_message_deletion(message: types.Message, admin_ids: list[i
             return await bot.delete_message(message.chat.id, message.message_id)
 
         await delete_spam_message()
-        logger.info(f"Deleted spam message {message.message_id} in chat {message.chat.id}")
+        logger.info(
+            f"Deleted spam message {message.message_id} in chat {message.chat.id}"
+        )
 
         await track_group_event(
             message.chat.id,
@@ -410,10 +426,16 @@ async def ban_user_for_spam(
             "ban user",
         ):
             # Not a permission error, log as general error
-            logger.warning(f"Failed to ban user {user_id} in chat {chat_id}: {e}", exc_info=True)
+            logger.warning(
+                f"Failed to ban user {user_id} in chat {chat_id}: {e}", exc_info=True
+            )
     except Exception as e:
-        logger.warning(f"Failed to ban user {user_id} in chat {chat_id}: {e}", exc_info=True)
+        logger.warning(
+            f"Failed to ban user {user_id} in chat {chat_id}: {e}", exc_info=True
+        )
     try:
         await remove_member_from_group(user_id, chat_id)
     except Exception as e:
-        logger.warning(f"Failed to remove user {user_id} from approved_members: {e}", exc_info=True)
+        logger.warning(
+            f"Failed to remove user {user_id} from approved_members: {e}", exc_info=True
+        )

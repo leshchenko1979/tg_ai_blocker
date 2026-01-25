@@ -226,7 +226,9 @@ async def get_admin_groups(admin_id: int) -> List[Dict]:
                     )
                 continue
             except Exception as e:
-                logger.error(f"Error getting chat {row['group_id']}: {e}", exc_info=True)
+                logger.error(
+                    f"Error getting chat {row['group_id']}: {e}", exc_info=True
+                )
                 continue
 
         # Clean up inaccessible groups (after the loop to avoid connection issues)
@@ -274,7 +276,9 @@ async def add_member(group_id: int, member_id: int) -> None:
         )
 
 
-async def remove_member_from_group(member_id: int, group_id: Optional[int] = None) -> None:
+async def remove_member_from_group(
+    member_id: int, group_id: Optional[int] = None
+) -> None:
     """Remove a member from a group or all groups"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -347,12 +351,16 @@ async def update_group_admins(
 
             # Handle both old format (just IDs) and new format (IDs with usernames)
             usernames: List[Optional[str]] = (
-                admin_usernames if admin_usernames is not None else [None] * len(admin_ids)
+                admin_usernames
+                if admin_usernames is not None
+                else [None] * len(admin_ids)
             )
 
             # Ensure we have usernames for all admins
             if len(usernames) != len(admin_ids):
-                raise ValueError("admin_ids and admin_usernames must have the same length")
+                raise ValueError(
+                    "admin_ids and admin_usernames must have the same length"
+                )
 
             # Add/update admins
             for admin_id, username in zip(admin_ids, usernames):

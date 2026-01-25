@@ -109,9 +109,7 @@ async def handle_private_message(message: types.Message) -> str:
         # Format spam examples for prompt
         formatted_examples = []
         for example in spam_examples:
-            example_str = (
-                f"<пример>\n<запрос>\n<текст сообщения>\n{example['text']}\n</текст сообщения>"
-            )
+            example_str = f"<пример>\n<запрос>\n<текст сообщения>\n{example['text']}\n</текст сообщения>"
             if "name" in example:
                 example_str += f"\n<имя>{example['name']}</имя>"
             if "bio" in example:
@@ -119,9 +117,7 @@ async def handle_private_message(message: types.Message) -> str:
             if example.get("linked_channel_fragment"):
                 example_str += f"\n<канал>{example['linked_channel_fragment']}</канал>"
             example_str += "\n</запрос>\n<ответ>\n"
-            example_str += (
-                f"{'да' if example['score'] > 50 else 'нет'} {abs(example['score'])}%\n</ответ>"
-            )
+            example_str += f"{'да' if example['score'] > 50 else 'нет'} {abs(example['score'])}%\n</ответ>"
             example_str += "\n</пример>"
             formatted_examples.append(example_str)
 
@@ -284,7 +280,9 @@ async def handle_forwarded_message(message: types.Message) -> str:
     # Ask the user if they want to add this as a spam example
     row = [
         types.InlineKeyboardButton(text="⚠️ Спам", callback_data="spam_example:spam"),
-        types.InlineKeyboardButton(text="💚 Не спам", callback_data="spam_example:not_spam"),
+        types.InlineKeyboardButton(
+            text="💚 Не спам", callback_data="spam_example:not_spam"
+        ),
     ]
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=[row])
 
@@ -327,7 +325,9 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                 )
                 user_context = None
             if user_context and user_context.linked_channel.status == "found":
-                channel_fragment = user_context.linked_channel.content.to_prompt_fragment()
+                channel_fragment = (
+                    user_context.linked_channel.content.to_prompt_fragment()
+                )
 
         try:
             await callback.answer(
@@ -481,7 +481,9 @@ async def extract_original_message_info(
             "Cannot determine forwarded user id for spam example",
             extra={
                 "forward_from": bool(original_message.forward_from),
-                "forward_origin_type": (getattr(origin, "type", None) if origin else None),
+                "forward_origin_type": (
+                    getattr(origin, "type", None) if origin else None
+                ),
             },
         )
 
@@ -525,7 +527,8 @@ async def extract_original_message_info(
                         message_id=info["group_message_id"],
                         chat_id=info["group_chat_id"],
                         user_id=info["user_id"],
-                        forward_date=original_message.forward_date or original_message.date,
+                        forward_date=original_message.forward_date
+                        or original_message.date,
                     )
 
                     if context_result:

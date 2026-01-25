@@ -117,7 +117,9 @@ async def is_spam(
             except RateLimitExceeded as e:
                 if e.is_upstream_error:
                     # Для ошибок upstream-провайдера продолжаем немедленно
-                    logger.info("Upstream provider rate limit hit, retrying immediately")
+                    logger.info(
+                        "Upstream provider rate limit hit, retrying immediately"
+                    )
                 else:
                     # Для ошибок OpenRouter ждем до reset_time
                     # Convert milliseconds to seconds for reset_time
@@ -477,4 +479,6 @@ def extract_spam_score(response: str):
             score = -int(parts[1].replace("%", "").strip())
             return score, f"Классифицировано как не спам с уверенностью {abs(score)}%"
 
-    raise ExtractionFailedError(f"Failed to extract spam score from response: {response}")
+    raise ExtractionFailedError(
+        f"Failed to extract spam score from response: {response}"
+    )

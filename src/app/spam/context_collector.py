@@ -4,7 +4,12 @@ from typing import Optional, Union
 
 import logfire
 
-from .context_types import ContextResult, ContextStatus, LinkedChannelSummary, SpamClassificationContext, UserContext
+from .context_types import (
+    ContextResult,
+    ContextStatus,
+    SpamClassificationContext,
+    UserContext,
+)
 from .stories import collect_user_stories
 from .user_profile import collect_user_context, collect_channel_summary_by_id
 from .user_context_utils import ensure_user_context_collectable
@@ -162,14 +167,15 @@ async def collect_sender_context(
             return SpamClassificationContext(
                 name=getattr(message.sender_chat, "title", "Channel"),
                 bio=getattr(message.chat, "description", None),
-                linked_channel=ContextResult(status=ContextStatus.SKIPPED, error="Private channel without username"),
+                linked_channel=ContextResult(
+                    status=ContextStatus.SKIPPED,
+                    error="Private channel without username",
+                ),
             )
 
         # Collect channel context using existing function
         channel_result = await collect_channel_summary_by_id(
-            channel_id,
-            user_reference=channel_id,
-            username=channel_username
+            channel_id, user_reference=channel_id, username=channel_username
         )
 
         # Return minimal context with linked_channel populated

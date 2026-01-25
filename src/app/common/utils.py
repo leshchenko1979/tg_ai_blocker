@@ -212,7 +212,9 @@ def get_affiliate_url():
     global _system_config
     if _system_config is None:
         _system_config = get_system_config()
-    return _system_config.get("affiliate_url", "https://telegram.org/tour/affiliate-programs/")
+    return _system_config.get(
+        "affiliate_url", "https://telegram.org/tour/affiliate-programs/"
+    )
 
 
 def get_webhook_timeout():

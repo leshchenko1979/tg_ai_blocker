@@ -92,7 +92,9 @@ async def collect_user_stories(
             if not summaries:
                 return ContextResult(status=ContextStatus.EMPTY)
 
-            return ContextResult(status=ContextStatus.FOUND, content="\n".join(summaries))
+            return ContextResult(
+                status=ContextStatus.FOUND, content="\n".join(summaries)
+            )
 
         except MtprotoHttpError as e:
             logger.info(

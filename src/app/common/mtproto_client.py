@@ -125,7 +125,9 @@ class MtprotoHttpClient:
                     raise
 
         # All identifiers failed
-        raise MtprotoHttpError(f"All identifiers failed for {identifier_param}: {identifiers}")
+        raise MtprotoHttpError(
+            f"All identifiers failed for {identifier_param}: {identifiers}"
+        )
 
     @retry_on_network_error
     async def _post(

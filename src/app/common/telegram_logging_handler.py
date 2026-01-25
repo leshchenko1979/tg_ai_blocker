@@ -154,7 +154,10 @@ class TelegramLogHandler(logging.Handler):
 
     def _allow_throughput(self) -> bool:
         now = time.monotonic()
-        while self._sent_timestamps and now - self._sent_timestamps[0] > self._throttling_window:
+        while (
+            self._sent_timestamps
+            and now - self._sent_timestamps[0] > self._throttling_window
+        ):
             self._sent_timestamps.popleft()
         limit = self._sent_timestamps.maxlen or 0
         if limit <= 0:

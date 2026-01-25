@@ -186,7 +186,9 @@ async def _handle_bot_added(
     new_status: str,
 ) -> None:
     """Handle bot being added to a group."""
-    logger.info(f"Bot added to chat {chat_id} ('{chat_title}') with status {new_status}")
+    logger.info(
+        f"Bot added to chat {chat_id} ('{chat_title}') with status {new_status}"
+    )
 
     # Add only the admin who added the bot (with username if available)
     admin_username = getattr(event.from_user, "username", None)
@@ -271,7 +273,9 @@ async def _handle_bot_removed(
         f"{removed_by} (@{removed_by_username})" if removed_by_username else removed_by
     )
 
-    logger.info(f"Bot removed from chat '{chat_title}' ({chat_id}) by {removed_by_info}")
+    logger.info(
+        f"Bot removed from chat '{chat_title}' ({chat_id}) by {removed_by_info}"
+    )
 
     group = await get_group(chat_id)
     if group and group.admin_ids:
@@ -308,7 +312,9 @@ async def _handle_bot_removed(
                 assume_human_admins=True,
             )
         else:
-            logger.warning(f"No human admins found for group {chat_id} to notify about bot removal")
+            logger.warning(
+                f"No human admins found for group {chat_id} to notify about bot removal"
+            )
 
 
 @logfire.instrument(extract_args=True)
@@ -430,7 +436,9 @@ async def _send_promo_message(
 
         await send_promo_message()
     except Exception as e:
-        logger.warning(f"Failed to send promo message to chat {chat_id} ('{chat_title}'): {e}")
+        logger.warning(
+            f"Failed to send promo message to chat {chat_id} ('{chat_title}'): {e}"
+        )
         mp.track(
             added_by,
             "error_promo_message",
@@ -468,7 +476,9 @@ async def handle_member_service_message(message: types.Message) -> str:
         message_id = message.message_id
 
         # Log the event
-        if getattr(message, "new_chat_member", None) or getattr(message, "new_chat_members", None):
+        if getattr(message, "new_chat_member", None) or getattr(
+            message, "new_chat_members", None
+        ):
             logger.info(
                 f"Detected member join message in chat {chat_id} ('{message.chat.title or ''}') , message_id: {message_id}"
             )
@@ -503,7 +513,9 @@ async def handle_member_service_message(message: types.Message) -> str:
                 # Notify admins about missing permission - if this fails, cleanup will happen
                 try:
                     admins = await bot.get_chat_administrators(chat_id)
-                    admin_ids = [admin.user.id for admin in admins if not admin.user.is_bot]
+                    admin_ids = [
+                        admin.user.id for admin in admins if not admin.user.is_bot
+                    ]
                     group_title = message.chat.title or ""
                     notification_result = await notify_admins_with_fallback_and_cleanup(
                         bot,
@@ -534,7 +546,9 @@ async def handle_member_service_message(message: types.Message) -> str:
                     else:
                         return "service_message_no_rights"
                 except Exception as notify_exc:
-                    logger.warning(f"Failed to notify admins about missing rights: {notify_exc}")
+                    logger.warning(
+                        f"Failed to notify admins about missing rights: {notify_exc}"
+                    )
                     return "service_message_no_rights"
             else:
                 logger.warning(

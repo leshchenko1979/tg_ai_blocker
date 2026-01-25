@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 @logfire.instrument(extract_args=True)
-async def subscribe_user_bot_to_chat(chat_id: int, chat_username: Optional[str] = None) -> bool:
+async def subscribe_user_bot_to_chat(
+    chat_id: int, chat_username: Optional[str] = None
+) -> bool:
     """
     Attempts to subscribe the user bot to a chat using MTProto channels.joinChannel.
 
@@ -44,10 +46,16 @@ async def subscribe_user_bot_to_chat(chat_id: int, chat_username: Optional[str] 
     # Use username for subscription (only attempt subscription for public channels)
     identifier = chat_username
 
-    with logfire.span("Subscribing user bot to chat", chat_id=chat_id, chat_username=chat_username):
+    with logfire.span(
+        "Subscribing user bot to chat", chat_id=chat_id, chat_username=chat_username
+    ):
         try:
-            logger.debug(f"Attempting to subscribe user bot to chat with identifier: {identifier}")
-            await client.call("channels.joinChannel", params={"channel": identifier}, resolve=True)
+            logger.debug(
+                f"Attempting to subscribe user bot to chat with identifier: {identifier}"
+            )
+            await client.call(
+                "channels.joinChannel", params={"channel": identifier}, resolve=True
+            )
 
             logger.info(
                 "Successfully subscribed user bot to chat",
