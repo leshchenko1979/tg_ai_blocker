@@ -3,9 +3,9 @@ import logging
 from aiogram import types
 
 from ..common.bot import bot
-from ..spam.context_collector import collect_complete_user_context
+from ..spam.context_collector import collect_complete_user_context, collect_sender_context
 from ..spam.spam_classifier import is_spam
-from ..spam.context_types import SpamClassificationContext
+from ..spam.context_types import SpamClassificationContext, UserContext
 from ..common.tracking import track_group_event
 from ..common.utils import retry_on_network_error
 from ..database import (
@@ -299,7 +299,7 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
 
     bio = None
     name = "Unknown"
-    user_context = None
+    sender_context = None
     reply_context = None
     admin_ids = group.admin_ids
 
@@ -309,63 +309,39 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
             message.reply_to_message.text or message.reply_to_message.caption or "[MEDIA_MESSAGE]"
         )
 
-    # Check if message is from a sender_chat (channel) that is NOT the group itself
-    if message.sender_chat and message.sender_chat.id != message.chat.id:
-        # Channel sender
-        subject_id = message.sender_chat.id
-        name = message.sender_chat.title or "Channel"
+    # Collect sender context using unified collector
+    sender_context = await collect_sender_context(message, message.chat.id)
 
+    # Handle context based on sender type
+    if isinstance(sender_context, UserContext):
+        # User sender - context is UserContext
+        name = message.from_user.full_name if message.from_user else "Unknown"
+        bio = None
         try:
-            # Try to get channel description
-            chat_info = await bot.get_chat(subject_id)
-            bio = chat_info.description
-        except Exception:
-            pass
-
-        # For channel senders, we don't collect user context (stories, linked channels, etc.)
-        # as channels don't have personal profiles in the same way
-
-    elif message.from_user:
-        # User sender
-        user = message.from_user
-        name = user.full_name
-
-        try:
-            user_with_bio = await bot.get_chat(user.id)
+            user_with_bio = await bot.get_chat(message.from_user.id)
             bio = user_with_bio.bio if user_with_bio else None
         except Exception:
             pass
-
-        if getattr(message, "message_thread_id", None):
-            # Only collect user context when user replies to a channel post (in discussion threads)
-            # Use the new context collector that aggregates stories and profile info in parallel
-            try:
-                user_context = await collect_complete_user_context(
-                    user.id,
-                    username=user.username,
-                    chat_id=message.chat.id,
-                    message_id=message.message_id,
-                    chat_username=getattr(message.chat, "username", None),
-                )
-            except Exception as exc:
-                logger.info(
-                    "Failed to collect complete user context",
-                    extra={
-                        "user_id": user.id,
-                        "username": user.username,
-                        "error": str(exc),
-                    },
-                )
+    elif isinstance(sender_context, SpamClassificationContext):
+        # Channel sender - context is already SpamClassificationContext
+        name = sender_context.name or "Channel"
+        bio = sender_context.bio
 
     # Create classification context
-    context = SpamClassificationContext(
-        name=name,
-        bio=bio,
-        linked_channel=user_context.linked_channel if user_context else None,
-        stories=user_context.stories if user_context else None,
-        reply=reply_context,
-        account_age=user_context.account_info if user_context else None,
-    )
+    if isinstance(sender_context, UserContext):
+        # User sender - construct context from UserContext
+        context = SpamClassificationContext(
+            name=name,
+            bio=bio,
+            linked_channel=sender_context.linked_channel,
+            stories=sender_context.stories,
+            reply=reply_context,
+            account_age=sender_context.account_info,
+        )
+    else:
+        # Channel sender - context is already SpamClassificationContext, just add reply
+        context = sender_context
+        context.reply = reply_context
 
     spam_score, reason = await is_spam(
         comment=message_text,

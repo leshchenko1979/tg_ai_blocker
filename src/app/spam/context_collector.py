@@ -1,12 +1,12 @@
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 import logfire
 
-from .context_types import ContextResult, ContextStatus, UserContext
+from .context_types import ContextResult, ContextStatus, LinkedChannelSummary, SpamClassificationContext, UserContext
 from .stories import collect_user_stories
-from .user_profile import collect_user_context
+from .user_profile import collect_user_context, collect_channel_summary_by_id
 from .user_context_utils import ensure_user_context_collectable
 
 logger = logging.getLogger(__name__)
@@ -130,3 +130,69 @@ async def collect_complete_user_context(
                 ),
                 account_info=ContextResult(status=ContextStatus.FAILED, error=str(exc)),
             )
+
+
+@logfire.instrument()
+async def collect_sender_context(
+    message,
+    chat_id: Optional[int] = None,
+) -> Union[UserContext, SpamClassificationContext]:
+    """
+    Unified context collection for both users and channels.
+    Returns appropriate context type based on sender.
+
+    Args:
+        message: Telegram message object
+        chat_id: Optional chat ID for additional context
+
+    Returns:
+        UserContext for user senders, SpamClassificationContext for channel senders
+    """
+    if message.sender_chat and message.sender_chat.id != message.chat.id:
+        # Channel sender - collect channel as linked channel
+        channel_id = message.sender_chat.id
+        channel_username = getattr(message.sender_chat, "username", None)
+
+        # For private channels without username, skip collection
+        if not channel_username:
+            logger.debug(
+                "Skipping context collection for private channel without username",
+                extra={"channel_id": channel_id},
+            )
+            return SpamClassificationContext(
+                name=getattr(message.sender_chat, "title", "Channel"),
+                bio=getattr(message.chat, "description", None),
+                linked_channel=ContextResult(status=ContextStatus.SKIPPED, error="Private channel without username"),
+            )
+
+        # Collect channel context using existing function
+        channel_result = await collect_channel_summary_by_id(
+            channel_id,
+            user_reference=channel_id,
+            username=channel_username
+        )
+
+        # Return minimal context with linked_channel populated
+        return SpamClassificationContext(
+            name=getattr(message.sender_chat, "title", "Channel"),
+            bio=getattr(message.chat, "description", None),
+            linked_channel=channel_result,
+        )
+    else:
+        # User sender - use existing complete context collection
+        if message.from_user:
+            user_id = message.from_user.id
+            username = getattr(message.from_user, "username", None)
+        else:
+            # Fallback - shouldn't happen in practice
+            logger.warning("Message has no sender_chat or from_user")
+            return SpamClassificationContext()
+
+        # Use existing logic with subscription check
+        return await collect_complete_user_context(
+            user_id=user_id,
+            username=username,
+            chat_id=chat_id,
+            message_id=getattr(message, "message_id", None),
+            chat_username=getattr(message.chat, "username", None),
+        )
