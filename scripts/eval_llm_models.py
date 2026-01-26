@@ -372,8 +372,8 @@ async def test_model(
         LocationNotSupported,
         InternalServerError,
     )
-    from src.app.common.spam_classifier import is_spam
-    from src.app.common.context_types import (
+    from src.app.spam.spam_classifier import is_spam
+    from src.app.spam.context_types import (
         SpamClassificationContext,
         ContextResult,
         ContextStatus,
