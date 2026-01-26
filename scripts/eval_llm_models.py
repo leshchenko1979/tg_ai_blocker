@@ -373,7 +373,11 @@ async def test_model(
         InternalServerError,
     )
     from src.app.common.spam_classifier import is_spam
-    from src.app.common.context_types import SpamClassificationContext, ContextResult, ContextStatus
+    from src.app.common.context_types import (
+        SpamClassificationContext,
+        ContextResult,
+        ContextStatus,
+    )
 
     logger.info(f"Testing model: {model_name} with {len(test_cases)} cases")
 
@@ -410,17 +414,22 @@ async def test_model(
                     bio=test_case.bio,
                     linked_channel=ContextResult(
                         status=ContextStatus.FOUND,
-                        content=test_case.linked_channel_fragment
-                    ) if test_case.linked_channel_fragment else None,
+                        content=test_case.linked_channel_fragment,
+                    )
+                    if test_case.linked_channel_fragment
+                    else None,
                     stories=ContextResult(
-                        status=ContextStatus.FOUND,
-                        content=test_case.stories_context
-                    ) if test_case.stories_context else None,
+                        status=ContextStatus.FOUND, content=test_case.stories_context
+                    )
+                    if test_case.stories_context
+                    else None,
                     reply=test_case.reply_context,
                     account_age=ContextResult(
                         status=ContextStatus.FOUND,
-                        content=test_case.account_age_context
-                    ) if test_case.account_age_context else None,
+                        content=test_case.account_age_context,
+                    )
+                    if test_case.account_age_context
+                    else None,
                 )
 
                 # Call is_spam with consolidated context

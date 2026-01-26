@@ -26,8 +26,8 @@ class TestLinkedChannelExtraction:
         mock_client.call = AsyncMock(
             side_effect=[
                 {"full_user": {"personal_channel_id": 67890}},  # users.getFullUser
-                {"full_chat": {"participants_count": 1000}},   # channels.getFullChannel
-                {"messages": [], "count": 0},                  # messages.getHistory (recent posts)
+                {"full_chat": {"participants_count": 1000}},  # channels.getFullChannel
+                {"messages": [], "count": 0},  # messages.getHistory (recent posts)
             ]
         )
 
@@ -55,13 +55,16 @@ class TestLinkedChannelExtraction:
             assert isinstance(result, UserContext)
             assert result.linked_channel is not None
             from src.app.spam.context_types import ContextStatus
+
             assert result.linked_channel.status == ContextStatus.FOUND
             assert isinstance(result.linked_channel.content, LinkedChannelSummary)
             assert result.linked_channel.content.subscribers == 1000
             assert (
                 result.linked_channel.content.total_posts == 0
             )  # From the mocked messages.getHistory response
-            assert result.linked_channel.content.post_age_delta is None  # Channel has no posts
+            assert (
+                result.linked_channel.content.post_age_delta is None
+            )  # Channel has no posts
 
     @pytest.mark.asyncio
     async def test_collect_user_context_no_linked_channel(self):
@@ -82,6 +85,7 @@ class TestLinkedChannelExtraction:
             # Should return UserContext with empty linked_channel when no linked channel
             assert isinstance(result, UserContext)
             from src.app.spam.context_types import ContextStatus
+
             assert result.linked_channel.status == ContextStatus.EMPTY
 
             # Verify call was made
@@ -97,8 +101,8 @@ class TestLinkedChannelExtraction:
         mock_client.call = AsyncMock(
             side_effect=[
                 {"full_chat": {"participants_count": 500}},  # channels.getFullChannel
-                {"messages": [], "count": 0},                # messages.getHistory (recent posts)
-                {"messages": [], "count": 0},                # messages.getHistory (edge message)
+                {"messages": [], "count": 0},  # messages.getHistory (recent posts)
+                {"messages": [], "count": 0},  # messages.getHistory (edge message)
             ]
         )
 
@@ -108,7 +112,9 @@ class TestLinkedChannelExtraction:
             result = await collect_channel_summary_by_id(channel_id, username=username)
 
             # Verify call was made with username
-            assert mock_client.call.call_count >= 1  # At least channels.getFullChannel call
+            assert (
+                mock_client.call.call_count >= 1
+            )  # At least channels.getFullChannel call
             first_call = mock_client.call.call_args_list[0]
             assert first_call[0][0] == "channels.getFullChannel"
             assert first_call[1]["params"]["channel"] == username
@@ -130,7 +136,7 @@ class TestLinkedChannelExtraction:
         mock_client.call = AsyncMock(
             side_effect=[
                 {"full_chat": {"participants_count": 500}},  # channels.getFullChannel
-                {"messages": [], "count": 0},                # messages.getHistory (recent posts)
+                {"messages": [], "count": 0},  # messages.getHistory (recent posts)
             ]
         )
 

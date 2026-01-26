@@ -54,6 +54,7 @@ def test_extract_spam_score_invalid(response):
 
 def test_format_spam_request_basic():
     from src.app.spam.context_types import SpamClassificationContext
+
     context = SpamClassificationContext(name="User", bio="Bio")
     req = format_spam_request("Hello", context)
     assert "MESSAGE TO CLASSIFY:\nHello" in req
@@ -64,20 +65,34 @@ def test_format_spam_request_basic():
 
 
 def test_format_spam_request_with_stories():
-    from src.app.spam.context_types import SpamClassificationContext, ContextResult, ContextStatus
+    from src.app.spam.context_types import (
+        SpamClassificationContext,
+        ContextResult,
+        ContextStatus,
+    )
+
     context = SpamClassificationContext(
         name="User",
         bio="Bio",
-        stories=ContextResult(status=ContextStatus.FOUND, content="Caption: spam story")
+        stories=ContextResult(
+            status=ContextStatus.FOUND, content="Caption: spam story"
+        ),
     )
     req = format_spam_request("Hello", context)
     assert "USER STORIES CONTENT:\nCaption: spam story" in req
 
 
 def test_format_spam_request_with_linked_channel():
-    from src.app.spam.context_types import SpamClassificationContext, ContextResult, ContextStatus
+    from src.app.spam.context_types import (
+        SpamClassificationContext,
+        ContextResult,
+        ContextStatus,
+    )
+
     context = SpamClassificationContext(
-        linked_channel=ContextResult(status=ContextStatus.FOUND, content="subscribers=100")
+        linked_channel=ContextResult(
+            status=ContextStatus.FOUND, content="subscribers=100"
+        )
     )
     req = format_spam_request("Hello", context)
     assert "LINKED CHANNEL INFO:\nsubscribers=100" in req
@@ -85,6 +100,7 @@ def test_format_spam_request_with_linked_channel():
 
 def test_format_spam_request_with_reply_context():
     from src.app.spam.context_types import SpamClassificationContext
+
     context = SpamClassificationContext(reply="Original post text")
     req = format_spam_request("Hello", context)
     assert "ORIGINAL POST BEING REPLIED TO:\nOriginal post text" in req
@@ -151,6 +167,7 @@ async def test_get_system_prompt_no_guidance():
 def test_format_spam_request_null_context_skipped():
     """Test that NULL context fields are skipped entirely"""
     from src.app.spam.context_types import SpamClassificationContext
+
     context = SpamClassificationContext(name="User", bio="Bio")
     req = format_spam_request("Hello", context)
 
@@ -167,12 +184,17 @@ def test_format_spam_request_null_context_skipped():
 
 def test_format_spam_request_empty_marker_shows_metadata():
     """Test that '[EMPTY]' markers show with metadata"""
-    from src.app.spam.context_types import SpamClassificationContext, ContextResult, ContextStatus
+    from src.app.spam.context_types import (
+        SpamClassificationContext,
+        ContextResult,
+        ContextStatus,
+    )
+
     context = SpamClassificationContext(
         name="User",
         bio="Bio",
         stories=ContextResult(status=ContextStatus.EMPTY),
-        account_age=ContextResult(status=ContextStatus.EMPTY)
+        account_age=ContextResult(status=ContextStatus.EMPTY),
     )
     req = format_spam_request("Hello", context)
 
@@ -188,13 +210,22 @@ def test_format_spam_request_empty_marker_shows_metadata():
 
 def test_format_spam_request_content_shows_normally():
     """Test that actual content shows normally"""
-    from src.app.spam.context_types import SpamClassificationContext, ContextResult, ContextStatus
+    from src.app.spam.context_types import (
+        SpamClassificationContext,
+        ContextResult,
+        ContextStatus,
+    )
+
     context = SpamClassificationContext(
         name="User",
         bio="Bio",
-        stories=ContextResult(status=ContextStatus.FOUND, content="Actual story content"),
+        stories=ContextResult(
+            status=ContextStatus.FOUND, content="Actual story content"
+        ),
         reply="Original post content",
-        account_age=ContextResult(status=ContextStatus.FOUND, content="Account age: 3mo")
+        account_age=ContextResult(
+            status=ContextStatus.FOUND, content="Account age: 3mo"
+        ),
     )
     req = format_spam_request("Hello", context)
 
@@ -211,7 +242,12 @@ def test_format_spam_request_content_shows_normally():
 
 def test_format_spam_request_mixed_states():
     """Test mixed NULL, '[EMPTY]', and content states"""
-    from src.app.spam.context_types import SpamClassificationContext, ContextResult, ContextStatus
+    from src.app.spam.context_types import (
+        SpamClassificationContext,
+        ContextResult,
+        ContextStatus,
+    )
+
     context = SpamClassificationContext(
         name="User",
         bio="Bio",

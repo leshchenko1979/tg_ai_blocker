@@ -27,7 +27,11 @@ from app.common.mtproto_client import (
     get_mtproto_client,
 )
 from app.spam.spam_classifier import is_spam
-from app.spam.context_types import SpamClassificationContext, ContextResult, ContextStatus
+from app.spam.context_types import (
+    SpamClassificationContext,
+    ContextResult,
+    ContextStatus,
+)
 
 
 # Copy the necessary classes and functions directly
@@ -290,9 +294,10 @@ async def test_spam_classifier():
         context = SpamClassificationContext(
             name="????????? ???",
             linked_channel=ContextResult(
-                status=ContextStatus.FOUND,
-                content=linked_channel_fragment
-            ) if linked_channel_fragment else None
+                status=ContextStatus.FOUND, content=linked_channel_fragment
+            )
+            if linked_channel_fragment
+            else None,
         )
 
         # Call the spam classifier

@@ -19,26 +19,52 @@ logger = logging.getLogger(__name__)
 
 @logfire.instrument()
 async def collect_complete_user_context(
+    message,
     user_id: int,
     username: Optional[str] = None,
-    chat_id: Optional[int] = None,
-    message_id: Optional[int] = None,
-    chat_username: Optional[str] = None,
 ) -> UserContext:
     """
     Collects complete user context including stories and profile info in parallel.
     Returns a UserContext with ContextResult objects for each context type.
+
+    Args:
+        message: Telegram message object containing chat and thread information
+        user_id: User ID for context collection
+        username: Optional username for the user
     """
+    # Extract information from message object
+    chat_id = message.chat.id
+    message_id = getattr(message, "message_id", None)
+    chat_username = getattr(message.chat, "username", None)
+    message_thread_id = getattr(message, "message_thread_id", None)
+    is_topic_message = getattr(message, "is_topic_message", False)
+    reply_to_message_id = None
+    if hasattr(message, "reply_to_message") and message.reply_to_message:
+        reply_to_message_id = getattr(message.reply_to_message, "message_id", None)
+
     with logfire.span(
         "Collecting complete user context",
         user_id=user_id,
         username=username,
         chat_id=chat_id,
+        message_thread_id=message_thread_id,
+        is_topic_message=is_topic_message,
+        thread_type="forum_topic"
+        if is_topic_message
+        else "discussion_thread"
+        if message_thread_id
+        else "none",
     ):
         # Check if we need to subscribe user bot for context collection (when username is None)
-        if username is None and chat_id is not None and message_id is not None:
+        if username is None and message_id is not None:
             subscription_success = await ensure_user_context_collectable(
-                chat_id, user_id, message_id, chat_username
+                chat_id,
+                user_id,
+                message_id,
+                chat_username,
+                message_thread_id,
+                reply_to_message_id,
+                is_topic_message,
             )
         else:
             subscription_success = (
@@ -61,7 +87,7 @@ async def collect_complete_user_context(
 
         # Run stories and profile collection in parallel
         stories_task = collect_user_stories(user_id, username, chat_id)
-        profile_task = collect_user_context(user_id, username, chat_id)
+        profile_task = collect_user_context(message, username=username)
 
         try:
             results = await asyncio.gather(
@@ -196,9 +222,7 @@ async def collect_sender_context(
 
         # Use existing logic with subscription check
         return await collect_complete_user_context(
+            message=message,
             user_id=user_id,
             username=username,
-            chat_id=chat_id,
-            message_id=getattr(message, "message_id", None),
-            chat_username=getattr(message.chat, "username", None),
         )

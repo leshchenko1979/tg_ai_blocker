@@ -40,8 +40,8 @@ load_dotenv()
 def format_datetime(dt_str: str) -> str:
     """Format ISO datetime string to readable format."""
     try:
-        dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
-        return dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%d %H:%M:%S UTC")
     except (ValueError, TypeError):
         return dt_str
 
@@ -76,7 +76,9 @@ async def query_user_traces(
     end_time = datetime.now()
     start_time = end_time - timedelta(days=days_back)
 
-    print(f"Querying Logfire for traces containing '{username}' from {start_time.date()} to {end_time.date()}...")
+    print(
+        f"Querying Logfire for traces containing '{username}' from {start_time.date()} to {end_time.date()}..."
+    )
 
     # Build SQL query to find spans with the username in the span name
     sql = f"""
@@ -157,11 +159,11 @@ def display_trace_analysis(data: Dict[str, Any]):
     print(f"Days Back: {data['days_back']}")
     print(f"Total Traces Found: {data['total_traces']}")
 
-    if data['total_traces'] == 0:
+    if data["total_traces"] == 0:
         print("No traces found for this user in the specified time period.")
         return
 
-    traces = data['traces']
+    traces = data["traces"]
 
     # Group traces by date
     traces_by_date = {}
@@ -170,18 +172,20 @@ def display_trace_analysis(data: Dict[str, Any]):
 
     for trace in traces:
         # Group by date
-        date = trace['start_timestamp'][:10]  # YYYY-MM-DD
+        date = trace["start_timestamp"][:10]  # YYYY-MM-DD
         if date not in traces_by_date:
             traces_by_date[date] = []
         traces_by_date[date].append(trace)
 
         # Count tags
-        tags = trace.get('tags', [])
+        tags = trace.get("tags", [])
         for tag in tags:
             tag_counts[tag] = tag_counts.get(tag, 0) + 1
 
         # Count chats
-        chat_title = trace.get('chat_title') or f"Chat ID: {trace.get('chat_id', 'Unknown')}"
+        chat_title = (
+            trace.get("chat_title") or f"Chat ID: {trace.get('chat_id', 'Unknown')}"
+        )
         chat_counts[chat_title] = chat_counts.get(chat_title, 0) + 1
 
     print_section("Activity Summary")
@@ -192,17 +196,19 @@ def display_trace_analysis(data: Dict[str, Any]):
 
     print(f"\nTag breakdown ({len(tag_counts)} unique tags):")
     for tag, count in sorted(tag_counts.items(), key=lambda x: x[1], reverse=True):
-        percentage = (count / data['total_traces']) * 100
+        percentage = (count / data["total_traces"]) * 100
         print(f"  • {tag}: {count} ({percentage:.1f}%)")
 
     print_section("Recent Traces (Last 10)")
 
     for i, trace in enumerate(traces[:10], 1):
-        timestamp = format_datetime(trace['start_timestamp'])
-        span_name = trace['span_name']
-        tags = trace.get('tags', [])
-        chat_title = trace.get('chat_title') or f"Chat ID: {trace.get('chat_id', 'Unknown')}"
-        message_text = trace.get('message_text', '')
+        timestamp = format_datetime(trace["start_timestamp"])
+        span_name = trace["span_name"]
+        tags = trace.get("tags", [])
+        chat_title = (
+            trace.get("chat_title") or f"Chat ID: {trace.get('chat_id', 'Unknown')}"
+        )
+        message_text = trace.get("message_text", "")
 
         print(f"\n{i}. {timestamp}")
         print(f"   Span: {span_name}")
@@ -211,10 +217,12 @@ def display_trace_analysis(data: Dict[str, Any]):
             print(f"   Tags: {', '.join(tags)}")
         if message_text:
             # Truncate long messages
-            truncated_text = message_text[:100] + "..." if len(message_text) > 100 else message_text
+            truncated_text = (
+                message_text[:100] + "..." if len(message_text) > 100 else message_text
+            )
             print(f"   Message: {truncated_text!r}")
 
-    if data['total_traces'] > 10:
+    if data["total_traces"] > 10:
         print(f"\n... and {data['total_traces'] - 10} more traces")
 
     print_section("Daily Activity")
@@ -226,7 +234,7 @@ def display_trace_analysis(data: Dict[str, Any]):
         # Show tag breakdown for the day
         day_tags = {}
         for trace in day_traces:
-            for tag in trace.get('tags', []):
+            for tag in trace.get("tags", []):
                 day_tags[tag] = day_tags.get(tag, 0) + 1
 
         if day_tags:
@@ -236,10 +244,12 @@ def display_trace_analysis(data: Dict[str, Any]):
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Find Logfire traces for a specific user")
+    parser = argparse.ArgumentParser(
+        description="Find Logfire traces for a specific user"
+    )
     parser.add_argument(
         "username",
-        help="Username to search for (will find spans containing this username)"
+        help="Username to search for (will find spans containing this username)",
     )
     parser.add_argument(
         "--days", type=int, default=7, help="Number of days to look back (default: 7)"

@@ -4,7 +4,12 @@ from aiogram.exceptions import TelegramBadRequest
 
 from src.app.handlers.handle_spam import handle_spam_message_deletion
 from src.app.handlers.message_handlers import get_spam_score_and_bio
-from src.app.spam.context_types import SpamClassificationContext, ContextResult, ContextStatus, LinkedChannelSummary
+from src.app.spam.context_types import (
+    SpamClassificationContext,
+    ContextResult,
+    ContextStatus,
+    LinkedChannelSummary,
+)
 
 
 class MockTelegramBadRequest(TelegramBadRequest):
@@ -208,7 +213,9 @@ class TestSpamDeletion:
                 "src.app.handlers.message_handlers.is_spam", new_callable=AsyncMock
             ) as mock_is_spam,
             patch("src.app.handlers.message_handlers.bot") as mock_bot,
-            patch("src.app.handlers.message_handlers.collect_sender_context", new_callable=AsyncMock
+            patch(
+                "src.app.handlers.message_handlers.collect_sender_context",
+                new_callable=AsyncMock,
             ) as mock_collect_sender_context,
         ):
             mock_is_spam.return_value = (
@@ -231,9 +238,9 @@ class TestSpamDeletion:
                         subscribers=150,
                         total_posts=25,
                         post_age_delta=2,
-                        recent_posts_content=["Test post content"]
-                    )
-                )
+                        recent_posts_content=["Test post content"],
+                    ),
+                ),
             )
             mock_collect_sender_context.return_value = mock_context
 
@@ -242,7 +249,9 @@ class TestSpamDeletion:
             )
 
             # Verify collect_sender_context was called (channels now get context collection)
-            mock_collect_sender_context.assert_called_once_with(mock_message, mock_message.chat.id)
+            mock_collect_sender_context.assert_called_once_with(
+                mock_message, mock_message.chat.id
+            )
 
             # Verify is_spam received the context with channel analysis
             mock_is_spam.assert_called_once()
@@ -250,7 +259,9 @@ class TestSpamDeletion:
             context = kwargs["context"]
             assert context.name == "Channel Bot"  # sender_chat.title
             assert context.bio is None  # No bio for channels in this test
-            assert context.linked_channel is not None  # Channels now get linked channel analysis
+            assert (
+                context.linked_channel is not None
+            )  # Channels now get linked channel analysis
             assert context.linked_channel.status == ContextStatus.FOUND
             assert context.linked_channel.content.subscribers == 150
             assert context.stories is None  # No stories collection for channels

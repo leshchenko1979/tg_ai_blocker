@@ -59,9 +59,8 @@ async def test_collect_user_stories_success(mock_mtproto_client):
 @pytest.mark.asyncio
 async def test_collect_user_stories_no_stories(mock_mtproto_client):
     from src.app.spam.context_types import ContextStatus
-    mock_mtproto_client.call = AsyncMock(
-        return_value={"stories": {"stories": []}}
-    )
+
+    mock_mtproto_client.call = AsyncMock(return_value={"stories": {"stories": []}})
     result = await collect_user_stories(123456, username="testuser")
     assert result.status == ContextStatus.EMPTY
 
@@ -69,6 +68,7 @@ async def test_collect_user_stories_no_stories(mock_mtproto_client):
 @pytest.mark.asyncio
 async def test_collect_user_stories_deleted(mock_mtproto_client):
     from src.app.spam.context_types import ContextStatus
+
     mock_mtproto_client.call = AsyncMock(
         return_value={"stories": {"stories": [{"_": "storyItemDeleted", "id": 123}]}}
     )
@@ -81,9 +81,7 @@ async def test_collect_user_stories_error(mock_mtproto_client):
     from src.app.common.mtproto_client import MtprotoHttpError
     from src.app.spam.context_types import ContextStatus
 
-    mock_mtproto_client.call = AsyncMock(
-        side_effect=MtprotoHttpError("MTProto error")
-    )
+    mock_mtproto_client.call = AsyncMock(side_effect=MtprotoHttpError("MTProto error"))
     result = await collect_user_stories(123456, username="testuser")
     assert result.status == ContextStatus.FAILED
     assert result.error == "MTProto error"

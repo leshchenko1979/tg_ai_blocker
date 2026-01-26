@@ -24,22 +24,39 @@ logger = logging.getLogger(__name__)
 
 @logfire.instrument()
 async def collect_user_context(
-    user_reference: str | int,
+    user_id_or_message,
     username: Optional[str] = None,
     chat_id: Optional[int] = None,
 ) -> UserContext:
     """
     Collects user context including linked channel summary and account age signals.
+
+    Args:
+        user_id_or_message: Either a user_id (int) or a Telegram message object
+        username: Optional username for the user
+        chat_id: Optional chat ID (used when user_id_or_message is int)
     """
     client = get_mtproto_client()
     linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
     account_info_result = ContextResult(status=ContextStatus.EMPTY)
 
+    # Detect if first parameter is a message object or user_id
+    if hasattr(user_id_or_message, "chat"):  # It's a message object
+        message = user_id_or_message
+        actual_user_id = (
+            getattr(message.from_user, "id", None) if message.from_user else None
+        )
+        actual_chat_id = message.chat.id
+    else:  # It's a user_id
+        message = None
+        actual_user_id = user_id_or_message
+        actual_chat_id = chat_id
+
     with logfire.span(
         "Collecting user context via MTProto",
-        user_reference=user_reference,
+        user_id=actual_user_id,
         username=username,
-        chat_id=chat_id,
+        chat_id=actual_chat_id,
     ):
         # Set up identifier: prefer username, but use user_id if no username
         # (subscription check is handled at higher level)
@@ -47,26 +64,25 @@ async def collect_user_context(
             identifier = username
         else:
             # Using user_id directly (subscription already verified at higher level)
-            user_id = user_reference if isinstance(user_reference, int) else None
-            if not user_id:
+            if not actual_user_id:
                 logfire.error(
-                    "No username and invalid user_reference for user_id-based collection"
+                    "No username and invalid user_id for user_id-based collection"
                 )
                 return UserContext(
                     stories=ContextResult(
                         status=ContextStatus.FAILED,
-                        error="Invalid user reference for user_id-based collection",
+                        error="Invalid user_id for user_id-based collection",
                     ),
                     linked_channel=ContextResult(
                         status=ContextStatus.FAILED,
-                        error="Invalid user reference for user_id-based collection",
+                        error="Invalid user_id for user_id-based collection",
                     ),
                     account_info=ContextResult(
                         status=ContextStatus.FAILED,
-                        error="Invalid user reference for user_id-based collection",
+                        error="Invalid user_id for user_id-based collection",
                     ),
                 )
-            identifier = user_id
+            identifier = actual_user_id
 
         full_user = {}
         try:
@@ -79,10 +95,10 @@ async def collect_user_context(
 
             # Extract Account Info
             user_id = full_user.get("id")
-            if not user_id and isinstance(user_reference, int):
-                user_id = user_reference
+            if not user_id:
+                user_id = actual_user_id
 
-            # Fallback to user_reference if int and not found in response (unlikely for success)
+            # Fallback to actual_user_id if not found in response (unlikely for success)
             if user_id:
                 profile_photo = full_user.get("profile_photo")
                 photo_date = None
@@ -103,7 +119,7 @@ async def collect_user_context(
             logger.info(
                 "MTProto failed for full user",
                 extra={
-                    "user_reference": user_reference,
+                    "user_id": actual_user_id,
                     "username": username,
                     "identifier_used": identifier,
                     "error": str(e),
@@ -118,13 +134,13 @@ async def collect_user_context(
         if personal_channel_id:
             channel_id = int(personal_channel_id)
             channel_result = await collect_channel_summary_by_id(
-                channel_id, user_reference
+                channel_id, actual_user_id
             )
             linked_channel_result = channel_result
         else:
             logfire.debug(
                 "User has no linked channel in profile",
-                user_reference=user_reference,
+                user_id=actual_user_id,
                 full_user_keys=list(full_user.keys()),
             )
             linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
