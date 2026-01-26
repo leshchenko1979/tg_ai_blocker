@@ -33,7 +33,7 @@ MODELS = [
     # "openai/gpt-oss-20b:free", rate limited upstream too often
     # "tngtech/deepseek-r1t2-chimera:free", success rate 40%
     # "qwen/qwen3-30b-a3b:free", removed by OpenRouter
-    "arcee-ai/trinity-mini:free",
+    # "arcee-ai/trinity-mini:free", too many false positives
     # "mistralai/devstral-2512:free", success rate 77%
     "nvidia/nemotron-3-nano-30b-a3b:free",
     "xiaomi/mimo-v2-flash:free",
