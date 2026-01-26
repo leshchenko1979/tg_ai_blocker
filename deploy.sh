@@ -56,6 +56,10 @@ echo "Running ruff..."
 ruff check --fix src --ignore E402,F403
 ruff format src
 
+# Run type checking
+echo "Running type checking..."
+uvx ty check --python $(which python3) src
+
 # Run tests if not skipped
 if [ "$SKIP_TESTS" = false ]; then
     echo "Running unit tests with SQLite (integration tests are excluded by default)..."
@@ -126,9 +130,12 @@ start_section "🏥 Health Verification"
 echo "Waiting for container to be healthy..."
 ATTEMPTS=0
 MAX_ATTEMPTS=30
-until [ $ATTEMPTS -ge $MAX_ATTEMPTS ] || ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && docker compose ps --format json | grep -q 'Health.*healthy'"; do
+while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+    if ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && docker compose ps --format json | grep -q 'Health.*healthy'"; then
+        break
+    fi
     ATTEMPTS=$((ATTEMPTS + 1))
-    echo "Waiting for container to be healthy (attempt ${ATTEMPTS}/${MAX_ATTEMPTS})..."
+    echo "Waiting for container to be healthy (attempt $ATTEMPTS/$MAX_ATTEMPTS)..."
     sleep 5
 done
 
