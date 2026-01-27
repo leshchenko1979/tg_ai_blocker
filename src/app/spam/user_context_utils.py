@@ -16,6 +16,7 @@ import logfire
 
 from ..common.mtproto_client import MtprotoHttpError, get_mtproto_client
 from ..common.mtproto_utils import get_mtproto_chat_identifier
+from .context_types import PeerResolutionContext
 
 logger = logging.getLogger(__name__)
 
@@ -103,29 +104,67 @@ CONTEXT_SOURCE_LINKED_CHANNEL = "linked_channel"
 CONTEXT_SOURCE_DISCUSSION_GROUP = "discussion_group"
 
 
+def determine_thread_type(
+    message_thread_id: Optional[int] = None,
+    is_topic_message: bool = False,
+) -> str:
+    """
+    Determine the type of thread based on message properties.
+
+    Args:
+        message_thread_id: Thread ID if present
+        is_topic_message: Whether this is a forum topic message
+
+    Returns:
+        Thread type string: "forum_topic", "discussion_thread", or "none"
+    """
+    if is_topic_message:
+        return "forum_topic"
+    elif message_thread_id:
+        return "discussion_thread"
+    else:
+        return "none"
+
+
+def create_peer_resolution_context(
+    context: "PeerResolutionContext",
+) -> Dict[str, Any]:
+    """
+    Create a standardized context dictionary for peer resolution operations.
+
+    Args:
+        context: PeerResolutionContext object containing all resolution parameters
+
+    Returns:
+        Dict containing all context parameters for peer resolution
+    """
+    return context.to_dict()
+
+
 @logfire.instrument(extract_args=True)
-async def attempt_user_bot_subscription(
+async def attempt_user_bot_chat_join(
     chat_id: int, chat_username: Optional[str] = None
 ) -> bool:
     """
-    Attempt to subscribe the user bot to a public chat using MTProto channels.joinChannel.
+    Attempt to join the user bot to a public chat (group/supergroup) using MTProto channels.joinChannel.
 
-    This function tries to join a public channel or supergroup using its username.
+    This function tries to join a public group or supergroup using its username.
     It cannot work with private chats that don't have usernames.
 
     Args:
-        chat_id: Bot API chat ID (can be negative for channels/supergroups)
-        chat_username: Optional username of the chat for subscription
+        chat_id: Bot API chat ID (can be negative for groups/supergroups)
+        chat_username: Optional username of the chat for joining
 
     Returns:
-        bool: True if subscription succeeds or bot is already subscribed, False otherwise
+        bool: True if join succeeds or bot is already a member, False otherwise
 
     Raises:
         No exceptions are raised - all errors are handled internally and logged.
 
     Note:
-        Cannot subscribe to chats without usernames (private channels).
+        Cannot join chats without usernames (private groups).
         Already being a participant is treated as success.
+        Used for establishing peer resolution context in groups where users send messages.
     """
     client = get_mtproto_client()
 
@@ -140,11 +179,11 @@ async def attempt_user_bot_subscription(
     context = _create_chat_context(chat_id, chat_username=chat_username)
 
     with logfire.span(
-        "Subscribing user bot to chat", chat_id=chat_id, chat_username=chat_username
+        "Joining user bot to chat", chat_id=chat_id, chat_username=chat_username
     ):
         try:
             logger.debug(
-                f"Attempting to subscribe user bot to chat with identifier: {chat_username}"
+                f"Attempting to join user bot to chat with identifier: {chat_username}"
             )
 
             await client.call(
@@ -152,7 +191,7 @@ async def attempt_user_bot_subscription(
             )
 
             logger.info(
-                "Successfully subscribed user bot to chat",
+                "Successfully joined user bot to chat",
                 extra={**context, "identifier_used": chat_username},
             )
             return True
@@ -160,22 +199,22 @@ async def attempt_user_bot_subscription(
         except MtprotoHttpError as e:
             error_msg = str(e).lower()
 
-            # Already subscribed - treat as success
+            # Already joined - treat as success
             if _is_user_already_participant_error(error_msg):
-                logger.debug("User bot already subscribed to chat", extra=context)
+                logger.debug("User bot already joined to chat", extra=context)
                 return True
 
-            # Private channel - can't join
+            # Private chat - can't join
             if _is_channel_private_error(error_msg):
-                logger.info("Cannot subscribe user bot to private chat", extra=context)
+                logger.info("Cannot join user bot to private chat", extra=context)
                 return False
 
             # Other MTProto errors - log warning and return False
-            _log_mtproto_error(e, "user bot subscription", context)
+            _log_mtproto_error(e, "user bot chat join", context)
             return False
 
         except Exception as e:
-            _log_unexpected_error(e, "user bot subscription", context)
+            _log_unexpected_error(e, "user bot chat join", context)
             return False
 
 
@@ -363,15 +402,7 @@ async def establish_context_via_thread_reading(
 
 @logfire.instrument(extract_args=True)
 async def establish_peer_resolution_context(
-    chat_id: int,
-    user_id: int,
-    message_id: int,
-    chat_username: Optional[str] = None,
-    message_thread_id: Optional[int] = None,
-    reply_to_message_id: Optional[int] = None,
-    is_topic_message: bool = False,
-    linked_chat_id: Optional[int] = None,
-    original_channel_post_id: Optional[int] = None,
+    context: PeerResolutionContext,
 ) -> bool:
     """
     Establish MTProto peer resolution context for user context collection.
@@ -388,15 +419,7 @@ async def establish_peer_resolution_context(
     - Falls back to direct message reading if subscription succeeds or chat is already accessible
 
     Args:
-        chat_id: Bot API chat ID
-        user_id: User ID for logging and context
-        message_id: Message ID to read for context establishment
-        chat_username: Optional chat username for public chat access
-        message_thread_id: Optional thread ID (for discussion threads or forum topics)
-        reply_to_message_id: Optional ID of message being replied to
-        is_topic_message: Whether this is a forum topic message (vs discussion thread)
-        linked_chat_id: Optional linked channel ID (for discussion groups)
-        original_channel_post_id: Optional original channel post ID (for discussion threads)
+        context: PeerResolutionContext object containing all resolution parameters
 
     Returns:
         bool: True if peer resolution context was established successfully, False otherwise
@@ -405,43 +428,21 @@ async def establish_peer_resolution_context(
         Context establishment is crucial for the user bot to resolve user IDs to peer information
         when collecting spam analysis context. Different chat types require different strategies.
     """
-    thread_type = (
-        "forum_topic"
-        if is_topic_message
-        else "discussion_thread"
-        if message_thread_id
-        else "none"
+    thread_type = determine_thread_type(
+        context.message_thread_id, context.is_topic_message
     )
 
+    context_dict = create_peer_resolution_context(context)
+    context_dict["thread_type"] = thread_type
     with logfire.span(
         "Ensuring peer resolution context for user",
-        chat_id=chat_id,
-        user_id=user_id,
-        message_id=message_id,
-        chat_username=chat_username,
-        message_thread_id=message_thread_id,
-        is_topic_message=is_topic_message,
-        linked_chat_id=linked_chat_id,
-        original_channel_post_id=original_channel_post_id,
-        thread_type=thread_type,
+        **context_dict,
     ):
-        context = _create_chat_context(
-            chat_id,
-            user_id,
-            message_id,
-            chat_username,
-            message_thread_id=message_thread_id,
-            reply_to_message_id=reply_to_message_id,
-            is_topic_message=is_topic_message,
-            linked_chat_id=linked_chat_id,
-            original_channel_post_id=original_channel_post_id,
-        )
-
         # Choose context establishment strategy based on message type
-        if message_thread_id and not is_topic_message:
-            return await _establish_context_for_discussion_thread(context)
+        if context.message_thread_id and not context.is_topic_message:
+            return await _establish_context_for_discussion_thread(context_dict)
         else:
-            return await _establish_context_for_group_message(context)
+            return await _establish_context_for_group_message(context_dict)
 
 
 async def _establish_context_for_discussion_thread(context: Dict[str, Any]) -> bool:
@@ -478,13 +479,13 @@ async def _establish_context_for_group_message(context: Dict[str, Any]) -> bool:
         f"{message_type} message, using subscription + group reading", extra=context
     )
 
-    # Attempt subscription for public chats (only works if chat has username)
-    subscription_success = await attempt_user_bot_subscription(
+    # Attempt join for public chats (only works if chat has username)
+    join_success = await attempt_user_bot_chat_join(
         context["chat_id"], context.get("chat_username")
     )
 
-    # Handle subscription results
-    if not subscription_success:
+    # Handle join results
+    if not join_success:
         if context.get("chat_username"):
             # Subscription failed for a chat that has a username - unexpected
             logger.warning(

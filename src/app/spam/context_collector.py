@@ -7,14 +7,39 @@ import logfire
 from .context_types import (
     ContextResult,
     ContextStatus,
+    PeerResolutionContext,
     SpamClassificationContext,
     UserContext,
+)
+from .message_utils import (
+    extract_message_metadata,
+    extract_reply_metadata,
+    merge_message_metadata,
 )
 from .stories import collect_user_stories
 from .user_profile import collect_user_context, collect_channel_summary_by_id
 from .user_context_utils import establish_peer_resolution_context
 
 logger = logging.getLogger(__name__)
+
+
+def create_peer_resolution_context_from_message(message, user_id: int) -> PeerResolutionContext:
+    """Create PeerResolutionContext from a Telegram message object."""
+    message_meta = merge_message_metadata(
+        extract_message_metadata(message), extract_reply_metadata(message)
+    )
+
+    return PeerResolutionContext(
+        chat_id=message_meta["chat_id"],
+        user_id=user_id,
+        message_id=message_meta["message_id"],
+        chat_username=message_meta["chat_username"],
+        message_thread_id=message_meta["message_thread_id"],
+        reply_to_message_id=message_meta["reply_to_message_id"],
+        is_topic_message=message_meta["is_topic_message"],
+        linked_chat_id=message_meta["linked_chat_id"],
+        original_channel_post_id=message_meta["original_channel_post_id"],
+    )
 
 
 @logfire.instrument()
@@ -32,66 +57,43 @@ async def collect_complete_user_context(
         user_id: User ID for context collection
         username: Optional username for the user
     """
-    # Extract information from message object
+    # Extract basic message info needed for stories collection
     chat_id = message.chat.id
-    message_id = getattr(message, "message_id", None)
-    chat_username = getattr(message.chat, "username", None)
-    message_thread_id = getattr(message, "message_thread_id", None)
-    is_topic_message = getattr(message, "is_topic_message", False)
-    linked_chat_id = getattr(message.chat, "linked_chat_id", None)
-    reply_to_message_id = None
-    original_channel_post_id = None
-
-    if hasattr(message, "reply_to_message") and message.reply_to_message:
-        reply_to_message_id = getattr(message.reply_to_message, "message_id", None)
-        # For discussion threads, get the original channel post ID from the forwarded message
-        if linked_chat_id and message_thread_id and not is_topic_message:
-            original_channel_post_id = getattr(
-                message.reply_to_message, "forward_from_message_id", None
-            )
 
     with logfire.span(
         "Collecting complete user context",
         user_id=user_id,
         username=username,
         chat_id=chat_id,
-        message_thread_id=message_thread_id,
-        is_topic_message=is_topic_message,
+        message_thread_id=getattr(message, "message_thread_id", None),
+        is_topic_message=getattr(message, "is_topic_message", False),
         thread_type="forum_topic"
-        if is_topic_message
+        if getattr(message, "is_topic_message", False)
         else "discussion_thread"
-        if message_thread_id
+        if getattr(message, "message_thread_id", None)
         else "none",
     ):
         # Establish peer resolution context when username is None
-        if username is None and message_id is not None:
-            context_established = await establish_peer_resolution_context(
-                chat_id,
-                user_id,
-                message_id,
-                chat_username,
-                message_thread_id,
-                reply_to_message_id,
-                is_topic_message,
-                linked_chat_id,
-                original_channel_post_id,
-            )
+        if username is None and getattr(message, "message_id", None) is not None:
+            peer_context = create_peer_resolution_context_from_message(message, user_id)
+            context_established = await establish_peer_resolution_context(peer_context)
         else:
-            context_established = (
-                True  # No context establishment needed if we have username or missing params
-            )
+            context_established = True  # No context establishment needed if we have username or missing params
 
         if not context_established:
             # Peer resolution context establishment failed, skip all context collection
             return UserContext(
                 stories=ContextResult(
-                    status=ContextStatus.SKIPPED, error="Peer resolution context establishment failed"
+                    status=ContextStatus.SKIPPED,
+                    error="Peer resolution context establishment failed",
                 ),
                 linked_channel=ContextResult(
-                    status=ContextStatus.SKIPPED, error="Peer resolution context establishment failed"
+                    status=ContextStatus.SKIPPED,
+                    error="Peer resolution context establishment failed",
                 ),
                 account_info=ContextResult(
-                    status=ContextStatus.SKIPPED, error="Peer resolution context establishment failed"
+                    status=ContextStatus.SKIPPED,
+                    error="Peer resolution context establishment failed",
                 ),
             )
 
@@ -174,13 +176,16 @@ async def collect_complete_user_context(
 
 
 @logfire.instrument()
-async def collect_sender_context(
+async def route_sender_context_collection(
     message,
     chat_id: Optional[int] = None,
 ) -> Union[UserContext, SpamClassificationContext]:
     """
-    Unified context collection for both users and channels.
-    Returns appropriate context type based on sender.
+    Routes context collection to appropriate handler based on message sender type.
+
+    Dispatches to different context collection strategies:
+    - UserContext for user senders
+    - SpamClassificationContext for channel senders
 
     Args:
         message: Telegram message object

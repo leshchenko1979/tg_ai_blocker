@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Generic, Optional, TypeVar
+from typing import Any, Dict, Generic, Optional, TypeVar
 
 T = TypeVar("T")
 
@@ -94,6 +94,39 @@ class UserContext:
     stories: ContextResult[str]
     linked_channel: ContextResult[LinkedChannelSummary]
     account_info: ContextResult[UserAccountInfo]
+
+
+@dataclass(slots=True)
+class PeerResolutionContext:
+    """Context information for MTProto peer resolution operations."""
+
+    # Core identifiers (always required)
+    chat_id: int
+    user_id: int
+    message_id: int
+
+    # Optional context parameters
+    chat_username: Optional[str] = None
+    message_thread_id: Optional[int] = None
+    reply_to_message_id: Optional[int] = None
+    is_topic_message: bool = False
+    linked_chat_id: Optional[int] = None
+    original_channel_post_id: Optional[int] = None
+
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for backward compatibility."""
+        return {
+            "chat_id": self.chat_id,
+            "user_id": self.user_id,
+            "message_id": self.message_id,
+            "chat_username": self.chat_username,
+            "message_thread_id": self.message_thread_id,
+            "reply_to_message_id": self.reply_to_message_id,
+            "is_topic_message": self.is_topic_message,
+            "linked_chat_id": self.linked_chat_id,
+            "original_channel_post_id": self.original_channel_post_id,
+        }
 
 
 @dataclass
