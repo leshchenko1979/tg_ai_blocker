@@ -12,7 +12,7 @@ from .context_types import (
 )
 from .stories import collect_user_stories
 from .user_profile import collect_user_context, collect_channel_summary_by_id
-from .user_context_utils import subscribe_user_bot_to_chat
+from .user_context_utils import establish_peer_resolution_context
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,9 @@ async def collect_complete_user_context(
         reply_to_message_id = getattr(message.reply_to_message, "message_id", None)
         # For discussion threads, get the original channel post ID from the forwarded message
         if linked_chat_id and message_thread_id and not is_topic_message:
-            original_channel_post_id = getattr(message.reply_to_message, "forward_from_message_id", None)
+            original_channel_post_id = getattr(
+                message.reply_to_message, "forward_from_message_id", None
+            )
 
     with logfire.span(
         "Collecting complete user context",
@@ -61,9 +63,9 @@ async def collect_complete_user_context(
         if message_thread_id
         else "none",
     ):
-        # Check if we need to subscribe user bot for context collection (when username is None)
+        # Establish peer resolution context when username is None
         if username is None and message_id is not None:
-            subscription_success = await subscribe_user_bot_to_chat(
+            context_established = await establish_peer_resolution_context(
                 chat_id,
                 user_id,
                 message_id,
@@ -75,21 +77,21 @@ async def collect_complete_user_context(
                 original_channel_post_id,
             )
         else:
-            subscription_success = (
-                True  # No subscription needed if we have username or missing params
+            context_established = (
+                True  # No context establishment needed if we have username or missing params
             )
 
-        if not subscription_success:
-            # Subscription failed, skip all context collection
+        if not context_established:
+            # Peer resolution context establishment failed, skip all context collection
             return UserContext(
                 stories=ContextResult(
-                    status=ContextStatus.SKIPPED, error="User bot subscription failed"
+                    status=ContextStatus.SKIPPED, error="Peer resolution context establishment failed"
                 ),
                 linked_channel=ContextResult(
-                    status=ContextStatus.SKIPPED, error="User bot subscription failed"
+                    status=ContextStatus.SKIPPED, error="Peer resolution context establishment failed"
                 ),
                 account_info=ContextResult(
-                    status=ContextStatus.SKIPPED, error="User bot subscription failed"
+                    status=ContextStatus.SKIPPED, error="Peer resolution context establishment failed"
                 ),
             )
 

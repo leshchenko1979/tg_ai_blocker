@@ -362,7 +362,7 @@ async def establish_context_via_thread_reading(
 
 
 @logfire.instrument(extract_args=True)
-async def subscribe_user_bot_to_chat(
+async def establish_peer_resolution_context(
     chat_id: int,
     user_id: int,
     message_id: int,
@@ -374,18 +374,18 @@ async def subscribe_user_bot_to_chat(
     original_channel_post_id: Optional[int] = None,
 ) -> bool:
     """
-    Ensure the user bot can resolve user peers for context collection by establishing chat/message context.
+    Establish MTProto peer resolution context for user context collection.
 
-    This function employs different strategies based on message type to establish MTProto peer resolution context:
+    This function employs different strategies based on message type to establish peer resolution context,
+    which is necessary for the user bot to resolve user IDs when usernames are not available.
 
-    1. **Discussion Thread Messages**: For replies to channel posts in discussion groups,
-       uses thread-based reading from the linked channel (preferred) or discussion group.
+    **Discussion Thread Messages** (replies to channel posts in discussion groups):
+    - Uses thread-based reading from the linked channel (preferred) or discussion group
+    - No subscription attempt needed as we read from public channels
 
-    2. **Regular Group Messages**: For standard group messages, attempts user bot subscription
-       (for public chats) followed by direct message reading.
-
-    3. **Forum Topic Messages**: For forum-enabled supergroups, uses the same approach as
-       regular group messages since forum topics are handled as regular group messages.
+    **Regular Group Messages** (standard group chats or forum topics):
+    - Attempts user bot subscription for public chats with usernames
+    - Falls back to direct message reading if subscription succeeds or chat is already accessible
 
     Args:
         chat_id: Bot API chat ID
