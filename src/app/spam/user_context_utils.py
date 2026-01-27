@@ -8,12 +8,13 @@ from typing import Optional
 import logfire
 
 from ..common.mtproto_client import MtprotoHttpError, get_mtproto_client
+from ..common.mtproto_utils import get_mtproto_chat_identifier
 
 logger = logging.getLogger(__name__)
 
 
 @logfire.instrument(extract_args=True)
-async def subscribe_user_bot_to_chat(
+async def attempt_user_bot_subscription(
     chat_id: int, chat_username: Optional[str] = None
 ) -> bool:
     """
@@ -125,17 +126,8 @@ async def establish_context_via_group_reading(
     """
     client = get_mtproto_client()
 
-    # Convert Bot API chat ID to MTProto format
-    mtproto_chat_id = chat_id
-    if chat_id < 0:
-        str_id = str(chat_id)
-        if str_id.startswith("-100"):
-            mtproto_chat_id = int(str_id[4:])  # Remove -100 prefix
-        elif str_id.startswith("-"):
-            mtproto_chat_id = int(str_id[1:])  # Remove - prefix
-
-    # Use username if available, otherwise use the MTProto chat ID
-    chat_identifier = chat_username if chat_username else mtproto_chat_id
+    # Get the appropriate MTProto identifier for the chat
+    chat_identifier = get_mtproto_chat_identifier(chat_id, chat_username)
 
     try:
         logger.debug(
@@ -239,17 +231,8 @@ async def establish_context_via_thread_reading(
     # For discussion threads, we need to identify the channel and the original post
     # The reply_to_message_id should be the ID of the forwarded channel message in the discussion group
 
-    # Convert Bot API chat ID to MTProto format
-    mtproto_chat_id = chat_id
-    if chat_id < 0:
-        str_id = str(chat_id)
-        if str_id.startswith("-100"):
-            mtproto_chat_id = int(str_id[4:])  # Remove -100 prefix
-        elif str_id.startswith("-"):
-            mtproto_chat_id = int(str_id[1:])  # Remove - prefix
-
-    # Use username if available, otherwise use the MTProto chat ID
-    chat_identifier = chat_username if chat_username else mtproto_chat_id
+    # Get the appropriate MTProto identifier for the chat
+    chat_identifier = get_mtproto_chat_identifier(chat_id, chat_username)
 
     try:
         logger.debug(
@@ -326,7 +309,7 @@ async def establish_context_via_thread_reading(
 
 
 @logfire.instrument(extract_args=True)
-async def ensure_user_context_collectable(
+async def subscribe_user_bot_to_chat(
     chat_id: int,
     user_id: int,
     message_id: int,
@@ -402,7 +385,7 @@ async def ensure_user_context_collectable(
             )
 
             # First, try to ensure user bot is subscribed to the chat (only works for public chats)
-            subscription_success = await subscribe_user_bot_to_chat(
+            subscription_success = await attempt_user_bot_subscription(
                 chat_id, chat_username
             )
 

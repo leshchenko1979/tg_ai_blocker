@@ -3,7 +3,10 @@ import sys
 
 from aiogram import Bot
 
-bot = Bot(token=os.getenv("BOT_TOKEN"))
+bot_token = os.getenv("BOT_TOKEN")
+if not bot_token:
+    raise ValueError("BOT_TOKEN environment variable is required")
+bot = Bot(token=bot_token)
 
 # Admin chat ID is now loaded from config.yaml
 

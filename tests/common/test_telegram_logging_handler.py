@@ -31,7 +31,7 @@ class DummyBot:
 async def test_handler_flushes_after_loop_registration():
     bot = DummyBot()
     handler = TelegramLogHandler(
-        bot=bot,
+        bot=bot,  # type: ignore
         chat_id=123,
         throttling_capacity=5,
         dedupe_window=0.5,
@@ -63,7 +63,7 @@ async def test_handler_flushes_after_loop_registration():
 async def test_handler_deduplicates_repeated_messages():
     bot = DummyBot()
     handler = TelegramLogHandler(
-        bot=bot,
+        bot=bot,  # type: ignore
         chat_id=123,
         throttling_capacity=5,
         dedupe_window=60.0,

@@ -57,7 +57,8 @@ def test_format_spam_request_basic():
 
     context = SpamClassificationContext(name="User", bio="Bio")
     req = format_spam_request("Hello", context)
-    assert "MESSAGE TO CLASSIFY:\nHello" in req
+    assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
+    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
     assert "USER NAME:\nUser" in req
     assert "USER BIO:\nBio" in req
     assert "<истории_пользователя>" not in req
@@ -103,7 +104,8 @@ def test_format_spam_request_with_reply_context():
 
     context = SpamClassificationContext(reply="Original post text")
     req = format_spam_request("Hello", context)
-    assert "ORIGINAL POST BEING REPLIED TO:\nOriginal post text" in req
+    assert "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):" in req
+    assert ">>> BEGIN CONTEXT\nOriginal post text\n<<< END CONTEXT" in req
 
 
 @pytest.mark.asyncio
@@ -129,11 +131,8 @@ async def test_get_system_prompt_reply_context_guidance():
         prompt = await get_system_prompt(include_reply_context_guidance=True)
 
         assert "## DISCUSSION CONTEXT ANALYSIS" in prompt
-        assert (
-            "IMPORTANT: This context is provided ONLY to evaluate if the user's reply is relevant."
-            in prompt
-        )
-        assert "DO NOT score this context content as spam" in prompt
+        assert 'The "REPLY CONTEXT" is NOT the message you are classifying.' in prompt
+        assert "DO NOT classify the user's message as spam" in prompt
         assert (
             "HIGH SPAM INDICATOR: User replies that are completely unrelated to the discussion topic."
             in prompt
@@ -172,14 +171,15 @@ def test_format_spam_request_null_context_skipped():
     req = format_spam_request("Hello", context)
 
     # Verify basic fields are present
-    assert "MESSAGE TO CLASSIFY:\nHello" in req
+    assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
+    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
     assert "USER NAME:\nUser" in req
     assert "USER BIO:\nBio" in req
 
     # Verify NULL context fields are NOT included
     assert "USER STORIES CONTENT:" not in req
     assert "ACCOUNT AGE INFO:" not in req
-    assert "ORIGINAL POST BEING REPLIED TO:" not in req
+    assert "REPLY CONTEXT" not in req
 
 
 def test_format_spam_request_empty_marker_shows_metadata():
@@ -203,7 +203,8 @@ def test_format_spam_request_empty_marker_shows_metadata():
     assert "ACCOUNT AGE INFO:\nno photo on the account" in req
 
     # Verify regular fields are still present
-    assert "MESSAGE TO CLASSIFY:\nHello" in req
+    assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
+    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
     assert "USER NAME:\nUser" in req
     assert "USER BIO:\nBio" in req
 
@@ -231,11 +232,13 @@ def test_format_spam_request_content_shows_normally():
 
     # Verify content is shown normally
     assert "USER STORIES CONTENT:\nActual story content" in req
-    assert "ORIGINAL POST BEING REPLIED TO:\nOriginal post content" in req
+    assert "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):" in req
+    assert ">>> BEGIN CONTEXT\nOriginal post content\n<<< END CONTEXT" in req
     assert "ACCOUNT AGE INFO:\nAccount age: 3mo" in req
 
     # Verify basic fields are present
-    assert "MESSAGE TO CLASSIFY:\nHello" in req
+    assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
+    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
     assert "USER NAME:\nUser" in req
     assert "USER BIO:\nBio" in req
 
@@ -261,12 +264,14 @@ def test_format_spam_request_mixed_states():
     assert "USER STORIES CONTENT:\nno stories posted" in req
 
     # Content should show normally
-    assert "ORIGINAL POST BEING REPLIED TO:\nReply content" in req
+    assert "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):" in req
+    assert ">>> BEGIN CONTEXT\nReply content\n<<< END CONTEXT" in req
 
     # NULL should be skipped entirely
     assert "ACCOUNT AGE INFO:" not in req
 
     # Basic fields should be present
-    assert "MESSAGE TO CLASSIFY:\nHello" in req
+    assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
+    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
     assert "USER NAME:\nUser" in req
     assert "USER BIO:\nBio" in req

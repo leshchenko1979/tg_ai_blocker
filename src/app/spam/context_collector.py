@@ -12,7 +12,7 @@ from .context_types import (
 )
 from .stories import collect_user_stories
 from .user_profile import collect_user_context, collect_channel_summary_by_id
-from .user_context_utils import ensure_user_context_collectable
+from .user_context_utils import subscribe_user_bot_to_chat
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ async def collect_complete_user_context(
     ):
         # Check if we need to subscribe user bot for context collection (when username is None)
         if username is None and message_id is not None:
-            subscription_success = await ensure_user_context_collectable(
+            subscription_success = await subscribe_user_bot_to_chat(
                 chat_id,
                 user_id,
                 message_id,

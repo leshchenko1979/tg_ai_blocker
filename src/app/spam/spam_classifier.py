@@ -156,18 +156,15 @@ async def is_spam(
     ) from last_error
 
 
-async def get_system_prompt(
-    admin_ids: Optional[List[int]] = None,
-    include_linked_channel_guidance: bool = False,
-    include_stories_guidance: bool = False,
-    include_reply_context_guidance: bool = False,
-    include_account_age_guidance: bool = False,
-):
-    """Get the full prompt with spam examples from database"""
-    prompt = """You are a spam message classifier for Telegram groups.
+def build_base_system_prompt() -> str:
+    """Build the core system prompt with basic instructions."""
+    return """You are a spam message classifier for Telegram groups.
 
 Your task: Analyze user messages and determine if they are spam or legitimate.
-You will receive the message text, user name, and profile bio.
+The message to classify is enclosed in >>> BEGIN MESSAGE markers.
+You will also receive context information (User Bio, Linked Channel, Reply Context).
+IMPORTANT: Do not classify the context information as spam. Only classify the message inside the markers.
+
 Return a spam score from -100 to +100, where:
 - Positive scores = spam (0 to 100)
 - Negative scores = legitimate (-100 to 0)
@@ -175,6 +172,15 @@ Return a spam score from -100 to +100, where:
 
 Also provide a confidence percentage (0-100) and a brief explanation."""
 
+
+def add_context_guidance_sections(
+    prompt: str,
+    include_linked_channel_guidance: bool = False,
+    include_stories_guidance: bool = False,
+    include_account_age_guidance: bool = False,
+    include_reply_context_guidance: bool = False,
+) -> str:
+    """Add context-specific guidance sections to the prompt."""
     if include_linked_channel_guidance:
         prompt += """
 
@@ -238,10 +244,13 @@ Risk assessment:
         prompt += """
 
 ## DISCUSSION CONTEXT ANALYSIS
-This section contains the original post that the user is replying to.
+The user message may be a reply to another post. The content of that original post is provided in the "REPLY CONTEXT" section.
 
-IMPORTANT: This context is provided ONLY to evaluate if the user's reply is relevant.
-DO NOT score this context content as spam - it may contain any type of content.
+CRITICAL INSTRUCTION:
+1. The "REPLY CONTEXT" is NOT the message you are classifying.
+2. It often contains the spam message that the user is replying to (e.g. asking a question about a spam offer).
+3. DO NOT classify the user's message as spam just because the "REPLY CONTEXT" is spam.
+4. ONLY use this context to check if the user's reply is RELEVANT to the conversation.
 
 HIGH SPAM INDICATOR: User replies that are completely unrelated to the discussion topic.
 This is a common scam tactic: post irrelevant comments to "befriend" users,
@@ -253,7 +262,14 @@ Signs of irrelevant replies:
 - Generic phrases like "interesting" or "I agree" without specific reference
 - Self-promotion disguised as "helpful advice" on unrelated topics"""
 
-    prompt += """
+    return prompt
+
+
+def add_response_format_section(prompt: str) -> str:
+    """Add the response format section to the prompt."""
+    return (
+        prompt
+        + """
 
 ## RESPONSE FORMAT
 Always respond with valid JSON in this exact format:
@@ -265,7 +281,13 @@ Always respond with valid JSON in this exact format:
 
 ## SPAM CLASSIFICATION EXAMPLES
 """
+    )
 
+
+async def add_spam_examples_section(
+    prompt: str, admin_ids: Optional[List[int]] = None
+) -> str:
+    """Add spam examples from database to the prompt."""
     # Get spam examples, including user-specific examples
     examples = await get_spam_examples(admin_ids)
 
@@ -314,6 +336,35 @@ Always respond with valid JSON in this exact format:
     return prompt
 
 
+async def get_system_prompt(
+    admin_ids: Optional[List[int]] = None,
+    include_linked_channel_guidance: bool = False,
+    include_stories_guidance: bool = False,
+    include_reply_context_guidance: bool = False,
+    include_account_age_guidance: bool = False,
+):
+    """Get the full prompt with spam examples from database"""
+    # Build the base system prompt
+    prompt = build_base_system_prompt()
+
+    # Add context guidance sections
+    prompt = add_context_guidance_sections(
+        prompt,
+        include_linked_channel_guidance,
+        include_stories_guidance,
+        include_account_age_guidance,
+        include_reply_context_guidance,
+    )
+
+    # Add response format section
+    prompt = add_response_format_section(prompt)
+
+    # Add spam examples from database
+    prompt = await add_spam_examples_section(prompt, admin_ids)
+
+    return prompt
+
+
 def get_messages(
     comment: str,
     name: str | None,
@@ -351,8 +402,11 @@ def format_spam_request(
     # Use empty context if none provided
     if context is None:
         context = SpamClassificationContext()
-    request = f"""MESSAGE TO CLASSIFY:
+    
+    request = f"""MESSAGE TO CLASSIFY (Analyze this content):
+>>> BEGIN MESSAGE
 {text}
+<<< END MESSAGE
 
 """
 
@@ -427,13 +481,15 @@ verification failed: {context.account_age.error}
 
     if context.reply is not None:
         if context.reply == "[EMPTY]":
-            request += """ORIGINAL POST BEING REPLIED TO:
+            request += """REPLY CONTEXT (Original post being replied to):
 [checked, none found]
 
 """
         else:
-            request += f"""ORIGINAL POST BEING REPLIED TO:
+            request += f"""REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):
+>>> BEGIN CONTEXT
 {context.reply}
+<<< END CONTEXT
 
 """
 

@@ -23,6 +23,96 @@ from .updates_filter import filter_handle_message
 logger = logging.getLogger(__name__)
 
 
+def determine_effective_user_id(message: types.Message) -> int | None:
+    """
+    Determine the effective user ID for moderation.
+    For channel messages (sender_chat), use channel ID unless it's the group itself (anonymous admin).
+    For regular users, use their user ID.
+    """
+    if message.sender_chat and message.sender_chat.id != message.chat.id:
+        return message.sender_chat.id
+    elif message.from_user:
+        return message.from_user.id
+    return None
+
+
+async def validate_group_and_permissions(chat_id: int, user_id: int):
+    """
+    Get group and perform early permission checks.
+
+    Returns:
+        tuple: (group, error_reason) where error_reason is None if valid
+    """
+    group, group_error = await get_and_check_group(chat_id)
+    if group_error:
+        return None, group_error
+
+    assert group is not None
+
+    # Check if sender is an admin - skip immediately
+    if user_id in group.admin_ids:
+        await track_group_event(
+            chat_id, "message_from_admin_skipped", {"user_id": user_id}
+        )
+        return group, "message_from_admin_skipped"
+
+    # Check if sender is approved
+    if await check_known_member(chat_id, user_id):
+        return group, "message_known_member_skipped"
+
+    return group, None
+
+
+async def check_message_eligibility(message: types.Message) -> tuple[bool, str]:
+    """
+    Check if message should be skipped based on various criteria.
+
+    Returns:
+        tuple: (should_skip, reason)
+    """
+    logger.debug(
+        f"sender_chat={getattr(message, 'sender_chat', None)}, "
+        f"chat.linked_chat_id={getattr(message.chat, 'linked_chat_id', None)}"
+    )
+    return await check_skip_channel_bot_message(message)
+
+
+async def analyze_message_content(
+    message: types.Message, group
+) -> tuple[float | None, str | None, str, bool]:
+    """
+    Analyze message content for spam.
+
+    Returns:
+        tuple: (spam_score, bio, reason, is_story)
+    """
+    message_text, forward_info, is_story = build_forward_info(message)
+    spam_score, bio, reason = await get_spam_score_and_bio(
+        message, message_text, group, is_story
+    )
+    return spam_score, bio, reason, is_story
+
+
+async def process_moderation_result(
+    chat_id: int,
+    user_id: int,
+    spam_score: float,
+    message: types.Message,
+    admin_ids: list[int],
+    reason: str,
+) -> str:
+    """
+    Process the spam analysis result and track it.
+
+    Returns:
+        str: Processing result identifier
+    """
+    await track_spam_check_result(chat_id, user_id, spam_score, message_text="", bio="")
+    return await process_spam_or_approve(
+        chat_id, user_id, spam_score, message, admin_ids, reason
+    )
+
+
 @dp.message(filter_handle_message)
 async def handle_moderated_message(message: types.Message) -> str:
     """
@@ -30,57 +120,36 @@ async def handle_moderated_message(message: types.Message) -> str:
     Forwards, especially stories, are treated as spam.
     """
     try:
-        # Determine effective user ID for moderation early
-        # If message is from a channel (sender_chat is set), use channel ID
-        # unless it's the group itself (anonymous admin)
-        if message.sender_chat and message.sender_chat.id != message.chat.id:
-            user_id = message.sender_chat.id
-        elif message.from_user:
-            user_id = message.from_user.id
-        else:
+        # Determine effective user ID for moderation
+        user_id = determine_effective_user_id(message)
+        if user_id is None:
             return "message_no_user_info"
 
         chat_id = message.chat.id
 
-        # Get group early to check admin/approved status before expensive operations
-        group, group_error = await get_and_check_group(chat_id)
-        if group_error:
-            return group_error
+        # Validate group and check permissions (early exits)
+        group, permission_error = await validate_group_and_permissions(chat_id, user_id)
+        if permission_error:
+            return permission_error
 
-        assert group is not None
+        assert group is not None  # At this point group should not be None
 
-        # Check if sender is an admin - skip immediately without expensive operations
-        if user_id in group.admin_ids:
-            await track_group_event(
-                chat_id, "message_from_admin_skipped", {"user_id": user_id}
-            )
-            return "message_from_admin_skipped"
-
-        # Check if sender is approved - skip before expensive operations
-        if await check_known_member(chat_id, user_id):
-            return "message_known_member_skipped"
-
-        logger.debug(
-            f"sender_chat={getattr(message, 'sender_chat', None)}, "
-            f"chat.linked_chat_id={getattr(message.chat, 'linked_chat_id', None)}"
-        )
-        skip, reason = await check_skip_channel_bot_message(message)
+        # Check if message should be skipped
+        skip, reason = await check_message_eligibility(message)
         if skip:
             return reason
 
-        message_text, forward_info, is_story = build_forward_info(message)
-
-        spam_score, bio, reason = await get_spam_score_and_bio(
-            message, message_text, group, is_story
+        # Analyze message content for spam
+        spam_score, bio, reason, is_story = await analyze_message_content(
+            message, group
         )
 
         if spam_score is None:
             logger.warning("Failed to get spam score")
             return "message_spam_check_failed"
 
-        await track_spam_check_result(chat_id, user_id, spam_score, message_text, bio)
-
-        return await process_spam_or_approve(
+        # Process and track the moderation result
+        return await process_moderation_result(
             chat_id, user_id, spam_score, message, group.admin_ids, reason
         )
 

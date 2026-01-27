@@ -41,7 +41,8 @@ async def handle_buy_command(message: types.Message) -> str:
     )
 
     # Трекинг начала покупки
-    mp.track(message.from_user.id, "payment_menu_opened")
+    if message.from_user:
+        mp.track(message.from_user.id, "payment_menu_opened")
 
     await message.reply(
         "🛒 Выберите количество звезд для покупки:\n\n"
@@ -65,14 +66,29 @@ async def handle_buy_stars_callback(callback: types.CallbackQuery) -> str:
     """
     await callback.answer()
 
+    if not callback.data or ":" not in callback.data:
+        if callback.message:
+            await callback.message.reply("❌ Ошибка: некорректные данные платежа")
+        return "invalid_callback_data"
+
     stars_amount = int(callback.data.split(":")[1])
 
     # Трекинг выбора пакета
-    mp.track(
-        callback.from_user.id,
-        "payment_package_selected",
-        {"stars_amount": stars_amount},
-    )
+    if callback.from_user:
+        mp.track(
+            callback.from_user.id,
+            "payment_package_selected",
+            {"stars_amount": stars_amount},
+        )
+
+    if (
+        not callback.message
+        or not hasattr(callback.message, "chat")
+        or not callback.message.chat
+    ):
+        if callback.message:
+            await callback.message.reply("❌ Ошибка: невозможно отправить счет")
+        return "invalid_message"
 
     await bot.send_invoice(
         chat_id=callback.message.chat.id,
@@ -96,6 +112,12 @@ async def process_pre_checkout_query(pre_checkout_query: types.PreCheckoutQuery)
 @dp.message(F.successful_payment)
 async def process_successful_payment(message: types.Message) -> str:
     """Обработчик успешного платежа"""
+    if not message.from_user or not message.successful_payment:
+        logger.warning(
+            "Received successful payment message with missing user or payment data"
+        )
+        return "payment_processing_skipped"
+
     admin_id = message.from_user.id
     stars_amount = message.successful_payment.total_amount
 

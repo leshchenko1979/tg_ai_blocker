@@ -18,6 +18,7 @@ from ..common.mtproto_client import (
     MtprotoHttpError,
     get_mtproto_client,
 )
+from ..common.mtproto_utils import bot_api_chat_id_to_mtproto
 
 logger = logging.getLogger(__name__)
 
@@ -166,19 +167,11 @@ async def collect_channel_summary_by_id(
     """
     client = get_mtproto_client()
 
-    # Use username if available, otherwise convert Bot API ID to MTProto format
+    # Get the appropriate MTProto identifier for the channel
     if username:
         channel_identifier = username
     else:
-        # Convert Bot API ID (negative -100...) to MTProto ID (positive, without -100)
-        mtproto_id = channel_id
-        if channel_id < 0:
-            str_id = str(channel_id)
-            if str_id.startswith("-100"):
-                mtproto_id = int(str_id[4:])
-            elif str_id.startswith("-"):
-                mtproto_id = int(str_id[1:])
-        channel_identifier = mtproto_id
+        channel_identifier = bot_api_chat_id_to_mtproto(channel_id)
 
     with logfire.span(
         "Fetching channel summary via MTProto",
