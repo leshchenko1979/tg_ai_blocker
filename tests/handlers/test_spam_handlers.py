@@ -214,9 +214,9 @@ class TestSpamDeletion:
             ) as mock_is_spam,
             patch("src.app.handlers.message_handlers.bot") as mock_bot,
             patch(
-                "src.app.handlers.message_handlers.collect_sender_context",
+                "src.app.handlers.message_handlers.route_sender_context_collection",
                 new_callable=AsyncMock,
-            ) as mock_collect_sender_context,
+            ) as mock_route_sender_context,
         ):
             mock_is_spam.return_value = (
                 85,
@@ -228,7 +228,7 @@ class TestSpamDeletion:
             mock_chat_info.description = None
             mock_bot.get_chat = AsyncMock(return_value=mock_chat_info)
 
-            # Mock collect_sender_context to return a SpamClassificationContext with linked channel
+            # Mock route_sender_context_collection to return a SpamClassificationContext with linked channel
             mock_context = SpamClassificationContext(
                 name="Channel Bot",
                 bio=None,
@@ -242,14 +242,14 @@ class TestSpamDeletion:
                     ),
                 ),
             )
-            mock_collect_sender_context.return_value = mock_context
+            mock_route_sender_context.return_value = mock_context
 
             await get_spam_score_and_bio(
                 mock_message, "test message", mock_group, False
             )
 
-            # Verify collect_sender_context was called (channels now get context collection)
-            mock_collect_sender_context.assert_called_once_with(
+            # Verify route_sender_context_collection was called (channels now get context collection)
+            mock_route_sender_context.assert_called_once_with(
                 mock_message, mock_message.chat.id
             )
 

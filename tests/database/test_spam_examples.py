@@ -6,7 +6,7 @@ from app.database import add_spam_example, get_spam_examples, remove_spam_exampl
 @pytest.mark.asyncio
 async def test_get_spam_examples_common(patched_db_conn, clean_db):
     """Test getting common spam examples (without admin_ids)"""
-    async with clean_db.acquire() as conn:
+    async with clean_db.acquire():
         # Add test example
         example_data = {"text": "spam text", "score": 80}
         await add_spam_example(text=example_data["text"], score=example_data["score"])

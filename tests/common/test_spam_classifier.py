@@ -104,7 +104,10 @@ def test_format_spam_request_with_reply_context():
 
     context = SpamClassificationContext(reply="Original post text")
     req = format_spam_request("Hello", context)
-    assert "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):" in req
+    assert (
+        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
+        in req
+    )
     assert ">>> BEGIN CONTEXT\nOriginal post text\n<<< END CONTEXT" in req
 
 
@@ -232,7 +235,10 @@ def test_format_spam_request_content_shows_normally():
 
     # Verify content is shown normally
     assert "USER STORIES CONTENT:\nActual story content" in req
-    assert "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):" in req
+    assert (
+        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
+        in req
+    )
     assert ">>> BEGIN CONTEXT\nOriginal post content\n<<< END CONTEXT" in req
     assert "ACCOUNT AGE INFO:\nAccount age: 3mo" in req
 
@@ -264,7 +270,10 @@ def test_format_spam_request_mixed_states():
     assert "USER STORIES CONTENT:\nno stories posted" in req
 
     # Content should show normally
-    assert "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):" in req
+    assert (
+        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
+        in req
+    )
     assert ">>> BEGIN CONTEXT\nReply content\n<<< END CONTEXT" in req
 
     # NULL should be skipped entirely

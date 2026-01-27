@@ -66,8 +66,9 @@ async def collect_user_context(
         else:
             # Using user_id directly (subscription already verified at higher level)
             if not actual_user_id:
-                logfire.error(
-                    "No username and invalid user_id for user_id-based collection"
+                logger.error(
+                    "No username and invalid user_id for user_id-based collection",
+                    extra={"user_id": actual_user_id, "username": username},
                 )
                 return UserContext(
                     stories=ContextResult(
@@ -139,10 +140,12 @@ async def collect_user_context(
             )
             linked_channel_result = channel_result
         else:
-            logfire.debug(
+            logger.debug(
                 "User has no linked channel in profile",
-                user_id=actual_user_id,
-                full_user_keys=list(full_user.keys()),
+                extra={
+                    "user_id": actual_user_id,
+                    "full_user_keys": list(full_user.keys()),
+                },
             )
             linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
 
@@ -199,11 +202,13 @@ async def collect_channel_summary_by_id(
             return ContextResult(status=ContextStatus.FAILED, error=str(e))
 
     subscribers = full_channel.get("full_chat", {}).get("participants_count")
-    logfire.debug(
-        "MTProto channel stats",
-        user_reference=user_reference,
-        channel_id=channel_id,
-        subscribers=subscribers,
+    logger.debug(
+        "MTProto channel stats retrieved",
+        extra={
+            "user_reference": user_reference,
+            "channel_id": channel_id,
+            "subscribers": subscribers,
+        },
     )
 
     # Use the identifier that worked for the history call to ensure consistency
@@ -237,14 +242,16 @@ async def collect_channel_summary_by_id(
         recent_posts_content=recent_posts_content if recent_posts_content else None,
     )
 
-    logfire.info(
-        "channel summary collected",
-        source="mtproto",
-        user_reference=user_reference,
-        channel_id=channel_id,
-        subscribers=subscribers,
-        total_posts=total_posts,
-        post_age_delta=post_age_delta,
+    logger.info(
+        "Channel summary collected via MTProto",
+        extra={
+            "source": "mtproto",
+            "user_reference": user_reference,
+            "channel_id": channel_id,
+            "subscribers": subscribers,
+            "total_posts": total_posts,
+            "post_age_delta": post_age_delta,
+        },
     )
 
     return ContextResult(status=ContextStatus.FOUND, content=summary)
@@ -359,7 +366,9 @@ def _extract_date(timestamp: Any) -> Optional[datetime]:
             # Strings returned by the bridge are ISO8601 with timezone
             return datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         except ValueError:
-            logfire.debug("Failed to parse date", timestamp=timestamp)
+            logger.debug(
+                "Failed to parse date from timestamp", extra={"timestamp": timestamp}
+            )
             return None
     return None
 

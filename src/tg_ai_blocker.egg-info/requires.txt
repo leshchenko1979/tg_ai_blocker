@@ -1,0 +1,12 @@
+aiohttp
+aiogram
+mixpanel
+pyyaml
+asyncpg
+logfire
+tenacity
+pydantic
+
+[dev]
+python-dotenv
+tqdm

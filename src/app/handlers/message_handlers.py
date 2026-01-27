@@ -3,7 +3,7 @@ import logging
 from aiogram import types
 
 from ..common.bot import bot
-from ..spam.context_collector import collect_sender_context
+from ..spam.context_collector import route_sender_context_collection
 from ..spam.spam_classifier import is_spam
 from ..spam.context_types import SpamClassificationContext, UserContext
 from ..common.tracking import track_group_event
@@ -388,8 +388,8 @@ async def get_spam_score_and_bio(message, message_text, group, is_story):
             or "[MEDIA_MESSAGE]"
         )
 
-    # Collect sender context using unified collector
-    sender_context = await collect_sender_context(message, message.chat.id)
+    # Route to appropriate context collection based on sender type
+    sender_context = await route_sender_context_collection(message, message.chat.id)
 
     # Handle context based on sender type
     if isinstance(sender_context, UserContext):
