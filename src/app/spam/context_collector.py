@@ -38,9 +38,15 @@ async def collect_complete_user_context(
     chat_username = getattr(message.chat, "username", None)
     message_thread_id = getattr(message, "message_thread_id", None)
     is_topic_message = getattr(message, "is_topic_message", False)
+    linked_chat_id = getattr(message.chat, "linked_chat_id", None)
     reply_to_message_id = None
+    original_channel_post_id = None
+
     if hasattr(message, "reply_to_message") and message.reply_to_message:
         reply_to_message_id = getattr(message.reply_to_message, "message_id", None)
+        # For discussion threads, get the original channel post ID from the forwarded message
+        if linked_chat_id and message_thread_id and not is_topic_message:
+            original_channel_post_id = getattr(message.reply_to_message, "forward_from_message_id", None)
 
     with logfire.span(
         "Collecting complete user context",
@@ -65,6 +71,8 @@ async def collect_complete_user_context(
                 message_thread_id,
                 reply_to_message_id,
                 is_topic_message,
+                linked_chat_id,
+                original_channel_post_id,
             )
         else:
             subscription_success = (
