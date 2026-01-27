@@ -13,7 +13,7 @@ from .dp import dp
 logger = logging.getLogger(__name__)
 
 
-@dp.message(Command("buy"))
+@dp.message(Command("buy"), F.chat.type == "private")
 async def handle_buy_command(message: types.Message) -> str:
     """
     Обрабатывает команду покупки звезд

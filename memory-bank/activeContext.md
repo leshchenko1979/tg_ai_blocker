@@ -1,18 +1,15 @@
 ## Active Context
 
-- **Current Focus**: Advanced Context Collection - implemented on-demand user bot subscription for comprehensive spam detection.
+- **Current Focus**: Command Policy Implementation - enforcing private chat only commands to prevent accidental mode changes from group chats.
 - **Key Decisions**:
-  - **On-Demand Subscription**: User bot subscribes to monitored chats when needed for context collection, rather than proactively on bot addition.
-  - **Unified Context Collection**: Single subscription check at the top level enables both linked channel and stories collection for users without usernames.
-  - **Simplified MTProto Calls**: Replaced fallback call patterns with direct single calls for better performance and clarity.
-  - **Code Consolidation**: Merged subscription utilities into single module with DRY helper functions.
+  - **Private Chat Only Commands**: All bot commands (/mode, /stats, /buy, /ref) now restricted to private chats only.
+  - **Group Chat /help Behavior**: /help in groups shows Russian message directing users to private chat, then deletes the command message.
+  - **Command Deletion**: Group command messages are automatically deleted to prevent other users from accidentally triggering them.
 - **Recent Implementation**:
-  - **User Bot Subscription System**: ✅ **Complete** - On-demand subscription to monitored chats enables context collection for users without usernames using MTProto user_id resolution.
-  - **Context Collection Enhancement**: ✅ **Complete** - Both linked channel and stories collection now work for all users, regardless of username availability.
-  - **MTProto Optimization**: ✅ **Complete** - Simplified all MTProto API calls to use single identifiers instead of fallback patterns.
-  - **Code Quality**: ✅ **Complete** - Merged utility modules, eliminated circular imports, and achieved clean single-responsibility architecture.
-  - **Spam Classifier Enhancement**: ✅ **Complete** - Fixed LLM confusion about reply context by adding clear visual delimiters (>>> BEGIN MESSAGE/<<< END MESSAGE) and explicit instructions not to classify context information as spam. Verified formatting works correctly.
+  - **Command Policy Enforcement**: ✅ **Complete** - All commands except /help now require private chat. /help provides group redirection.
+  - **Memory Bank Documentation**: ✅ **Complete** - Updated systemPatterns.md to document the command handling policy.
+  - **Code Changes**: ✅ **Complete** - Modified command_handlers.py and payment_handlers.py with chat type restrictions.
 - **Immediate Next Steps**:
   - Run LLM model evaluation to establish baseline performance metrics.
   - Monitor system stability and context collection effectiveness.
-  - Consider adding subscription status caching to reduce API calls.
+  - Test command behavior in both private and group chats.
