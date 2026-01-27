@@ -402,7 +402,7 @@ def format_spam_request(
     # Use empty context if none provided
     if context is None:
         context = SpamClassificationContext()
-    
+
     request = f"""MESSAGE TO CLASSIFY (Analyze this content):
 >>> BEGIN MESSAGE
 {text}
