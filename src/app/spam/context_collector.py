@@ -11,11 +11,6 @@ from .context_types import (
     SpamClassificationContext,
     UserContext,
 )
-from .message_utils import (
-    extract_message_metadata,
-    extract_reply_metadata,
-    merge_message_metadata,
-)
 from .stories import collect_user_stories
 from .user_profile import collect_user_context, collect_channel_summary_by_id
 from .user_context_utils import establish_peer_resolution_context
@@ -23,22 +18,47 @@ from .user_context_utils import establish_peer_resolution_context
 logger = logging.getLogger(__name__)
 
 
-def create_peer_resolution_context_from_message(message, user_id: int) -> PeerResolutionContext:
+def create_peer_resolution_context_from_message(
+    message, user_id: int
+) -> PeerResolutionContext:
     """Create PeerResolutionContext from a Telegram message object."""
-    message_meta = merge_message_metadata(
-        extract_message_metadata(message), extract_reply_metadata(message)
-    )
+    # Extract basic message metadata
+    chat_id = int(message.chat.id)
+    message_id = int(
+        message.message_id
+    )  # Guaranteed to be not None when this function is called
+    chat_username = getattr(message.chat, "username", None)
+    message_thread_id = getattr(message, "message_thread_id", None)
+    is_topic_message = bool(getattr(message, "is_topic_message", False))
+    linked_chat_id = getattr(message.chat, "linked_chat_id", None)
+
+    # Initialize reply metadata
+    reply_to_message_id = None
+    original_channel_post_id = None
+
+    # Add reply metadata
+    if hasattr(message, "reply_to_message") and message.reply_to_message:
+        reply_to_message_id = getattr(message.reply_to_message, "message_id", None)
+        # For discussion threads, get the original channel post ID from the forwarded message
+        if (
+            hasattr(message, "message_thread_id")
+            and message.message_thread_id
+            and not getattr(message, "is_topic_message", False)
+        ):
+            original_channel_post_id = getattr(
+                message.reply_to_message, "forward_from_message_id", None
+            )
 
     return PeerResolutionContext(
-        chat_id=message_meta["chat_id"],
+        chat_id=chat_id,
         user_id=user_id,
-        message_id=message_meta["message_id"],
-        chat_username=message_meta["chat_username"],
-        message_thread_id=message_meta["message_thread_id"],
-        reply_to_message_id=message_meta["reply_to_message_id"],
-        is_topic_message=message_meta["is_topic_message"],
-        linked_chat_id=message_meta["linked_chat_id"],
-        original_channel_post_id=message_meta["original_channel_post_id"],
+        message_id=message_id,
+        chat_username=chat_username,
+        message_thread_id=message_thread_id,
+        reply_to_message_id=reply_to_message_id,
+        is_topic_message=is_topic_message,
+        linked_chat_id=linked_chat_id,
+        original_channel_post_id=original_channel_post_id,
     )
 
 

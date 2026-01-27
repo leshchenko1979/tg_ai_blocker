@@ -126,21 +126,6 @@ def determine_thread_type(
         return "none"
 
 
-def create_peer_resolution_context(
-    context: "PeerResolutionContext",
-) -> Dict[str, Any]:
-    """
-    Create a standardized context dictionary for peer resolution operations.
-
-    Args:
-        context: PeerResolutionContext object containing all resolution parameters
-
-    Returns:
-        Dict containing all context parameters for peer resolution
-    """
-    return context.to_dict()
-
-
 @logfire.instrument(extract_args=True)
 async def attempt_user_bot_chat_join(
     chat_id: int, chat_username: Optional[str] = None
@@ -220,7 +205,7 @@ async def attempt_user_bot_chat_join(
 
 @logfire.instrument(extract_args=True)
 async def establish_context_via_group_reading(
-    chat_id: int, user_id: int, message_id: int, chat_username: Optional[str] = None
+    context: PeerResolutionContext,
 ) -> bool:
     """
     Establish peer resolution context by reading a specific message from a group chat.
@@ -230,10 +215,7 @@ async def establish_context_via_group_reading(
     to usernames/peer information when collecting spam context.
 
     Args:
-        chat_id: Bot API chat ID
-        user_id: User ID for logging context
-        message_id: Specific message ID to read for context establishment
-        chat_username: Optional chat username for identifier resolution
+        context: PeerResolutionContext object containing all resolution parameters
 
     Returns:
         bool: True if context was established successfully, False otherwise
@@ -243,14 +225,21 @@ async def establish_context_via_group_reading(
         as they don't prevent general context collection for the chat.
     """
     client = get_mtproto_client()
-    chat_identifier = get_mtproto_chat_identifier(chat_id, chat_username)
-    context = _create_chat_context(
-        chat_id, user_id, message_id, chat_username, chat_identifier=chat_identifier
+    chat_identifier = get_mtproto_chat_identifier(
+        context.chat_id, context.chat_username
+    )
+    logging_context = _create_chat_context(
+        context.chat_id,
+        context.user_id,
+        context.message_id,
+        context.chat_username,
+        chat_identifier=chat_identifier,
     )
 
     try:
         logger.debug(
-            "Attempting group message reading for context establishment", extra=context
+            "Attempting group message reading for context establishment",
+            extra=logging_context,
         )
 
         # Read the specific message to establish chat context
@@ -259,7 +248,7 @@ async def establish_context_via_group_reading(
             "messages.getHistory",
             params={
                 "peer": chat_identifier,
-                "offset_id": message_id + HISTORY_OFFSET_INCREMENT,
+                "offset_id": context.message_id + HISTORY_OFFSET_INCREMENT,
                 "offset_date": DEFAULT_OFFSET,
                 "add_offset": DEFAULT_OFFSET,
                 "limit": DEFAULT_MESSAGE_LIMIT,
@@ -273,7 +262,7 @@ async def establish_context_via_group_reading(
         messages_found = len(message_result.get("messages", []))
         logger.debug(
             "Group message reading succeeded for context establishment",
-            extra={**context, "messages_found": messages_found},
+            extra={**logging_context, "messages_found": messages_found},
         )
 
         return True
@@ -285,27 +274,23 @@ async def establish_context_via_group_reading(
         if _is_message_not_found_error(error_msg):
             logger.debug(
                 "Message not found or deleted during group reading, but proceeding with context collection",
-                extra=context,
+                extra=logging_context,
             )
             return True
 
-        _log_mtproto_error(e, "group message reading", context, log_level=logging.DEBUG)
+        _log_mtproto_error(
+            e, "group message reading", logging_context, log_level=logging.DEBUG
+        )
         return False
 
     except Exception as e:
-        _log_unexpected_error(e, "group message reading", context)
+        _log_unexpected_error(e, "group message reading", logging_context)
         return False
 
 
 @logfire.instrument(extract_args=True)
 async def establish_context_via_thread_reading(
-    chat_id: int,
-    user_id: int,
-    message_thread_id: int,
-    reply_to_message_id: int,
-    chat_username: Optional[str] = None,
-    linked_chat_id: Optional[int] = None,
-    original_channel_post_id: Optional[int] = None,
+    context: PeerResolutionContext,
 ) -> bool:
     """
     Establish peer resolution context by reading messages from a discussion thread.
@@ -318,13 +303,7 @@ async def establish_context_via_thread_reading(
     over the discussion group (potentially private) to establish peer context.
 
     Args:
-        chat_id: Bot API chat ID of the discussion group
-        user_id: User ID for logging context
-        message_thread_id: Thread ID for the discussion thread
-        reply_to_message_id: ID of the message being replied to
-        chat_username: Optional username of the discussion group
-        linked_chat_id: Optional ID of the linked channel (preferred for reading)
-        original_channel_post_id: Optional ID of the original channel post
+        context: PeerResolutionContext object containing all resolution parameters
 
     Returns:
         bool: True if context was established successfully, False otherwise
@@ -332,28 +311,30 @@ async def establish_context_via_thread_reading(
     client = get_mtproto_client()
 
     # Determine reading strategy based on linked channel availability
-    if linked_chat_id:
+    if context.linked_chat_id:
         # Use the linked channel (public) for reading thread replies
-        target_chat_id = linked_chat_id
+        target_chat_id = context.linked_chat_id
         target_chat_username = None  # Channel username not needed for ID-based access
-        target_message_id = original_channel_post_id or reply_to_message_id
+        target_message_id = (
+            context.original_channel_post_id or context.reply_to_message_id
+        )
         context_source = CONTEXT_SOURCE_LINKED_CHANNEL
     else:
         # Fallback to discussion group (for backward compatibility)
-        target_chat_id = chat_id
-        target_chat_username = chat_username
-        target_message_id = reply_to_message_id
+        target_chat_id = context.chat_id
+        target_chat_username = context.chat_username
+        target_message_id = context.reply_to_message_id
         context_source = CONTEXT_SOURCE_DISCUSSION_GROUP
 
     chat_identifier = get_mtproto_chat_identifier(target_chat_id, target_chat_username)
-    context = _create_chat_context(
-        chat_id,
-        user_id,
-        reply_to_message_id,
-        chat_username,
-        message_thread_id=message_thread_id,
-        linked_chat_id=linked_chat_id,
-        original_channel_post_id=original_channel_post_id,
+    logging_context = _create_chat_context(
+        context.chat_id,
+        context.user_id,
+        context.reply_to_message_id,
+        context.chat_username,
+        message_thread_id=context.message_thread_id,
+        linked_chat_id=context.linked_chat_id,
+        original_channel_post_id=context.original_channel_post_id,
         target_chat_id=target_chat_id,
         target_message_id=target_message_id,
         context_source=context_source,
@@ -361,7 +342,9 @@ async def establish_context_via_thread_reading(
     )
 
     try:
-        logger.debug("Attempting thread-based context establishment", extra=context)
+        logger.debug(
+            "Attempting thread-based context establishment", extra=logging_context
+        )
 
         # Read recent messages in the thread to establish peer context
         # This includes messages from various users, helping with peer resolution
@@ -384,19 +367,22 @@ async def establish_context_via_thread_reading(
         messages_found = len(thread_result.get("messages", []))
         logger.debug(
             "Thread reading succeeded for context establishment",
-            extra={**context, "messages_found": messages_found},
+            extra={**logging_context, "messages_found": messages_found},
         )
 
         return True
 
     except MtprotoHttpError as e:
         _log_mtproto_error(
-            e, "thread-based context establishment", context, log_level=logging.DEBUG
+            e,
+            "thread-based context establishment",
+            logging_context,
+            log_level=logging.DEBUG,
         )
         return False
 
     except Exception as e:
-        _log_unexpected_error(e, "thread-based context establishment", context)
+        _log_unexpected_error(e, "thread-based context establishment", logging_context)
         return False
 
 
@@ -428,82 +414,47 @@ async def establish_peer_resolution_context(
         Context establishment is crucial for the user bot to resolve user IDs to peer information
         when collecting spam analysis context. Different chat types require different strategies.
     """
-    thread_type = determine_thread_type(
-        context.message_thread_id, context.is_topic_message
-    )
 
-    context_dict = create_peer_resolution_context(context)
-    context_dict["thread_type"] = thread_type
-    with logfire.span(
-        "Ensuring peer resolution context for user",
-        **context_dict,
-    ):
-        # Choose context establishment strategy based on message type
-        if context.message_thread_id and not context.is_topic_message:
-            return await _establish_context_for_discussion_thread(context_dict)
-        else:
-            return await _establish_context_for_group_message(context_dict)
+    context_dict = context.to_dict()
+    # Choose context establishment strategy based on message type
+    if context.message_thread_id and not context.is_topic_message:
+        # Discussion thread detected (channel reply), using thread-based peer resolution
+        logger.debug(
+            "Discussion thread detected (channel reply), using thread-based peer resolution",
+            extra=context_dict,
+        )
 
+        return await establish_context_via_thread_reading(context)
+    else:
+        # Regular group message or forum topic message, using subscription + group reading
+        message_type = (
+            "forum_topic" if context_dict.get("is_topic_message") else "regular_group"
+        )
+        logger.debug(
+            f"{message_type} message, using subscription + group reading",
+            extra=context_dict,
+        )
 
-async def _establish_context_for_discussion_thread(context: Dict[str, Any]) -> bool:
-    """
-    Establish context for discussion thread messages (replies to channel posts).
+        # Attempt join for public chats (only works if chat has username)
+        join_success = await attempt_user_bot_chat_join(
+            context_dict["chat_id"], context_dict.get("chat_username")
+        )
 
-    Uses thread-based reading strategy without attempting subscription,
-    as discussion threads are typically linked to public channels.
-    """
-    logger.debug(
-        "Discussion thread detected (channel reply), using thread-based peer resolution",
-        extra=context,
-    )
+        # Handle join results
+        if not join_success:
+            if context_dict.get("chat_username"):
+                # Subscription failed for a chat that has a username - unexpected
+                logger.warning(
+                    "User bot subscription failed for chat with username, skipping context collection",
+                    extra=context_dict,
+                )
+                return False
+            else:
+                # Chat has no username (private) - user bot might still have access if already member
+                logger.debug(
+                    "Chat has no username, proceeding with message reading (user bot may already have access)",
+                    extra=context_dict,
+                )
 
-    return await establish_context_via_thread_reading(
-        context["chat_id"],
-        context["user_id"],
-        context["message_thread_id"],
-        context["reply_to_message_id"],
-        context.get("chat_username"),
-        context.get("linked_chat_id"),
-        context.get("original_channel_post_id"),
-    )
-
-
-async def _establish_context_for_group_message(context: Dict[str, Any]) -> bool:
-    """
-    Establish context for regular group messages or forum topic messages.
-
-    Attempts user bot subscription for public chats, then uses direct message reading.
-    """
-    message_type = "forum_topic" if context.get("is_topic_message") else "regular_group"
-    logger.debug(
-        f"{message_type} message, using subscription + group reading", extra=context
-    )
-
-    # Attempt join for public chats (only works if chat has username)
-    join_success = await attempt_user_bot_chat_join(
-        context["chat_id"], context.get("chat_username")
-    )
-
-    # Handle join results
-    if not join_success:
-        if context.get("chat_username"):
-            # Subscription failed for a chat that has a username - unexpected
-            logger.warning(
-                "User bot subscription failed for chat with username, skipping context collection",
-                extra=context,
-            )
-            return False
-        else:
-            # Chat has no username (private) - user bot might still have access if already member
-            logger.debug(
-                "Chat has no username, proceeding with message reading (user bot may already have access)",
-                extra=context,
-            )
-
-    # Use group reading for context establishment
-    return await establish_context_via_group_reading(
-        context["chat_id"],
-        context["user_id"],
-        context["message_id"],
-        context.get("chat_username"),
-    )
+        # Use group reading for context establishment
+        return await establish_context_via_group_reading(context)
