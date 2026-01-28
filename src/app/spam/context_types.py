@@ -113,7 +113,6 @@ class PeerResolutionContext:
     linked_chat_id: Optional[int] = None
     original_channel_post_id: Optional[int] = None
 
-
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
         return {

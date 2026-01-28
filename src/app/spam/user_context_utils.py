@@ -23,18 +23,55 @@ logger = logging.getLogger(__name__)
 
 # Helper functions for error handling and logging
 def _is_user_already_participant_error(error_msg: str) -> bool:
-    """Check if error indicates user is already a participant."""
+    """Check if error indicates user is already a participant.
+
+    Checks for error patterns: 'user already participant' or 'already'.
+    """
     return ERROR_USER_ALREADY_PARTICIPANT in error_msg or ERROR_ALREADY in error_msg
 
 
 def _is_channel_private_error(error_msg: str) -> bool:
-    """Check if error indicates channel is private."""
+    """Check if error indicates channel is private.
+
+    Checks for error patterns: 'channel private' or 'private'.
+    """
     return ERROR_CHANNEL_PRIVATE in error_msg or ERROR_PRIVATE in error_msg
 
 
 def _is_message_not_found_error(error_msg: str) -> bool:
-    """Check if error indicates message was not found or deleted."""
+    """Check if error indicates message was not found or deleted.
+
+    Checks for error patterns: 'message not found' or 'message deleted'.
+    """
     return ERROR_MESSAGE_NOT_FOUND in error_msg or ERROR_MESSAGE_DELETED in error_msg
+
+
+def _should_skip_join_for_error(error_msg: str) -> bool:
+    """Determine if join should be skipped based on error type (Option 2B).
+
+    Considers the following permanent errors that indicate join should be skipped:
+    - Channel private errors
+    - Invalid channel/chat/peer errors
+
+    Args:
+        error_msg: The error message to evaluate
+
+    Returns:
+        True if join should be skipped due to permanent error, False otherwise
+    """
+    error_lower = error_msg.lower()
+
+    # Permanent errors - skip join
+    skip_patterns = [
+        ERROR_CHANNEL_PRIVATE,
+        ERROR_PRIVATE,
+        ERROR_USER_ALREADY_PARTICIPANT,  # This shouldn't happen in pre-check but included for completeness
+        ERROR_CHANNEL_INVALID,
+        ERROR_CHAT_ID_INVALID,
+        ERROR_PEER_ID_INVALID,
+    ]
+
+    return any(pattern in error_lower for pattern in skip_patterns)
 
 
 def _create_chat_context(
@@ -45,7 +82,7 @@ def _create_chat_context(
     **extra_fields: Any,
 ) -> Dict[str, Any]:
     """Create standardized logging context for chat-related operations."""
-    context = {"chat_id": chat_id}
+    context: Dict[str, Any] = {"chat_id": chat_id}
 
     if user_id is not None:
         context["user_id"] = user_id
@@ -98,6 +135,9 @@ ERROR_CHANNEL_PRIVATE = "channel private"
 ERROR_PRIVATE = "private"
 ERROR_MESSAGE_NOT_FOUND = "message not found"
 ERROR_MESSAGE_DELETED = "message deleted"
+ERROR_CHANNEL_INVALID = "channel invalid"
+ERROR_CHAT_ID_INVALID = "chat id invalid"
+ERROR_PEER_ID_INVALID = "peer id invalid"
 
 # Context source types
 CONTEXT_SOURCE_LINKED_CHANNEL = "linked_channel"
@@ -387,6 +427,174 @@ async def establish_context_via_thread_reading(
 
 
 @logfire.instrument(extract_args=True)
+async def check_membership_via_message_read(
+    context: PeerResolutionContext,
+) -> tuple[bool, Optional[str]]:
+    """
+    Check if user bot has membership in a chat by attempting to read a message.
+
+    This function performs a fast membership pre-check by trying to read a message
+    from the chat. If successful, the bot is confirmed to be a member and context
+    is already established.
+
+    Args:
+        context: PeerResolutionContext object containing all resolution parameters
+
+    Returns:
+        tuple[bool, Optional[str]]: (is_member, error_type)
+        - is_member=True if message read succeeds (bot is member)
+        - is_member=False, error_type=None if message not found/deleted (still member)
+        - is_member=False, error_type=str if access failed (error message)
+
+    Note:
+        Success includes "message not found" errors, as they indicate chat access.
+        Only access-denied errors indicate non-membership.
+    """
+    client = get_mtproto_client()
+    chat_identifier = get_mtproto_chat_identifier(
+        context.chat_id, context.chat_username
+    )
+    logging_context = _create_chat_context(
+        context.chat_id,
+        context.user_id,
+        context.message_id,
+        context.chat_username,
+        chat_identifier=chat_identifier,
+    )
+
+    logger.debug(
+        "Performing membership pre-check via message read",
+        extra=logging_context,
+    )
+
+    try:
+        # Use same parameters as establish_context_via_group_reading for consistency
+        message_result = await client.call(
+            "messages.getHistory",
+            params={
+                "peer": chat_identifier,
+                "offset_id": context.message_id + HISTORY_OFFSET_INCREMENT,
+                "offset_date": DEFAULT_OFFSET,
+                "add_offset": DEFAULT_OFFSET,
+                "limit": DEFAULT_MESSAGE_LIMIT,
+                "max_id": DEFAULT_OFFSET,
+                "min_id": DEFAULT_OFFSET,
+                "hash": DEFAULT_HASH,
+            },
+            resolve=True,
+        )
+
+        messages_found = len(message_result.get("messages", []))
+        logger.debug(
+            "Membership pre-check succeeded - bot is member",
+            extra={**logging_context, "messages_found": messages_found},
+        )
+
+        return True, None
+
+    except MtprotoHttpError as e:
+        error_msg = str(e).lower()
+
+        # Message not found/deleted is acceptable - bot is still a member
+        if _is_message_not_found_error(error_msg):
+            logger.debug(
+                "Message not found during membership pre-check, but bot has access",
+                extra=logging_context,
+            )
+            return True, None
+
+        # Other MTProto errors indicate access failure
+        logger.debug(
+            "Membership pre-check failed - bot is not a member",
+            extra={**logging_context, "error_type": error_msg},
+        )
+        return False, error_msg
+
+    except Exception as e:
+        # Unexpected errors - treat as access failure but log
+        error_msg = str(e).lower()
+        _log_unexpected_error(e, "membership pre-check", logging_context)
+        return False, error_msg
+
+
+@logfire.instrument(extract_args=True)
+async def _establish_context_for_regular_group_message(
+    context: PeerResolutionContext,
+) -> bool:
+    """
+    Establish peer resolution context for regular group messages or forum topics.
+
+    This function handles the complex logic for regular group messages:
+    - Performs membership pre-check via message reading for public chats
+    - Skips join if pre-check succeeds (context already established)
+    - Attempts join only if pre-check fails with transient errors
+    - Skips context collection for private chats (no username)
+
+    Args:
+        context: PeerResolutionContext object containing all resolution parameters
+
+    Returns:
+        bool: True if peer resolution context was established successfully, False otherwise
+    """
+    context_dict = context.to_dict()
+    message_type = "forum_topic" if context.is_topic_message else "regular_group"
+
+    # Handle private chats (no username) - assume getHistory failure, no join possible
+    if not context.chat_username:
+        logger.debug(
+            f"{message_type} message in private chat (no username), skipping context collection",
+            extra=context_dict,
+        )
+        return False
+
+    # Public chat with username - perform membership pre-check
+    logger.debug(
+        f"{message_type} message, performing membership pre-check before join",
+        extra=context_dict,
+    )
+
+    # Pre-check membership via message reading
+    is_member, error_type = await check_membership_via_message_read(context)
+
+    if is_member:
+        # Pre-check succeeded - context already established, skip join
+        logger.debug(
+            "Membership pre-check succeeded, skipping join",
+            extra=context_dict,
+        )
+        return True
+
+    # Pre-check failed - determine if we should attempt join
+    if error_type and _should_skip_join_for_error(error_type):
+        # Permanent error - skip join and log
+        logger.info(
+            f"Membership pre-check failed with permanent error, skipping join: {error_type}",
+            extra={**context_dict, "error_type": error_type},
+        )
+        return False
+    else:
+        # Transient error - attempt join
+        logger.debug(
+            f"Membership pre-check failed with transient error, attempting join: {error_type}",
+            extra={**context_dict, "error_type": error_type},
+        )
+
+        join_success = await attempt_user_bot_chat_join(
+            context.chat_id, context.chat_username
+        )
+
+        if not join_success:
+            logger.warning(
+                "User bot subscription failed after pre-check failure, skipping context collection",
+                extra=context_dict,
+            )
+            return False
+
+        # Join succeeded - establish context
+        return await establish_context_via_group_reading(context)
+
+
+@logfire.instrument(extract_args=True)
 async def establish_peer_resolution_context(
     context: PeerResolutionContext,
 ) -> bool:
@@ -401,8 +609,10 @@ async def establish_peer_resolution_context(
     - No subscription attempt needed as we read from public channels
 
     **Regular Group Messages** (standard group chats or forum topics):
-    - Attempts user bot subscription for public chats with usernames
-    - Falls back to direct message reading if subscription succeeds or chat is already accessible
+    - Performs membership pre-check via message reading for public chats
+    - Skips join if pre-check succeeds (context already established)
+    - Attempts join only if pre-check fails with transient errors
+    - Skips context collection for private chats (no username)
 
     Args:
         context: PeerResolutionContext object containing all resolution parameters
@@ -414,47 +624,14 @@ async def establish_peer_resolution_context(
         Context establishment is crucial for the user bot to resolve user IDs to peer information
         when collecting spam analysis context. Different chat types require different strategies.
     """
-
-    context_dict = context.to_dict()
     # Choose context establishment strategy based on message type
     if context.message_thread_id and not context.is_topic_message:
         # Discussion thread detected (channel reply), using thread-based peer resolution
         logger.debug(
             "Discussion thread detected (channel reply), using thread-based peer resolution",
-            extra=context_dict,
+            extra=context.to_dict(),
         )
-
         return await establish_context_via_thread_reading(context)
     else:
-        # Regular group message or forum topic message, using subscription + group reading
-        message_type = (
-            "forum_topic" if context_dict.get("is_topic_message") else "regular_group"
-        )
-        logger.debug(
-            f"{message_type} message, using subscription + group reading",
-            extra=context_dict,
-        )
-
-        # Attempt join for public chats (only works if chat has username)
-        join_success = await attempt_user_bot_chat_join(
-            context_dict["chat_id"], context_dict.get("chat_username")
-        )
-
-        # Handle join results
-        if not join_success:
-            if context_dict.get("chat_username"):
-                # Subscription failed for a chat that has a username - unexpected
-                logger.warning(
-                    "User bot subscription failed for chat with username, skipping context collection",
-                    extra=context_dict,
-                )
-                return False
-            else:
-                # Chat has no username (private) - user bot might still have access if already member
-                logger.debug(
-                    "Chat has no username, proceeding with message reading (user bot may already have access)",
-                    extra=context_dict,
-                )
-
-        # Use group reading for context establishment
-        return await establish_context_via_group_reading(context)
+        # Regular group message or forum topic message
+        return await _establish_context_for_regular_group_message(context)
