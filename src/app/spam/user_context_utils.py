@@ -350,11 +350,13 @@ async def establish_context_via_thread_reading(
     """
     client = get_mtproto_client()
 
-    # Determine reading strategy based on linked channel availability
-    if context.linked_chat_id:
-        # Use the linked channel (public) for reading thread replies
-        target_chat_id = context.linked_chat_id
-        target_chat_username = None  # Channel username not needed for ID-based access
+    # Determine reading strategy based on main channel availability
+    if context.main_channel_id:
+        # Use the main channel (public) for reading thread replies
+        target_chat_id = context.main_channel_id
+        target_chat_username = (
+            context.main_channel_username
+        )  # Use main channel username if available
         target_message_id = (
             context.original_channel_post_id or context.reply_to_message_id
         )
@@ -370,10 +372,10 @@ async def establish_context_via_thread_reading(
     logging_context = _create_chat_context(
         context.chat_id,
         context.user_id,
-        context.reply_to_message_id,
+        context.message_id,
         context.chat_username,
         message_thread_id=context.message_thread_id,
-        linked_chat_id=context.linked_chat_id,
+        main_channel_id=context.main_channel_id,
         original_channel_post_id=context.original_channel_post_id,
         target_chat_id=target_chat_id,
         target_message_id=target_message_id,

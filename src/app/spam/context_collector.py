@@ -30,7 +30,25 @@ def create_peer_resolution_context_from_message(
     chat_username = getattr(message.chat, "username", None)
     message_thread_id = getattr(message, "message_thread_id", None)
     is_topic_message = bool(getattr(message, "is_topic_message", False))
-    linked_chat_id = getattr(message.chat, "linked_chat_id", None)
+
+    # Initialize main channel info
+    main_channel_id = None
+    main_channel_username = None
+
+    # For discussion thread messages (replies to channel posts), extract channel info from reply_to_message
+    if (
+        message_thread_id
+        and not is_topic_message
+        and hasattr(message, "reply_to_message")
+        and message.reply_to_message
+    ):
+        reply_to = message.reply_to_message
+        # Check if reply_to_message has sender_chat (channel post in discussion)
+        if hasattr(reply_to, "sender_chat") and reply_to.sender_chat:
+            sender_chat = reply_to.sender_chat
+            if getattr(sender_chat, "type", None) == "channel":
+                main_channel_id = getattr(sender_chat, "id", None)
+                main_channel_username = getattr(sender_chat, "username", None)
 
     # Initialize reply metadata
     reply_to_message_id = None
@@ -57,7 +75,8 @@ def create_peer_resolution_context_from_message(
         message_thread_id=message_thread_id,
         reply_to_message_id=reply_to_message_id,
         is_topic_message=is_topic_message,
-        linked_chat_id=linked_chat_id,
+        main_channel_id=main_channel_id,
+        main_channel_username=main_channel_username,
         original_channel_post_id=original_channel_post_id,
     )
 

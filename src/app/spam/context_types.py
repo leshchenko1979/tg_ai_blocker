@@ -110,11 +110,12 @@ class PeerResolutionContext:
     message_thread_id: Optional[int] = None
     reply_to_message_id: Optional[int] = None
     is_topic_message: bool = False
-    linked_chat_id: Optional[int] = None
+    main_channel_id: Optional[int] = None
+    main_channel_username: Optional[str] = None
     original_channel_post_id: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for backward compatibility."""
+        """Convert to dictionary for logging and debugging."""
         return {
             "chat_id": self.chat_id,
             "user_id": self.user_id,
@@ -123,7 +124,8 @@ class PeerResolutionContext:
             "message_thread_id": self.message_thread_id,
             "reply_to_message_id": self.reply_to_message_id,
             "is_topic_message": self.is_topic_message,
-            "linked_chat_id": self.linked_chat_id,
+            "main_channel_id": self.main_channel_id,
+            "main_channel_username": self.main_channel_username,
             "original_channel_post_id": self.original_channel_post_id,
         }
 
