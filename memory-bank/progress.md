@@ -38,7 +38,6 @@
 - [ ] Advanced billing dashboard for admins.
 - [ ] More granular spam categories in reporting.
 - [ ] Subscription status caching to reduce MTProto API calls.
-- [x] **LLM Model Evaluation Baseline**: ✅ **Complete** - Established baseline performance metrics with comprehensive evaluation infrastructure. Current best model (google/gemma-3-27b-it:free) achieves 94.4% accuracy and 95.2% F1 score on balanced spam/legitimate classification tasks.
 
 ### Known Issues
 - [ ] `TelegramBadRequest` for "message to delete not found" can still be noisy in logs (harmless race condition).
