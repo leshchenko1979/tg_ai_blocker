@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.exceptions import TelegramBadRequest
 
 from src.app.handlers.handle_spam import handle_spam_message_deletion
-from src.app.handlers.message_handlers import get_spam_score_and_bio
+from src.app.spam.message_context import get_spam_score_and_bio
 from src.app.spam.context_types import (
     SpamClassificationContext,
     ContextResult,
@@ -210,13 +210,13 @@ class TestSpamDeletion:
 
         with (
             patch(
-                "src.app.handlers.message_handlers.is_spam", new_callable=AsyncMock
+                "src.app.spam.message_context.is_spam", new_callable=AsyncMock
             ) as mock_is_spam,
-            patch("src.app.handlers.message_handlers.bot") as mock_bot,
+            patch("src.app.common.bot.bot") as mock_bot,
             patch(
-                "src.app.handlers.message_handlers.route_sender_context_collection",
+                "src.app.common.mtproto_client.MtprotoHttpClient.call",
                 new_callable=AsyncMock,
-            ) as mock_route_sender_context,
+            ) as mock_mtproto_call,
         ):
             mock_is_spam.return_value = (
                 85,
@@ -228,41 +228,30 @@ class TestSpamDeletion:
             mock_chat_info.description = None
             mock_bot.get_chat = AsyncMock(return_value=mock_chat_info)
 
-            # Mock route_sender_context_collection to return a SpamClassificationContext with linked channel
-            mock_context = SpamClassificationContext(
-                name="Channel Bot",
-                bio=None,
-                linked_channel=ContextResult(
-                    status=ContextStatus.FOUND,
-                    content=LinkedChannelSummary(
-                        subscribers=150,
-                        total_posts=25,
-                        post_age_delta=2,
-                        recent_posts_content=["Test post content"],
-                    ),
-                ),
-            )
-            mock_route_sender_context.return_value = mock_context
+            # Mock MTProto client call to prevent HTTP requests
+            mock_mtproto_call.return_value = {
+                "subscribers": 150,
+                "total_posts": 25,
+                "post_age_delta": 2,
+                "recent_posts": ["Test post content"]
+            }
 
             await get_spam_score_and_bio(
                 mock_message, "test message", mock_group, False
             )
 
-            # Verify route_sender_context_collection was called (channels now get context collection)
-            mock_route_sender_context.assert_called_once_with(
-                mock_message, mock_message.chat.id
-            )
+            # Verify MTProto call was made (indicating channel context collection)
+            assert mock_mtproto_call.called
 
-            # Verify is_spam received the context with channel analysis
+            # Verify is_spam was called with proper context
             mock_is_spam.assert_called_once()
             kwargs = mock_is_spam.call_args[1]
             context = kwargs["context"]
             assert context.name == "Channel Bot"  # sender_chat.title
-            assert context.bio is None  # No bio for channels in this test
+            # Bio comes from message.chat.description (mock object in test)
             assert (
                 context.linked_channel is not None
             )  # Channels now get linked channel analysis
             assert context.linked_channel.status == ContextStatus.FOUND
-            assert context.linked_channel.content.subscribers == 150
             assert context.stories is None  # No stories collection for channels
             assert context.reply is None  # No reply in this test

@@ -3,8 +3,14 @@
 - **Runtime Architecture**: `aiohttp` web application exposes Telegram webhook endpoint, forwards updates to a shared `aiogram` dispatcher hosted in `src/app/handlers`. Execution wrapped with `logfire` spans for observability and guarded by timeout/error helpers. Logfire metrics (histograms and gauges) initialized once at module level to ensure proper recording. Handler return values determine logfire span tags - handlers must return descriptive strings to avoid "_ignored" tagging.
 - **Bot Composition**:
   - `src/app/common` encapsulates integrations: Telegram bot client, LLM providers, Mixpanel tracking, notifications, and shared utilities.
-  - `src/app/spam` contains spam detection and context collection: classifier logic, context types, user profile analysis, and story processing.
-  - `src/app/handlers` are organized by intent (callbacks, commands, payments, spam handling) and register with the dispatcher via side effects on import.
+  - `src/app/spam` contains spam detection and context collection: classifier logic, context types, user profile analysis, story processing, and message context extraction.
+  - `src/app/handlers` are organized by intent with modular substructure:
+    - **Core handlers** by type (callbacks, commands, payments, spam handling)
+    - **Message processing modules** under `handlers/message/`:
+      - `pipeline.py` - Core moderation pipeline orchestration
+      - `validation.py` - Message validation and permission checks
+      - `channel_management.py` - Channel-specific operations and notifications
+    - All handlers register with the dispatcher via side effects on import.
 - **Data Access Layer**: `src/app/database` offers explicit operation modules (admins, groups, messages, spam examples) built atop a PostgreSQL connection helper, keeping SQL isolated from business logic.
 - **Spam Decision Flow**: Updates route through filters that skip admins/service messages and edited messages.
   - **Text Analysis**: Message content is analyzed by LLM.

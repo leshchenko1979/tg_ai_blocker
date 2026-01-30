@@ -16,7 +16,7 @@ from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.utils import retry_on_network_error, sanitize_html
 from ..database import get_group, update_group_admins
 from .dp import dp
-from .message_handlers import send_wrong_channel_addition_instruction
+from .message.channel_management import notify_channel_admins_and_leave
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> str:
             "member",
             "restricted",
         ]:
-            await send_wrong_channel_addition_instruction(event.chat, bot)
+            await notify_channel_admins_and_leave(event.chat, bot)
 
         return result_tag
 

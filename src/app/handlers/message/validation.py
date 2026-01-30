@@ -1,0 +1,238 @@
+"""
+Message validation and filtering logic.
+
+This module contains functions for validating messages, checking user permissions,
+and determining whether messages should be processed for moderation.
+"""
+
+import logging
+from typing import Optional, Tuple
+
+from aiogram import types
+
+from ...common.bot import bot
+from ...common.tracking import track_group_event
+from ...database import get_group, is_member_in_group
+from ...database.models import Group
+
+logger = logging.getLogger(__name__)
+
+
+def determine_effective_user_id(message: types.Message) -> Optional[int]:
+    """
+    Determine the effective user ID for moderation.
+
+    For channel messages (sender_chat), use channel ID unless it's the group itself (anonymous admin).
+    For regular users, use their user ID.
+
+    Args:
+        message: The Telegram message to analyze
+
+    Returns:
+        The effective user ID for moderation, or None if not available
+    """
+    if message.sender_chat and message.sender_chat.id != message.chat.id:
+        return message.sender_chat.id
+    elif message.from_user:
+        return message.from_user.id
+    return None
+
+
+async def validate_group_and_permissions(
+    chat_id: int, user_id: int
+) -> Tuple[Optional[Group], str]:
+    """
+    Get group and perform early permission checks.
+
+    Args:
+        chat_id: The chat ID to validate
+        user_id: The user ID to check permissions for
+
+    Returns:
+        Tuple of (group, error_reason) where error_reason is empty string if valid
+    """
+    group, group_error = await get_and_check_group(chat_id)
+    if group_error:
+        return None, group_error
+
+    # At this point group is guaranteed to be not None
+    assert group is not None
+
+    # Check if sender is an admin - skip immediately
+    if user_id in group.admin_ids:
+        await track_group_event(
+            chat_id, "message_from_admin_skipped", {"user_id": user_id}
+        )
+        return group, "message_from_admin_skipped"
+
+    # Check if sender is approved
+    if await check_known_member(chat_id, user_id):
+        return group, "message_known_member_skipped"
+
+    return group, ""
+
+
+async def check_skip_channel_bot_message(message: types.Message) -> Tuple[bool, str]:
+    """
+    Check if message from channel bot should be skipped in discussion groups.
+
+    Channel messages posted by the channel itself (not users) should be skipped
+    in discussion groups to avoid moderation of official channel posts.
+
+    Args:
+        message: The message to check
+
+    Returns:
+        Tuple of (should_skip, reason) where reason is empty if not skipped
+    """
+    if not message.sender_chat:
+        return False, ""
+
+    # Check if admin is posting as group (anonymous admin)
+    if is_admin_posting_as_group(message):
+        logger.debug(
+            f"Skip moderation for message {message.message_id} "
+            f"from admin posting as group {message.sender_chat.id} "
+            f"in chat {message.chat.id}"
+        )
+        return True, "message_from_group_admin_skipped"
+
+    # Get initial linked chat ID
+    linked_chat_id = getattr(message.chat, "linked_chat_id", None)
+
+    # Check if it's already a channel bot message
+    if is_channel_bot_in_discussion(message, linked_chat_id):
+        logger.debug(
+            f"Skip moderation for message {message.message_id} "
+            f"from channel bot {message.sender_chat.id} "
+            f"in discussion group {message.chat.id}"
+        )
+        return True, "message_from_channel_bot_skipped"
+
+    # Attempt API fetch if needed
+    if should_attempt_api_fetch(message, linked_chat_id):
+        linked_chat_id = await fetch_linked_chat_id(message.chat.id)
+        logger.debug(f"Fetched linked_chat_id via API: {linked_chat_id}")
+
+        if is_channel_bot_in_discussion(message, linked_chat_id):
+            logger.debug(
+                f"Skip moderation for message {message.message_id} "
+                f"from channel bot {message.sender_chat.id} "
+                f"in discussion group {message.chat.id} (with API fallback)"
+            )
+            return True, "message_from_channel_bot_skipped"
+
+    return False, ""
+
+
+def is_admin_posting_as_group(message: types.Message) -> bool:
+    """
+    Check if message is from admin posting as group (anonymous admin).
+
+    Args:
+        message: The message to check
+
+    Returns:
+        True if admin is posting as group, False otherwise
+    """
+    return message.sender_chat is not None and message.sender_chat.id == message.chat.id
+
+
+async def fetch_linked_chat_id(chat_id: int) -> Optional[int]:
+    """
+    Fetch linked chat ID for a supergroup via Telegram API.
+
+    Args:
+        chat_id: The chat ID to fetch linked chat for
+
+    Returns:
+        Linked chat ID if found, None otherwise
+    """
+    try:
+        chat_info = await bot.get_chat(chat_id)
+        return getattr(chat_info, "linked_chat_id", None)
+    except Exception as e:
+        logger.warning(f"Failed to fetch linked_chat_id via API: {e}")
+        return None
+
+
+def is_channel_bot_in_discussion(
+    message: types.Message, linked_chat_id: Optional[int]
+) -> bool:
+    """
+    Check if channel bot is posting in its discussion group.
+
+    Args:
+        message: The message to check
+        linked_chat_id: The linked chat ID of the discussion group
+
+    Returns:
+        True if channel bot is posting in discussion group, False otherwise
+    """
+    return (
+        linked_chat_id is not None
+        and message.sender_chat is not None
+        and message.sender_chat.id == linked_chat_id
+    )
+
+
+def should_attempt_api_fetch(
+    message: types.Message, linked_chat_id: Optional[int]
+) -> bool:
+    """
+    Determine if we should attempt to fetch linked_chat_id via API.
+
+    Args:
+        message: The message to check
+        linked_chat_id: Current linked chat ID (if any)
+
+    Returns:
+        True if API fetch should be attempted, False otherwise
+    """
+    return (
+        linked_chat_id is None
+        and getattr(message.chat, "type", None) == "supergroup"
+        and getattr(message.sender_chat, "type", None) == "channel"
+    )
+
+
+async def get_and_check_group(chat_id: int) -> Tuple[Optional[Group], Optional[str]]:
+    """
+    Get group and check if moderation is enabled.
+
+    Args:
+        chat_id: The chat ID to look up
+
+    Returns:
+        Tuple of (group, error_reason) where error_reason is empty string if valid
+    """
+    group = await get_group(chat_id)
+
+    if not group:
+        logger.error(f"Group not found for chat {chat_id}")
+        return None, "error_message_group_not_found"
+
+    if not group.moderation_enabled:
+        await track_group_event(chat_id, "message_skipped_moderation_disabled", {})
+        return None, "message_moderation_disabled"
+
+    return group, None
+
+
+async def check_known_member(chat_id: int, user_id: int) -> bool:
+    """
+    Check if user is already approved/known in the group.
+
+    Args:
+        chat_id: The chat ID
+        user_id: The user ID to check
+
+    Returns:
+        True if user is approved, False otherwise
+    """
+    if await is_member_in_group(chat_id, user_id):
+        await track_group_event(
+            chat_id, "message_skipped_known_member", {"user_id": user_id}
+        )
+        return True
+    return False
