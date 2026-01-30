@@ -24,39 +24,25 @@ _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 # Global variable to track the currently active OpenRouter model for round-robin
 logger = logging.getLogger(__name__)
 
-# Available OpenRouter models (commented entries show historical performance data)
-# Format: model_name, success/total_attempts or reason for removal
+# Available OpenRouter models - actively maintained free models
 MODELS = [
-    # "qwen/qwen3-14b:free", 74/47
-    # "google/gemma-3-12b-it:free", Context window 8K - too small
-    # "google/gemma-3-27b-it:free", 404 error
-    # "nvidia/nemotron-nano-9b-v2:free", false positives
-    # "deepseek/deepseek-chat-v3.1:free", success rate 0%
-    # "openai/gpt-oss-120b:free", success rate 0%
-    # "z-ai/glm-4.5-air:free", success rate 57.14%
-    # "qwen/qwen3-coder:free", success rate 37.5%
-    # "moonshotai/kimi-k2:free", success rate 0%
-    # "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", success rate 20%
-    # "tencent/hunyuan-a13b-instruct:free", success rate 0%
-    # "mistralai/mistral-small-3.2-24b-instruct:free", success rate 50%
-    # "deepseek/deepseek-r1-0528:free", success rate 0%
-    # "qwen/qwen3-235b-a22b:free", success rate 37.5%
-    # "deepseek/deepseek-chat-v3-0324:free", 53/9
-    # "google/gemini-2.0-flash-exp:free", 57/25
-    # "minimax/minimax-m2:free", removed by OpenRouter
-    # "kwaipilot/kat-coder-pro:free", free period ended on Jan 12, 2026
-    # "openai/gpt-oss-20b:free", rate limited upstream too often
-    # "tngtech/deepseek-r1t2-chimera:free", success rate 40%
-    # "qwen/qwen3-30b-a3b:free", removed by OpenRouter
-    # "arcee-ai/trinity-mini:free", too many false positives
-    # "mistralai/devstral-2512:free", success rate 77%
     "nvidia/nemotron-3-nano-30b-a3b:free",
-    # "xiaomi/mimo-v2-flash:free", trial ended
-    # "qwen/qwen3-coder:free",  success rate 42%
     "meta-llama/llama-3.3-70b-instruct:free",
     "upstage/solar-pro-3:free",
     "arcee-ai/trinity-large-preview:free",
 ]
+
+# Historical models (removed for various reasons):
+# - Context window too small: google/gemma-3-12b-it:free
+# - API errors (404/removed by provider): google/gemma-3-27b-it:free, minimax/minimax-m2:free, qwen/qwen3-30b-a3b:free
+# - Poor performance/false positives: nvidia/nemotron-nano-9b-v2:free, arcee-ai/trinity-mini:free
+# - Low success rate (0-40%): deepseek/deepseek-chat-v3.1:free, openai/gpt-oss-120b:free, moonshotai/kimi-k2:free,
+#   tencent/hunyuan-a13b-instruct:free, deepseek/deepseek-r1-0528:free, cognitivecomputations/dolphin-mistral-24b-venice-edition:free
+# - Rate limiting issues: openai/gpt-oss-20b:free
+# - Trial/free period ended: xiaomi/mimo-v2-flash:free, kwaipilot/kat-coder-pro:free (Jan 12, 2026)
+# - Mixed results (37-77% success): qwen/qwen3-14b:free, qwen/qwen3-coder:free, qwen/qwen3-235b-a22b:free,
+#   deepseek/deepseek-chat-v3-0324:free, google/gemini-2.0-flash-exp:free, tngtech/deepseek-r1t2-chimera:free,
+#   mistralai/devstral-2512:free, z-ai/glm-4.5-air:free, mistralai/mistral-small-3.2-24b-instruct:free
 
 
 # Initialize with a random model from the available list
@@ -113,6 +99,9 @@ class ModelNotFound(LLMException):
         super().__init__(f"Model not found or unavailable: {model}")
 
 
+# ===== Error Handling Functions =====
+
+
 async def _handle_rate_limit_exception(
     exception: RateLimitExceeded, current_model: str
 ) -> None:
@@ -125,7 +114,6 @@ async def _handle_rate_limit_exception(
         exception: The RateLimitExceeded exception with reset time info
         current_model: The model that hit the rate limit
     """
-    """Handle rate limit exceptions with appropriate waiting or model switching logic."""
     if exception.is_upstream_error:
         # For upstream provider rate limits, immediately try next model
         logger.info(
@@ -158,6 +146,51 @@ async def _handle_rate_limit_exception(
     )
 
 
+def _extract_rate_limit_reset_time(
+    response: Optional[aiohttp.ClientResponse] = None,
+    error_metadata: Optional[Dict[str, Any]] = None,
+) -> int:
+    """Extract rate limit reset time from response headers or error metadata.
+
+    Args:
+        response: Optional aiohttp response object to check headers
+        error_metadata: Optional error metadata from response body
+
+    Returns:
+        Reset time as Unix timestamp in milliseconds
+    """
+    reset_time_str = None
+
+    # Try to get from error metadata first (for body-based errors)
+    if error_metadata:
+        headers_data = error_metadata.get("headers", {})
+        reset_time_str = headers_data.get("X-RateLimit-Reset")
+
+    # Fall back to response headers if available
+    if not reset_time_str and response and "X-RateLimit-Reset" in response.headers:
+        reset_time_str = response.headers["X-RateLimit-Reset"]
+
+    # Convert to int if we have a string, otherwise use fallback
+    if reset_time_str:
+        try:
+            return int(reset_time_str)
+        except (ValueError, TypeError):
+            logger.warning(
+                "Invalid reset time format: %s, using fallback",
+                reset_time_str,
+            )
+
+    # Use current time + fallback seconds as final fallback
+    fallback_time = int(
+        (time.time() + FALLBACK_RESET_SECONDS) * MILLISECONDS_MULTIPLIER
+    )
+    logger.warning(
+        "Rate limit hit but reset time not available, using fallback: %s",
+        fallback_time,
+    )
+    return fallback_time
+
+
 def _handle_http_errors(
     response: aiohttp.ClientResponse, result: Optional[Dict[str, Any]], model: str
 ) -> None:
@@ -174,28 +207,12 @@ def _handle_http_errors(
         aiohttp.ClientResponseError: For other HTTP errors
     """
     if response.status == 429:
-        # Rate limit exceeded - parse reset time from error response
-        reset_time = None
+        # Rate limit exceeded - extract reset time
+        error_metadata = None
         if result and "error" in result:
-            error_data = result["error"]
-            metadata = error_data.get("metadata", {})
-            headers_data = metadata.get("headers", {})
-            reset_time = headers_data.get("X-RateLimit-Reset")
+            error_metadata = result["error"].get("metadata", {})
 
-        # Fallback to response headers if not in body
-        if not reset_time and "X-RateLimit-Reset" in response.headers:
-            reset_time = response.headers["X-RateLimit-Reset"]
-
-        # Use current time + fallback seconds as fallback if reset_time not available
-        if not reset_time:
-            reset_time = int(
-                (time.time() + FALLBACK_RESET_SECONDS) * MILLISECONDS_MULTIPLIER
-            )
-            logger.warning(
-                "Rate limit hit but reset time not available, using fallback: %s",
-                reset_time,
-            )
-
+        reset_time = _extract_rate_limit_reset_time(response, error_metadata)
         raise RateLimitExceeded(reset_time, is_upstream_error=False)
 
     elif response.status == 404:
@@ -219,22 +236,13 @@ def _process_response_errors(result: Dict[str, Any], model: str) -> None:
         ModelNotFound: For 404 errors in response body
         RuntimeError: For other API errors
     """
-    """Process and raise appropriate exceptions for errors found in OpenRouter response body."""
     if err := result.get("error"):
         error_code = err.get("code")
         if error_code == 429:
             # Rate limit error in response body
-            metadata = err.get("metadata", {})
-            headers_data = metadata.get("headers", {})
-            reset_time = headers_data.get("X-RateLimit-Reset")
-            # Use current time + fallback seconds as fallback if reset_time not available
-            if not reset_time:
-                reset_time = int(
-                    (time.time() + FALLBACK_RESET_SECONDS) * MILLISECONDS_MULTIPLIER
-                )
-                logger.warning(
-                    "Rate limit error in body but reset time not available, using fallback"
-                )
+            reset_time = _extract_rate_limit_reset_time(
+                error_metadata=err.get("metadata", {})
+            )
             logger.warning(
                 "OpenRouter returned 429 error in body: %s (model=%s)",
                 err,
@@ -256,6 +264,9 @@ def _process_response_errors(result: Dict[str, Any], model: str) -> None:
                 model,
             )
             raise RuntimeError(f"OpenRouter error: {err}")
+
+
+# ===== Public API Functions =====
 
 
 def round_robin_with_start(models: List[str], start_model: Optional[str] = None):
@@ -283,6 +294,9 @@ def round_robin_with_start(models: List[str], start_model: Optional[str] = None)
         yield models[idx]
         idx = (idx + 1) % n
         logger.debug("Round-robin switched to model: %s", models[idx])
+
+
+# ===== Main API Function =====
 
 
 @logfire.instrument()
@@ -315,18 +329,28 @@ async def get_openrouter_response(
         "Content-Type": "application/json",
     }
 
-    model_gen = round_robin_with_start(MODELS, _current_model)
     most_recent_exception = None
+    num_models = len(MODELS)
+
+    # Find starting index for current model
+    try:
+        start_idx = MODELS.index(_current_model)
+    except ValueError:
+        start_idx = 0
 
     # Use global SSL context for connection reuse
     connector = aiohttp.TCPConnector(ssl=_SSL_CONTEXT)
 
     async with aiohttp.ClientSession(connector=connector) as session:
-        for attempt in range(MAX_RETRY_ATTEMPTS):
-            _current_model = next(model_gen)
+        # Try each model once, but allow retries for rate limits
+        for model_idx in range(num_models):
+            current_model_idx = (start_idx + model_idx) % num_models
+            current_model = MODELS[current_model_idx]
+            _current_model = current_model
+
             try:
                 result = await _request_openrouter(
-                    _current_model,
+                    current_model,
                     messages,
                     headers,
                     session,
@@ -334,44 +358,34 @@ async def get_openrouter_response(
                     response_format,
                 )
                 # Check for errors in response body
-                _process_response_errors(result, _current_model)
+                _process_response_errors(result, current_model)
 
-                return _extract_content(result, _current_model)
+                return _extract_content(result, current_model)
 
             except RateLimitExceeded as e:
-                await _handle_rate_limit_exception(e, _current_model)
+                await _handle_rate_limit_exception(e, current_model)
                 if not e.is_upstream_error and e.reset_time:
-                    # After waiting for rate limit, retry the same model
-                    reset_time_seconds = int(e.reset_time) / MILLISECONDS_MULTIPLIER
-                    wait_time = reset_time_seconds - time.time()
-                    if wait_time > 0:
-                        model_gen = round_robin_with_start(MODELS, _current_model)
-                        _current_model = next(
-                            model_gen
-                        )  # Get same model again for retry
+                    # For OpenRouter rate limits, we already waited in _handle_rate_limit_exception
+                    # Retry the same model after waiting
+                    model_idx -= 1  # Retry same model index
                 most_recent_exception = e
                 continue
 
-            except ModelNotFound as e:
-                # Model not available, skip to next model
-                logger.info(
-                    "Model %s not found or unavailable, trying next model", e.model
+            except (ModelNotFound, TimeoutError) as e:
+                # Skip to next model immediately for unavailable models or timeouts
+                error_msg = (
+                    f"Model {current_model} not found or unavailable"
+                    if isinstance(e, ModelNotFound)
+                    else f"Timeout occurred with model {current_model}"
                 )
-                most_recent_exception = e
-                continue
-
-            except TimeoutError as e:
-                # Timeout occurred, switch to next model immediately
-                logger.warning(
-                    "Timeout occurred with model %s, switching to next model", _current_model
-                )
+                logger.warning("%s, trying next model", error_msg)
                 most_recent_exception = e
                 continue
 
             except Exception as e:
                 most_recent_exception = e
                 logger.warning(
-                    "Unexpected error with model %s: %s", _current_model, str(e)
+                    "Unexpected error with model %s: %s", current_model, str(e)
                 )
                 continue
 
