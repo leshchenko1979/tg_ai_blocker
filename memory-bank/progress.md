@@ -23,7 +23,7 @@
 - **Testing Infrastructure**: ✅ **Complete** - Proper separation of unit tests (93) from integration tests. pytest.ini addopts correctly excludes integration tests from deployment. All integration tests properly marked with `@pytest.mark.integration`.
 - **Documentation**: ✅ **Updated PRD** - `PRD.md` synchronized with codebase and memory bank.
 - **MTProto Optimization**: ✅ **Peer Resolution Optimized** - Eliminated 90%+ failing numeric ID calls by requiring username-only resolution.
-- **Logfire Message Lookup**: ✅ **Integration Test Created** - Added `test_logfire_message_lookup.py` that proves the system can successfully recover forwarded channel messages from Logfire traces, even when forward metadata extraction fails initially.
+- **Logfire Message Lookup**: ✅ **Improved** - Added support for recovering edited messages and implemented robust text matching using `LIKE` patterns that bypass hidden characters (e.g., zero-width spaces/word joiners).
 - Hidden User ID Recovery
 - **Edited Message Handling**: ✅ **Added Handler for Edited Messages** - Edited messages now return "edited_message_ignored" tag instead of generic "unhandled" for better Logfire observability. Handler does nothing else - edited messages are not moderated.
     - **Landing Page**: ✅ **Complete** - Professional Russian landing page with Tailwind CSS, real spam examples, FAQ, strong CTA, optimized styling, improved accessibility, and automated CI/CD deployment to GitHub Pages. Explicitly emphasizes Telegram spam protection.

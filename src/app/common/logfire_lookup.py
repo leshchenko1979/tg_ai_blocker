@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Sequence
 
@@ -29,6 +30,85 @@ def _get_client() -> LogfireQueryClient:
             )
         _client = LogfireQueryClient(token)
     return _client
+
+
+def _build_text_matching_condition(message_text: str) -> str:
+    """
+    Build a robust SQL text matching condition that handles hidden characters.
+
+    This function implements a multi-strategy approach:
+    1. First, extract distinctive words from the message text
+    2. Create a LIKE pattern that joins words with wildcards to bypass hidden characters
+    3. Fall back to substring matching if no distinctive words are found
+
+    The LIKE pattern approach is crucial because it allows matching text that contains
+    zero-width spaces, word joiners, or other invisible Unicode characters that might
+    be inserted by spam bots to evade detection.
+
+    Args:
+        message_text: The text content to create matching conditions for
+
+    Returns:
+        SQL condition string for text matching in WHERE clause
+    """
+    # Extract distinctive words from the first paragraph (limited to 150 chars)
+    # This focuses on the most relevant content while avoiding noise from long messages
+    first_paragraph = message_text.split("\n\n")[0][:150]
+    distinctive_words = re.findall(r"\w+", first_paragraph)
+
+    if distinctive_words:
+        # Create a robust LIKE pattern by joining first 10 words with wildcards
+        # This allows matching even if hidden characters are inserted between words
+        # Example: ["hello", "world", "spam"] -> "%hello%world%spam%"
+        word_pattern = "%".join(distinctive_words[:10])
+
+        # Escape single quotes for SQL safety
+        escaped_pattern = word_pattern.replace("'", "''")
+
+        return f"""
+        (
+            attributes->'update'->'message'->>'text' LIKE '%{escaped_pattern}%'
+            OR attributes->'update'->'message'->>'caption' LIKE '%{escaped_pattern}%'
+            OR attributes->'update'->'edited_message'->>'text' LIKE '%{escaped_pattern}%'
+            OR attributes->'update'->'edited_message'->>'caption' LIKE '%{escaped_pattern}%'
+        )
+        """
+
+    else:
+        # Fallback: Use substring matching for messages with no alphanumeric content
+        # This handles cases like emoji-only messages or messages with special characters
+        text_sample = message_text[:100].replace("'", "''")
+
+        return f"""
+        (
+            position('{text_sample}' in attributes->'update'->'message'->>'text') > 0
+            OR position('{text_sample}' in attributes->'update'->'message'->>'caption') > 0
+            OR position('{text_sample}' in attributes->'update'->'edited_message'->>'text') > 0
+            OR position('{text_sample}' in attributes->'update'->'edited_message'->>'caption') > 0
+        )
+        """
+
+
+def _build_user_id_condition(user_id: Optional[int]) -> str:
+    """
+    Build SQL condition for user ID filtering.
+
+    Args:
+        user_id: User ID to filter by, or None to skip filtering
+
+    Returns:
+        SQL condition string for user ID filtering
+    """
+    if user_id is not None:
+        return f"""
+        AND (
+            COALESCE(
+                (attributes->'update'->'message'->'from'->>'id')::bigint,
+                (attributes->'update'->'edited_message'->'from'->>'id')::bigint
+            ) = {user_id}
+        )
+        """
+    return ""
 
 
 async def find_original_message(
@@ -61,33 +141,40 @@ async def find_original_message(
     # Build the SQL query with string formatting (client doesn't support parameterized queries)
     chat_ids_str = ", ".join(f"'{chat_id}'" for chat_id in admin_chat_ids)
 
-    # Use a more robust text matching approach - look for key distinctive phrases
-    # Extract the first distinctive sentence that should be unique enough
-    text_sample = message_text.split("\n\n")[0][:150].replace("'", "''")
+    # Build text matching condition using robust approach that handles hidden characters
+    text_condition = _build_text_matching_condition(message_text)
 
-    # Build user_id condition only if provided
-    user_id_condition = ""
-    if user_id is not None:
-        user_id_condition = (
-            f"AND (attributes->'update'->'message'->'from'->>'id')::bigint = {user_id}"
-        )
+    # Build user ID condition if provided
+    user_id_condition = _build_user_id_condition(user_id)
 
     sql = f"""
     SELECT
-        (attributes->'update'->'message'->>'message_id')::bigint as message_id,
-        (attributes->'update'->'message'->'chat'->>'id')::bigint as chat_id,
-        (attributes->'update'->'message'->'from'->>'id')::bigint as user_id,
+        COALESCE(
+            (attributes->'update'->'message'->>'message_id')::bigint,
+            (attributes->'update'->'edited_message'->>'message_id')::bigint
+        ) as message_id,
+        COALESCE(
+            (attributes->'update'->'message'->'chat'->>'id')::bigint,
+            (attributes->'update'->'edited_message'->'chat'->>'id')::bigint
+        ) as chat_id,
+        COALESCE(
+            (attributes->'update'->'message'->'from'->>'id')::bigint,
+            (attributes->'update'->'edited_message'->'from'->>'id')::bigint
+        ) as user_id,
         start_timestamp
     FROM records
     WHERE
         attributes->'update' IS NOT NULL
-        AND attributes->'update'->'message' IS NOT NULL
-        {user_id_condition}
         AND (
-            position('{text_sample}' in attributes->'update'->'message'->>'text') > 0
-            OR position('{text_sample}' in attributes->'update'->'message'->>'caption') > 0
+            attributes->'update'->'message' IS NOT NULL 
+            OR attributes->'update'->'edited_message' IS NOT NULL
         )
-        AND (attributes->'update'->'message'->'chat'->>'id')::bigint IN ({chat_ids_str})
+        {user_id_condition}
+        AND {text_condition}
+        AND COALESCE(
+            (attributes->'update'->'message'->'chat'->>'id')::bigint,
+            (attributes->'update'->'edited_message'->'chat'->>'id')::bigint
+        ) IN ({chat_ids_str})
         AND start_timestamp >= '{start_time.isoformat()}'
     ORDER BY start_timestamp DESC
     LIMIT 1
@@ -142,7 +229,7 @@ async def find_spam_classification_context(
     user_id: Optional[int],
     forward_date: datetime,
     search_days_back: int = 3,
-) -> Optional[Dict[str, str | None]]:
+) -> Optional[Dict[str, Optional[str]]]:
     """
     Query Logfire to find the spam classification context for a message.
 
@@ -159,12 +246,8 @@ async def find_spam_classification_context(
     """
     start_time = forward_date - timedelta(days=search_days_back)
 
-    # Build user_id condition only if provided
-    user_id_condition = ""
-    if user_id is not None:
-        user_id_condition = (
-            f"AND (attributes->'update'->'message'->'from'->>'id')::bigint = {user_id}"
-        )
+    # Build user ID condition if provided
+    user_id_condition = _build_user_id_condition(user_id)
 
     sql = f"""
     SELECT
@@ -175,8 +258,14 @@ async def find_spam_classification_context(
     FROM records
     WHERE
         attributes->'function_name' = '"is_spam"'
-        AND attributes->'update'->'message'->>'message_id' = '{message_id}'
-        AND (attributes->'update'->'message'->'chat'->>'id')::bigint = {chat_id}
+        AND (
+            attributes->'update'->'message'->>'message_id' = '{message_id}'
+            OR attributes->'update'->'edited_message'->>'message_id' = '{message_id}'
+        )
+        AND COALESCE(
+            (attributes->'update'->'message'->'chat'->>'id')::bigint,
+            (attributes->'update'->'edited_message'->'chat'->>'id')::bigint
+        ) = {chat_id}
         {user_id_condition}
         AND start_timestamp >= '{start_time.isoformat()}'
     ORDER BY start_timestamp DESC
