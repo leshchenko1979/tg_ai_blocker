@@ -360,6 +360,14 @@ async def get_openrouter_response(
                 most_recent_exception = e
                 continue
 
+            except TimeoutError as e:
+                # Timeout occurred, switch to next model immediately
+                logger.warning(
+                    "Timeout occurred with model %s, switching to next model", _current_model
+                )
+                most_recent_exception = e
+                continue
+
             except Exception as e:
                 most_recent_exception = e
                 logger.warning(
