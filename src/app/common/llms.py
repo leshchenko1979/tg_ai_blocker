@@ -1,3 +1,4 @@
+import random
 import logging
 import os
 import ssl
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 MODELS = [
     # "qwen/qwen3-14b:free", 74/47
     # "google/gemma-3-12b-it:free", Context window 8K - too small
-    "google/gemma-3-27b-it:free",
+    # "google/gemma-3-27b-it:free", 404 error
     # "nvidia/nemotron-nano-9b-v2:free", false positives
     # "deepseek/deepseek-chat-v3.1:free", success rate 0%
     # "openai/gpt-oss-120b:free", success rate 0%
@@ -39,10 +40,13 @@ MODELS = [
     "xiaomi/mimo-v2-flash:free",
     # "qwen/qwen3-coder:free",  success rate 42%
     "meta-llama/llama-3.3-70b-instruct:free",
+    "upstage/solar-pro-3:free",
+    "arcee-ai/trinity-large-preview:free",
 ]
 
 
-_last_model = "google/gemma-3-27b-it:free"  # Default to gemma model
+# _last_model = "google/gemma-3-27b-it:free"  # Default to gemma model
+_last_model = random.choice(MODELS)
 logger.debug("🎯 DEFAULT MODEL SET: %s", _last_model)
 
 
