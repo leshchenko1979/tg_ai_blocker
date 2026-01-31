@@ -6,7 +6,6 @@ the entire message processing flow from validation to spam analysis to result pr
 """
 
 import logging
-from typing import Optional
 
 from aiogram import types
 
@@ -19,7 +18,12 @@ from .validation import (
     determine_effective_user_id,
     validate_group_and_permissions,
 )
-from ...spam.message_context import analyze_message_content, track_spam_check_result
+from ...spam.context_types import SpamCheckResult
+from ...spam.message_context import (
+    collect_message_context,
+    track_spam_check_result,
+)
+from ...spam.spam_classifier import is_spam
 
 logger = logging.getLogger(__name__)
 
@@ -65,25 +69,44 @@ async def handle_moderated_message(message: types.Message) -> str:
         if skip:
             return reason
 
-        # Analyze message content for spam
-        spam_score, bio, reason, is_story, message_text = await analyze_message_content(
-            message, group
-        )
+        # Collect message data for spam analysis
+        analysis_result = await collect_message_context(message)
+
+        # Perform spam classification
+        try:
+            if analysis_result.is_story:
+                # Stories are always considered spam
+                spam_score, reason = 100, "Story forward"
+            else:
+                # Perform LLM-based spam classification
+                spam_score, reason = await is_spam(
+                    comment=analysis_result.message_text,
+                    admin_ids=group.admin_ids,
+                    context=analysis_result.context,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to get spam score: {e}")
+            return "message_spam_check_failed"
 
         if spam_score is None:
             logger.warning("Failed to get spam score")
             return "message_spam_check_failed"
 
-        # Process and track the moderation result
-        return await process_moderation_result(
-            chat_id,
-            user_id,
-            spam_score,
-            message,
-            group.admin_ids,
-            reason,
-            bio,
-            message_text,
+        # Track the spam check result
+        await track_spam_check_result(
+            SpamCheckResult(
+                chat_id,
+                user_id,
+                spam_score,
+                analysis_result.message_text,
+                analysis_result.bio,
+                reason,
+            )
+        )
+
+        # Process spam or approve user
+        return await process_spam_or_approve(
+            chat_id, user_id, spam_score, message, group.admin_ids, reason
         )
 
     except Exception as e:
@@ -97,40 +120,6 @@ async def handle_moderated_message(message: types.Message) -> str:
             },
         )
         raise
-
-
-async def process_moderation_result(
-    chat_id: int,
-    user_id: int,
-    spam_score: float,
-    message: types.Message,
-    admin_ids: list[int],
-    reason: str,
-    bio: Optional[str],
-    message_text: str,
-) -> str:
-    """
-    Process the spam analysis result and track it.
-
-    Args:
-        chat_id: The chat ID where the message was sent
-        user_id: The user ID who sent the message
-        spam_score: The calculated spam score (0-100)
-        message: The original Telegram message
-        admin_ids: List of admin IDs for the group
-        reason: The reason for the spam classification
-        bio: User bio information
-        message_text: The processed message content
-
-    Returns:
-        Processing result identifier string
-    """
-    await track_spam_check_result(
-        chat_id, user_id, spam_score, message_text, bio, reason
-    )
-    return await process_spam_or_approve(
-        chat_id, user_id, spam_score, message, admin_ids, reason
-    )
 
 
 async def process_spam_or_approve(
@@ -147,10 +136,9 @@ async def process_spam_or_approve(
     Args:
         chat_id: The chat ID
         user_id: The user ID
-        spam_score: The spam score (0-100)
+        spam_score: The spam score from classification
         message: The original message
-        admin_ids: List of admin IDs for notifications
-        reason: The classification reason
+        admin_ids: List of admin IDs for the group
 
     Returns:
         Result identifier string

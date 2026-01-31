@@ -3,12 +3,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.exceptions import TelegramBadRequest
 
 from src.app.handlers.handle_spam import handle_spam_message_deletion
-from src.app.spam.message_context import get_spam_score_and_bio
+from src.app.spam.message_context import collect_message_context
 from src.app.spam.context_types import (
-    SpamClassificationContext,
-    ContextResult,
     ContextStatus,
-    LinkedChannelSummary,
 )
 
 
@@ -209,20 +206,12 @@ class TestSpamDeletion:
         mock_group.admin_ids = [123]
 
         with (
-            patch(
-                "src.app.spam.message_context.is_spam", new_callable=AsyncMock
-            ) as mock_is_spam,
             patch("src.app.common.bot.bot") as mock_bot,
             patch(
                 "src.app.common.mtproto_client.MtprotoHttpClient.call",
                 new_callable=AsyncMock,
             ) as mock_mtproto_call,
         ):
-            mock_is_spam.return_value = (
-                85,
-                "Test spam reason",
-            )  # Spam score and reason
-
             # Mock get_chat to return an object with description = None
             mock_chat_info = MagicMock()
             mock_chat_info.description = None
@@ -233,20 +222,21 @@ class TestSpamDeletion:
                 "subscribers": 150,
                 "total_posts": 25,
                 "post_age_delta": 2,
-                "recent_posts": ["Test post content"]
+                "recent_posts": ["Test post content"],
             }
 
-            await get_spam_score_and_bio(
-                mock_message, "test message", mock_group, False
+            result = await collect_message_context(mock_message)
+            message_text, is_story, bio, context = (
+                result.message_text,
+                result.is_story,
+                result.bio,
+                result.context,
             )
 
             # Verify MTProto call was made (indicating channel context collection)
             assert mock_mtproto_call.called
 
-            # Verify is_spam was called with proper context
-            mock_is_spam.assert_called_once()
-            kwargs = mock_is_spam.call_args[1]
-            context = kwargs["context"]
+            # Verify context was collected correctly
             assert context.name == "Channel Bot"  # sender_chat.title
             # Bio comes from message.chat.description (mock object in test)
             assert (

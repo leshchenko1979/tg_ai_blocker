@@ -12,51 +12,33 @@ from aiogram import types
 
 from ..common.bot import bot
 from ..common.tracking import track_group_event
-from ..database.models import Group
-from ..spam.context_types import SpamClassificationContext, UserContext
-from ..spam.spam_classifier import is_spam
+from ..spam.context_types import (
+    MessageAnalysisResult,
+    SpamCheckResult,
+    SpamClassificationContext,
+    UserContext,
+)
 from .context_collector import route_sender_context_collection
 
 logger = logging.getLogger(__name__)
 
 
-async def analyze_message_content(
-    message: types.Message, group: Group
-) -> Tuple[Optional[float], Optional[str], str, bool, str]:
+async def collect_message_context(
+    message: types.Message,
+) -> MessageAnalysisResult:
     """
-    Analyze message content for spam.
+    Collect all relevant context data for message analysis.
+
+    This function focuses solely on data collection and does not perform
+    the actual spam classification.
 
     Args:
         message: The Telegram message to analyze
-        group: The group object containing moderation settings
 
     Returns:
-        Tuple of (spam_score, bio, reason, is_story, message_text)
+        MessageAnalysisResult containing all context data
     """
-    message_text, forward_info, is_story = build_forward_info(message)
-    spam_score, bio, reason = await get_spam_score_and_bio(
-        message, message_text, group, is_story
-    )
-    return spam_score, bio, reason, is_story, message_text
-
-
-async def get_spam_score_and_bio(
-    message: types.Message, message_text: str, group: Group, is_story: bool
-) -> Tuple[Optional[float], Optional[str], str]:
-    """
-    Get spam score and user bio for message analysis.
-
-    Args:
-        message: The message to analyze
-        message_text: The processed message text
-        group: The group object with admin IDs
-        is_story: Whether this is a story forward
-
-    Returns:
-        Tuple of (spam_score, bio, reason)
-    """
-    if is_story:
-        return 100, None, "Story forward"
+    message_text, is_story = build_forward_info(message)
 
     reply_context = extract_reply_context(message)
     sender_context = await route_sender_context_collection(message, message.chat.id)
@@ -64,12 +46,7 @@ async def get_spam_score_and_bio(
     name, bio = await get_sender_info(message, sender_context)
     context = create_classification_context(sender_context, name, bio, reply_context)
 
-    spam_score, reason = await is_spam(
-        comment=message_text,
-        admin_ids=group.admin_ids,
-        context=context,
-    )
-    return spam_score, bio, reason
+    return MessageAnalysisResult(message_text, is_story, bio, context)
 
 
 def extract_reply_context(message: types.Message) -> Optional[str]:
@@ -168,41 +145,21 @@ def create_classification_context(
         return sender_context
 
 
-async def track_spam_check_result(
-    chat_id: int,
-    user_id: int,
-    spam_score: float,
-    message_text: str,
-    bio: Optional[str],
-    reason: Optional[str] = None,
-) -> None:
+async def track_spam_check_result(result: SpamCheckResult) -> None:
     """
     Track the result of spam analysis for analytics.
 
     Args:
-        chat_id: The chat ID where analysis occurred
-        user_id: The user ID being analyzed
-        spam_score: The calculated spam score
-        message_text: The message content for analytics tracking
-        bio: User bio information
-        reason: Classification reason
+        result: The spam check result data
     """
     await track_group_event(
-        chat_id,
+        result.chat_id,
         "spam_check_result",
-        {
-            "chat_id": chat_id,
-            "user_id": user_id,
-            "spam_score": spam_score,
-            "is_spam": spam_score > 50,
-            "message_text": message_text,
-            "user_bio": bio,
-            "reason": reason,
-        },
+        result.to_tracking_dict(),
     )
 
 
-def build_forward_info(message: types.Message) -> Tuple[str, list[str], bool]:
+def build_forward_info(message: types.Message) -> Tuple[str, bool]:
     """
     Build information about forwards, channels, and stories for a message.
 
@@ -213,7 +170,7 @@ def build_forward_info(message: types.Message) -> Tuple[str, list[str], bool]:
         message: The message to analyze
 
     Returns:
-        Tuple of (message_text, forward_info, is_story)
+        Tuple of (message_text, is_story)
     """
     message_text = message.text or message.caption or "[MEDIA_MESSAGE]"
     forward_info = []
@@ -245,4 +202,4 @@ def build_forward_info(message: types.Message) -> Tuple[str, list[str], bool]:
     if forward_info:
         message_text = f"{message_text}\n[FORWARD_INFO]: {' | '.join(forward_info)}"
 
-    return message_text, forward_info, is_story
+    return message_text, is_story

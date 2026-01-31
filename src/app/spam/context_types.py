@@ -130,6 +130,40 @@ class PeerResolutionContext:
         }
 
 
+@dataclass(slots=True)
+class MessageAnalysisResult:
+    """Result of message analysis containing all context data."""
+
+    message_text: str
+    is_story: bool
+    bio: Optional[str]
+    context: SpamClassificationContext
+
+
+@dataclass(slots=True)
+class SpamCheckResult:
+    """Data class for spam check results."""
+
+    chat_id: int
+    user_id: int
+    spam_score: float
+    message_text: str
+    bio: Optional[str]
+    reason: Optional[str] = None
+
+    def to_tracking_dict(self) -> dict:
+        """Convert to dictionary for analytics tracking."""
+        return {
+            "chat_id": self.chat_id,
+            "user_id": self.user_id,
+            "spam_score": self.spam_score,
+            "is_spam": self.spam_score > 50,
+            "message_text": self.message_text,
+            "user_bio": self.bio,
+            "reason": self.reason,
+        }
+
+
 @dataclass
 class SpamClassificationContext:
     """Context information for spam classification."""

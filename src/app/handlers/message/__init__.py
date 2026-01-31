@@ -16,7 +16,6 @@ from .channel_management import (
 )
 from .pipeline import (
     handle_moderated_message,
-    process_moderation_result,
     process_spam_or_approve,
 )
 from .validation import (
@@ -40,7 +39,6 @@ __all__ = [
     "notify_channel_admins_and_leave",
     # Pipeline
     "handle_moderated_message",
-    "process_moderation_result",
     "process_spam_or_approve",
     # Validation
     "check_known_member",
