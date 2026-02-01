@@ -574,21 +574,20 @@ async def _establish_context_for_regular_group_message(
     Returns:
         bool: True if peer resolution context was established successfully, False otherwise
     """
-    context_dict = context.to_dict()
     message_type = "forum_topic" if context.is_topic_message else "regular_group"
 
     # Handle private chats (no username) - assume getHistory failure, no join possible
     if not context.chat_username:
         logger.debug(
             f"{message_type} message in private chat (no username), skipping context collection",
-            extra=context_dict,
+            extra={"context": context},
         )
         return False
 
     # Public chat with username - perform membership pre-check
     logger.debug(
         f"{message_type} message, performing membership pre-check before join",
-        extra=context_dict,
+        extra={"context": context},
     )
 
     # Pre-check membership via message reading
@@ -598,7 +597,7 @@ async def _establish_context_for_regular_group_message(
         # Pre-check succeeded - context already established, skip join
         logger.debug(
             "Membership pre-check succeeded, skipping join",
-            extra=context_dict,
+            extra={"context": context},
         )
         return True
 
@@ -607,14 +606,14 @@ async def _establish_context_for_regular_group_message(
         # Permanent error - skip join and log
         logger.info(
             f"Membership pre-check failed with permanent error, skipping join: {error_type}",
-            extra={**context_dict, "error_type": error_type},
+            extra={"context": context, "error_type": error_type},
         )
         return False
     else:
         # Transient error - attempt join
         logger.debug(
             f"Membership pre-check failed with transient error, attempting join: {error_type}",
-            extra={**context_dict, "error_type": error_type},
+            extra={"context": context, "error_type": error_type},
         )
 
         join_success = await attempt_user_bot_chat_join(
@@ -624,7 +623,7 @@ async def _establish_context_for_regular_group_message(
         if not join_success:
             logger.warning(
                 "User bot subscription failed after pre-check failure, skipping context collection",
-                extra=context_dict,
+                extra={"context": context},
             )
             return False
 
@@ -667,7 +666,7 @@ async def establish_peer_resolution_context(
         # Discussion thread detected (channel reply), using thread-based peer resolution
         logger.debug(
             "Discussion thread detected (channel reply), using thread-based peer resolution",
-            extra=context.to_dict(),
+            extra={"context": context},
         )
         return await establish_context_via_thread_reading(context)
     else:

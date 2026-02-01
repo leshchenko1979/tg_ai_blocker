@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Generic, Optional, TypeVar
+from typing import Generic, Optional, TypeVar
 
 T = TypeVar("T")
 
@@ -114,21 +114,6 @@ class PeerResolutionContext:
     main_channel_username: Optional[str] = None
     original_channel_post_id: Optional[int] = None
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for logging and debugging."""
-        return {
-            "chat_id": self.chat_id,
-            "user_id": self.user_id,
-            "message_id": self.message_id,
-            "chat_username": self.chat_username,
-            "message_thread_id": self.message_thread_id,
-            "reply_to_message_id": self.reply_to_message_id,
-            "is_topic_message": self.is_topic_message,
-            "main_channel_id": self.main_channel_id,
-            "main_channel_username": self.main_channel_username,
-            "original_channel_post_id": self.original_channel_post_id,
-        }
-
 
 @dataclass(slots=True)
 class MessageAnalysisResult:
@@ -151,18 +136,6 @@ class SpamCheckResult:
     bio: Optional[str]
     reason: Optional[str] = None
 
-    def to_tracking_dict(self) -> dict:
-        """Convert to dictionary for analytics tracking."""
-        return {
-            "chat_id": self.chat_id,
-            "user_id": self.user_id,
-            "spam_score": self.spam_score,
-            "is_spam": self.spam_score > 50,
-            "message_text": self.message_text,
-            "user_bio": self.bio,
-            "reason": self.reason,
-        }
-
 
 @dataclass
 class SpamClassificationContext:
@@ -173,26 +146,26 @@ class SpamClassificationContext:
     bio: Optional[str] = None
 
     # Enriched context (may require additional API calls)
-    linked_channel: Optional[ContextResult] = None
-    stories: Optional[ContextResult] = None
+    linked_channel: Optional[ContextResult[LinkedChannelSummary]] = None
+    stories: Optional[ContextResult[str]] = None
     reply: Optional[str] = None
-    account_age: Optional[ContextResult] = None
+    account_age: Optional[ContextResult[UserAccountInfo]] = None
 
     @property
     def include_linked_channel_guidance(self) -> bool:
         """Whether to include linked channel guidance in the prompt."""
-        return self.linked_channel is not None and self.linked_channel.status.name in [
-            "FOUND",
-            "EMPTY",
-        ]
+        return self.linked_channel is not None and self.linked_channel.status in (
+            ContextStatus.FOUND,
+            ContextStatus.EMPTY,
+        )
 
     @property
     def include_stories_guidance(self) -> bool:
         """Whether to include stories guidance in the prompt."""
-        return self.stories is not None and self.stories.status.name in [
-            "FOUND",
-            "EMPTY",
-        ]
+        return self.stories is not None and self.stories.status in (
+            ContextStatus.FOUND,
+            ContextStatus.EMPTY,
+        )
 
     @property
     def include_reply_guidance(self) -> bool:
@@ -202,7 +175,7 @@ class SpamClassificationContext:
     @property
     def include_account_age_guidance(self) -> bool:
         """Whether to include account age guidance in the prompt."""
-        return self.account_age is not None and self.account_age.status.name in [
-            "FOUND",
-            "EMPTY",
-        ]
+        return self.account_age is not None and self.account_age.status in (
+            ContextStatus.FOUND,
+            ContextStatus.EMPTY,
+        )
