@@ -7,6 +7,10 @@
   - `asyncpg` for PostgreSQL access, structured via database operation modules.
   - `python-dotenv` for configuration loading, `logfire` for tracing/logging/metrics, `tenacity` for retries.
   - `tqdm` (dev dependency) for progress bars in evaluation scripts.
+- **LLM Providers**:
+  - **Primary**: Cloudflare AI Gateway (`dynamic/n8n` model via `CF_DYNAMIC_ROUTE_MODEL` environment variable, authenticated with `CF_AIG_TOKEN`).
+  - **Fallback**: OpenRouter API (preserved as `get_openrouter_response()` for potential future use, uses `OPENROUTER_API_KEY`).
+  - **Configuration**: Environment-driven with clear separation - `API_BASE` for Cloudflare gateway URL, `OPENROUTER_API_BASE` for OpenRouter URL.
 - **Project Layout**: Source lives under `src/app`, grouped into `common`, `spam`, `handlers`, `database`, plus `logging_setup.py` and `main.py` (containing both application logic and server setup). Handler modules feature modular substructure under `handlers/message/` with `pipeline.py`, `validation.py`, and `channel_management.py` for clean separation of message processing concerns. Tests mirror structure under `tests/` at project root using `pytest`. Integration tests requiring external services isolated in `tests/integration/`.
 - **Configuration**: Secrets pulled from `.env` (restricted). Startup script runs `dotenv.load_dotenv()` before initializing logging and handlers.
 - **Configuration Handling**: Secrets live in `.env`; contents remain off-limits, but developers can run `source .env` to load required environment variables without reading the file directly.

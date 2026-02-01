@@ -1,22 +1,21 @@
 ## Active Context
 
-- **Current Focus**: Command Policy Implementation - enforcing private chat only commands to prevent accidental mode changes from group chats.
+- **Current Focus**: Cloudflare AI Gateway Integration - Migrating all LLM operations from OpenRouter to Cloudflare AI Gateway for improved performance and cost efficiency.
 - **Key Decisions**:
-  - **Private Chat Only Commands**: All bot commands (/mode, /stats, /buy, /ref) now restricted to private chats only.
-  - **Group Chat /help Behavior**: /help in groups shows Russian message directing users to private chat, then deletes the command message.
-  - **Command Deletion**: Group command messages are automatically deleted to prevent other users from accidentally triggering them.
+  - **Cloudflare Primary Provider**: All bot operations (spam classification, private chat) now use Cloudflare AI Gateway exclusively.
+  - **OpenRouter Fallback Maintained**: Original OpenRouter functions preserved as fallback for potential future use.
+  - **Environment Variable Architecture**: Clear separation with `API_BASE`/`CF_AIG_TOKEN` for Cloudflare, `OPENROUTER_API_BASE`/`OPENROUTER_API_KEY` for OpenRouter.
 - **Recent Implementation**:
-  - **Command Policy Enforcement**: ✅ **Complete** - All commands except /help now require private chat. /help provides group redirection.
-  - **Memory Bank Documentation**: ✅ **Complete** - Updated systemPatterns.md to document the command handling policy.
-  - **Code Changes**: ✅ **Complete** - Modified command_handlers.py and payment_handlers.py with chat type restrictions.
+  - **Cloudflare AI Gateway Integration**: ✅ **Complete** - Added `get_cloudflare_response()` function with proper authentication and model configuration.
+  - **Spam Classifier Migration**: ✅ **Complete** - Updated spam classification to use Cloudflare instead of OpenRouter.
+  - **Private Chat Migration**: ✅ **Complete** - Updated private message handling to use Cloudflare for admin interactions.
+  - **Environment Configuration**: ✅ **Complete** - Fixed environment variable confusion (restored OpenRouter URL, separated Cloudflare config).
+  - **Code Cleanup**: ✅ **Complete** - Removed provider-specific references from generic functions, improved documentation clarity.
 - **Recent Implementation**:
-  - **Logfire Message Lookup Optimization**: ✅ **Complete** - Fixed Logfire lookup to support edited messages and improved text matching robustness by using `LIKE` with word extraction to bypass hidden characters like zero-width spaces.
-  - **MTProto Context Collection Fix**: ✅ **Complete** - Fixed getReplies to use main channel username instead of discussion group parameters by adding linked_chat_username field to PeerResolutionContext and updating context establishment logic.
-  - **PeerResolutionContext Field Renaming**: ✅ **Complete** - Renamed `linked_chat_id` and `linked_chat_username` to `main_channel_id` and `main_channel_username` for semantic clarity, indicating these fields represent the main channel in discussion thread contexts.
+  - **LLM Model Evaluation**: ✅ **Complete** - Comprehensive evaluation infrastructure with balanced test cases and JSON result storage.
+  - **Memory Bank Documentation**: ✅ **Complete** - Updated systemPatterns.md to document Cloudflare AI Gateway usage.
+  - **Logfire Trace Analysis**: ✅ **Complete** - Identified and fixed authentication issues in deployed code.
 - **Immediate Next Steps**:
-  - Run LLM model evaluation to establish baseline performance metrics.
-  - Monitor system stability and context collection effectiveness.
-  - Test command behavior in both private and group chats.
-- **Recent Implementation**:
-  - **Russian Localization**: ✅ **Complete** - Translated English notification messages to Russian in message_handlers.py. Channel addition notification now displays in Russian for all users.
-  - **Message Handler Modularization**: ✅ **Complete** - Split monolithic message_handlers.py (807 lines) into focused modules: `handlers/message/pipeline.py`, `handlers/message/validation.py`, `handlers/message/channel_management.py`, and `spam/message_context.py`. Achieved 38-line main handler with clean separation of concerns.
+  - Monitor Cloudflare AI Gateway performance and stability.
+  - Evaluate cost savings vs OpenRouter.
+  - Consider removing OpenRouter functions if Cloudflare proves reliable long-term.

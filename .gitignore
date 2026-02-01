@@ -12,3 +12,5 @@ aiogram_types.cache
 .cursor/mcp.json
 .ruff_cache
 eval_results/
+src/tg_ai_blocker.egg-info/
+uv.lock

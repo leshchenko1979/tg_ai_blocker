@@ -11,7 +11,7 @@ from .context_types import ContextResult, ContextStatus, SpamClassificationConte
 from ..common.llms import (
     LocationNotSupported,
     RateLimitExceeded,
-    get_openrouter_response,
+    get_cloudflare_response,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,7 +104,7 @@ async def is_spam(
         attempt += 1
         with logfire.span(f"Getting spam classifier response, attempt #{attempt}"):
             try:
-                response = await get_openrouter_response(
+                response = await get_cloudflare_response(
                     messages, temperature=0.0, response_format=schema
                 )
                 last_response = response
@@ -121,7 +121,7 @@ async def is_spam(
                         "Upstream provider rate limit hit, retrying immediately"
                     )
                 else:
-                    # Для ошибок OpenRouter ждем до reset_time
+                    # Для ошибок Cloudflare AI Gateway ждем до reset_time
                     # Convert milliseconds to seconds for reset_time
                     reset_time_seconds = int(e.reset_time) / 1000
                     wait_time = reset_time_seconds - time.time()
@@ -130,7 +130,7 @@ async def is_spam(
                             "%Y-%m-%d %H:%M:%S", time.localtime(reset_time_seconds)
                         )
                         logger.info(
-                            f"OpenRouter rate limit hit, waiting {wait_time:.2f} seconds until {reset_time_str}"
+                            f"Cloudflare AI Gateway rate limit hit, waiting {wait_time:.2f} seconds until {reset_time_str}"
                         )
                         await asyncio.sleep(wait_time)
                 continue
