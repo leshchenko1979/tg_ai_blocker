@@ -7,12 +7,10 @@ src/app/common/__init__.py
 src/app/common/bot.py
 src/app/common/llms.py
 src/app/common/logfire_lookup.py
-src/app/common/mp.py
 src/app/common/mtproto_client.py
 src/app/common/mtproto_utils.py
 src/app/common/notifications.py
 src/app/common/telegram_logging_handler.py
-src/app/common/tracking.py
 src/app/common/utils.py
 src/app/database/__init__.py
 src/app/database/admin_operations.py
@@ -34,10 +32,14 @@ src/app/handlers/private_handlers.py
 src/app/handlers/status_handlers.py
 src/app/handlers/try_deduct_credits.py
 src/app/handlers/updates_filter.py
+src/app/handlers/message/__init__.py
+src/app/handlers/message/channel_management.py
+src/app/handlers/message/pipeline.py
+src/app/handlers/message/validation.py
 src/app/spam/__init__.py
 src/app/spam/context_collector.py
 src/app/spam/context_types.py
-src/app/spam/message_utils.py
+src/app/spam/message_context.py
 src/app/spam/spam_classifier.py
 src/app/spam/stories.py
 src/app/spam/user_context_utils.py
@@ -50,5 +52,4 @@ src/tg_ai_blocker.egg-info/dependency_links.txt
 src/tg_ai_blocker.egg-info/requires.txt
 src/tg_ai_blocker.egg-info/top_level.txt
 tests/test_main.py
-tests/test_mixpanel.py
 tests/test_server.py

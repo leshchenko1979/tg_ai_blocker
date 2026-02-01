@@ -14,12 +14,10 @@ from ..common.logfire_lookup import (
     find_original_message,
     find_spam_classification_context,
 )
-from ..common.mp import mp
 from ..common.utils import sanitize_llm_html
 from ..database import (
     add_spam_example,
     get_admin,
-    get_admin_credits,
     get_message_history,
     get_spam_examples,
     initialize_new_admin,
@@ -27,7 +25,6 @@ from ..database import (
     save_admin,
     save_message,
 )
-from ..database.constants import INITIAL_CREDITS
 from ..database.group_operations import get_admin_groups
 from .dp import dp
 
@@ -51,18 +48,15 @@ async def handle_private_message(message: types.Message) -> str:
     if not message.from_user:
         return "private_no_user_info"
 
-    user = cast(types.User, message.from_user)
+    user = cast("types.User", message.from_user)
     admin_id = user.id
     admin_message = message.text
 
     if not admin_message:
         return "private_no_message_text"
 
-    # Трекинг получения приватного сообщения
-    mp.track(admin_id, "private_message_received", {"message_text": admin_message})
-
     # Initialize new administrator if needed and update username
-    is_new = await initialize_new_admin(admin_id)
+    await initialize_new_admin(admin_id)
 
     # Update admin with username if available
     if user.username:
@@ -71,35 +65,12 @@ async def handle_private_message(message: types.Message) -> str:
             admin.username = user.username
             await save_admin(admin)
 
-    # Update Mixpanel profile with Telegram data
-    mp.people_set(
-        admin_id,
-        {
-            "$distinct_id": admin_id,
-            "$first_name": user.first_name,
-            "$last_name": user.last_name or "",
-            "$name": user.username or user.first_name,
-            "delete_spam_enabled": False,
-            "credits": INITIAL_CREDITS if is_new else await get_admin_credits(admin_id),
-        },
-    )
-
     # Save user message to history
     await save_message(admin_id, "user", admin_message)
 
     try:
         # Get conversation history
         message_history = await get_message_history(admin_id)
-
-        # Трекинг запроса к LLM
-        mp.track(
-            admin_id,
-            "llm_request_started",
-            {
-                "history_length": len(message_history),
-                "message_text": admin_message,
-            },
-        )
 
         # Read PRD for system context
         prd_text = pathlib.Path("PRD.md").read_text()
@@ -175,16 +146,6 @@ async def handle_private_message(message: types.Message) -> str:
             # Get response from LLM
             response = await get_openrouter_response(messages, temperature=0.6)
 
-            # Трекинг успешного ответа LLM
-            mp.track(
-                admin_id,
-                "llm_response_received",
-                {
-                    "response_text": response,
-                    "retry_count": retry_count,
-                },
-            )
-
             # Save bot's response to history
             await save_message(admin_id, "assistant", response)
 
@@ -207,14 +168,6 @@ async def handle_private_message(message: types.Message) -> str:
                 if is_html_error and retry_count < max_retries - 1:
                     # This is an HTML parsing error, retry with new LLM response
                     retry_count += 1
-                    mp.track(
-                        admin_id,
-                        "llm_response_retry",
-                        {
-                            "error_message": str(send_error),
-                            "retry_count": retry_count,
-                        },
-                    )
 
                     # Add a note to the conversation history about the HTML formatting issue
                     messages.append({"role": "assistant", "content": response})
@@ -235,16 +188,6 @@ async def handle_private_message(message: types.Message) -> str:
         )
 
     except Exception as e:
-        # Трекинг ошибок
-        mp.track(
-            admin_id,
-            "error_private_message",
-            {
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-                "message_text": admin_message,
-            },
-        )
         logger.error(f"Error in private message handler: {e}", exc_info=True)
         raise
 
@@ -256,26 +199,6 @@ async def handle_forwarded_message(message: types.Message) -> str:
     """
     if not message.from_user:
         return "private_forward_no_user_info"
-
-    user = cast(types.User, message.from_user)
-    admin_id = user.id
-
-    # Трекинг получения пересланного сообщения
-    track_data = {
-        "forward_date": str(message.forward_date),
-        "message_text": message.text or message.caption,
-    }
-
-    if message.forward_from:
-        track_data["forward_from_id"] = message.forward_from.id
-    elif message.forward_origin:
-        track_data["forward_origin_type"] = message.forward_origin.type
-
-    mp.track(
-        admin_id,
-        "forwarded_message_received",
-        track_data,
-    )
 
     # Ask the user if they want to add this as a spam example
     row = [
@@ -302,7 +225,7 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
     if not callback.from_user or not callback.data or not callback.message:
         return "spam_example_invalid_callback"
 
-    user = cast(types.User, callback.from_user)
+    user = cast("types.User", callback.from_user)
     admin_id = user.id
     _, action = callback.data.split(":")
 
@@ -325,6 +248,7 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                 )
                 user_context = None
             if user_context and user_context.linked_channel.status == "found":
+                assert user_context.linked_channel.content is not None
                 channel_fragment = (
                     user_context.linked_channel.content.to_prompt_fragment()
                 )
@@ -396,17 +320,6 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                 extra={"spam_example_processing": "completed"},
             )
 
-        mp.track(
-            admin_id,
-            "spam_example_saved",
-            {
-                "decision": action,
-                "text": info["text"],
-                "user_id": info.get("user_id"),
-                "name": info.get("name"),
-                "linked_channel_fragment": channel_fragment,
-            },
-        )
         return "spam_example_processed"
 
     except OriginalMessageExtractionError as e:

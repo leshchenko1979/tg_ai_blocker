@@ -4,6 +4,7 @@ from typing import Optional, Union
 
 import logfire
 
+from ..common.bot import bot
 from .context_types import (
     ContextResult,
     ContextStatus,
@@ -81,7 +82,6 @@ def create_peer_resolution_context_from_message(
     )
 
 
-@logfire.instrument()
 async def collect_complete_user_context(
     message,
     user_id: int,
@@ -214,29 +214,33 @@ async def collect_complete_user_context(
             )
 
 
-@logfire.instrument()
 async def route_sender_context_collection(
     message,
     chat_id: Optional[int] = None,
-) -> Union[UserContext, SpamClassificationContext]:
+) -> tuple[Union[UserContext, SpamClassificationContext], str, Optional[str]]:
     """
     Routes context collection to appropriate handler based on message sender type.
 
-    Dispatches to different context collection strategies:
-    - UserContext for user senders
-    - SpamClassificationContext for channel senders
+    Dispatches to different context collection strategies and extracts basic sender metadata:
+    - UserContext for user senders (with bio fetched via API)
+    - SpamClassificationContext for channel senders (with bio from chat description)
 
     Args:
         message: Telegram message object
         chat_id: Optional chat ID for additional context
 
     Returns:
-        UserContext for user senders, SpamClassificationContext for channel senders
+        Tuple of (context, name, bio) where:
+        - context: UserContext for user senders, SpamClassificationContext for channel senders
+        - name: Sender display name
+        - bio: Sender bio/description (may be None)
     """
     if message.sender_chat and message.sender_chat.id != message.chat.id:
         # Channel sender - collect channel as linked channel
         channel_id = message.sender_chat.id
         channel_username = getattr(message.sender_chat, "username", None)
+        name = getattr(message.sender_chat, "title", "Channel")
+        bio = getattr(message.chat, "description", None)
 
         # For private channels without username, skip collection
         if not channel_username:
@@ -244,14 +248,15 @@ async def route_sender_context_collection(
                 "Skipping context collection for private channel without username",
                 extra={"channel_id": channel_id},
             )
-            return SpamClassificationContext(
-                name=getattr(message.sender_chat, "title", "Channel"),
-                bio=getattr(message.chat, "description", None),
+            context = SpamClassificationContext(
+                name=name,
+                bio=bio,
                 linked_channel=ContextResult(
                     status=ContextStatus.SKIPPED,
                     error="Private channel without username",
                 ),
             )
+            return context, name, bio
 
         # Collect channel context using existing function
         channel_result = await collect_channel_summary_by_id(
@@ -259,24 +264,37 @@ async def route_sender_context_collection(
         )
 
         # Return minimal context with linked_channel populated
-        return SpamClassificationContext(
-            name=getattr(message.sender_chat, "title", "Channel"),
-            bio=getattr(message.chat, "description", None),
+        context = SpamClassificationContext(
+            name=name,
+            bio=bio,
             linked_channel=channel_result,
         )
+        return context, name, bio
     else:
         # User sender - use existing complete context collection
         if message.from_user:
             user_id = message.from_user.id
             username = getattr(message.from_user, "username", None)
+            name = message.from_user.full_name if message.from_user else "Unknown"
+
+            # Fetch bio from user profile
+            bio = None
+            if message.from_user:
+                try:
+                    user_with_bio = await bot.get_chat(message.from_user.id)
+                    bio = user_with_bio.bio if user_with_bio else None
+                except Exception:
+                    bio = None
         else:
             # Fallback - shouldn't happen in practice
             logger.warning("Message has no sender_chat or from_user")
-            return SpamClassificationContext()
+            context = SpamClassificationContext()
+            return context, "Unknown", None
 
         # Use existing logic with subscription check
-        return await collect_complete_user_context(
+        context = await collect_complete_user_context(
             message=message,
             user_id=user_id,
             username=username,
         )
+        return context, name, bio

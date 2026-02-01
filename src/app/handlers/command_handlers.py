@@ -5,10 +5,8 @@ from aiogram import F, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from ..common.mp import mp
 from ..common.utils import get_affiliate_url, sanitize_html
 from ..database import (
-    INITIAL_CREDITS,
     get_admin,
     get_admin_credits,
     get_admin_stats,
@@ -35,7 +33,7 @@ async def handle_help_command(message: types.Message) -> str:
     if not message.text:
         return "command_no_text"
 
-    user = cast(types.User, message.from_user)  # Cast to ensure proper type hints
+    user = cast("types.User", message.from_user)  # Cast to ensure proper type hints
     user_id = user.id
 
     command = message.text.split()[0]
@@ -44,19 +42,6 @@ async def handle_help_command(message: types.Message) -> str:
     from ..common.utils import load_config
 
     config = load_config()
-
-    # Добавляем трекинг
-    mp.track(
-        user_id,
-        f"command_{command.lstrip('/')}",
-        {
-            "user_id": user_id,
-            "chat_type": message.chat.type,
-            "command": command,
-            "user_language": user.language_code,
-            "platform": user.is_premium,
-        },
-    )
 
     # Логика для /start
     if command == "/start":
@@ -69,11 +54,6 @@ async def handle_help_command(message: types.Message) -> str:
                 admin.username = user.username
                 await save_admin(admin)
         if is_new:
-            mp.track(
-                user_id,
-                "command_start_new_user",
-                {"user_id": user_id, "initial_credits": INITIAL_CREDITS},
-            )
             welcome_text = config.get("start_welcome_text", "Добро пожаловать!")
             await message.reply(
                 welcome_text,
@@ -159,7 +139,7 @@ async def handle_stats_command(message: types.Message) -> str:
     if not message.from_user:
         return "command_no_user_info"
 
-    user = cast(types.User, message.from_user)  # Cast to ensure proper type hints
+    user = cast("types.User", message.from_user)  # Cast to ensure proper type hints
     user_id = user.id
 
     try:
@@ -215,36 +195,10 @@ async def handle_stats_command(message: types.Message) -> str:
         mode = "🗑 Режим удаления" if delete_spam else "🔔 Режим уведомлений"
         message_text += f"\n\nТекущий режим: <b>{mode}</b>"
 
-        # Трекинг просмотра статистики
-        mp.track(
-            user_id,
-            "command_stats",
-            {
-                "user_id": user_id,
-                "balance": balance,
-                "spent_week": spent_week,
-                "groups_count": len(groups),
-                "deletion_mode": delete_spam,
-                "chat_type": message.chat.type,
-                "total_processed": global_stats["processed"],
-                "total_spam": global_stats["spam"],
-            },
-        )
-
         await message.reply(message_text, parse_mode="HTML")
         return "command_stats_sent"
 
     except Exception as e:
-        # Трекинг ошибок
-        mp.track(
-            user_id,
-            "error_stats",
-            {
-                "user_id": user_id,
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-            },
-        )
         logger.error(f"Error handling stats command: {e}", exc_info=True)
         await message.reply(
             "Произошла ошибка при получении статистики.", parse_mode="HTML"
@@ -261,23 +215,12 @@ async def handle_mode_command(message: types.Message) -> str:
     if not message.from_user:
         return "command_no_user_info"
 
-    user = cast(types.User, message.from_user)  # Cast to ensure proper type hints
+    user = cast("types.User", message.from_user)  # Cast to ensure proper type hints
     user_id = user.id
 
     try:
         # Переключаем режим
         delete_spam = await toggle_spam_deletion(user_id)
-
-        # Трекинг изменения режима
-        mp.track(
-            user_id,
-            "command_mode_toggle",
-            {
-                "user_id": user_id,
-                "new_mode": "deletion" if delete_spam else "notification",
-                "chat_type": message.chat.type,
-            },
-        )
 
         # Формируем сообщение о новом режиме
         if delete_spam:
@@ -301,16 +244,6 @@ async def handle_mode_command(message: types.Message) -> str:
         )
 
     except Exception as e:
-        # Трекинг ошибок
-        mp.track(
-            user_id,
-            "error_mode",
-            {
-                "user_id": user_id,
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-            },
-        )
         logger.error(f"Error handling mode command: {e}", exc_info=True)
         await message.reply(
             "Произошла ошибка при изменении режима работы.", parse_mode="HTML"

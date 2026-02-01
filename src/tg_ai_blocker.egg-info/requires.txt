@@ -1,6 +1,5 @@
 aiohttp
 aiogram
-mixpanel
 pyyaml
 asyncpg
 logfire

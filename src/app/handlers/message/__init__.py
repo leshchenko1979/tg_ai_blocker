@@ -27,7 +27,7 @@ from .validation import (
     is_admin_posting_as_group,
     is_channel_bot_in_discussion,
     should_attempt_api_fetch,
-    validate_group_and_permissions,
+    validate_group_and_check_early_exits,
 )
 
 __all__ = [
@@ -49,5 +49,5 @@ __all__ = [
     "is_admin_posting_as_group",
     "is_channel_bot_in_discussion",
     "should_attempt_api_fetch",
-    "validate_group_and_permissions",
+    "validate_group_and_check_early_exits",
 ]

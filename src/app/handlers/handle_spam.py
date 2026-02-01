@@ -15,9 +15,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
-from ..common.mp import mp
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
-from ..common.tracking import track_group_event, track_spam_detection
 from ..common.utils import (
     get_setup_guide_url,
     get_spam_guide_url,
@@ -41,9 +39,6 @@ async def handle_spam(
             logger.warning("Message without user info, skipping spam handling")
             return "spam_no_user_info"
 
-        # Трекинг обнаружения спама
-        await track_spam_detection(message)
-
         # Проверяем настройки автоудаления у админов
         all_admins_delete = await check_admin_delete_preferences(admin_ids)
 
@@ -65,16 +60,6 @@ async def handle_spam(
 
     except Exception as e:
         logger.error(f"Error handling spam: {e}", exc_info=True)
-        # Трекинг ошибки обработки спама
-        mp.track(
-            message.chat.id,
-            "error_spam_handling",
-            {
-                "message_id": message.message_id,
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-            },
-        )
         raise
 
 
@@ -336,7 +321,7 @@ async def handle_spam_message_deletion(
     message: types.Message, admin_ids: list[int]
 ) -> None:
     """
-    Удаляет спам-сообщение и отправляет событие в Mixpanel.
+    Удаляет спам-сообщение.
 
     Args:
         message: Сообщение для удаления
@@ -354,16 +339,6 @@ async def handle_spam_message_deletion(
         logger.info(
             f"Deleted spam message {message.message_id} in chat {message.chat.id}"
         )
-
-        await track_group_event(
-            message.chat.id,
-            "spam_message_deleted",
-            {
-                "message_id": message.message_id,
-                "user_id": message.from_user.id,
-                "auto_delete": True,
-            },
-        )
     except TelegramBadRequest as e:
         # Handle permission errors using unified helper
         if not await handle_permission_error(
@@ -379,15 +354,6 @@ async def handle_spam_message_deletion(
                 f"Could not delete spam message {message.message_id} in chat {message.chat.id}: {e}",
                 exc_info=True,
             )
-        await track_group_event(
-            message.chat.id,
-            "spam_message_delete_failed",
-            {
-                "message_id": message.message_id,
-                "user_id": message.from_user.id,
-                "error_message": str(e),
-            },
-        )
 
 
 async def ban_user_for_spam(

@@ -2,7 +2,7 @@
 
 - **Runtime Architecture**: `aiohttp` web application exposes Telegram webhook endpoint, forwards updates to a shared `aiogram` dispatcher hosted in `src/app/handlers`. Execution wrapped with `logfire` spans for observability and guarded by timeout/error helpers. Logfire metrics (histograms and gauges) initialized once at module level to ensure proper recording. Handler return values determine logfire span tags - handlers must return descriptive strings to avoid "_ignored" tagging.
 - **Bot Composition**:
-  - `src/app/common` encapsulates integrations: Telegram bot client, LLM providers, Mixpanel tracking, notifications, and shared utilities.
+  - `src/app/common` encapsulates integrations: Telegram bot client, LLM providers, notifications, and shared utilities.
   - `src/app/spam` contains spam detection and context collection: classifier logic, context types, user profile analysis, story processing, and message context extraction.
   - `src/app/handlers` are organized by intent with modular substructure:
     - **Core handlers** by type (callbacks, commands, payments, spam handling)
@@ -15,6 +15,7 @@
 - **Spam Decision Flow**: Updates route through filters that skip admins/service messages and edited messages.
   - **Text Analysis**: Message content is analyzed by LLM.
   - **Context Enrichment**:
+    - **Unified Sender Metadata Collection**: `route_sender_context_collection` consolidates all sender context gathering and basic metadata extraction (name, bio) in a single function, eliminating the previous split between context collection and metadata extraction. For user senders, fetches bio via Telegram API; for channel senders, uses chat description as bio.
     - **Linked Channel**: Checks for suspicious channel stats (low subs, new channel) via MTProto AND analyzes recent post content for spam indicators (porn, ads, scams). **Unified context collection** enables analysis for both user profiles AND channel senders. On-demand user bot subscription enables collection for users without usernames (only for public channels with usernames).
     - **User Stories**: Fetches all active user stories via MTProto `stories.getPeerStories` (not just pinned ones) to detect hidden spam payloads (links, scam offers) in profiles. **Unified subscription system** ensures availability for all users.
     - **Account Age**: Estimates account age via User ID range and checks profile photo date via `users.getFullUser` to penalize brand new accounts (ID > 6B, recent photo).
@@ -107,7 +108,7 @@ flowchart TD
     - **Content string**: Context found - converted to `ContextResult(status=FOUND, content=stored_string)`
   - **Context Reconstruction**: When loading examples for prompts, stored strings are converted back to ContextResult objects with appropriate status enums
   - **Storage Logic**: Context collection results are serialized to strings for database storage but maintain full status information through ContextResult reconstruction
-- **Observability & Incident Response**: All warnings/errors funnel through the standard logging stack with full tracebacks; `logger.warning` must include `exc_info=True` when exceptions exist. Incidents emit Mixpanel events, critical failures notify the admin chat, and recurring issues get grouped for trend analysis and frequency tracking.
+- **Observability & Incident Response**: All warnings/errors funnel through the standard logging stack with full tracebacks; `logger.warning` must include `exc_info=True` when exceptions exist. Critical failures notify the admin chat, and recurring issues get grouped for trend analysis and frequency tracking.
 - **Telegram Messaging Conventions**: Outbound messages respect Telegram limits and escape reserved characters for HTML mode. AI prompts include explicit HTML formatting instructions.
 - **Graceful Shutdown**: On SIGINT/SIGTERM, `aiohttp` triggers shutdown hooks that clean up resources in order: stop background tasks, close bot session, close DB pool.
 - **Admin Registration & Notification Behavior**: Admins are auto-registered when they add the bot to groups, but notifications fail for admins who haven't started private chats. See Admin Registration Flow diagram below.

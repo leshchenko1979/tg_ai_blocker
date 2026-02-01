@@ -10,11 +10,8 @@ from typing import Optional, Tuple, Union
 
 from aiogram import types
 
-from ..common.bot import bot
-from ..common.tracking import track_group_event
 from ..spam.context_types import (
     MessageAnalysisResult,
-    SpamCheckResult,
     SpamClassificationContext,
     UserContext,
 )
@@ -41,9 +38,10 @@ async def collect_message_context(
     message_text, is_story = build_forward_info(message)
 
     reply_context = extract_reply_context(message)
-    sender_context = await route_sender_context_collection(message, message.chat.id)
+    sender_context, name, bio = await route_sender_context_collection(
+        message, message.chat.id
+    )
 
-    name, bio = await get_sender_info(message, sender_context)
     context = create_classification_context(sender_context, name, bio, reply_context)
 
     return MessageAnalysisResult(message_text, is_story, bio, context)
@@ -67,49 +65,6 @@ def extract_reply_context(message: types.Message) -> Optional[str]:
         or message.reply_to_message.caption
         or "[MEDIA_MESSAGE]"
     )
-
-
-async def get_sender_info(
-    message: types.Message,
-    sender_context: Union[UserContext, SpamClassificationContext],
-) -> Tuple[str, Optional[str]]:
-    """
-    Get sender name and bio based on context type.
-
-    Args:
-        message: The message from the sender
-        sender_context: The context object (UserContext or SpamClassificationContext)
-
-    Returns:
-        Tuple of (name, bio)
-    """
-    if isinstance(sender_context, UserContext):
-        name = message.from_user.full_name if message.from_user else "Unknown"
-        bio = await get_user_bio(message.from_user.id) if message.from_user else None
-        return name, bio
-    elif isinstance(sender_context, SpamClassificationContext):
-        name = sender_context.name or "Channel"
-        bio = sender_context.bio
-        return name, bio
-
-    return "Unknown", None
-
-
-async def get_user_bio(user_id: int) -> Optional[str]:
-    """
-    Get user bio from Telegram API.
-
-    Args:
-        user_id: The user ID to get bio for
-
-    Returns:
-        User bio if available, None otherwise
-    """
-    try:
-        user_with_bio = await bot.get_chat(user_id)
-        return user_with_bio.bio if user_with_bio else None
-    except Exception:
-        return None
 
 
 def create_classification_context(
@@ -143,20 +98,6 @@ def create_classification_context(
         # Channel sender - context is already SpamClassificationContext, just add reply
         sender_context.reply = reply_context
         return sender_context
-
-
-async def track_spam_check_result(result: SpamCheckResult) -> None:
-    """
-    Track the result of spam analysis for analytics.
-
-    Args:
-        result: The spam check result data
-    """
-    await track_group_event(
-        result.chat_id,
-        "spam_check_result",
-        result.to_tracking_dict(),
-    )
 
 
 def build_forward_info(message: types.Message) -> Tuple[str, bool]:

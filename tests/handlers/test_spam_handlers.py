@@ -42,7 +42,6 @@ class TestSpamDeletion:
         """Test successful spam message deletion."""
         with (
             patch("src.app.handlers.handle_spam.bot") as mock_bot,
-            patch("src.app.handlers.handle_spam.track_group_event") as mock_track,
         ):
             mock_bot.delete_message = AsyncMock()
 
@@ -51,14 +50,12 @@ class TestSpamDeletion:
             mock_bot.delete_message.assert_called_once_with(
                 mock_message.chat.id, mock_message.message_id
             )
-            mock_track.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_spam_deletion_non_permission_error(self, mock_message):
         """Test spam deletion failure due to non-permission error."""
         with (
             patch("src.app.handlers.handle_spam.bot") as mock_bot,
-            patch("src.app.handlers.handle_spam.track_group_event") as mock_track,
             patch("src.app.handlers.handle_spam.logger") as mock_logger,
         ):
             mock_bot.delete_message = AsyncMock(
@@ -70,9 +67,8 @@ class TestSpamDeletion:
             mock_bot.delete_message.assert_called_once_with(
                 mock_message.chat.id, mock_message.message_id
             )
-            # Should log the error and track failure, but not notify admins
+            # Should log the error, but not notify admins
             assert mock_logger.warning.called
-            mock_track.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_spam_deletion_permission_error_admin_notification_success(
@@ -84,7 +80,6 @@ class TestSpamDeletion:
             patch(
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
             ) as mock_notify,
-            patch("src.app.handlers.handle_spam.track_group_event") as mock_track,
         ):
             # Mock permission error
             permission_error = MockTelegramBadRequest(
@@ -115,9 +110,6 @@ class TestSpamDeletion:
                 in call_kwargs["private_message"]
             )
 
-            # Should track failure
-            mock_track.assert_called_once()
-
     @pytest.mark.asyncio
     async def test_spam_deletion_permission_error_notification_failure(
         self, mock_message
@@ -128,7 +120,6 @@ class TestSpamDeletion:
             patch(
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
             ) as mock_notify,
-            patch("src.app.handlers.handle_spam.track_group_event") as mock_track,
             patch("src.app.handlers.handle_spam.logger") as mock_logger,
         ):
             # Mock permission error
@@ -157,9 +148,6 @@ class TestSpamDeletion:
             ]
             assert len(warning_calls) == 1
 
-            # Should track failure
-            mock_track.assert_called_once()
-
     @pytest.mark.asyncio
     async def test_spam_deletion_permission_error_no_group(self, mock_message):
         """Test spam deletion failure due to permission error when group not found."""
@@ -168,7 +156,6 @@ class TestSpamDeletion:
             patch(
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
             ) as mock_notify,
-            patch("src.app.handlers.handle_spam.track_group_event") as mock_track,
         ):
             # Mock permission error
             permission_error = MockTelegramBadRequest("Chat admin required")
@@ -183,9 +170,6 @@ class TestSpamDeletion:
 
             # Should not attempt to notify admins if group not found
             mock_notify.assert_not_called()
-
-            # Should track failure
-            mock_track.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_sender_chat_spam_check_trigger(self, mock_message):

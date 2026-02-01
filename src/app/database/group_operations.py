@@ -4,7 +4,6 @@ from typing import Dict, List, Optional
 from aiogram.exceptions import TelegramBadRequest
 
 from ..common.bot import bot
-from ..common.mp import mp
 from . import admin_operations
 from .models import Group
 from .postgres_connection import get_pool
@@ -238,9 +237,6 @@ async def get_admin_groups(admin_id: int) -> List[Dict]:
             except Exception as e:
                 logger.error(f"Failed to cleanup inaccessible group {group_id}: {e}")
 
-        # Update Mixpanel profile with current group count
-        mp.people_set(admin_id, {"managed_groups_count": len(groups)})
-
         return groups
 
 
@@ -390,22 +386,4 @@ async def update_group_admins(
                     """,
                     group_id,
                     admin_id,
-                )
-
-                # Update Mixpanel profile
-                managed_groups_count = await conn.fetchval(
-                    """
-                    SELECT COUNT(*) FROM group_administrators
-                    WHERE admin_id = $1
-                    """,
-                    admin_id,
-                )
-
-                mp.people_set(
-                    admin_id,
-                    {
-                        "managed_groups_count": managed_groups_count,
-                        "$last_group_change": "added",
-                        "$last_group_change_date": "NOW()",
-                    },
                 )

@@ -29,7 +29,6 @@ from .handlers import *
 
 from .common.bot import LESHCHENKO_CHAT_ID, bot
 from .common.llms import LocationNotSupported, RateLimitExceeded
-from .common.mp import mp
 from .common.utils import get_dotted_path, remove_lines_to_fit_len
 from .database.postgres_connection import close_pool
 from .handlers.dp import dp
@@ -208,16 +207,6 @@ async def handle_timeout(
 
     chat_id, admin_id = extract_ids_from_update(json)
 
-    if admin_id:
-        mp.track(
-            admin_id,
-            "webhook_timeout",
-            {
-                "chat_id": chat_id,
-                "elapsed_seconds": elapsed,
-            },
-        )
-
     return web.json_response(
         {"error": "Processing timed out", "retry": True},
         status=503,
@@ -301,13 +290,6 @@ async def handle_unhandled_exception(
     span.record_exception(e)
 
     chat_id, admin_id = extract_ids_from_update(json)
-
-    if admin_id:
-        mp.track(
-            admin_id,
-            "unhandled_exception",
-            {"chat_id": chat_id, "exception": str(e)},
-        )
 
     text = f"Bot error: <code>{e}</code>\n<pre>\n{traceback.format_exc()}\n</pre>"
     asyncio.create_task(

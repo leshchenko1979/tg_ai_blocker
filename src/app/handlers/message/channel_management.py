@@ -10,7 +10,6 @@ import logging
 from aiogram import types
 from aiogram.client.bot import Bot
 
-from ...common.tracking import track_group_event
 from ...common.utils import retry_on_network_error
 
 logger = logging.getLogger(__name__)
@@ -162,14 +161,4 @@ async def notify_channel_admins_and_leave(chat: types.Chat, bot: Bot) -> None:
     await bot.leave_chat(chat.id)
     logger.info(
         f"Bot left channel {chat.id} after notifying {len(notified_admins)} admins."
-    )
-
-    await track_group_event(
-        chat.id,
-        "channel_admins_notified_wrong_addition",
-        {
-            "chat_title": chat.title,
-            "chat_id": chat.id,
-            "notified_admins": notified_admins,
-        },
     )

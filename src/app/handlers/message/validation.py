@@ -11,7 +11,6 @@ from typing import Optional, Tuple
 from aiogram import types
 
 from ...common.bot import bot
-from ...common.tracking import track_group_event
 from ...database import get_group, is_member_in_group
 from ...database.models import Group
 
@@ -38,18 +37,24 @@ def determine_effective_user_id(message: types.Message) -> Optional[int]:
     return None
 
 
-async def validate_group_and_permissions(
+async def validate_group_and_check_early_exits(
     chat_id: int, user_id: int
 ) -> Tuple[Optional[Group], str]:
     """
-    Get group and perform early permission checks.
+    Validate group exists and check for early exit conditions.
+
+    Performs validation that group exists and moderation is enabled, then checks
+    for conditions that should cause early exit from message processing (admin
+    messages, approved users).
 
     Args:
         chat_id: The chat ID to validate
-        user_id: The user ID to check permissions for
+        user_id: The user ID to check
 
     Returns:
-        Tuple of (group, error_reason) where error_reason is empty string if valid
+        Tuple of (group, exit_reason). If exit_reason is non-empty, processing
+        should stop with the given reason. If exit_reason is empty string,
+        processing should continue with the returned group.
     """
     group, group_error = await get_and_check_group(chat_id)
     if group_error:
@@ -60,9 +65,6 @@ async def validate_group_and_permissions(
 
     # Check if sender is an admin - skip immediately
     if user_id in group.admin_ids:
-        await track_group_event(
-            chat_id, "message_from_admin_skipped", {"user_id": user_id}
-        )
         return group, "message_from_admin_skipped"
 
     # Check if sender is approved
@@ -196,7 +198,7 @@ def should_attempt_api_fetch(
     )
 
 
-async def get_and_check_group(chat_id: int) -> Tuple[Optional[Group], Optional[str]]:
+async def get_and_check_group(chat_id: int) -> Tuple[Optional[Group], str]:
     """
     Get group and check if moderation is enabled.
 
@@ -204,7 +206,8 @@ async def get_and_check_group(chat_id: int) -> Tuple[Optional[Group], Optional[s
         chat_id: The chat ID to look up
 
     Returns:
-        Tuple of (group, error_reason) where error_reason is empty string if valid
+        Tuple of (group, error_reason). Returns (None, error_message) if group
+        doesn't exist or moderation is disabled. Returns (group, "") if valid.
     """
     group = await get_group(chat_id)
 
@@ -213,10 +216,9 @@ async def get_and_check_group(chat_id: int) -> Tuple[Optional[Group], Optional[s
         return None, "error_message_group_not_found"
 
     if not group.moderation_enabled:
-        await track_group_event(chat_id, "message_skipped_moderation_disabled", {})
         return None, "message_moderation_disabled"
 
-    return group, None
+    return group, ""
 
 
 async def check_known_member(chat_id: int, user_id: int) -> bool:
@@ -230,9 +232,4 @@ async def check_known_member(chat_id: int, user_id: int) -> bool:
     Returns:
         True if user is approved, False otherwise
     """
-    if await is_member_in_group(chat_id, user_id):
-        await track_group_event(
-            chat_id, "message_skipped_known_member", {"user_id": user_id}
-        )
-        return True
-    return False
+    return await is_member_in_group(chat_id, user_id)

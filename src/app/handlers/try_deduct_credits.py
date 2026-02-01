@@ -14,8 +14,6 @@ from typing import Optional, Sequence, Tuple, Union
 from aiogram.types import ChatMember, ChatMemberAdministrator, ChatMemberOwner
 
 from ..common.bot import bot
-from ..common.mp import mp
-from ..common.tracking import track_credits_deduction
 from ..common.utils import retry_on_network_error
 from ..database import deduct_credits_from_admins, get_admin, set_group_moderation
 
@@ -38,7 +36,6 @@ async def try_deduct_credits(chat_id: int, amount: int, reason: str) -> bool:
         return True
 
     admin_id = await deduct_credits_from_admins(chat_id, amount)
-    await track_credits_deduction(chat_id, amount, reason, admin_id)
 
     if not admin_id:
         logger.warning(f"No paying admins in chat {chat_id} for {reason}")
@@ -143,16 +140,6 @@ async def send_group_deactivation_message(
 
         await send_deactivation_message()
 
-        # Трекинг отправки рекламного сообщения
-        mp.track(
-            min_credits_admin.user.id,
-            "promo_message_sent",
-            {
-                "type": "no_credits_group",
-                "chat_id": chat_id,
-                "admin_credits": min_credits,
-            },
-        )
     except Exception as e:
         logger.warning(f"Failed to send group promo message: {e}", exc_info=True)
 

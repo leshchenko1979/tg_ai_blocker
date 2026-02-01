@@ -6,7 +6,6 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from ..common.bot import bot
 from ..spam.user_profile import collect_user_context
-from ..common.mp import mp
 from ..common.utils import load_config, retry_on_network_error
 from ..database.group_operations import add_member
 from ..database.spam_examples import add_spam_example
@@ -165,6 +164,7 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
             )
             user_context = None
         if user_context and user_context.linked_channel.status == "found":
+            assert user_context.linked_channel.content is not None
             channel_fragment = user_context.linked_channel.content.to_prompt_fragment()
 
         # Все тяжелые операции параллельно
@@ -197,31 +197,9 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
                 )
             )
 
-        # Трекинг обработки колбэка
-        mp.track(
-            admin_id,
-            "callback_spam_ignore",
-            {
-                "author_id": author_id,
-                "text": message_text,
-                "name": author_info.full_name if author_info else None,
-                "bio": author_info.bio if author_info else None,
-                "linked_channel": channel_fragment,
-            },
-        )
         return "callback_marked_as_not_spam"
 
     except Exception as e:
-        # Трекинг ошибок
-        mp.track(
-            admin_id,
-            "error_callback_spam_ignore",
-            {
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-                "callback_data": callback.data,
-            },
-        )
         logger.error(f"Error in spam ignore callback: {e}", exc_info=True)
         try:
             await callback.answer("❌ Произошла ошибка", show_alert=True)
@@ -289,30 +267,9 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
             await callback.answer("❌ Не удалось удалить сообщение", show_alert=True)
             return "callback_error_deleting_original"
 
-        # Трекинг подтверждения спама
-        mp.track(
-            callback.from_user.id,
-            "callback_spam_confirm",
-            {
-                "author_id": author_id,
-                "chat_id": int(original_chat_id),
-                "message_id": int(original_message_id),
-                "notification_chat_id": callback.message.chat.id,
-                "notification_message_id": callback.message.message_id,
-            },
-        )
         return "callback_spam_message_deleted"
 
     except Exception as e:
-        # Трекинг ошибок
-        mp.track(
-            callback.from_user.id,
-            "error_callback_spam_confirm",
-            {
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-            },
-        )
         logger.error(f"Error in spam confirm callback: {e}", exc_info=True)
         try:
             await callback.answer("❌ Произошла ошибка", show_alert=True)

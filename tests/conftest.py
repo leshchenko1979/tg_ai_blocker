@@ -23,10 +23,6 @@ from app.logging_setup import mute_logging_for_tests
 
 mute_logging_for_tests()
 
-# Mute mp for tests
-from app.common.mp import mute_mp_for_tests
-
-mute_mp_for_tests()
 
 import asyncpg
 import aiosqlite

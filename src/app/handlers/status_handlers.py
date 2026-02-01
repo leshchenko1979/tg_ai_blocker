@@ -1,7 +1,6 @@
 """Handlers for bot status updates in chats."""
 
 import logging
-from datetime import datetime, timezone
 from typing import List
 
 import logfire
@@ -11,7 +10,6 @@ from aiogram.filters import or_f
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
-from ..common.mp import mp
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.utils import retry_on_network_error, sanitize_html
 from ..database import get_group, update_group_admins
@@ -70,17 +68,6 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> str:
             f"Error handling bot status update in chat '{chat_title}' ({chat_id}): {e}",
             exc_info=True,
         )
-        mp.track(
-            admin_id,
-            "error_status_update",
-            {
-                "group_id": chat_id,
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-                "new_status": new_status,
-                "timestamp": event.date.isoformat(),
-            },
-        )
         raise
 
 
@@ -109,31 +96,6 @@ async def _handle_permission_update(
 
     if old_rights != new_rights:
         has_all_rights = all(new_rights.values())
-
-        # Получаем группу для проверки времени добавления
-        group = await get_group(chat_id)
-        added_at = group.created_at if group else event.date
-        # Ensure both datetimes are timezone-aware (UTC)
-        if added_at.tzinfo is None:
-            added_at = added_at.replace(tzinfo=timezone.utc)
-        time_since_added = (event.date - added_at).total_seconds()
-
-        mp.track(
-            admin_id,
-            "bot_permissions_updated",
-            {
-                "group_id": chat_id,
-                "chat_title": chat_title,
-                "old_rights": old_rights,
-                "new_rights": new_rights,
-                "has_all_required_rights": has_all_rights,
-                "timestamp": event.date.isoformat(),
-                "setup_step": "grant_permissions" if has_all_rights else "add_bot",
-                "time_since_added": time_since_added,
-                "time_since_added_minutes": time_since_added / 60,
-                "time_since_added_hours": time_since_added / 3600,
-            },
-        )
 
         # Если после обновления прав все еще не хватает необходимых прав
         if not has_all_rights:
@@ -193,24 +155,6 @@ async def _handle_bot_added(
     # Add only the admin who added the bot (with username if available)
     admin_username = getattr(event.from_user, "username", None)
     await update_group_admins(chat_id, [admin_id], [admin_username])
-
-    # Track initial interaction
-    mp.track(
-        admin_id,
-        "bot_added_to_group",
-        {
-            "group_id": chat_id,
-            "chat_title": chat_title,
-            "status": new_status,
-            "has_admin_rights": new_status == "administrator",
-            "is_group_creator": True,  # Since this admin added the bot
-            "timestamp": event.date.isoformat(),
-            "setup_step": "add_bot",
-            "time_since_added": 0,
-            "time_since_added_minutes": 0,
-            "time_since_added_hours": 0,
-        },
-    )
 
     has_admin_rights = (
         new_status == "administrator"
@@ -287,21 +231,6 @@ async def _handle_bot_removed(
                 # We can't easily check if it's a bot here without API calls,
                 # but we'll handle bot detection in the notification function
                 human_admin_ids.append(current_admin_id)
-
-            mp.track(
-                current_admin_id,
-                "bot_removed_from_group",
-                {
-                    "group_id": chat_id,
-                    "chat_title": chat_title,
-                    "removed_by": admin_id,
-                    "removed_by_name": removed_by_info,
-                    "status": new_status,
-                    "timestamp": event.date.isoformat(),
-                    "setup_step": "removed",
-                    "is_human_admin": current_admin_id in human_admin_ids,
-                },
-            )
 
         if human_admin_ids:
             await _notify_admins_about_removal(
@@ -439,16 +368,6 @@ async def _send_promo_message(
         logger.warning(
             f"Failed to send promo message to chat {chat_id} ('{chat_title}'): {e}"
         )
-        mp.track(
-            added_by,
-            "error_promo_message",
-            {
-                "group_id": chat_id,
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-                "timestamp": datetime.now().isoformat(),
-            },
-        )
 
 
 # Фильтр для сервисных сообщений о присоединении/выходе участников
@@ -568,15 +487,4 @@ async def handle_member_service_message(message: types.Message) -> str:
             f"Error handling service message in chat {chat_id} ('{message.chat.title or ''}'): {e}",
             exc_info=True,
         )
-        if message.from_user:
-            mp.track(
-                message.from_user.id,
-                "error_service_message_handling",
-                {
-                    "group_id": message.chat.id,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                },
-            )
         return "service_message_error"

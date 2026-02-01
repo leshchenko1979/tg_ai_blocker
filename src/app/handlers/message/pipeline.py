@@ -9,20 +9,15 @@ import logging
 
 from aiogram import types
 
-from ...common.tracking import track_group_event
 from ...database import APPROVE_PRICE, DELETE_PRICE, add_member
 from ..handle_spam import handle_spam
 from ..try_deduct_credits import try_deduct_credits
 from .validation import (
     check_skip_channel_bot_message,
     determine_effective_user_id,
-    validate_group_and_permissions,
+    validate_group_and_check_early_exits,
 )
-from ...spam.context_types import SpamCheckResult
-from ...spam.message_context import (
-    collect_message_context,
-    track_spam_check_result,
-)
+from ...spam.message_context import collect_message_context
 from ...spam.spam_classifier import is_spam
 
 logger = logging.getLogger(__name__)
@@ -53,10 +48,12 @@ async def handle_moderated_message(message: types.Message) -> str:
 
         chat_id = message.chat.id
 
-        # Validate group and check permissions (early exits)
-        group, permission_error = await validate_group_and_permissions(chat_id, user_id)
-        if permission_error or group is None:
-            return permission_error
+        # Validate group and check for early exits
+        group, exit_reason = await validate_group_and_check_early_exits(
+            chat_id, user_id
+        )
+        if exit_reason or group is None:
+            return exit_reason
 
         # At this point group is guaranteed to be not None
 
@@ -92,18 +89,6 @@ async def handle_moderated_message(message: types.Message) -> str:
             logger.warning("Failed to get spam score")
             return "message_spam_check_failed"
 
-        # Track the spam check result
-        await track_spam_check_result(
-            SpamCheckResult(
-                chat_id,
-                user_id,
-                spam_score,
-                analysis_result.message_text,
-                analysis_result.bio,
-                reason,
-            )
-        )
-
         # Process spam or approve user
         return await process_spam_or_approve(
             chat_id, user_id, spam_score, message, group.admin_ids, reason
@@ -111,14 +96,6 @@ async def handle_moderated_message(message: types.Message) -> str:
 
     except Exception as e:
         logger.error(f"Error processing message: {e}", exc_info=True)
-        await track_group_event(
-            chat_id,
-            "error_message_processing",
-            {
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-            },
-        )
         raise
 
 
@@ -150,14 +127,5 @@ async def process_spam_or_approve(
 
     elif await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
         await add_member(chat_id, user_id)
-        await track_group_event(
-            chat_id,
-            "user_approved",
-            {
-                "chat_id": chat_id,
-                "user_id": user_id,
-                "spam_score": spam_score,
-            },
-        )
         return "message_user_approved"
     return "message_insufficient_credits"

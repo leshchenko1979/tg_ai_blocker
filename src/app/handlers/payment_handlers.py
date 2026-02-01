@@ -5,9 +5,8 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
-from ..common.mp import mp
 from ..common.utils import retry_on_network_error
-from ..database import get_admin_credits, get_pool
+from ..database import get_pool
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -40,10 +39,6 @@ async def handle_buy_command(message: types.Message) -> str:
         ]
     )
 
-    # Трекинг начала покупки
-    if message.from_user:
-        mp.track(message.from_user.id, "payment_menu_opened")
-
     await message.reply(
         "🛒 Выберите количество звезд для покупки:\n\n"
         "• 100 звезд - базовый пакет\n"
@@ -72,14 +67,6 @@ async def handle_buy_stars_callback(callback: types.CallbackQuery) -> str:
         return "invalid_callback_data"
 
     stars_amount = int(callback.data.split(":")[1])
-
-    # Трекинг выбора пакета
-    if callback.from_user:
-        mp.track(
-            callback.from_user.id,
-            "payment_package_selected",
-            {"stars_amount": stars_amount},
-        )
 
     if (
         not callback.message
@@ -130,20 +117,6 @@ async def process_successful_payment(message: types.Message) -> str:
                 stars_amount,
             )
 
-        # Update Mixpanel profile with new credit balance
-        new_balance = await get_admin_credits(admin_id)
-        mp.people_set(
-            admin_id,
-            {
-                "credits": new_balance,
-                "$last_transaction_amount": stars_amount,
-                "$last_transaction_date": str(message.date),
-            },
-        )
-
-        # Трекинг успешного платежа
-        mp.track(admin_id, "payment_successful", {"stars_amount": stars_amount})
-
         @retry_on_network_error
         async def send_payment_confirmation():
             return await bot.send_message(
@@ -158,16 +131,5 @@ async def process_successful_payment(message: types.Message) -> str:
         return "payment_successful_processed"
 
     except Exception as e:
-        # Трекинг ошибок
-        mp.track(
-            admin_id,
-            "error_payment",
-            {
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-                "stars_amount": stars_amount,
-                "payment_info": str(message.successful_payment),
-            },
-        )
         logger.error(f"Error processing payment: {e}", exc_info=True)
         raise

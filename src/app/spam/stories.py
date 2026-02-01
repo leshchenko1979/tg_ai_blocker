@@ -34,7 +34,6 @@ class StorySummary:
         return " | ".join(parts) if parts else "Media story"
 
 
-@logfire.instrument()
 async def collect_user_stories(
     user_id: int, username: Optional[str] = None, chat_id: Optional[int] = None
 ) -> ContextResult[str]:

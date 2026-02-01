@@ -1,8 +1,6 @@
 import logging
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from ..common.mp import mp
 from .constants import INITIAL_CREDITS
 from .models import Administrator
 from .postgres_connection import get_pool
@@ -241,16 +239,6 @@ async def remove_admin(admin_id: int) -> None:
                 WHERE admin_id = $1
                 """,
                 admin_id,
-            )
-
-            # Track removal in Mixpanel
-            mp.track(
-                admin_id,
-                "admin_removed",
-                {
-                    "reason": "bot_blocked",
-                    "timestamp": datetime.now().isoformat(),
-                },
             )
 
 

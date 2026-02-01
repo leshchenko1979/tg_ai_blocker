@@ -23,7 +23,6 @@ from ..common.mtproto_utils import bot_api_chat_id_to_mtproto
 logger = logging.getLogger(__name__)
 
 
-@logfire.instrument()
 async def collect_user_context(
     user_id_or_message,
     username: Optional[str] = None,
@@ -159,10 +158,9 @@ async def collect_user_context(
     )
 
 
-@logfire.instrument()
 async def collect_channel_summary_by_id(
     channel_id: int,
-    user_reference: str | int = "unknown",
+    user_reference: str | int | None = "unknown",
     username: Optional[str] = None,
 ) -> ContextResult[LinkedChannelSummary]:
     """
@@ -257,7 +255,6 @@ async def collect_channel_summary_by_id(
     return ContextResult(status=ContextStatus.FOUND, content=summary)
 
 
-@logfire.instrument()
 async def _fetch_channel_edge_message(
     client: MtprotoHttpClient,
     peer_reference: int | str,
@@ -292,7 +289,6 @@ async def _fetch_channel_edge_message(
     return message, total
 
 
-@logfire.instrument()
 async def _fetch_recent_posts_content(
     client: MtprotoHttpClient,
     peer_reference: int | str,
