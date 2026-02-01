@@ -1,10 +1,12 @@
 import pytest
 from unittest.mock import patch, AsyncMock
-from src.app.spam.spam_classifier import (
+from src.app.spam.llm_client import (
     ExtractionFailedError,
-    extract_spam_score,
+    parse_classification_response,
+)
+from src.app.spam.prompt_builder import (
     format_spam_request,
-    get_system_prompt,
+    build_system_prompt,
 )
 
 
@@ -32,8 +34,8 @@ from src.app.spam.spam_classifier import (
         ("<abc> нет 66% <zzz>", -66, "Классифицировано как не спам с уверенностью 66%"),
     ],
 )
-def test_extract_spam_score_valid(response, expected_score, expected_reason):
-    score, reason = extract_spam_score(response)
+def test_parse_classification_response_valid(response, expected_score, expected_reason):
+    score, reason = parse_classification_response(response)
     assert score == expected_score
     assert reason == expected_reason
 
@@ -47,9 +49,9 @@ def test_extract_spam_score_valid(response, expected_score, expected_reason):
         "",
     ],
 )
-def test_extract_spam_score_invalid(response):
+def test_parse_classification_response_invalid(response):
     with pytest.raises(ExtractionFailedError):
-        extract_spam_score(response)
+        parse_classification_response(response)
 
 
 def test_format_spam_request_basic():
@@ -88,15 +90,23 @@ def test_format_spam_request_with_linked_channel():
         SpamClassificationContext,
         ContextResult,
         ContextStatus,
+        LinkedChannelSummary,
+    )
+
+    linked_channel_summary = LinkedChannelSummary(
+        subscribers=100,
+        total_posts=50,
+        post_age_delta=3,
+        recent_posts_content=None,
     )
 
     context = SpamClassificationContext(
         linked_channel=ContextResult(
-            status=ContextStatus.FOUND, content="subscribers=100"
+            status=ContextStatus.FOUND, content=linked_channel_summary
         )
     )
     req = format_spam_request("Hello", context)
-    assert "LINKED CHANNEL INFO:\nsubscribers=100" in req
+    assert "LINKED CHANNEL INFO:\nsubscribers=100; total_posts=50; age_delta=3mo" in req
 
 
 def test_format_spam_request_with_reply_context():
@@ -112,26 +122,26 @@ def test_format_spam_request_with_reply_context():
 
 
 @pytest.mark.asyncio
-async def test_get_system_prompt_stories_guidance():
+async def test_build_system_prompt_stories_guidance():
     with patch(
-        "src.app.spam.spam_classifier.get_spam_examples", new_callable=AsyncMock
+        "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
     ) as mock_examples:
         mock_examples.return_value = []
 
-        prompt = await get_system_prompt(include_stories_guidance=True)
+        prompt = await build_system_prompt(include_stories_guidance=True)
 
         assert "## USER STORIES ANALYSIS" in prompt
         assert "Flag as HIGH SPAM if stories contain:" in prompt
 
 
 @pytest.mark.asyncio
-async def test_get_system_prompt_reply_context_guidance():
+async def test_build_system_prompt_reply_context_guidance():
     with patch(
-        "src.app.spam.spam_classifier.get_spam_examples", new_callable=AsyncMock
+        "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
     ) as mock_examples:
         mock_examples.return_value = []
 
-        prompt = await get_system_prompt(include_reply_context_guidance=True)
+        prompt = await build_system_prompt(include_reply_context_guidance=True)
 
         assert "## DISCUSSION CONTEXT ANALYSIS" in prompt
         assert 'The "REPLY CONTEXT" is NOT the message you are classifying.' in prompt
@@ -143,25 +153,25 @@ async def test_get_system_prompt_reply_context_guidance():
 
 
 @pytest.mark.asyncio
-async def test_get_system_prompt_no_reply_context_guidance():
+async def test_build_system_prompt_no_reply_context_guidance():
     with patch(
-        "src.app.spam.spam_classifier.get_spam_examples", new_callable=AsyncMock
+        "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
     ) as mock_examples:
         mock_examples.return_value = []
 
-        prompt = await get_system_prompt(include_reply_context_guidance=False)
+        prompt = await build_system_prompt(include_reply_context_guidance=False)
 
         assert "Раздел <контекст_обсуждения>" not in prompt
 
 
 @pytest.mark.asyncio
-async def test_get_system_prompt_no_guidance():
+async def test_build_system_prompt_no_guidance():
     with patch(
-        "src.app.spam.spam_classifier.get_spam_examples", new_callable=AsyncMock
+        "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
     ) as mock_examples:
         mock_examples.return_value = []
 
-        prompt = await get_system_prompt(include_stories_guidance=False)
+        prompt = await build_system_prompt(include_stories_guidance=False)
 
         assert "Раздел <истории_пользователя>" not in prompt
 

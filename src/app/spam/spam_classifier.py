@@ -1,540 +1,124 @@
-import asyncio
+"""
+Spam classification coordinator.
+
+This module provides the main API for spam classification, coordinating
+between prompt building, LLM interaction, and response processing.
+
+Key Functions:
+- is_spam(): Main entry point for spam classification orchestration
+"""
+
 import logging
-import re
-import time
 from typing import List, Optional, Tuple
 
-import logfire
-
-from ..database.spam_examples import get_spam_examples
-from .context_types import ContextResult, ContextStatus, SpamClassificationContext
-from ..common.llms import (
-    LocationNotSupported,
-    RateLimitExceeded,
-    get_cloudflare_response,
-)
+from .context_types import SpamClassificationContext
+from .llm_client import call_llm_with_spam_classification
+from .prompt_builder import build_system_prompt, format_spam_request
 
 logger = logging.getLogger(__name__)
 
-MAX_RETRIES = 3
 
-# Create metrics once at module level
-spam_score_gauge = logfire.metric_gauge("spam_score")
-attempts_histogram = logfire.metric_histogram("attempts")
-
-
-class ExtractionFailedError(Exception):
-    pass
-
-
-@logfire.instrument(extract_args=True)
 async def is_spam(
     comment: str,
-    admin_ids: List[int] | None = None,
-    context: SpamClassificationContext | None = None,
+    admin_ids: Optional[List[int]] = None,
+    context: Optional[SpamClassificationContext] = None,
 ) -> Tuple[int, str]:
     """
-    Классифицирует сообщение как спам или не спам
+    Classify a message as spam or legitimate using LLM analysis.
+
+    This is the main entry point for spam classification that orchestrates
+    the entire process from prompt building through LLM interaction to response parsing.
 
     Args:
-        comment: Текст сообщения
-        admin_ids: Список ID администраторов для получения их персональных примеров спама (опционально)
-        context: Контекстная информация для классификации (опционально)
+        comment: The message content to classify
+        admin_ids: Optional list of admin IDs for personalized spam examples
+        context: Optional contextual information for classification
 
     Returns:
-        tuple[int, str]:
-            - int: Положительное число, если спам (0 до 100), отрицательное, если не спам (-100 до 0)
-            - str: Комментарий с причиной оценки
+        Tuple[int, str]:
+            - int: Spam score (positive = spam 0-100, negative = legitimate -100-0)
+            - str: Explanation of the classification decision
+
+    Raises:
+        ClassificationError: If classification fails after all retries
     """
     # Use empty context if none provided
-    if context is None:
-        context = SpamClassificationContext()
+    classification_context = context or SpamClassificationContext()
 
-    prompt = await get_system_prompt(
-        admin_ids,
+    # Prepare the classification request (prompt building and message formatting)
+    messages = await _prepare_classification_request(
+        comment, admin_ids, classification_context
+    )
+
+    # Call LLM with retry logic (handles all LLM interaction, retries, and response parsing)
+    return await call_llm_with_spam_classification(messages)
+
+
+async def _prepare_classification_request(
+    comment: str,
+    admin_ids: Optional[List[int]],
+    context: SpamClassificationContext,
+) -> List[dict]:
+    """
+    Prepare the messages for LLM classification request.
+
+    Args:
+        comment: The message content to classify
+        admin_ids: Optional list of admin IDs for personalized spam examples
+        context: Contextual information for classification
+
+    Returns:
+        List[dict]: Messages array ready for LLM API
+    """
+    # Build the system prompt
+    system_prompt = await build_system_prompt(
+        admin_ids=admin_ids,
         include_linked_channel_guidance=context.include_linked_channel_guidance,
         include_stories_guidance=context.include_stories_guidance,
         include_reply_context_guidance=context.include_reply_guidance,
         include_account_age_guidance=context.include_account_age_guidance,
     )
-    messages = get_messages(
+
+    # Create messages for LLM
+    messages = _create_classification_messages(
         comment,
         context.name,
         context.bio,
-        prompt,
+        system_prompt,
         context,
     )
 
-    last_response = None
-    last_error = None
-    attempt = 0
-    unknown_errors = 0
-
-    schema = {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "spam_classification",
-            "strict": True,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "is_spam": {
-                        "type": "boolean",
-                        "description": "True если сообщение является спамом, иначе False",
-                    },
-                    "confidence": {
-                        "type": "integer",
-                        "description": "Уверенность в классификации от 0 до 100",
-                        "minimum": 0,
-                        "maximum": 100,
-                    },
-                    "reason": {
-                        "type": "string",
-                        "description": "Причина такой классификации и на основании каких элементов "
-                        "входящих данных сделан такой вывод. Пиши по-русски.",
-                    },
-                },
-                "required": ["is_spam", "confidence", "reason"],
-                "additionalProperties": False,
-            },
-        },
-    }
-
-    while unknown_errors < MAX_RETRIES:
-        attempt += 1
-        with logfire.span(f"Getting spam classifier response, attempt #{attempt}"):
-            try:
-                response = await get_cloudflare_response(
-                    messages, temperature=0.0, response_format=schema
-                )
-                last_response = response
-                logger.info(f"Spam classifier response: {response}")
-                score, reason = extract_spam_score(response)
-                spam_score_gauge.set(score)
-                attempts_histogram.record(attempt)
-                return score, reason
-
-            except RateLimitExceeded as e:
-                if e.is_upstream_error:
-                    # Для ошибок upstream-провайдера продолжаем немедленно
-                    logger.info(
-                        "Upstream provider rate limit hit, retrying immediately"
-                    )
-                else:
-                    # Для ошибок Cloudflare AI Gateway ждем до reset_time
-                    # Convert milliseconds to seconds for reset_time
-                    reset_time_seconds = int(e.reset_time) / 1000
-                    wait_time = reset_time_seconds - time.time()
-                    if wait_time > 0:
-                        reset_time_str = time.strftime(
-                            "%Y-%m-%d %H:%M:%S", time.localtime(reset_time_seconds)
-                        )
-                        logger.info(
-                            f"Cloudflare AI Gateway rate limit hit, waiting {wait_time:.2f} seconds until {reset_time_str}"
-                        )
-                        await asyncio.sleep(wait_time)
-                continue
-            except LocationNotSupported as e:
-                # Location not supported тоже считаем транзиентной ошибкой
-                logger.info(f"Location not supported for provider {e.provider}")
-                continue
-
-            except Exception as e:
-                last_error = e
-                unknown_errors += 1
-
-    logger.warning(
-        "Spam classifier failed after %s attempts. comment=%r, context=%r, response=%r, last_error=%r",
-        MAX_RETRIES,
-        comment,
-        context,
-        last_response,
-        last_error,
-    )
-    raise ExtractionFailedError(
-        f"Failed to classify message after {MAX_RETRIES} attempts: {str(last_error)}"
-    ) from last_error
+    return messages
 
 
-def build_base_system_prompt() -> str:
-    """Build the core system prompt with basic instructions."""
-    return """You are a spam message classifier for Telegram groups.
-
-Your task: Analyze user messages and determine if they are spam or legitimate.
-The message to classify is enclosed in >>> BEGIN MESSAGE markers.
-You will also receive context information (User Bio, Linked Channel, Reply Context).
-IMPORTANT: Do not classify the context information as spam. Only classify the message inside the markers.
-
-Return a spam score from -100 to +100, where:
-- Positive scores = spam (0 to 100)
-- Negative scores = legitimate (-100 to 0)
-- Zero = uncertain
-
-Also provide a confidence percentage (0-100) and a brief explanation."""
-
-
-def add_context_guidance_sections(
-    prompt: str,
-    include_linked_channel_guidance: bool = False,
-    include_stories_guidance: bool = False,
-    include_account_age_guidance: bool = False,
-    include_reply_context_guidance: bool = False,
-) -> str:
-    """Add context-specific guidance sections to the prompt."""
-    if include_linked_channel_guidance:
-        prompt += """
-
-## LINKED CHANNEL ANALYSIS
-This section contains information about a channel linked to the user's profile.
-
-Key metrics to evaluate:
-- subscribers: Number of channel subscribers
-- total_posts: Total posts ever published
-- age_delta: Channel age in months (format: "11mo")
-- recent_posts: Content from recent channel posts (if available)
-
-Consider the user HIGH RISK if these are true:
-- subscribers < 200
-- total_posts < 10
-- age_delta < 5mo
-
-CONTENT ANALYSIS: Examine recent_posts for spam indicators like:
-- Pornographic content
-- Advertising or promotions
-- Scams or fraudulent offers
-- Spam patterns
-
-If recent_posts contain suspicious content, this is a STRONG spam indicator,
-even if the current message appears innocent. Porn channels often use innocent comments
-to drive traffic to their profiles."""
-
-    if include_stories_guidance:
-        prompt += """
-
-## USER STORIES ANALYSIS
-This section contains content from the user's active profile stories.
-
-Spammers frequently use stories to hide promotional content, links, or scam offers
-while posting "clean" comments to lure people into viewing their profile.
-
-Flag as HIGH SPAM if stories contain:
-- Advertising links or promotions
-- Calls to join channels or follow profiles
-- Money-making offers, crypto, or investment schemes
-- Links to other channels or external sites
-
-This is a strong spam indicator even if the message itself appears legitimate."""
-
-    if include_account_age_guidance:
-        prompt += """
-
-## ACCOUNT AGE ANALYSIS
-This section shows the age of the user's profile photo.
-
-Account age is a powerful spam indicator because spammers create new accounts
-and immediately start posting spam.
-
-Risk assessment:
-- photo_age=unknown OR no photo: HIGH spam risk for new messages
-- photo_age=0mo (less than 1 month): HIGH spam risk - likely brand new account
-- photo_age=1mo to 3mo: MEDIUM spam risk
-- photo_age > 12mo: LOW spam risk - established account with old photo"""
-
-    if include_reply_context_guidance:
-        prompt += """
-
-## DISCUSSION CONTEXT ANALYSIS
-The user message may be a reply to another post. The content of that original post is provided in the "REPLY CONTEXT" section.
-
-CRITICAL INSTRUCTION:
-1. The "REPLY CONTEXT" is NOT the message you are classifying.
-2. It often contains the spam message that the user is replying to (e.g. asking a question about a spam offer).
-3. DO NOT classify the user's message as spam just because the "REPLY CONTEXT" is spam.
-4. ONLY use this context to check if the user's reply is RELEVANT to the conversation.
-
-HIGH SPAM INDICATOR: User replies that are completely unrelated to the discussion topic.
-This is a common scam tactic: post irrelevant comments to "befriend" users,
-then send investment/crypto offers via private messages.
-
-Signs of irrelevant replies:
-- Reply ignores the main topic of the original post
-- Shifts to personal topics (books, movies, hobbies) with no connection
-- Generic phrases like "interesting" or "I agree" without specific reference
-- Self-promotion disguised as "helpful advice" on unrelated topics"""
-
-    return prompt
-
-
-def add_response_format_section(prompt: str) -> str:
-    """Add the response format section to the prompt."""
-    return (
-        prompt
-        + """
-
-## RESPONSE FORMAT
-Always respond with valid JSON in this exact format:
-{
-    "is_spam": true/false,
-    "confidence": 0-100,
-    "reason": "Причина такой классификации и на основании каких элементов входящих данных сделан такой вывод. Пиши по-русски."
-}
-
-## SPAM CLASSIFICATION EXAMPLES
-"""
-    )
-
-
-async def add_spam_examples_section(
-    prompt: str, admin_ids: Optional[List[int]] = None
-) -> str:
-    """Add spam examples from database to the prompt."""
-    # Get spam examples, including user-specific examples
-    examples = await get_spam_examples(admin_ids)
-
-    # Add examples to prompt
-    for example in examples:
-        # Create context from example data
-        example_context = SpamClassificationContext(
-            name=example.get("name"),
-            bio=example.get("bio"),
-            linked_channel=ContextResult(
-                status=ContextStatus.FOUND,
-                content=example.get("linked_channel_fragment"),
-            )
-            if example.get("linked_channel_fragment")
-            else None,
-            stories=ContextResult(
-                status=ContextStatus.FOUND, content=example.get("stories_context")
-            )
-            if example.get("stories_context")
-            else None,
-            reply=example.get("reply_context"),
-            account_age=ContextResult(
-                status=ContextStatus.FOUND, content=example.get("account_age_context")
-            )
-            if example.get("account_age_context")
-            else None,
-        )
-
-        example_request = format_spam_request(
-            text=example["text"],
-            context=example_context,
-        )
-
-        is_spam_ex = example["score"] > 0
-        confidence_ex = abs(example["score"])
-
-        prompt += f"""
-{example_request}
-<ответ>
-{{
-    "is_spam": {"true" if is_spam_ex else "false"},
-    "confidence": {confidence_ex}
-}}
-</ответ>
-"""
-    return prompt
-
-
-async def get_system_prompt(
-    admin_ids: Optional[List[int]] = None,
-    include_linked_channel_guidance: bool = False,
-    include_stories_guidance: bool = False,
-    include_reply_context_guidance: bool = False,
-    include_account_age_guidance: bool = False,
-):
-    """Get the full prompt with spam examples from database"""
-    # Build the base system prompt
-    prompt = build_base_system_prompt()
-
-    # Add context guidance sections
-    prompt = add_context_guidance_sections(
-        prompt,
-        include_linked_channel_guidance,
-        include_stories_guidance,
-        include_account_age_guidance,
-        include_reply_context_guidance,
-    )
-
-    # Add response format section
-    prompt = add_response_format_section(prompt)
-
-    # Add spam examples from database
-    prompt = await add_spam_examples_section(prompt, admin_ids)
-
-    return prompt
-
-
-def get_messages(
+def _create_classification_messages(
     comment: str,
-    name: str | None,
-    bio: str | None,
-    prompt: str,
+    user_name: Optional[str],
+    user_bio: Optional[str],
+    system_prompt: str,
     context: SpamClassificationContext,
-):
-    user_request = format_spam_request(
-        comment,
-        context,
-    )
-    user_message = f"""{user_request}
-Analyze this message and respond with JSON spam classification."""
-
-    return [
-        {"role": "system", "content": prompt},
-        {"role": "user", "content": user_message},
-    ]
-
-
-def format_spam_request(
-    text: str,
-    context: Optional[SpamClassificationContext] = None,
-) -> str:
+) -> List[dict]:
     """
-    Format a spam classification request for the LLM.
+    Create the messages array for LLM classification request.
+
+    Formats the user message by combining the message text with contextual information
+    and creates the complete message structure for the LLM API.
 
     Args:
-        text: Message text to classify
-        context: Spam classification context with all optional context data
+        comment: The message content to classify
+        user_name: User's display name (optional, may be None)
+        user_bio: User's profile bio (optional, may be None)
+        system_prompt: The system prompt with instructions and examples
+        context: Full context for classification including user info and settings
 
     Returns:
-        str: Formatted request with clear section headers
+        List[dict]: Message dictionaries ready for LLM API,
+        containing system and user messages
     """
-    # Use empty context if none provided
-    if context is None:
-        context = SpamClassificationContext()
+    user_request = format_spam_request(comment, context)
+    user_message = f"{user_request}\nAnalyze this message and respond with JSON spam classification."
 
-    request = f"""MESSAGE TO CLASSIFY (Analyze this content):
->>> BEGIN MESSAGE
-{text}
-<<< END MESSAGE
-
-"""
-
-    if context.name:
-        request += f"""USER NAME:
-{context.name}
-
-"""
-
-    if context.bio:
-        request += f"""USER BIO:
-{context.bio}
-
-"""
-
-    if context.linked_channel and context.linked_channel.status.name == "FOUND":
-        request += f"""LINKED CHANNEL INFO:
-{context.linked_channel.content}
-
-"""
-    elif context.linked_channel and context.linked_channel.status.name == "EMPTY":
-        request += """LINKED CHANNEL INFO:
-no channel linked
-
-"""
-    elif context.linked_channel and context.linked_channel.status.name == "FAILED":
-        request += f"""LINKED CHANNEL INFO:
-verification failed: {context.linked_channel.error}
-
-"""
-
-    if context.stories and context.stories.status.name == "FOUND":
-        request += f"""USER STORIES CONTENT:
-{context.stories.content}
-
-"""
-    elif context.stories and context.stories.status.name == "EMPTY":
-        request += """USER STORIES CONTENT:
-no stories posted
-
-"""
-    elif context.stories and context.stories.status.name == "FAILED":
-        request += f"""USER STORIES CONTENT:
-verification failed: {context.stories.error}
-
-"""
-
-    if (
-        context.account_age
-        and context.account_age.status.name == "FOUND"
-        and context.account_age.content
-    ):
-        # Handle both UserAccountInfo objects and legacy string content
-        if hasattr(context.account_age.content, "to_prompt_fragment"):
-            content_str = context.account_age.content.to_prompt_fragment()
-        else:
-            content_str = str(context.account_age.content)
-        request += f"""ACCOUNT AGE INFO:
-{content_str}
-
-"""
-    elif context.account_age and context.account_age.status.name == "EMPTY":
-        request += """ACCOUNT AGE INFO:
-no photo on the account
-
-"""
-    elif context.account_age and context.account_age.status.name == "FAILED":
-        request += f"""ACCOUNT AGE INFO:
-verification failed: {context.account_age.error}
-
-"""
-
-    if context.reply is not None:
-        if context.reply == "[EMPTY]":
-            request += """REPLY CONTEXT (Original post being replied to):
-[checked, none found]
-
-"""
-        else:
-            request += f"""REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):
->>> BEGIN CONTEXT
-{context.reply}
-<<< END CONTEXT
-
-"""
-
-    return request
-
-
-def extract_spam_score(response: str):
-    """
-    Извлекает оценку спама и причину из ответа LLM.
-    Поддерживает JSON формат и старый текстовый формат.
-    """
-    # First try to parse as JSON
-    try:
-        import json
-
-        data = json.loads(response)
-        if isinstance(data, dict):
-            is_spam = data.get("is_spam", False)
-            confidence = data.get("confidence", 0)
-            reason = data.get("reason", "No reason provided")
-
-            score = confidence if is_spam else -confidence
-            return score, reason
-    except (json.JSONDecodeError, KeyError, TypeError):
-        pass
-
-    # Fallback to old text format parsing
-    flags = re.IGNORECASE | re.DOTALL
-    match = re.search(r"<[^>]+>(.*?)<[^>]+>", response, flags=flags)
-    if match:
-        answer = match[1].strip()
-    else:
-        # Если есть только закрывающий тег, берём всё до него
-        match_end = re.search(r"^(.*)<[^>]+>", response, flags=flags)
-        answer = match_end[1].strip() if match_end else response.strip()
-
-    parts = answer.lower().split()
-    if len(parts) >= 2:
-        if parts[0] == "да":
-            score = int(parts[1].replace("%", "").strip())
-            return score, f"Классифицировано как спам с уверенностью {score}%"
-        elif parts[0] == "нет":
-            score = -int(parts[1].replace("%", "").strip())
-            return score, f"Классифицировано как не спам с уверенностью {abs(score)}%"
-
-    raise ExtractionFailedError(
-        f"Failed to extract spam score from response: {response}"
-    )
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
