@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 MODELS = [
     "nvidia/nemotron-3-nano-30b-a3b:free",
     "meta-llama/llama-3.3-70b-instruct:free",
-    "upstage/solar-pro-3:free",
+    # "upstage/solar-pro-3:free", Times out every time
     "arcee-ai/trinity-large-preview:free",
     #    "qwen/qwen3-next-80b-a3b-instruct:free", "Payment required"
 ]
