@@ -1,3 +1,11 @@
+"""
+Context collection orchestration and routing.
+
+This module provides the main entry points for collecting spam analysis context
+from different types of senders (users vs channels). It orchestrates the collection
+process while delegating specific collection tasks to specialized modules.
+"""
+
 import asyncio
 import logging
 from typing import Optional, Union
@@ -82,19 +90,25 @@ def create_peer_resolution_context_from_message(
     )
 
 
-async def collect_complete_user_context(
+async def collect_user_context_with_stories(
     message,
     user_id: int,
     username: Optional[str] = None,
 ) -> UserContext:
     """
-    Collects complete user context including stories and profile info in parallel.
-    Returns a UserContext with ContextResult objects for each context type.
+    Collect user context (profile and account info) and stories in parallel.
+
+    This function collects user profile information and stories concurrently,
+    but does NOT include complete context collection (hence the specific name).
+    Stories collection is handled separately from profile collection for efficiency.
 
     Args:
         message: Telegram message object containing chat and thread information
         user_id: User ID for context collection
         username: Optional username for the user
+
+    Returns:
+        UserContext with profile info and stories, but stories marked as collected separately
     """
     # Extract basic message info needed for stories collection
     chat_id = message.chat.id
@@ -214,20 +228,130 @@ async def collect_complete_user_context(
             )
 
 
-async def route_sender_context_collection(
+def _extract_channel_sender_info(message) -> tuple[str, Optional[str], Optional[str]]:
+    """
+    Extract basic information from a channel sender message.
+
+    Args:
+        message: Telegram message from a channel sender
+
+    Returns:
+        Tuple of (name, bio, username) for the channel sender
+    """
+    sender_chat = message.sender_chat
+    name = getattr(sender_chat, "title", "Channel")
+    bio = getattr(message.chat, "description", None)
+    username = getattr(sender_chat, "username", None)
+    return name, bio, username
+
+
+async def _collect_channel_sender_context(
+    message,
+) -> tuple[SpamClassificationContext, str, Optional[str]]:
+    """
+    Collect context for messages sent on behalf of channels.
+
+    Args:
+        message: Telegram message from a channel sender
+
+    Returns:
+        Tuple of (context, name, bio) for the channel sender
+    """
+    name, bio, username = _extract_channel_sender_info(message)
+    channel_id = message.sender_chat.id
+
+    # For private channels without username, skip collection
+    if not username:
+        logger.debug(
+            "Skipping context collection for private channel without username",
+            extra={"channel_id": channel_id},
+        )
+        context = SpamClassificationContext(
+            name=name,
+            bio=bio,
+            linked_channel=ContextResult(
+                status=ContextStatus.SKIPPED,
+                error="Private channel without username",
+            ),
+        )
+        return context, name, bio
+
+    # Collect channel context using existing function
+    channel_result = await collect_channel_summary_by_id(
+        channel_id, user_reference=channel_id, username=username
+    )
+
+    # Return minimal context with linked_channel populated
+    context = SpamClassificationContext(
+        name=name,
+        bio=bio,
+        linked_channel=channel_result,
+    )
+    return context, name, bio
+
+
+def _extract_user_sender_info(message) -> tuple[int, Optional[str], str]:
+    """
+    Extract basic information from a user sender message.
+
+    Args:
+        message: Telegram message from a user sender
+
+    Returns:
+        Tuple of (user_id, username, name) for the user sender
+    """
+    from_user = message.from_user
+    user_id = from_user.id
+    username = getattr(from_user, "username", None)
+    name = from_user.full_name if from_user else "Unknown"
+    return user_id, username, name
+
+
+async def _collect_user_sender_context(
+    message,
+) -> tuple[UserContext, str, Optional[str]]:
+    """
+    Collect context for messages sent by users.
+
+    Args:
+        message: Telegram message from a user sender
+
+    Returns:
+        Tuple of (context, name, bio) for the user sender
+    """
+    user_id, username, name = _extract_user_sender_info(message)
+
+    # Fetch bio from user profile via Bot API
+    bio = None
+    try:
+        user_with_bio = await bot.get_chat(user_id)
+        bio = user_with_bio.bio if user_with_bio else None
+    except Exception:
+        bio = None
+
+    # Collect user context with stories
+    context = await collect_user_context_with_stories(
+        message=message,
+        user_id=user_id,
+        username=username,
+    )
+    return context, name, bio
+
+
+async def collect_sender_context(
     message,
     chat_id: Optional[int] = None,
 ) -> tuple[Union[UserContext, SpamClassificationContext], str, Optional[str]]:
     """
-    Routes context collection to appropriate handler based on message sender type.
+    Collect context information based on message sender type.
 
-    Dispatches to different context collection strategies and extracts basic sender metadata:
-    - UserContext for user senders (with bio fetched via API)
+    Routes to appropriate collection strategy:
+    - UserContext for user senders (with bio fetched via Bot API)
     - SpamClassificationContext for channel senders (with bio from chat description)
 
     Args:
         message: Telegram message object
-        chat_id: Optional chat ID for additional context
+        chat_id: Optional chat ID for additional context (currently unused)
 
     Returns:
         Tuple of (context, name, bio) where:
@@ -235,66 +359,17 @@ async def route_sender_context_collection(
         - name: Sender display name
         - bio: Sender bio/description (may be None)
     """
+    # Check if this is a channel sender (message sent on behalf of channel)
     if message.sender_chat and message.sender_chat.id != message.chat.id:
-        # Channel sender - collect channel as linked channel
-        channel_id = message.sender_chat.id
-        channel_username = getattr(message.sender_chat, "username", None)
-        name = getattr(message.sender_chat, "title", "Channel")
-        bio = getattr(message.chat, "description", None)
-
-        # For private channels without username, skip collection
-        if not channel_username:
-            logger.debug(
-                "Skipping context collection for private channel without username",
-                extra={"channel_id": channel_id},
-            )
-            context = SpamClassificationContext(
-                name=name,
-                bio=bio,
-                linked_channel=ContextResult(
-                    status=ContextStatus.SKIPPED,
-                    error="Private channel without username",
-                ),
-            )
-            return context, name, bio
-
-        # Collect channel context using existing function
-        channel_result = await collect_channel_summary_by_id(
-            channel_id, user_reference=channel_id, username=channel_username
-        )
-
-        # Return minimal context with linked_channel populated
-        context = SpamClassificationContext(
-            name=name,
-            bio=bio,
-            linked_channel=channel_result,
-        )
-        return context, name, bio
+        return await _collect_channel_sender_context(message)
+    elif message.from_user:
+        return await _collect_user_sender_context(message)
     else:
-        # User sender - use existing complete context collection
-        if message.from_user:
-            user_id = message.from_user.id
-            username = getattr(message.from_user, "username", None)
-            name = message.from_user.full_name if message.from_user else "Unknown"
+        # Fallback - shouldn't happen in practice
+        logger.warning("Message has no sender_chat or from_user")
+        context = SpamClassificationContext()
+        return context, "Unknown", None
 
-            # Fetch bio from user profile
-            bio = None
-            if message.from_user:
-                try:
-                    user_with_bio = await bot.get_chat(message.from_user.id)
-                    bio = user_with_bio.bio if user_with_bio else None
-                except Exception:
-                    bio = None
-        else:
-            # Fallback - shouldn't happen in practice
-            logger.warning("Message has no sender_chat or from_user")
-            context = SpamClassificationContext()
-            return context, "Unknown", None
 
-        # Use existing logic with subscription check
-        context = await collect_complete_user_context(
-            message=message,
-            user_id=user_id,
-            username=username,
-        )
-        return context, name, bio
+# Backward compatibility alias
+route_sender_context_collection = collect_sender_context

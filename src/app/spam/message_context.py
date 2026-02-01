@@ -35,7 +35,7 @@ async def collect_message_context(
     Returns:
         MessageAnalysisResult containing all context data
     """
-    message_text, is_story = build_forward_info(message)
+    message_text, is_story = extract_message_with_forward_context(message)
 
     reply_context = extract_reply_context(message)
     sender_context, name, bio = await route_sender_context_collection(
@@ -100,22 +100,14 @@ def create_classification_context(
         return sender_context
 
 
-def build_forward_info(message: types.Message) -> Tuple[str, bool]:
-    """
-    Build information about forwards, channels, and stories for a message.
+def _extract_message_text(message: types.Message) -> str:
+    """Extract the text content from a message, handling different message types."""
+    return message.text or message.caption or "[MEDIA_MESSAGE]"
 
-    Analyzes the message to extract forwarding information, channel context,
-    and story indicators that help with spam classification.
 
-    Args:
-        message: The message to analyze
-
-    Returns:
-        Tuple of (message_text, is_story)
-    """
-    message_text = message.text or message.caption or "[MEDIA_MESSAGE]"
+def _collect_forward_info(message: types.Message) -> list[str]:
+    """Collect information about forwarded content in the message."""
     forward_info = []
-    is_story = False
 
     if message.forward_from:
         forward_info.append(f"Forwarded from user: {message.forward_from.full_name}")
@@ -123,13 +115,27 @@ def build_forward_info(message: types.Message) -> Tuple[str, bool]:
     if message.forward_from_chat:
         forward_info.append(f"Forwarded from chat: {message.forward_from_chat.title}")
 
-    story_obj = getattr(message, "story", None)
+    return forward_info
 
+
+def _collect_story_info(message: types.Message) -> tuple[list[str], bool]:
+    """Collect information about stories and determine if message is from a story."""
+    story_info = []
+    is_story = False
+
+    story_obj = getattr(message, "story", None)
     if story_obj:
         story_chat = getattr(getattr(story_obj, "chat", None), "title", "Unknown")
         story_username = getattr(getattr(story_obj, "chat", None), "username", "")
-        forward_info.append(f"Forwarded story from: {story_chat} (@{story_username})")
+        story_info.append(f"Forwarded story from: {story_chat} (@{story_username})")
         is_story = True
+
+    return story_info, is_story
+
+
+def _collect_channel_info(message: types.Message) -> list[str]:
+    """Collect information about channel senders."""
+    channel_info = []
 
     if message.sender_chat and message.sender_chat.type == "channel":
         channel_title = message.sender_chat.title
@@ -138,9 +144,43 @@ def build_forward_info(message: types.Message) -> Tuple[str, bool]:
             if message.sender_chat.username
             else ""
         )
-        forward_info.append(f"Posted by channel: {channel_title}{channel_username}")
+        channel_info.append(f"Posted by channel: {channel_title}{channel_username}")
 
+    return channel_info
+
+
+def _combine_forward_info(message_text: str, forward_info: list[str]) -> str:
+    """Combine message text with forward information if any exists."""
     if forward_info:
-        message_text = f"{message_text}\n[FORWARD_INFO]: {' | '.join(forward_info)}"
+        return f"{message_text}\n[FORWARD_INFO]: {' | '.join(forward_info)}"
+    return message_text
+
+
+def extract_message_with_forward_context(message: types.Message) -> Tuple[str, bool]:
+    """
+    Extract message text and forwarding context for spam analysis.
+
+    Analyzes the message to extract text content, forwarding information, channel context,
+    and story indicators that help with spam classification. Combines all context
+    information into the message text for LLM processing.
+
+    Args:
+        message: The message to analyze
+
+    Returns:
+        Tuple of (message_text, is_story) where message_text includes forward info
+    """
+    message_text = _extract_message_text(message)
+
+    # Collect different types of forward/channel information
+    forward_info = _collect_forward_info(message)
+    story_info, is_story = _collect_story_info(message)
+    channel_info = _collect_channel_info(message)
+
+    # Combine all forward-related information
+    all_forward_info = forward_info + story_info + channel_info
+
+    # Add forward info to message text if any exists
+    message_text = _combine_forward_info(message_text, all_forward_info)
 
     return message_text, is_story

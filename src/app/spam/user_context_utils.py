@@ -21,6 +21,18 @@ from .context_types import PeerResolutionContext
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# Error Handling Utilities
+# =============================================================================
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Error Handling Utilities
+# =============================================================================
+
+
 # Helper functions for error handling and logging
 def _is_user_already_participant_error(error_msg: str) -> bool:
     """Check if error indicates user is already a participant.
@@ -121,6 +133,10 @@ def _log_unexpected_error(
     )
 
 
+# =============================================================================
+# MTProto API Constants
+# =============================================================================
+
 # Constants for MTProto API calls
 DEFAULT_MESSAGE_LIMIT = 1
 THREAD_MESSAGE_LIMIT = 10
@@ -144,6 +160,16 @@ CONTEXT_SOURCE_LINKED_CHANNEL = "linked_channel"
 CONTEXT_SOURCE_DISCUSSION_GROUP = "discussion_group"
 
 
+# =============================================================================
+# Constants and Configuration
+# =============================================================================
+
+
+# =============================================================================
+# Utility Functions
+# =============================================================================
+
+
 def determine_thread_type(
     message_thread_id: Optional[int] = None,
     is_topic_message: bool = False,
@@ -164,6 +190,16 @@ def determine_thread_type(
         return "discussion_thread"
     else:
         return "none"
+
+
+# =============================================================================
+# User Bot Subscription Management
+# =============================================================================
+
+
+# =============================================================================
+# Context Establishment Functions
+# =============================================================================
 
 
 @logfire.instrument(extract_args=True)
