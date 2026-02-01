@@ -122,8 +122,7 @@ async def process_spam_or_approve(
     """
     if spam_score > 50:
         if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
-            await handle_spam(message, admin_ids, reason)
-            return "message_spam_deleted"
+            return await handle_spam(message, admin_ids, reason)
 
     elif await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
         await add_member(chat_id, user_id)

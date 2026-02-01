@@ -86,7 +86,9 @@ def print_section(title: str):
 def calculate_moderation_ratios(tag_counts: Dict[str, int]) -> Dict[str, float]:
     """Calculate moderation-related ratios from tag counts."""
     user_approved = tag_counts.get("message_user_approved", 0)
-    spam_deleted = tag_counts.get("message_spam_deleted", 0)
+    spam_auto_deleted = tag_counts.get("spam_auto_deleted", 0)
+    spam_admins_notified = tag_counts.get("spam_admins_notified", 0)
+    spam_deleted = spam_auto_deleted + spam_admins_notified  # Combined for backward compatibility
     known_member_skipped = tag_counts.get("message_known_member_skipped", 0)
     private_forward_prompt_sent = tag_counts.get("private_forward_prompt_sent", 0)
 
@@ -149,7 +151,9 @@ def get_known_tags() -> List[str]:
     return [
         # Message processing tags
         "message_user_approved",
-        "message_spam_deleted",
+        "message_spam_deleted",  # Legacy tag, now split into:
+        "spam_auto_deleted",     # Auto-deleted spam messages
+        "spam_admins_notified",  # Spam messages that were flagged for admin review
         "message_known_member_skipped",
         "message_insufficient_credits",
         "message_spam_check_failed",
