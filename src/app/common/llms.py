@@ -398,6 +398,52 @@ async def get_openrouter_response(
 
 @logfire.no_auto_trace
 @logfire.instrument()
+async def get_llm_response_with_fallback(
+    messages: List[Dict[str, Any]],
+    temperature: float = DEFAULT_TEMPERATURE,
+    response_format: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Get a response from LLM with automatic fallback from Cloudflare to OpenRouter.
+
+    This function first attempts to get a response from Cloudflare AI Gateway (single try).
+    If that fails due to connectivity or other issues, it automatically falls back
+    to OpenRouter with full retry logic (model rotation, rate limit handling).
+
+    Args:
+        messages: List of message dictionaries for the chat completion
+        temperature: Sampling temperature (0.0 to 1.0)
+        response_format: Optional response format specification
+
+    Returns:
+        The content of the response message
+
+    Raises:
+        RuntimeError: If both Cloudflare and OpenRouter fail
+    """
+    # Try Cloudflare first
+    try:
+        logger.info("Attempting to get response from Cloudflare AI Gateway")
+        return await get_cloudflare_response(messages, temperature, response_format)
+    except Exception as e:
+        logger.warning(f"Cloudflare AI Gateway failed: {type(e).__name__}: {e}")
+        logger.info("Falling back to OpenRouter")
+
+        # Try OpenRouter as fallback (with full retry logic)
+        try:
+            logger.info("Attempting OpenRouter with full retry logic as fallback")
+            return await get_openrouter_response(messages, temperature, response_format)
+        except Exception as fallback_error:
+            logger.error(
+                f"OpenRouter fallback also failed: {type(fallback_error).__name__}: {fallback_error}"
+            )
+            # Re-raise the original Cloudflare error as the primary failure
+            raise RuntimeError(
+                f"Both Cloudflare and OpenRouter failed. Cloudflare error: {e}"
+            ) from e
+
+
+@logfire.no_auto_trace
+@logfire.instrument()
 async def get_cloudflare_response(
     messages: List[Dict[str, Any]],
     temperature: float = DEFAULT_TEMPERATURE,

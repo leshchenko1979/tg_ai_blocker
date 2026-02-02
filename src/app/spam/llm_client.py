@@ -33,7 +33,7 @@ import logfire
 from ..common.llms import (
     LocationNotSupported,
     RateLimitExceeded,
-    get_cloudflare_response,
+    get_llm_response_with_fallback,
 )
 
 logger = logging.getLogger(__name__)
@@ -129,7 +129,7 @@ async def call_llm_with_spam_classification(
     for attempt in range(1, MAX_RETRIES + 1):
         with logfire.span(f"Getting spam classifier response, attempt #{attempt}"):
             try:
-                response = await get_cloudflare_response(
+                response = await get_llm_response_with_fallback(
                     messages,
                     temperature=0.0,
                     response_format=SPAM_CLASSIFICATION_SCHEMA,

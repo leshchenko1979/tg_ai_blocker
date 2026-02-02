@@ -9,7 +9,7 @@ from aiogram.filters import or_f
 
 from ..common.bot import bot
 from ..spam.user_profile import collect_user_context
-from ..common.llms import get_cloudflare_response
+from ..common.llms import get_llm_response_with_fallback
 from ..common.logfire_lookup import (
     find_original_message,
     find_spam_classification_context,
@@ -144,7 +144,7 @@ async def handle_private_message(message: types.Message) -> str:
 
         while retry_count < max_retries:
             # Get response from LLM
-            response = await get_cloudflare_response(messages, temperature=0.6)
+            response = await get_llm_response_with_fallback(messages, temperature=0.6)
 
             # Save bot's response to history
             await save_message(admin_id, "assistant", response)
