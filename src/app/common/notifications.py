@@ -11,6 +11,7 @@ from .utils import retry_on_network_error
 logger = logging.getLogger(__name__)
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True, record_return=True)
 async def perform_complete_group_cleanup(group_id: int) -> bool:
     """Perform complete group cleanup: leave chat and clean database. Returns success status."""
@@ -31,6 +32,7 @@ async def perform_complete_group_cleanup(group_id: int) -> bool:
         return False
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True, record_return=True)
 async def notify_admins_with_fallback_and_cleanup(
     bot,

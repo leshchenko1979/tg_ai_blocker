@@ -15,6 +15,7 @@
   - **LLM Model Evaluation**: ✅ **Complete** - Comprehensive evaluation infrastructure with balanced test cases and JSON result storage.
   - **Memory Bank Documentation**: ✅ **Complete** - Updated systemPatterns.md to document Cloudflare AI Gateway usage.
   - **Logfire Trace Analysis**: ✅ **Complete** - Identified and fixed authentication issues in deployed code.
+  - **Logfire Instrumentation Cleanup**: ✅ **Complete** - Implemented approved Logfire pattern: auto-tracing for modules with `@logfire.no_auto_trace` decorators on manually instrumented functions to prevent span duplication.
 - **Immediate Next Steps**:
   - Monitor Cloudflare AI Gateway performance and stability.
   - Evaluate cost savings vs OpenRouter.

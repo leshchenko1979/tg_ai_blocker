@@ -52,6 +52,7 @@ async def get_spam_examples(
         ]
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def add_spam_example(
     text: str,

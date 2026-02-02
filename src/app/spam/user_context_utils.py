@@ -202,6 +202,7 @@ def determine_thread_type(
 # =============================================================================
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def attempt_user_bot_chat_join(
     chat_id: int, chat_username: Optional[str] = None
@@ -279,6 +280,7 @@ async def attempt_user_bot_chat_join(
             return False
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def establish_context_via_group_reading(
     context: PeerResolutionContext,
@@ -364,6 +366,7 @@ async def establish_context_via_group_reading(
         return False
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def establish_context_via_thread_reading(
     context: PeerResolutionContext,
@@ -464,6 +467,7 @@ async def establish_context_via_thread_reading(
         return False
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def check_membership_via_message_read(
     context: PeerResolutionContext,
@@ -555,6 +559,7 @@ async def check_membership_via_message_read(
         return False, error_msg
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def _establish_context_for_regular_group_message(
     context: PeerResolutionContext,
@@ -631,6 +636,7 @@ async def _establish_context_for_regular_group_message(
         return await establish_context_via_group_reading(context)
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def establish_peer_resolution_context(
     context: PeerResolutionContext,

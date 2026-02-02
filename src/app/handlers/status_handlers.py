@@ -71,6 +71,7 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> str:
         raise
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def _handle_permission_update(
     event: types.ChatMemberUpdated,
@@ -139,6 +140,7 @@ async def _handle_permission_update(
                 )
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def _handle_bot_added(
     event: types.ChatMemberUpdated,
@@ -201,6 +203,7 @@ async def _handle_bot_added(
             )
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def _handle_bot_removed(
     event: types.ChatMemberUpdated,
@@ -246,6 +249,7 @@ async def _handle_bot_removed(
             )
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def _notify_admins_about_rights(
     chat_id: int,
@@ -289,6 +293,7 @@ async def _notify_admins_about_rights(
     )
 
 
+@logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def _notify_admins_about_removal(
     chat_id: int,

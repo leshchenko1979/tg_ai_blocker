@@ -300,6 +300,7 @@ def round_robin_with_start(models: List[str], start_model: Optional[str] = None)
 # ===== Main API Function =====
 
 
+@logfire.no_auto_trace
 @logfire.instrument()
 async def get_openrouter_response(
     messages: List[Dict[str, Any]],
@@ -395,6 +396,7 @@ async def get_openrouter_response(
     raise RuntimeError("All models failed to provide a response")
 
 
+@logfire.no_auto_trace
 @logfire.instrument()
 async def get_cloudflare_response(
     messages: List[Dict[str, Any]],
