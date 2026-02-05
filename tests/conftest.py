@@ -262,6 +262,7 @@ async def create_sqlite_schema(conn):
             username TEXT,
             credits INTEGER DEFAULT 0 CHECK (credits >= 0),
             delete_spam BOOLEAN DEFAULT 1,
+            is_active BOOLEAN DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );

@@ -45,11 +45,13 @@ async def get_admin(admin_id: int) -> Optional[Administrator]:
         if not row:
             return None
 
+        is_active_column = row["is_active"] if "is_active" in row.keys() else True
+
         return Administrator(
             admin_id=row["admin_id"],
             username=row["username"],
             credits=row["credits"],
-            is_active=row.get("is_active", True),
+            is_active=is_active_column,
             delete_spam=row["delete_spam"],
             created_at=row["created_at"],
             last_updated=row["last_active"],
@@ -70,18 +72,18 @@ async def get_admins_map(admin_ids: list[int]) -> dict[int, Administrator]:
             admin_ids,
         )
 
-    return {
-        row["admin_id"]: Administrator(
-            admin_id=row["admin_id"],
-            username=row["username"],
-            credits=row["credits"],
-            is_active=row.get("is_active", True),
-            delete_spam=row["delete_spam"],
-            created_at=row["created_at"],
-            last_updated=row["last_active"],
-        )
-        for row in rows
-    }
+        return {
+            row["admin_id"]: Administrator(
+                admin_id=row["admin_id"],
+                username=row["username"],
+                credits=row["credits"],
+                is_active=row["is_active"] if "is_active" in row.keys() else True,
+                delete_spam=row["delete_spam"],
+                created_at=row["created_at"],
+                last_updated=row["last_active"],
+            )
+            for row in rows
+        }
 
 
 async def get_admin_credits(admin_id: int) -> int:
