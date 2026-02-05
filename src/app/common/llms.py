@@ -403,9 +403,9 @@ async def get_llm_response_with_fallback(
     temperature: float = DEFAULT_TEMPERATURE,
     response_format: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """Get a response from LLM with automatic fallback from Cloudflare to OpenRouter.
+    """Get a response from LLM with automatic fallback from custom gateway to OpenRouter.
 
-    This function first attempts to get a response from Cloudflare AI Gateway (single try).
+    This function first attempts to get a response from custom gateway (single try).
     If that fails due to connectivity or other issues, it automatically falls back
     to OpenRouter with full retry logic (model rotation, rate limit handling).
 
@@ -418,14 +418,16 @@ async def get_llm_response_with_fallback(
         The content of the response message
 
     Raises:
-        RuntimeError: If both Cloudflare and OpenRouter fail
+        RuntimeError: If both custom gateway and OpenRouter fail
     """
-    # Try Cloudflare first
+    # Try custom gateway first
     try:
-        logger.info("Attempting to get response from Cloudflare AI Gateway")
-        return await get_cloudflare_response(messages, temperature, response_format)
+        logger.info("Attempting to get response from custom gateway")
+        return await get_primary_gateway_response(
+            messages, temperature, response_format
+        )
     except Exception as e:
-        logger.warning(f"Cloudflare AI Gateway failed: {type(e).__name__}: {e}")
+        logger.warning(f"custom gateway failed: {type(e).__name__}: {e}")
         logger.info("Falling back to OpenRouter")
 
         # Try OpenRouter as fallback (with full retry logic)
@@ -438,21 +440,21 @@ async def get_llm_response_with_fallback(
             )
             # Re-raise the original Cloudflare error as the primary failure
             raise RuntimeError(
-                f"Both Cloudflare and OpenRouter failed. Cloudflare error: {e}"
+                f"Both custom gateway and OpenRouter failed. custom gateway error: {e}"
             ) from e
 
 
 @logfire.no_auto_trace
 @logfire.instrument()
-async def get_cloudflare_response(
+async def get_primary_gateway_response(
     messages: List[Dict[str, Any]],
     temperature: float = DEFAULT_TEMPERATURE,
     response_format: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """Get a response from Cloudflare AI Gateway API.
+    """Get a response from custom gateway API.
 
-    This function makes a request to Cloudflare AI Gateway using the configured
-    model and authentication. Unlike OpenRouter, Cloudflare uses a single model
+    This function makes a request to custom gateway using the configured
+    model and authentication. Unlike OpenRouter, custom gateway uses a single model
     through dynamic routing.
 
     Args:
@@ -468,21 +470,21 @@ async def get_cloudflare_response(
         LLMException: For various Cloudflare-specific errors
     """
     headers = {
-        "cf-aig-authorization": f"Bearer {os.getenv('CF_AIG_TOKEN')}",
+        "Authorization": f"Bearer {os.getenv('CUSTOM_GATEWAY_API_KEY')}",
         "Content-Type": "application/json",
     }
 
     # Get model from environment variable
-    model = os.getenv("CF_DYNAMIC_ROUTE_MODEL")
+    model = os.getenv("CUSTOM_GATEWAY_MODEL")
     if not model:
-        raise ValueError("CF_DYNAMIC_ROUTE_MODEL environment variable is required")
+        raise ValueError("CUSTOM_GATEWAY_MODEL environment variable is required")
 
     # Use global SSL context for connection reuse
     connector = aiohttp.TCPConnector(ssl=_SSL_CONTEXT)
 
     async with aiohttp.ClientSession(connector=connector) as session:
         try:
-            result = await _request_cloudflare(
+            result = await _request_primary_gateway(
                 model,
                 messages,
                 headers,
@@ -496,7 +498,7 @@ async def get_cloudflare_response(
             return _extract_content(result, model)
 
         except Exception as e:
-            logger.warning("Cloudflare API request failed: %s", str(e))
+            logger.warning("custom gateway API request failed: %s", str(e))
             raise
 
 
@@ -567,7 +569,7 @@ async def _request_openrouter(
             raise
 
 
-async def _request_cloudflare(
+async def _request_primary_gateway(
     model: str,
     messages: List[Dict[str, Any]],
     headers: Dict[str, str],
@@ -575,12 +577,12 @@ async def _request_cloudflare(
     temperature: float = DEFAULT_TEMPERATURE,
     response_format: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Make a single request to the Cloudflare AI Gateway API.
+    """Make a single request to the custom gateway API.
 
     Args:
         model: The model identifier to use
         messages: List of message dictionaries for the chat completion
-        headers: HTTP headers including cf-aig-authorization
+        headers: HTTP headers including Authorization
         session: The aiohttp client session to use
         temperature: Sampling temperature for the model
         response_format: Optional response format specification
@@ -602,7 +604,7 @@ async def _request_cloudflare(
         data["response_format"] = response_format
 
     with logfire.span(
-        "Cloudflare request/response", model=model, messages=messages
+        "custom gateway request/response", model=model, messages=messages
     ) as span:
         try:
             async with session.post(
