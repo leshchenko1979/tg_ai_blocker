@@ -1,11 +1,8 @@
-import logging
 from typing import Any, Dict, List, Optional
 
 from .constants import INITIAL_CREDITS
 from .models import Administrator
 from .postgres_connection import get_pool
-
-logger = logging.getLogger(__name__)
 
 
 async def save_admin(admin: Administrator) -> None:
@@ -15,18 +12,20 @@ async def save_admin(admin: Administrator) -> None:
         await conn.execute(
             """
             INSERT INTO administrators (
-                admin_id, username, credits, delete_spam, created_at, last_active
-            ) VALUES ($1, $2, $3, $4, $5, $6)
+                admin_id, username, credits, delete_spam, is_active, created_at, last_active
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
             ON CONFLICT (admin_id) DO UPDATE SET
-                username = $2,
-                credits = $3,
-                delete_spam = $4,
-                last_active = $6
+                username = EXCLUDED.username,
+                credits = EXCLUDED.credits,
+                delete_spam = EXCLUDED.delete_spam,
+                is_active = EXCLUDED.is_active,
+                last_active = EXCLUDED.last_active
         """,
             admin.admin_id,
             admin.username,
             admin.credits,
             admin.delete_spam,
+            admin.is_active,
             admin.created_at,
             admin.last_updated,
         )
@@ -50,7 +49,7 @@ async def get_admin(admin_id: int) -> Optional[Administrator]:
             admin_id=row["admin_id"],
             username=row["username"],
             credits=row["credits"],
-            is_active=True,  # Always true if record exists
+            is_active=row.get("is_active", True),
             delete_spam=row["delete_spam"],
             created_at=row["created_at"],
             last_updated=row["last_active"],
@@ -71,18 +70,18 @@ async def get_admins_map(admin_ids: list[int]) -> dict[int, Administrator]:
             admin_ids,
         )
 
-        return {
-            row["admin_id"]: Administrator(
-                admin_id=row["admin_id"],
-                username=row["username"],
-                credits=row["credits"],
-                is_active=True,  # Always true if record exists
-                delete_spam=row["delete_spam"],
-                created_at=row["created_at"],
-                last_updated=row["last_active"],
-            )
-            for row in rows
-        }
+    return {
+        row["admin_id"]: Administrator(
+            admin_id=row["admin_id"],
+            username=row["username"],
+            credits=row["credits"],
+            is_active=row.get("is_active", True),
+            delete_spam=row["delete_spam"],
+            created_at=row["created_at"],
+            last_updated=row["last_active"],
+        )
+        for row in rows
+    }
 
 
 async def get_admin_credits(admin_id: int) -> int:
@@ -118,8 +117,8 @@ async def initialize_new_admin(admin_id: int) -> bool:
             await conn.execute(
                 """
                 INSERT INTO administrators (
-                    admin_id, credits, delete_spam, created_at, last_active
-                ) VALUES ($1, $2, false, NOW(), NOW())
+                    admin_id, credits, delete_spam, is_active, created_at, last_active
+                ) VALUES ($1, $2, false, TRUE, NOW(), NOW())
             """,
                 admin_id,
                 INITIAL_CREDITS,
@@ -209,22 +208,40 @@ async def get_all_admins() -> List[Administrator]:
         rows = await conn.fetch(
             """
             SELECT * FROM administrators
+            WHERE is_active = TRUE
             ORDER BY created_at DESC
             """
         )
 
-        return [
-            Administrator(
-                admin_id=row["admin_id"],
-                username=row["username"],
-                credits=row["credits"],
-                is_active=True,  # Always true if record exists
-                delete_spam=row["delete_spam"],
-                created_at=row["created_at"],
-                last_updated=row["last_active"],
-            )
-            for row in rows
-        ]
+    return [
+        Administrator(
+            admin_id=row["admin_id"],
+            username=row["username"],
+            credits=row["credits"],
+            is_active=row.get("is_active", True),
+            delete_spam=row["delete_spam"],
+            created_at=row["created_at"],
+            last_updated=row["last_active"],
+        )
+        for row in rows
+    ]
+
+
+async def deactivate_admin(admin_id: int) -> bool:
+    """Mark the administrator as inactive after a failure"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE administrators
+            SET is_active = FALSE, last_active = NOW()
+            WHERE admin_id = $1 AND is_active = TRUE
+            RETURNING admin_id
+            """,
+            admin_id,
+        )
+
+    return row is not None
 
 
 async def remove_admin(admin_id: int) -> None:

@@ -16,6 +16,8 @@
   - Group chat fallback
   - Automatic cleanup if unreachable
   - **Collapsed Quote Formatting**: Both cited message and reason now display as collapsed blockquotes for better readability
+- **Broadcast updates script**: `scripts/broadcast_updates.py` can push multi-line status notes to every admin, reports unreachable IDs, and logs delivery details while deactivating unreachable admins to reduce repeated failures.
+- **Bot block handling**: Receiving a private chat update that the bot was blocked now deactivates that admin so the system stops targeting unreachable contacts.
 - Linked Channel detection (Username-first resolution)
 - **Enhanced Channel Content Analysis**: ✅ **Tested & Working** - Now fetches and analyzes text content from recent posts, not just metadata (successfully detects porn/spam channels by content)
 - **Spam Example Curation**: ✅ **Database Optimized** - Promoted 15 high-quality patterns to common, deduplicated 14 redundant entries from the baseline, and cleaned up top 2 admins. Baseline now provides high-quality starting point with balanced scores.

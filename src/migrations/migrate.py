@@ -104,6 +104,49 @@ async def add_context_columns_migration(conn: Any) -> List[str]:
     return operations
 
 
+async def add_is_active_column_migration(conn: Any) -> List[str]:
+    """
+    Ensure administrators table has the is_active column.
+    Needed for broadcast scripts and cleanup logic.
+    """
+    operations = []
+    print("Starting is_active column migration...")
+
+    async with conn.transaction():
+        await conn.execute(
+            """
+            ALTER TABLE administrators
+            ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE
+            """
+        )
+        operations.append("Ensured is_active column exists")
+        print("✓ Ensured is_active column exists")
+
+        await conn.execute(
+            """
+            UPDATE administrators
+            SET is_active = TRUE
+            WHERE is_active IS NULL
+            """
+        )
+        operations.append("Backfilled is_active for existing rows")
+        print("✓ Backfilled is_active for existing rows")
+
+        await conn.execute(
+            """
+            ALTER TABLE administrators
+            ALTER COLUMN is_active SET DEFAULT TRUE
+            """
+        )
+        operations.append("Enforced default TRUE for is_active")
+        print("✓ Enforced default TRUE for is_active")
+
+    print(
+        f"is_active column migration completed successfully. {len(operations)} operations performed."
+    )
+    return operations
+
+
 async def run_context_columns_migration():
     """Run the context columns migration manually."""
     print("Creating database if it doesn't exist...")
@@ -116,10 +159,26 @@ async def run_context_columns_migration():
         await add_context_columns_migration(conn)
 
 
+async def run_is_active_column_migration():
+    """Run the is_active column migration manually."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    print("Getting database pool...")
+    pool = await get_pool()
+    print("Running is_active column migration...")
+    async with pool.acquire() as conn:
+        print("Acquired connection from pool")
+        await add_is_active_column_migration(conn)
+
+
 async def main():
-    if len(sys.argv) > 1 and sys.argv[1] == "--add-context-columns":
-        # Run specific migration to add context columns
-        await run_context_columns_migration()
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--add-context-columns":
+            await run_context_columns_migration()
+        elif sys.argv[1] == "--add-is-active-column":
+            await run_is_active_column_migration()
+        else:
+            raise ValueError(f"Unknown migration flag {sys.argv[1]!r}")
     else:
         # Run full migration
         print("Creating database if it doesn't exist...")

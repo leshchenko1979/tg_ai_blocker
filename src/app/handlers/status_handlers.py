@@ -12,7 +12,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from ..common.bot import bot
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.utils import retry_on_network_error, sanitize_html
-from ..database import get_group, update_group_admins
+from ..database import deactivate_admin, get_group, update_group_admins
 from .dp import dp
 from .message.channel_management import notify_channel_admins_and_leave
 
@@ -36,6 +36,7 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> str:
         if new_status == "member":
             return "bot_started_private"
         elif new_status == "kicked":
+            await _deactivate_admin_after_block(admin_id)
             return "bot_blocked_private"
         return "bot_status_private_other"
 
@@ -493,3 +494,19 @@ async def handle_member_service_message(message: types.Message) -> str:
             exc_info=True,
         )
         return "service_message_error"
+
+
+async def _deactivate_admin_after_block(admin_id: int) -> None:
+    """Mark the administrator inactive after they block the bot."""
+    try:
+        if await deactivate_admin(admin_id):
+            logger.info("Admin %s marked inactive after blocking the bot", admin_id)
+        else:
+            logger.info("Admin %s was already inactive when blocking the bot", admin_id)
+    except Exception as exc:
+        logger.warning(
+            "Failed to deactivate admin %s after blocking the bot: %s",
+            admin_id,
+            exc,
+            exc_info=True,
+        )
