@@ -16,6 +16,31 @@ class StorySummary:
     date: int
     caption: Optional[str] = None
     entities: Optional[List[Dict[str, Any]]] = None
+    media: Optional[Dict[str, Any]] = None
+    media_areas: Optional[List[Dict[str, Any]]] = None
+
+    @staticmethod
+    def _media_has_links_static(
+        media: Optional[Dict[str, Any]],
+        media_areas: Optional[List[Dict[str, Any]]] = None,
+    ) -> bool:
+        """Check if media or media_areas contain any links that should be included in context."""
+        # Check media_areas first (these can be attached to any media type)
+        if media_areas:
+            for area in media_areas:
+                if area.get("_") == "MediaAreaUrl" and area.get("url"):
+                    return True
+
+        if not media:
+            return False
+
+        media_type = media.get("_")
+        if media_type == "messageMediaWebPage":
+            webpage = media.get("webpage", {})
+            return bool(webpage.get("url"))
+        # Add other media types as needed
+
+        return False
 
     def to_string(self) -> str:
         parts = []
@@ -31,6 +56,38 @@ class StorySummary:
                     pass
             if links:
                 parts.append(f"Links: {', '.join(links)}")
+
+        # Extract links from media (e.g., webpage URLs, document links)
+        if self.media:
+            media_links = []
+            media_type = self.media.get("_")
+
+            if media_type == "messageMediaWebPage":
+                webpage = self.media.get("webpage", {})
+                if webpage.get("url"):
+                    media_links.append(f"Link: {webpage['url']}")
+            elif media_type == "messageMediaDocument":
+                # Check for media areas with URLs
+                media_areas = self.media.get("media_areas", [])
+                for area in media_areas:
+                    if area.get("_") == "MediaAreaUrl" and area.get("url"):
+                        media_links.append(f"Link: {area['url']}")
+                # Could also check document attributes for links, but focus on media areas for now
+            # Add other media types as needed
+
+            if media_links:
+                parts.append(f"Links: {', '.join(media_links)}")
+
+        # Extract links from media areas (clickable areas on media)
+        if self.media_areas:
+            area_links = []
+            for area in self.media_areas:
+                if area.get("_") == "MediaAreaUrl" and area.get("url"):
+                    area_links.append(f"Link: {area['url']}")
+
+            if area_links:
+                parts.append(f"Links: {', '.join(area_links)}")
+
         return " | ".join(parts) if parts else "Media story"
 
 
@@ -75,9 +132,18 @@ async def collect_user_stories(
 
                 caption = story.get("caption")
                 entities = story.get("entities")
+                media = story.get("media")
 
-                # If there's no text content, we might skip or just note it's media
-                if not caption and not entities:
+                # Check if story has any content worth including
+                media_areas = story.get("media_areas")
+                has_content = bool(
+                    caption
+                    or entities
+                    or StorySummary._media_has_links_static(media, media_areas)
+                )
+
+                # If there's no text content and no media links, skip
+                if not has_content:
                     continue
 
                 summary = StorySummary(
@@ -85,6 +151,8 @@ async def collect_user_stories(
                     date=story.get("date"),
                     caption=caption,
                     entities=entities,
+                    media=media,
+                    media_areas=story.get("media_areas"),
                 )
                 summaries.append(summary.to_string())
 
