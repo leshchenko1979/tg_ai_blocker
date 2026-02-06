@@ -184,4 +184,8 @@ class SpamClassificationContext:
     def include_ai_detection_guidance(self) -> bool:
         """Whether to include AI and emoji detection guidance in the prompt."""
         # Always include if it's a reply, or if we want to be proactive
-        return self.include_reply_guidance or self.include_stories_guidance or self.include_linked_channel_guidance
+        return (
+            self.include_reply_guidance
+            or self.include_stories_guidance
+            or self.include_linked_channel_guidance
+        )
