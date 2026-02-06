@@ -4,6 +4,7 @@
 - Telegram webhook server
 - aiogram handlers
 - Spam classifier (LLM + Context + Stories + Account Age + Discussion Context with relevance evaluation)
+- **AI & Emoji Detection**: ✅ **Complete** - Expanded prompt guidance to detect robotic AI tone, generic summaries, and unusual emoji usage. Filters low-value content regardless of conversion tactic (stories/linked channels).
 - Billing via Telegram Stars
 - PostgreSQL data layer
 - MTProto bridge
@@ -22,7 +23,7 @@
 - **Enhanced Channel Content Analysis**: ✅ **Tested & Working** - Now fetches and analyzes text content from recent posts, not just metadata (successfully detects porn/spam channels by content)
 - **Spam Example Curation**: ✅ **Database Optimized** - Promoted 15 high-quality patterns to common, deduplicated 14 redundant entries from the baseline, and cleaned up top 2 admins. Baseline now provides high-quality starting point with balanced scores.
 - **Testing Infrastructure**: ✅ **Complete** - Proper separation of unit tests (93) from integration tests. pytest.ini addopts correctly excludes integration tests from deployment. All integration tests properly marked with `@pytest.mark.integration`.
-- **Documentation**: ✅ **Updated PRD** - `PRD.md` synchronized with codebase and memory bank.
+- **Documentation**: ✅ **Updated PRD** - `PRD.md` synchronized with codebase and memory bank. ✅ **Spam Tactics File** - Created `memory-bank/spamTactics.md` to track evolving spam patterns and examples, supported by a new Cursor rule.
 - **MTProto Optimization**: ✅ **Peer Resolution Optimized** - Eliminated 90%+ failing numeric ID calls by requiring username-only resolution.
 - **Logfire Message Lookup**: ✅ **Improved** - Added support for recovering edited messages and implemented robust text matching using `LIKE` patterns that bypass hidden characters (e.g., zero-width spaces/word joiners).
 - Hidden User ID Recovery
@@ -41,7 +42,7 @@
 ### What's left to build
 - [ ] Comprehensive "shadow mode" for testing new classifiers without affecting users.
 - [ ] Advanced billing dashboard for admins.
-- [ ] More granular spam categories in reporting.
+- [ ] More granular spam categories in reporting (e.g., "Trojan AI Summary").
 - [ ] Subscription status caching to reduce MTProto API calls.
 
 ### Known Issues

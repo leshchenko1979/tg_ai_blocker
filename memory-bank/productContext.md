@@ -12,6 +12,7 @@
   - Purchase Telegram Star packages, monitor balance consumption, and review billing history.
   - **Evaluate Model Performance**: Administrators can run comprehensive evaluations comparing different LLM models' spam classification accuracy with detailed metrics and progress tracking.
 - **Experience Principles**:
+  - **Meaningful Human Connection**: Prioritize comments that contribute unique perspectives or foster genuine human interaction. Protect discussions from AI-generated content (robotic tone, hollow politeness, excessive emojis) that clutters the chat, regardless of the underlying conversion tactic.
   - Fast, transparent feedback: instant notifications with consistent HTML formatting, clear reason codes, and undo paths for mistakes.
   - High reliability: minimal false positives, safe handling of admin/service messages, graceful degradation when credits run low, and robust error recovery with admin notifications.
   - Empowered control: admins can tune moderation levels, manage exceptions, and contribute labeled examples for continuous improvement.

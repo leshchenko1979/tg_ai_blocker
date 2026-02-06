@@ -134,6 +134,27 @@ Signs of irrelevant replies:
 - Self-promotion disguised as "helpful advice" on unrelated topics""")
         return self
 
+    def add_ai_generated_content_guidance(self) -> "SpamPromptBuilder":
+        """Add guidance for detecting AI-generated content and unusual emoji usage."""
+        self.prompt_parts.append("""
+## AI-GENERATED CONTENT & EMOJI DETECTION
+A major spam indicator is the use of AI to generate comments that appear "clean" but add no value. This is often combined with unusual emoji patterns.
+
+HIGH SPAM INDICATORS:
+1. ROBOTIC TONE:
+   - Message is a generic rephrasing or summary of the "REPLY CONTEXT".
+   - Phrasing is overly polite, hollow, or reads like an automated summary (e.g., "This post discusses...", "Basically, the author says...").
+   - Zero unique contribution, personal opinion, or genuine human insight.
+
+2. UNUSUAL EMOJI USAGE:
+   - Excessive use of emojis (more than 3-4 in a short comment).
+   - Unusual placement (e.g., emojis between words where they don't make sense).
+   - Using emojis to grab attention or bypass simple text filters.
+   - Real humans use emojis sparingly to express emotion, while spammers use them as "visual noise".
+
+These AI signatures are strong indicators of spam REGARDLESS of whether the profile has promotional links in stories or linked channels. The goal of such posts is to clutter the discussion and lure users to a bot-controlled profile.""")
+        return self
+
     def add_response_format(self) -> "SpamPromptBuilder":
         """Add the required response format specification."""
         self.prompt_parts.append("""
@@ -213,6 +234,7 @@ async def build_system_prompt(
     include_stories_guidance: bool = False,
     include_account_age_guidance: bool = False,
     include_reply_context_guidance: bool = False,
+    include_ai_detection_guidance: bool = False,
 ) -> str:
     """
     Build a complete spam classification system prompt.
@@ -223,6 +245,7 @@ async def build_system_prompt(
         include_stories_guidance: Whether to include user stories analysis guidance
         include_account_age_guidance: Whether to include account age analysis guidance
         include_reply_context_guidance: Whether to include reply context analysis guidance
+        include_ai_detection_guidance: Whether to include AI and emoji detection guidance
 
     Returns:
         Complete system prompt string
@@ -237,6 +260,8 @@ async def build_system_prompt(
         builder.add_account_age_guidance()
     if include_reply_context_guidance:
         builder.add_reply_context_guidance()
+    if include_ai_detection_guidance:
+        builder.add_ai_generated_content_guidance()
 
     # Add examples (async operation)
     await builder.add_spam_examples(admin_ids)

@@ -77,6 +77,7 @@ async def _prepare_classification_request(
         include_stories_guidance=context.include_stories_guidance,
         include_reply_context_guidance=context.include_reply_guidance,
         include_account_age_guidance=context.include_account_age_guidance,
+        include_ai_detection_guidance=context.include_ai_detection_guidance,
     )
 
     # Create messages for LLM

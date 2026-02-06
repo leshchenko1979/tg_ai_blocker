@@ -1,12 +1,13 @@
 ## Active Context
 
-- **Current Focus**: Cloudflare AI Gateway Integration - Migrating all LLM operations from OpenRouter to Cloudflare AI Gateway for improved performance and cost efficiency.
+- **Current Focus**: Cloudflare AI Gateway Integration & Spam Tactics Documentation - Migrating all LLM operations from OpenRouter to Cloudflare AI Gateway and maintaining a dedicated record of evolving spam tactics.
 - **Key Decisions**:
   - **Cloudflare Primary Provider**: All bot operations (spam classification, private chat) now use Cloudflare AI Gateway exclusively.
-  - **OpenRouter Fallback Maintained**: Original OpenRouter functions preserved as fallback for potential future use.
-  - **Environment Variable Architecture**: Clear separation with `API_BASE`/`CF_AIG_TOKEN` for Cloudflare, `OPENROUTER_API_BASE`/`OPENROUTER_API_KEY` for OpenRouter.
+  - **Spam Tactics File**: Created a dedicated `memory-bank/spamTactics.md` to track evolving spam patterns and examples.
+  - **Spam Tactics Rule**: Implemented `.cursor/rules/spam-tactics.mdc` to ensure the memory bank is updated when new spam is discovered.
 - **Recent Implementation**:
-  - **Cloudflare AI Gateway Integration**: ✅ **Complete** - Added `get_cloudflare_response()` function with proper authentication and model configuration.
+  - **Spam Tactics Memory Bank**: ✅ **Complete** - Initialized `spamTactics.md` with data from `@ai_antispam` and database.
+  - **Spam Tactics Cursor Rule**: ✅ **Complete** - Added `.cursor/rules/spam-tactics.mdc` for persistent maintenance.
   - **Spam Classifier Migration**: ✅ **Complete** - Updated spam classification to use Cloudflare instead of OpenRouter.
   - **Private Chat Migration**: ✅ **Complete** - Updated private message handling to use Cloudflare for admin interactions.
   - **Environment Configuration**: ✅ **Complete** - Fixed environment variable confusion (restored OpenRouter URL, separated Cloudflare config).
@@ -18,6 +19,6 @@
   - **Logfire Trace Analysis**: ✅ **Complete** - Identified and fixed authentication issues in deployed code.
   - **Logfire Instrumentation Cleanup**: ✅ **Complete** - Implemented approved Logfire pattern: auto-tracing for modules with `@logfire.no_auto_trace` decorators on manually instrumented functions to prevent span duplication.
 - **Immediate Next Steps**:
-  - Monitor Cloudflare AI Gateway performance and stability.
+  - Implement a way to collect and label "Trojan Summary" examples for the database.
+  - Monitor effectiveness of the new prompt guidance.
   - Evaluate cost savings vs OpenRouter.
-  - Consider removing OpenRouter functions if Cloudflare proves reliable long-term.
