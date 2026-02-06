@@ -34,13 +34,23 @@ The project defines spam not just as unsolicited advertising, but as **any conte
 *   **"Easy Money" Offers**: "Earn 2500 rub/hour", "Work from home for teens", etc.
 *   **Technical Help Bait**: Asking for technical help (e.g., "How to attach Excel to CRM") to lure people into a discussion that leads to a paid service or malicious site.
 
+### 6. Knowledge Sharing Bait
+*   **Method**: Offering "free" materials (books, courses, intensities, checklists) to lure users into private messages or external channels.
+*   **Hook**: Phrasing that sounds altruistic or helpful (e.g., "I can share for free", "I believe in karma", "I have this saved").
+*   **Weakness**: The offer is usually too good to be true or doesn't fit naturally into a technical discussion without being the primary focus.
+
+### 7. Professional Name Authority
+*   **Method**: Including professional titles or credentials directly in the Telegram display name (e.g., "Ivan | Real Estate Broker", "Dr. Alex | Crypto Advisor").
+*   **Goal**: To build immediate, false authority for their comments, making bait links in bio or stories more believable.
+
 ## Mostly Used Spam Tactics
 
 Based on current trends, the most frequent tactics are:
 1.  **The "Attractive Profile" Hook**: Harmless messages combined with aggressive ads in Bio/Stories (Trojan Horse).
 2.  **AI-Generated Summaries**: Using LLMs to generate a "summary" of the post to appear helpful while building "reputation" or testing filters.
 3.  **Service Promotion via Bots**: Recommending a specific Telegram bot as a "helpful tool" for the problem discussed in the post.
-4.  **Native Ad Imitation**: Starting a conversation about a specific niche (real estate, crypto) to eventually drop a "recommendation".
+4.  **Knowledge Sharing Bait**: Offering free PDFs or courses to start a private conversation.
+5.  **Native Ad Imitation**: Starting a conversation about a specific niche (real estate, crypto) to eventually drop a "recommendation".
 
 ## Recent Examples from Database
 

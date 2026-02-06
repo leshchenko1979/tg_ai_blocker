@@ -38,8 +38,14 @@ class SpamPromptBuilder:
 
 Your task: Analyze user messages and determine if they are spam or legitimate.
 The message to classify is enclosed in >>> BEGIN MESSAGE markers.
-You will also receive context information (User Bio, Linked Channel, Reply Context).
+You will also receive context information (User Bio, Linked Channel, User Stories, Account Age, Reply Context).
+
 IMPORTANT: Do not classify the context information as spam. Only classify the message inside the markers.
+
+## CLASSIFICATION PHILOSOPHY
+Spam is not just unsolicited advertising. It is ANY content that does not add unique value to the discussion.
+A comment is likely spam if it's generic, purely reactive without insight, or serves only to lure users to a profile.
+Real human interaction is characterized by unique perspective, specific references, and genuine engagement.
 
 Return a spam score from -100 to +100, where:
 - Positive scores = spam (0 to 100)
@@ -47,6 +53,20 @@ Return a spam score from -100 to +100, where:
 - Zero = uncertain
 
 Also provide a confidence percentage (0-100) and a brief explanation.""")
+        return self
+
+    def add_user_info_guidance(self) -> "SpamPromptBuilder":
+        """Add guidance for analyzing user profile information (name, bio)."""
+        self.prompt_parts.append("""
+## USER INFORMATION ANALYSIS
+Examine the user's name and bio for professional labels or hidden promotions.
+
+HIGH SPAM INDICATORS:
+- NAME: Professional titles ("Psychologist", "Coach", "Investor", "Realtor") or links directly in the user's display name.
+- BIO: Links to Telegram bots, external sites, or "consultation" offers.
+- "GHOST" PROFILES: No bio and no username combined with generic messages.
+
+Spammers often use a "clean" name with a professional bio to build false authority before posting bait comments.""")
         return self
 
     def add_linked_channel_guidance(self) -> "SpamPromptBuilder":
@@ -134,6 +154,20 @@ Signs of irrelevant replies:
 - Self-promotion disguised as "helpful advice" on unrelated topics""")
         return self
 
+    def add_knowledge_sharing_guidance(self) -> "SpamPromptBuilder":
+        """Add guidance for detecting bait based on sharing materials or knowledge."""
+        self.prompt_parts.append("""
+## KNOWLEDGE SHARING & BAIT DETECTION
+A frequent spam tactic is offering "free" materials to lure users into private messages or external channels.
+
+HIGH SPAM INDICATORS:
+- BAIT OFFERS: "I have a free book/course/intensity", "I can share my material", "Write to me and I'll send you the link".
+- VAGUE "HELP": Offering help or sharing experience in a way that requires leaving the current discussion.
+- "KARMA" BAIT: Using phrases like "giving away for free", "believing in karma", or "just want to help" to appear altruistic while posting advertisements.
+
+Genuine human sharing is usually direct or occurs naturally within the conversation flow without being the primary purpose of the message.""")
+        return self
+
     def add_ai_generated_content_guidance(self) -> "SpamPromptBuilder":
         """Add guidance for detecting AI-generated content and unusual emoji usage."""
         self.prompt_parts.append("""
@@ -149,8 +183,8 @@ HIGH SPAM INDICATORS:
 2. UNUSUAL EMOJI USAGE:
    - Excessive use of emojis (more than 3-4 in a short comment).
    - Unusual placement (e.g., emojis between words where they don't make sense).
-   - Using emojis to grab attention or bypass simple text filters.
-   - Real humans use emojis sparingly to express emotion, while spammers use them as "visual noise".
+   - Using emojis as "visual noise" to grab attention or bypass filters.
+   - Real humans use emojis sparingly to express emotion, while spammers use them to clutter the view.
 
 These AI signatures are strong indicators of spam REGARDLESS of whether the profile has promotional links in stories or linked channels. The goal of such posts is to clutter the discussion and lure users to a bot-controlled profile.""")
         return self
@@ -250,7 +284,10 @@ async def build_system_prompt(
     Returns:
         Complete system prompt string
     """
-    builder = SpamPromptBuilder().build_base_instructions().add_response_format()
+    builder = SpamPromptBuilder().build_base_instructions()
+
+    # Always include user info guidance as it's fundamental
+    builder.add_user_info_guidance()
 
     if include_linked_channel_guidance:
         builder.add_linked_channel_guidance()
@@ -262,6 +299,10 @@ async def build_system_prompt(
         builder.add_reply_context_guidance()
     if include_ai_detection_guidance:
         builder.add_ai_generated_content_guidance()
+        # Knowledge sharing is often linked with AI content or generic bait
+        builder.add_knowledge_sharing_guidance()
+
+    builder.add_response_format()
 
     # Add examples (async operation)
     await builder.add_spam_examples(admin_ids)

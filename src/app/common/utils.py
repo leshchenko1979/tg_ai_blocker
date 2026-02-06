@@ -139,16 +139,34 @@ def clean_alert_text(text: str | None) -> str | None:
             start_idx = text.find("Содержание угрозы:")
             if start_idx != -1:
                 start_idx += len("Содержание угрозы:")
-                # Ищем конец содержания
-                end_idx = text.find("Вредоносное сообщение уничтожено", start_idx)
-                if end_idx == -1:
-                    end_idx = text.find("Ссылка на сообщение", start_idx)
-                if end_idx == -1:
-                    end_idx = text.find("ℹ️ Подробнее", start_idx)
-                if end_idx != -1:
-                    cleaned = text[start_idx:end_idx].strip()
-                else:
-                    cleaned = text[start_idx:].strip()
+
+                # Ищем конец содержания - останавливаемся на первом же маркере метаданных
+                end_markers = [
+                    "Причина:",
+                    "Reason:",
+                    "Вредоносное сообщение уничтожено",
+                    "Ссылка на сообщение",
+                    "ℹ️ Подробнее",
+                    "💡 Совет:",
+                ]
+
+                end_idx = len(text)
+                for marker in end_markers:
+                    m_idx = text.find(marker, start_idx)
+                    if m_idx != -1 and m_idx < end_idx:
+                        end_idx = m_idx
+
+                cleaned = text[start_idx:end_idx].strip()
+
+                # Если текст обернут в blockquote (что часто бывает в уведомлениях), убираем его
+                if cleaned.startswith("<blockquote"):
+                    # Находим закрывающий тег первой цитаты
+                    close_tag = cleaned.find("</blockquote>")
+                    if close_tag != -1:
+                        # Извлекаем текст внутри тегов
+                        content_start = cleaned.find(">") + 1
+                        cleaned = cleaned[content_start:close_tag].strip()
+
                 # Если после очистки остались служебные строки, убираем их
                 lines = [
                     line
@@ -164,6 +182,8 @@ def clean_alert_text(text: str | None) -> str | None:
                             "Вредоносное сообщение уничтожено",
                             "ℹ️ Подробнее",
                             "Ссылка на сообщение",
+                            "Причина:",
+                            "Reason:",
                         ]
                     )
                 ]
