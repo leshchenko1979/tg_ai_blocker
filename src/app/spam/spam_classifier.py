@@ -22,7 +22,7 @@ async def is_spam(
     comment: str,
     admin_ids: Optional[List[int]] = None,
     context: Optional[SpamClassificationContext] = None,
-) -> Tuple[int, str]:
+) -> Tuple[int, int, str]:
     """
     Classify a message as spam or legitimate using LLM analysis.
 
@@ -35,8 +35,9 @@ async def is_spam(
         context: Optional contextual information for classification
 
     Returns:
-        Tuple[int, str]:
+        Tuple[int, int, str]:
             - int: Spam score (positive = spam 0-100, negative = legitimate -100-0)
+            - int: Confidence level (0-100)
             - str: Explanation of the classification decision
 
     Raises:

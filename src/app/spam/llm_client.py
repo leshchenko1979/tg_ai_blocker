@@ -108,7 +108,7 @@ class ExtractionFailedError(ClassificationError):
 
 async def call_llm_with_spam_classification(
     messages: List[Dict[str, str]],
-) -> Tuple[int, str]:
+) -> Tuple[int, int, str]:
     """
     Call LLM with retry logic for transient errors.
 
@@ -116,7 +116,7 @@ async def call_llm_with_spam_classification(
         messages: Messages array for LLM API
 
     Returns:
-        Tuple[int, str]: (score, reason) where score is -100 to 100, reason is explanation
+        Tuple[int, int, str]: (score, confidence, reason) where score is -100 to 100, confidence is 0-100, reason is explanation
 
     Raises:
         ClassificationError: If all retries fail
@@ -136,10 +136,10 @@ async def call_llm_with_spam_classification(
                 )
                 last_response = response
                 logger.info(f"Spam classifier response: {response}")
-                score, reason = parse_classification_response(response)
+                score, confidence, reason = parse_classification_response(response)
                 spam_score_gauge.set(score)
                 attempts_histogram.record(attempt)
-                return score, reason
+                return score, confidence, reason
 
             except (RateLimitExceeded, LocationNotSupported) as e:
                 error_type = (
@@ -206,7 +206,7 @@ async def _handle_rate_limit_error(error: RateLimitExceeded) -> None:
         await asyncio.sleep(wait_time)
 
 
-def _parse_json_response(response: str) -> Optional[Tuple[int, str]]:
+def _parse_json_response(response: str) -> Optional[Tuple[int, int, str]]:
     """
     Try to parse response as JSON format.
 
@@ -214,7 +214,7 @@ def _parse_json_response(response: str) -> Optional[Tuple[int, str]]:
         response: Raw response string from the LLM
 
     Returns:
-        Optional[Tuple[int, str]]: (score, reason) if parsing succeeds, None otherwise
+        Optional[Tuple[int, int, str]]: (score, confidence, reason) if parsing succeeds, None otherwise
     """
     try:
         data = json.loads(response)
@@ -226,12 +226,12 @@ def _parse_json_response(response: str) -> Optional[Tuple[int, str]]:
         reason = data.get("reason", "No reason provided")
 
         score = confidence if is_spam else -confidence
-        return score, reason
+        return score, confidence, reason
     except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         return None
 
 
-def _parse_legacy_response(response: str) -> Optional[Tuple[int, str]]:
+def _parse_legacy_response(response: str) -> Optional[Tuple[int, int, str]]:
     """
     Try to parse response as legacy text format.
 
@@ -239,7 +239,7 @@ def _parse_legacy_response(response: str) -> Optional[Tuple[int, str]]:
         response: Raw response string from the LLM
 
     Returns:
-        Optional[Tuple[int, str]]: (score, reason) if parsing succeeds, None otherwise
+        Optional[Tuple[int, int, str]]: (score, confidence, reason) if parsing succeeds, None otherwise
     """
     # Extract content from tags
     match = LEGACY_RESPONSE_PATTERN.search(response)
@@ -263,18 +263,18 @@ def _parse_legacy_response(response: str) -> Optional[Tuple[int, str]]:
         if spam_indicator == RESPONSE_SPAM_YES:
             score = confidence
             reason = f"Классифицировано как спам с уверенностью {score}%"
-            return score, reason
+            return score, confidence, reason
         elif spam_indicator == RESPONSE_SPAM_NO:
             score = -confidence
             reason = f"Классифицировано как не спам с уверенностью {confidence}%"
-            return score, reason
+            return score, confidence, reason
 
     return None
 
 
-def parse_classification_response(response: str) -> Tuple[int, str]:
+def parse_classification_response(response: str) -> Tuple[int, int, str]:
     """
-    Parse the LLM response to extract spam score and reasoning.
+    Parse the LLM response to extract spam score, confidence, and reasoning.
 
     Supports both JSON format responses and legacy text format for backward compatibility.
 
@@ -282,7 +282,7 @@ def parse_classification_response(response: str) -> Tuple[int, str]:
         response: Raw response string from the LLM
 
     Returns:
-        Tuple[int, str]: (score, reason) where score is -100 to 100, reason is explanation text
+        Tuple[int, int, str]: (score, confidence, reason) where score is -100 to 100, confidence is 0-100, reason is explanation text
 
     Raises:
         ExtractionFailedError: If response cannot be parsed in any supported format

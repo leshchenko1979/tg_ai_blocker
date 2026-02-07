@@ -1,6 +1,7 @@
 """Handlers for bot status updates in chats."""
 
 import logging
+from datetime import datetime
 from typing import List
 
 import logfire
@@ -8,11 +9,12 @@ from aiogram import F, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import or_f
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from opentelemetry.trace import get_current_span
 
 from ..common.bot import bot
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.utils import retry_on_network_error, sanitize_html
-from ..database import deactivate_admin, get_group, update_group_admins
+from ..database import deactivate_admin, get_admin, get_group, update_group_admins
 from .dp import dp
 from .message.channel_management import notify_channel_admins_and_leave
 
@@ -501,6 +503,19 @@ async def _deactivate_admin_after_block(admin_id: int) -> None:
     try:
         if await deactivate_admin(admin_id):
             logger.info("Admin %s marked inactive after blocking the bot", admin_id)
+
+            # Calculate total time user was with bot in days
+            admin = await get_admin(admin_id)
+            if admin:
+                total_days = (datetime.now() - admin.created_at).days
+
+                # Set the total time on the current span
+                current_span = get_current_span()
+                if current_span:
+                    current_span.set_attribute("total_user_days", total_days)
+                    logger.info(
+                        "Set total_user_days=%d for admin %s", total_days, admin_id
+                    )
         else:
             logger.info("Admin %s was already inactive when blocking the bot", admin_id)
     except Exception as exc:

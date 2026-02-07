@@ -8,6 +8,7 @@ the entire message processing flow from validation to spam analysis to result pr
 import logging
 
 from aiogram import types
+from opentelemetry.trace import get_current_span
 
 from ...database import APPROVE_PRICE, DELETE_PRICE, add_member
 from ..handle_spam import handle_spam
@@ -73,10 +74,10 @@ async def handle_moderated_message(message: types.Message) -> str:
         try:
             if analysis_result.is_story:
                 # Stories are always considered spam
-                spam_score, reason = 100, "Story forward"
+                spam_score, confidence, reason = 100, 100, "Story forward"
             else:
                 # Perform LLM-based spam classification
-                spam_score, reason = await is_spam(
+                spam_score, confidence, reason = await is_spam(
                     comment=analysis_result.message_text,
                     admin_ids=group.admin_ids,
                     context=analysis_result.context,
@@ -88,6 +89,53 @@ async def handle_moderated_message(message: types.Message) -> str:
         if spam_score is None:
             logger.warning("Failed to get spam score")
             return "message_spam_check_failed"
+
+        # Set LLM response and context attributes on the root span
+        current_span = get_current_span()
+        if current_span:
+            current_span.set_attribute("llm_score", spam_score)
+            current_span.set_attribute("llm_confidence", confidence)
+            current_span.set_attribute("llm_reason", reason)
+
+            # Set user context attributes
+            if analysis_result.bio:
+                current_span.set_attribute("user_bio", analysis_result.bio)
+
+            if analysis_result.context.name:
+                current_span.set_attribute("user_name", analysis_result.context.name)
+
+            # Set linked channel info if available
+            if analysis_result.context.linked_channel:
+                if (
+                    analysis_result.context.linked_channel.status == "found"
+                    and analysis_result.context.linked_channel.content
+                ):
+                    channel_info = analysis_result.context.linked_channel.content.to_prompt_fragment()
+                    current_span.set_attribute("linked_channel_info", channel_info)
+
+            # Set stories info if available
+            if analysis_result.context.stories:
+                if analysis_result.context.stories.status == "found":
+                    current_span.set_attribute(
+                        "user_stories", analysis_result.context.stories.content or ""
+                    )
+
+            # Set account age info if available
+            if analysis_result.context.account_age:
+                if (
+                    analysis_result.context.account_age.status == "found"
+                    and analysis_result.context.account_age.content
+                ):
+                    age_info = (
+                        analysis_result.context.account_age.content.to_prompt_fragment()
+                    )
+                    current_span.set_attribute("account_age_info", age_info)
+
+            # Set reply context if available
+            if analysis_result.context.reply:
+                current_span.set_attribute(
+                    "reply_context", analysis_result.context.reply
+                )
 
         # Process spam or approve user
         return await process_spam_or_approve(
