@@ -11,7 +11,7 @@
   - **Spam Classifier Migration**: ✅ **Complete** - Updated spam classification to use Cloudflare instead of OpenRouter.
   - **Private Chat Migration**: ✅ **Complete** - Updated private message handling to use Cloudflare for admin interactions.
   - **Environment Configuration**: ✅ **Complete** - Fixed environment variable confusion (restored OpenRouter URL, separated Cloudflare config).
-  - **Code Cleanup**: ✅ **Complete** - Removed provider-specific references from generic functions, improved documentation clarity.
+  - **Code Cleanup**: ✅ **Complete** - Removed `bs4` (BeautifulSoup) dependency and refactored `sanitize_llm_html` to use regex, reducing overhead and removing unused dependencies. Updated HTML tag support to exactly match official Telegram Bot API specifications including all documented tags.
   - **LLM Provider Resilience**: ✅ **Complete** - Implemented optimized fallback strategy: Cloudflare (1 fast try) → OpenRouter (3 tries with model rotation). Cloudflare fails fast to avoid delays, OpenRouter handles retries and model fallbacks for maximum reliability.
 - **Recent Implementation**:
   - **LLM Model Evaluation**: ✅ **Complete** - Comprehensive evaluation infrastructure with balanced test cases and JSON result storage.
