@@ -22,3 +22,4 @@
   - Implement a way to collect and label "Trojan Summary" examples for the database.
   - Monitor effectiveness of the new prompt guidance.
   - Evaluate cost savings vs OpenRouter.
+- **HTML Hyperlink Preservation**: ✅ **Fixed** - Modified `sanitize_llm_html()` to preserve `<a>` tags in private chat responses, ensuring hyperlinks from LLM-generated content are now clickable instead of being stripped.

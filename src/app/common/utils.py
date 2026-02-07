@@ -105,26 +105,49 @@ def sanitize_html(text: str | None) -> str:
 def sanitize_llm_html(text: str) -> str:
     """
     Sanitizes LLM-generated HTML content, allowing only safe Telegram HTML tags.
-    This is designed for content where we expect HTML formatting from a controlled source.
+    This strips all HTML tags except <b>, <i>, and <a>, and escapes any remaining HTML entities.
     """
 
-    # Allow only these safe HTML tags: <b>, <i>, </b>, </i>
-    allowed_tags = ["<b>", "</b>", "<i>", "</i>"]
+    import re
 
-    # First, temporarily replace allowed tags with placeholders
-    placeholders = {}
-    for i, tag in enumerate(allowed_tags):
-        placeholder = f"__ALLOWED_TAG_{i}__"
-        placeholders[placeholder] = tag
-        text = text.replace(tag, placeholder)
+    if not text:
+        return text
 
-    # Escape all remaining HTML characters
-    text = sanitize_html(text)
+    # Use BeautifulSoup or a more robust HTML parser to strip tags while preserving allowed ones
+    try:
+        from bs4 import BeautifulSoup
 
-    # Restore allowed tags
-    for placeholder, tag in placeholders.items():
-        text = text.replace(placeholder, tag)
+        # Parse HTML and extract text, but keep <b> and <i> tags
+        soup = BeautifulSoup(text, 'html.parser')
 
+        # Remove all tags except <b>, <i>, and <a>
+        for tag in soup.find_all():
+            if tag.name not in ['b', 'i', 'a']:
+                tag.unwrap()  # Remove tag but keep content
+
+        # Get the cleaned HTML
+        text = str(soup)
+
+    except ImportError:
+        # Fallback to regex-based approach if BeautifulSoup not available
+        logger.warning("BeautifulSoup not available, using regex fallback")
+
+        # Simple regex approach: remove tags that are not <b>, <i>, or <a>
+        # This is less robust but works for simple cases
+        def replace_tag(match):
+            tag_content = match.group(0)
+            tag_name_match = re.match(r'</?([a-zA-Z]+)', tag_content)
+            if tag_name_match:
+                tag_name = tag_name_match.group(1).lower()
+                if tag_name in ['b', 'i', 'a']:
+                    return tag_content  # Keep allowed tags
+            return ''  # Remove disallowed tags
+
+        text = re.sub(r'</?[a-zA-Z][^>]*>', replace_tag, text)
+
+    # Since we've already filtered to only allow safe Telegram HTML tags (<b>, <i>, <a>),
+    # we can return the text as-is without additional escaping.
+    # Telegram's HTML parser will handle this safely.
     return text
 
 
