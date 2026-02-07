@@ -374,7 +374,7 @@ def format_spam_request(
 
     request_parts = [
         "MESSAGE TO CLASSIFY (Analyze this content):",
-        f">>> BEGIN MESSAGE\n\n{text}\n\n<<< END MESSAGE",
+        f">>> BEGIN MESSAGE\n{text}\n<<< END MESSAGE",
         "",
     ]
 

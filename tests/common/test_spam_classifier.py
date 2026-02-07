@@ -60,7 +60,7 @@ def test_format_spam_request_basic():
     context = SpamClassificationContext(name="User", bio="Bio")
     req = format_spam_request("Hello", context)
     assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
-    assert ">>> BEGIN MESSAGE\n\nHello\n\n<<< END MESSAGE" in req
+    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
     assert "USER NAME:\nUser" in req
     assert "USER BIO:\nBio" in req
     assert "<истории_пользователя>" not in req
@@ -185,7 +185,7 @@ def test_format_spam_request_null_context_skipped():
 
     # Verify basic fields are present
     assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
-    assert ">>> BEGIN MESSAGE\n\nHello\n\n<<< END MESSAGE" in req
+    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
     assert "USER NAME:\nUser" in req
     assert "USER BIO:\nBio" in req
 

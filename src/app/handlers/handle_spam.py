@@ -257,7 +257,7 @@ def format_admin_notification_message(
             else ""
         )
     elif message.from_user is not None:
-        violator_name = message.from_user.full_name
+        violator_name = message.from_user.full_name or "Пользователь без имени"
         violator_username = (
             f" (@{message.from_user.username})" if message.from_user.username else ""
         )
@@ -271,12 +271,24 @@ def format_admin_notification_message(
         else ""
     )
 
+    forward_source = ""
+    forward_chat = getattr(message, "forward_from_chat", None)
+    if forward_chat:
+        forward_title = getattr(forward_chat, "title", None) or "Канал"
+        forward_username = getattr(forward_chat, "username", None)
+        forward_username_str = f" (@{forward_username})" if forward_username else ""
+        forward_source = (
+            "\n\n"
+            f"<b>Источник пересланного:</b> "
+            f"{sanitize_html(forward_title)}{forward_username_str}"
+        )
+
     admin_msg = (
         "⚠️ <b>ВТОРЖЕНИЕ!</b>\n\n"
         f"<b>Группа:</b> {sanitize_html(message.chat.title)}{chat_username_str}\n\n"
         f"<b>Нарушитель:</b> {sanitize_html(violator_name)}{violator_username}\n\n"
         f"<b>Содержание угрозы:</b>\n<blockquote expandable>{content_text}</blockquote>\n\n"
-        f"{reason_text}\n"
+        f"{reason_text}{forward_source}\n"
     )
 
     if all_admins_delete:
