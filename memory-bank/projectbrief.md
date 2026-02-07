@@ -1,6 +1,7 @@
 ## Project Brief
 
 - **Purpose**: Deliver an AI-powered anti-spam assistant for Telegram groups and channels that automatically moderates content, safeguards communities, and keeps administrators informed.
+- **Website**: [ai-antispam.ru](https://ai-antispam.ru)
 - **Problem Statement**: Manual moderation is too slow for fast-moving chats, letting spam, scams, and malicious links slip through. Admins need a dependable co-pilot that works 24/7.
 - **Product Scope**:
   - Connect as a Telegram bot to moderate groups and channel comment threads.

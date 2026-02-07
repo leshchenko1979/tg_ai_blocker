@@ -1,7 +1,7 @@
 ## Tech Context
 
 - **Language & Runtime**: Python 3.14+ (project typed for 3.14) running on macOS locally; production expects Linux with Telegram webhook hosting.
-- **Landing Page**: Static HTML/CSS/JS built with Tailwind CSS, deployed via GitHub Actions to GitHub Pages.
+- **Landing Page**: [ai-antispam.ru](https://ai-antispam.ru) - Static HTML/CSS/JS built with Tailwind CSS, deployed via GitHub Actions to GitHub Pages.
 - **Frameworks & Libraries**:
   - `aiohttp` for webhook server, `aiogram` for Telegram bot routing.
   - `asyncpg` for PostgreSQL access, structured via database operation modules.
