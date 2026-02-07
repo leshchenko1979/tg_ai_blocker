@@ -24,6 +24,7 @@ from ..common.utils import (
 )
 from ..database import get_admins_map
 from ..database.group_operations import remove_member_from_group
+from .message.validation import determine_effective_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +49,13 @@ async def handle_spam(
         )
 
         if all_admins_delete:
+            effective_user_id = determine_effective_user_id(message)
+            if effective_user_id is None:
+                logger.warning("Message without effective user info, skipping ban")
+                return "spam_no_user_info"
             await handle_spam_message_deletion(message, admin_ids)
             await ban_user_for_spam(
-                message.chat.id, message.from_user.id, admin_ids, message.chat.title
+                message.chat.id, effective_user_id, admin_ids, message.chat.title
             )
             return "spam_auto_deleted"
 
@@ -97,25 +102,26 @@ def create_admin_notification_keyboard(
     Returns:
         InlineKeyboardMarkup: Клавиатура с кнопками действий
     """
-    if not message.from_user:
+    effective_user_id = determine_effective_user_id(message)
+    if effective_user_id is None:
         return InlineKeyboardMarkup(inline_keyboard=[[]])
 
     if not all_admins_delete:
         row = [
             InlineKeyboardButton(
                 text="🗑️ Удалить",
-                callback_data=f"delete_spam_message:{message.from_user.id}:{message.chat.id}:{message.message_id}",
+                callback_data=f"delete_spam_message:{effective_user_id}:{message.chat.id}:{message.message_id}",
             ),
             InlineKeyboardButton(
                 text="✅ Не спам",
-                callback_data=f"mark_as_not_spam:{message.from_user.id}:{message.chat.id}",
+                callback_data=f"mark_as_not_spam:{effective_user_id}:{message.chat.id}",
             ),
         ]
     else:
         row = [
             InlineKeyboardButton(
                 text="✅ Это не спам",
-                callback_data=f"mark_as_not_spam:{message.from_user.id}:{message.chat.id}",
+                callback_data=f"mark_as_not_spam:{effective_user_id}:{message.chat.id}",
             ),
         ]
     return InlineKeyboardMarkup(inline_keyboard=[row])
@@ -232,16 +238,32 @@ def format_admin_notification_message(
     Returns:
         str: Отформатированный текст уведомления
     """
-    if not message.from_user:
+    effective_user_id = determine_effective_user_id(message)
+    if effective_user_id is None:
         return "Ошибка: сообщение без информации о пользователе"
 
     content_text = message.text or message.caption or "[MEDIA_MESSAGE]"
     # Escape HTML entities in content to prevent parsing errors
     content_text = sanitize_html(content_text)
     chat_username_str = f" (@{message.chat.username})" if message.chat.username else ""
-    user_username_str = (
-        f" (@{message.from_user.username})" if message.from_user.username else ""
+    is_channel_sender = (
+        message.sender_chat is not None and message.sender_chat.id != message.chat.id
     )
+    if is_channel_sender and message.sender_chat is not None:
+        violator_name = message.sender_chat.title or "Канал"
+        violator_username = (
+            f" (@{message.sender_chat.username})"
+            if message.sender_chat.username
+            else ""
+        )
+    elif message.from_user is not None:
+        violator_name = message.from_user.full_name
+        violator_username = (
+            f" (@{message.from_user.username})" if message.from_user.username else ""
+        )
+    else:
+        violator_name = "Пользователь"
+        violator_username = ""
 
     reason_text = (
         f"<b>Причина:</b><blockquote expandable>{sanitize_html(reason)}</blockquote>\n"
@@ -252,14 +274,15 @@ def format_admin_notification_message(
     admin_msg = (
         "⚠️ <b>ВТОРЖЕНИЕ!</b>\n\n"
         f"<b>Группа:</b> {sanitize_html(message.chat.title)}{chat_username_str}\n\n"
-        f"<b>Нарушитель:</b> {sanitize_html(message.from_user.full_name)}{user_username_str}\n\n"
+        f"<b>Нарушитель:</b> {sanitize_html(violator_name)}{violator_username}\n\n"
         f"<b>Содержание угрозы:</b>\n<blockquote expandable>{content_text}</blockquote>\n\n"
         f"{reason_text}\n"
     )
 
     if all_admins_delete:
         admin_msg += (
-            "<b>Вредоносное сообщение уничтожено, пользователь заблокирован.</b>"
+            "<b>Вредоносное сообщение уничтожено, "
+            f"{'канал' if is_channel_sender else 'пользователь'} заблокирован.</b>"
         )
     else:
         link = f"https://t.me/{message.chat.username}/{message.message_id}"

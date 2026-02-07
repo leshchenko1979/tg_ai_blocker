@@ -50,7 +50,8 @@ class LinkedChannelSummary:
                     content_snippets.append(f"post_{i + 1}: {content.strip()}")
 
             if content_snippets:
-                parts.append(f"recent_posts=[{'; '.join(content_snippets)}]")
+                formatted_posts = "\n\n".join(content_snippets)
+                parts.append(f"recent_posts=[\n{formatted_posts}\n]")
 
         return "; ".join(parts)
 

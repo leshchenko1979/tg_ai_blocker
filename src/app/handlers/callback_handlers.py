@@ -149,36 +149,55 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         updated_message_text = f"{message_text}\n\n✅ <b>Отмечено как НЕ СПАМ</b>"
 
         channel_fragment = None
-        try:
-            user_context = await collect_user_context(
-                author_id, username=author_info.username if author_info else None
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.info(
-                "Failed to load user context for author",
-                extra={
-                    "author_id": author_id,
-                    "username": author_info.username if author_info else None,
-                    "error": str(exc),
-                },
-            )
-            user_context = None
-        if user_context and user_context.linked_channel.status == "found":
-            assert user_context.linked_channel.content is not None
-            channel_fragment = user_context.linked_channel.content.to_prompt_fragment()
+        user_context = None
+        if author_id > 0:
+            try:
+                user_context = await collect_user_context(
+                    author_id, username=author_info.username if author_info else None
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.info(
+                    "Failed to load user context for author",
+                    extra={
+                        "author_id": author_id,
+                        "username": author_info.username if author_info else None,
+                        "error": str(exc),
+                    },
+                )
+                user_context = None
+            if user_context and user_context.linked_channel.status == "found":
+                assert user_context.linked_channel.content is not None
+                channel_fragment = (
+                    user_context.linked_channel.content.to_prompt_fragment()
+                )
+
+        author_name = None
+        author_bio = None
+        if author_info:
+            if author_id > 0:
+                author_name = author_info.full_name
+                author_bio = author_info.bio
+            else:
+                author_name = getattr(author_info, "title", None)
+                author_bio = getattr(author_info, "description", None)
 
         # Все тяжелые операции параллельно
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(
-                bot.unban_chat_member(group_id, author_id, only_if_banned=True)
-            )
+            if author_id < 0:
+                tg.create_task(
+                    bot.unban_chat_sender_chat(group_id, sender_chat_id=author_id)
+                )
+            else:
+                tg.create_task(
+                    bot.unban_chat_member(group_id, author_id, only_if_banned=True)
+                )
             tg.create_task(add_member(group_id, author_id))
             tg.create_task(
                 add_spam_example(
                     text=message_text,
                     score=-100,  # Безопасное сообщение с отрицательным score
-                    name=author_info.full_name if author_info else None,
-                    bio=author_info.bio if author_info else None,
+                    name=author_name,
+                    bio=author_bio,
                     admin_id=admin_id,
                     linked_channel_fragment=channel_fragment,
                     stories_context=None,  # Not available for user approvals
