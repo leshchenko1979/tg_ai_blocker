@@ -105,7 +105,20 @@ def sanitize_html(text: str | None) -> str:
 def sanitize_llm_html(text: str) -> str:
     """
     Sanitizes LLM-generated HTML content, allowing only safe Telegram HTML tags.
-    This strips all HTML tags except <b>, <i>, and <a>, and escapes any remaining HTML entities.
+
+    Supported Telegram HTML tags (based on Bot API specification):
+    - <b> or <strong> for bold text
+    - <i> or <em> for italic text
+    - <u> for underline
+    - <s> or <strike> for strikethrough
+    - <span class="tg-spoiler"> for spoiler text
+    - <tg-spoiler> for spoiler (alternative)
+    - <a href="URL"> for clickable links
+    - <code> for inline code
+    - <pre> for code blocks (optionally with language attribute)
+    - <pre><code class="language-lang"> for highlighted preformatted text
+
+    All other HTML tags are stripped while preserving their content.
     """
 
     import re
@@ -117,12 +130,33 @@ def sanitize_llm_html(text: str) -> str:
     try:
         from bs4 import BeautifulSoup
 
-        # Parse HTML and extract text, but keep <b> and <i> tags
+        # Parse HTML and extract text, but keep Telegram-supported tags
         soup = BeautifulSoup(text, 'html.parser')
 
-        # Remove all tags except <b>, <i>, and <a>
+        # Define allowed tags and their validation rules
+        allowed_tags = {
+            'b', 'strong',  # bold
+            'i', 'em',      # italic
+            'u',            # underline
+            's', 'strike',  # strikethrough
+            'tg-spoiler',   # spoiler
+            'a',            # links
+            'code',         # inline code
+            'pre'           # code blocks
+        }
+
+        def is_tag_allowed(tag):
+            """Check if a tag is allowed based on Telegram's HTML rules."""
+            if tag.name in allowed_tags:
+                # Special validation for span (only tg-spoiler allowed)
+                if tag.name == 'span':
+                    return tag.get('class') == ['tg-spoiler']
+                return True
+            return False
+
+        # Remove all tags that are not allowed
         for tag in soup.find_all():
-            if tag.name not in ['b', 'i', 'a']:
+            if not is_tag_allowed(tag):
                 tag.unwrap()  # Remove tag but keep content
 
         # Get the cleaned HTML
@@ -132,20 +166,41 @@ def sanitize_llm_html(text: str) -> str:
         # Fallback to regex-based approach if BeautifulSoup not available
         logger.warning("BeautifulSoup not available, using regex fallback")
 
-        # Simple regex approach: remove tags that are not <b>, <i>, or <a>
-        # This is less robust but works for simple cases
+        # Regex-based approach for allowed Telegram HTML tags
         def replace_tag(match):
             tag_content = match.group(0)
-            tag_name_match = re.match(r'</?([a-zA-Z]+)', tag_content)
+            tag_name_match = re.match(r'</?([a-zA-Z-]+)', tag_content)
             if tag_name_match:
                 tag_name = tag_name_match.group(1).lower()
-                if tag_name in ['b', 'i', 'a']:
+
+                # Define allowed tags
+                allowed_tags = {
+                    'b', 'strong',      # bold
+                    'i', 'em',          # italic
+                    'u',                # underline
+                    's', 'strike',      # strikethrough
+                    'tg-spoiler',       # spoiler
+                    'a',                # links
+                    'code',             # inline code
+                    'pre',              # code blocks
+                    'span'              # spoiler spans (special case)
+                }
+
+                if tag_name in allowed_tags:
+                    # Special validation for span tags - only allow tg-spoiler
+                    if tag_name == 'span':
+                        # Allow closing span tags and opening tags with tg-spoiler class
+                        if tag_content.startswith('</') or 'class="tg-spoiler"' in tag_content:
+                            return tag_content
+                        else:
+                            return ''  # Remove non-spoiler opening spans
                     return tag_content  # Keep allowed tags
+
             return ''  # Remove disallowed tags
 
-        text = re.sub(r'</?[a-zA-Z][^>]*>', replace_tag, text)
+        text = re.sub(r'</?[a-zA-Z-]+[^>]*>', replace_tag, text)
 
-    # Since we've already filtered to only allow safe Telegram HTML tags (<b>, <i>, <a>),
+    # Since we've already filtered to only allow safe Telegram HTML tags,
     # we can return the text as-is without additional escaping.
     # Telegram's HTML parser will handle this safely.
     return text
