@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Generic, Optional, TypeVar
+from typing import Any, Dict, Generic, List, Optional, TypeVar
 
 T = TypeVar("T")
 
@@ -28,6 +28,7 @@ class LinkedChannelSummary:
     total_posts: Optional[int]
     post_age_delta: Optional[int]
     recent_posts_content: Optional[list[str]] = None
+    users: Optional[list[dict]] = None
 
     def to_prompt_fragment(self) -> str:
         if self.post_age_delta is None or self.post_age_delta < 0:
@@ -117,13 +118,15 @@ class PeerResolutionContext:
 
 
 @dataclass(slots=True)
-class MessageAnalysisResult:
-    """Result of message analysis containing all context data."""
+class MessageContextResult:
+    """Result of message context collection."""
 
     message_text: str
     is_story: bool
     bio: Optional[str]
-    context: SpamClassificationContext
+    context: "SpamClassificationContext"
+    linked_channel_found: bool = False
+    channel_users: Optional[list[dict]] = None
 
 
 @dataclass(slots=True)
@@ -190,3 +193,100 @@ class SpamClassificationContext:
             or self.include_stories_guidance
             or self.include_linked_channel_guidance
         )
+
+
+@dataclass
+class StorySummary:
+    id: int
+    date: int
+    caption: Optional[str] = None
+    entities: Optional[List[Dict[str, Any]]] = None
+    media: Optional[Dict[str, Any]] = None
+    media_areas: Optional[List[Dict[str, Any]]] = None
+
+    @staticmethod
+    def _media_has_links_static(
+        media: Optional[Dict[str, Any]],
+        media_areas: Optional[List[Dict[str, Any]]] = None,
+    ) -> bool:
+        """Check if media or media_areas contain any links that should be included in context."""
+        # Check media_areas first (these can be attached to any media type)
+        if media_areas:
+            for area in media_areas:
+                if area.get("_") == "MediaAreaUrl" and area.get("url"):
+                    return True
+
+        if not media:
+            return False
+
+        media_type = media.get("_")
+        if media_type == "messageMediaWebPage":
+            webpage = media.get("webpage", {})
+            return bool(webpage.get("url"))
+        # Add other media types as needed
+
+        return False
+
+    def to_string(self) -> str:
+        parts = []
+        if self.caption:
+            parts.append(f"Caption: {self.caption}")
+        if self.entities:
+            links = []
+            for entity in self.entities:
+                if entity.get("_") == "messageEntityTextUrl":
+                    links.append(f"Link: {entity.get('url')}")
+                elif entity.get("_") == "messageEntityUrl":
+                    # URL is likely in the text/caption itself, but good to note
+                    pass
+            if links:
+                parts.append(f"Links: {', '.join(links)}")
+
+        # Extract links from media (e.g., webpage URLs, document links)
+        if self.media:
+            media_links = []
+            media_type = self.media.get("_")
+
+            if media_type == "messageMediaWebPage":
+                webpage = self.media.get("webpage", {})
+                if webpage.get("url"):
+                    media_links.append(f"Link: {webpage['url']}")
+            elif media_type == "messageMediaDocument":
+                # Check for media areas with URLs
+                media_areas = self.media.get("media_areas", [])
+                for area in media_areas:
+                    if area.get("_") == "MediaAreaUrl" and area.get("url"):
+                        media_links.append(f"Link: {area['url']}")
+                # Could also check document attributes for links, but focus on media areas for now
+            # Add other media types as needed
+
+            if media_links:
+                parts.append(f"Links: {', '.join(media_links)}")
+
+        # Extract links from media areas (clickable areas on media)
+        if self.media_areas:
+            area_links = []
+            for area in self.media_areas:
+                if area.get("_") == "MediaAreaUrl" and area.get("url"):
+                    area_links.append(f"Link: {area['url']}")
+
+            if area_links:
+                parts.append(f"Links: {', '.join(area_links)}")
+
+        return " | ".join(parts) if parts else "Media story"
+
+
+@dataclass(slots=True)
+class MessageNotificationContext:
+    effective_user_id: Optional[int]
+    content_text: str
+    chat_title: str
+    chat_username_str: str
+    is_channel_sender: bool
+    violator_name: str
+    violator_username: str
+    forward_source: str
+    message_link: str
+    entity_name: str
+    entity_type: str
+    entity_username: str

@@ -16,7 +16,7 @@ import logfire
 
 from ..common.mtproto_client import MtprotoHttpError, get_mtproto_client
 from ..common.mtproto_utils import get_mtproto_chat_identifier
-from .context_types import PeerResolutionContext
+from ..types import PeerResolutionContext
 
 logger = logging.getLogger(__name__)
 

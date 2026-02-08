@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 import logfire
 
-from .context_types import (
+from ..types import (
     ContextResult,
     ContextStatus,
     LinkedChannelSummary,
@@ -33,8 +33,8 @@ async def collect_user_context(
 
     Args:
         user_id_or_message: Either a user_id (int) or a Telegram message object
-        username: Optional username for the user
-        chat_id: Optional chat ID (used when user_id_or_message is int)
+        username: Optional username for the user (ignored when message object is passed)
+        chat_id: Optional chat ID (ignored when message object is passed)
     """
     client = get_mtproto_client()
     linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
@@ -47,6 +47,9 @@ async def collect_user_context(
             getattr(message.from_user, "id", None) if message.from_user else None
         )
         actual_chat_id = message.chat.id
+        # Extract username from message if not provided
+        if username is None and message.from_user:
+            username = getattr(message.from_user, "username", None)
     else:  # It's a user_id
         message = None
         actual_user_id = user_id_or_message
@@ -164,7 +167,11 @@ async def collect_channel_summary_by_id(
     username: Optional[str] = None,
 ) -> ContextResult[LinkedChannelSummary]:
     """
-    Collects summary stats for a specific channel ID.
+    Collects summary stats and user list for a specific channel ID.
+
+    Retrieves channel statistics (subscribers, posts, age) and the complete list
+    of channel users from channels.getFullChannel API call. User data is stored
+    in the returned LinkedChannelSummary for use in notifications and analysis.
     """
     client = get_mtproto_client()
 
@@ -233,11 +240,15 @@ async def collect_channel_summary_by_id(
         delta_days = (newest_post_date - oldest_post_date).days
         post_age_delta = max(delta_days // 30, 0)
 
+    # Extract users list for channel admin notifications
+    users = full_channel.get("users", [])
+
     summary = LinkedChannelSummary(
         subscribers=subscribers,
         total_posts=total_posts,
         post_age_delta=post_age_delta,
         recent_posts_content=recent_posts_content if recent_posts_content else None,
+        users=users,
     )
 
     logger.info(
@@ -249,6 +260,7 @@ async def collect_channel_summary_by_id(
             "subscribers": subscribers,
             "total_posts": total_posts,
             "post_age_delta": post_age_delta,
+            "users_count": len(users) if users else 0,
         },
     )
 

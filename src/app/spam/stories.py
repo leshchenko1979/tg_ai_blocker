@@ -1,94 +1,12 @@
 import logging
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 import logfire
 
-from .context_types import ContextResult, ContextStatus
+from ..types import ContextResult, ContextStatus, StorySummary
 from ..common.mtproto_client import MtprotoHttpError, get_mtproto_client
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class StorySummary:
-    id: int
-    date: int
-    caption: Optional[str] = None
-    entities: Optional[List[Dict[str, Any]]] = None
-    media: Optional[Dict[str, Any]] = None
-    media_areas: Optional[List[Dict[str, Any]]] = None
-
-    @staticmethod
-    def _media_has_links_static(
-        media: Optional[Dict[str, Any]],
-        media_areas: Optional[List[Dict[str, Any]]] = None,
-    ) -> bool:
-        """Check if media or media_areas contain any links that should be included in context."""
-        # Check media_areas first (these can be attached to any media type)
-        if media_areas:
-            for area in media_areas:
-                if area.get("_") == "MediaAreaUrl" and area.get("url"):
-                    return True
-
-        if not media:
-            return False
-
-        media_type = media.get("_")
-        if media_type == "messageMediaWebPage":
-            webpage = media.get("webpage", {})
-            return bool(webpage.get("url"))
-        # Add other media types as needed
-
-        return False
-
-    def to_string(self) -> str:
-        parts = []
-        if self.caption:
-            parts.append(f"Caption: {self.caption}")
-        if self.entities:
-            links = []
-            for entity in self.entities:
-                if entity.get("_") == "messageEntityTextUrl":
-                    links.append(f"Link: {entity.get('url')}")
-                elif entity.get("_") == "messageEntityUrl":
-                    # URL is likely in the text/caption itself, but good to note
-                    pass
-            if links:
-                parts.append(f"Links: {', '.join(links)}")
-
-        # Extract links from media (e.g., webpage URLs, document links)
-        if self.media:
-            media_links = []
-            media_type = self.media.get("_")
-
-            if media_type == "messageMediaWebPage":
-                webpage = self.media.get("webpage", {})
-                if webpage.get("url"):
-                    media_links.append(f"Link: {webpage['url']}")
-            elif media_type == "messageMediaDocument":
-                # Check for media areas with URLs
-                media_areas = self.media.get("media_areas", [])
-                for area in media_areas:
-                    if area.get("_") == "MediaAreaUrl" and area.get("url"):
-                        media_links.append(f"Link: {area['url']}")
-                # Could also check document attributes for links, but focus on media areas for now
-            # Add other media types as needed
-
-            if media_links:
-                parts.append(f"Links: {', '.join(media_links)}")
-
-        # Extract links from media areas (clickable areas on media)
-        if self.media_areas:
-            area_links = []
-            for area in self.media_areas:
-                if area.get("_") == "MediaAreaUrl" and area.get("url"):
-                    area_links.append(f"Link: {area['url']}")
-
-            if area_links:
-                parts.append(f"Links: {', '.join(area_links)}")
-
-        return " | ".join(parts) if parts else "Media story"
 
 
 async def collect_user_stories(

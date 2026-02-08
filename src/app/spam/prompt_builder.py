@@ -21,7 +21,7 @@ import logging
 from typing import List, Optional
 
 from ..database.spam_examples import get_spam_examples
-from .context_types import ContextResult, ContextStatus, SpamClassificationContext
+from ..types import ContextResult, ContextStatus, SpamClassificationContext
 
 logger = logging.getLogger(__name__)
 
@@ -264,22 +264,14 @@ Always respond with valid JSON in this exact format:
 
 async def build_system_prompt(
     admin_ids: Optional[List[int]] = None,
-    include_linked_channel_guidance: bool = False,
-    include_stories_guidance: bool = False,
-    include_account_age_guidance: bool = False,
-    include_reply_context_guidance: bool = False,
-    include_ai_detection_guidance: bool = False,
+    context: Optional[SpamClassificationContext] = None,
 ) -> str:
     """
     Build a complete spam classification system prompt.
 
     Args:
         admin_ids: Optional list of admin IDs for personalized examples
-        include_linked_channel_guidance: Whether to include linked channel analysis guidance
-        include_stories_guidance: Whether to include user stories analysis guidance
-        include_account_age_guidance: Whether to include account age analysis guidance
-        include_reply_context_guidance: Whether to include reply context analysis guidance
-        include_ai_detection_guidance: Whether to include AI and emoji detection guidance
+        context: Optional spam classification context for prompt guidance flags
 
     Returns:
         Complete system prompt string
@@ -289,15 +281,18 @@ async def build_system_prompt(
     # Always include user info guidance as it's fundamental
     builder.add_user_info_guidance()
 
-    if include_linked_channel_guidance:
+    if context is None:
+        context = SpamClassificationContext()
+
+    if context.include_linked_channel_guidance:
         builder.add_linked_channel_guidance()
-    if include_stories_guidance:
+    if context.include_stories_guidance:
         builder.add_stories_guidance()
-    if include_account_age_guidance:
+    if context.include_account_age_guidance:
         builder.add_account_age_guidance()
-    if include_reply_context_guidance:
+    if context.include_reply_guidance:
         builder.add_reply_context_guidance()
-    if include_ai_detection_guidance:
+    if context.include_ai_detection_guidance:
         builder.add_ai_generated_content_guidance()
         # Knowledge sharing is often linked with AI content or generic bait
         builder.add_knowledge_sharing_guidance()

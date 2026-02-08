@@ -3,8 +3,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.app.spam.context_types import ContextStatus
-from src.app.spam.context_types import LinkedChannelSummary, UserContext
+from src.app.types import ContextStatus
+from src.app.types import LinkedChannelSummary, UserContext
 from src.app.spam.user_profile import (
     collect_user_context,
     collect_channel_summary_by_id,
@@ -54,7 +54,7 @@ class TestLinkedChannelExtraction:
             # Verify we got the expected result
             assert isinstance(result, UserContext)
             assert result.linked_channel is not None
-            from src.app.spam.context_types import ContextStatus
+            from src.app.types import ContextStatus
 
             assert result.linked_channel.status == ContextStatus.FOUND
             assert isinstance(result.linked_channel.content, LinkedChannelSummary)
@@ -84,7 +84,7 @@ class TestLinkedChannelExtraction:
 
             # Should return UserContext with empty linked_channel when no linked channel
             assert isinstance(result, UserContext)
-            from src.app.spam.context_types import ContextStatus
+            from src.app.types import ContextStatus
 
             assert result.linked_channel.status == ContextStatus.EMPTY
 
@@ -100,7 +100,10 @@ class TestLinkedChannelExtraction:
         mock_client = MagicMock()
         mock_client.call = AsyncMock(
             side_effect=[
-                {"full_chat": {"participants_count": 500}},  # channels.getFullChannel
+                {
+                    "full_chat": {"participants_count": 500},
+                    "users": [],
+                },  # channels.getFullChannel
                 {"messages": [], "count": 0},  # messages.getHistory (recent posts)
                 {"messages": [], "count": 0},  # messages.getHistory (edge message)
             ]
@@ -122,6 +125,7 @@ class TestLinkedChannelExtraction:
             # Verify result
             assert result.status == ContextStatus.FOUND
             assert result.content.subscribers == 500
+            assert result.content.users is not None
 
     @pytest.mark.asyncio
     async def test_collect_channel_summary_by_id_uses_only_username(self):
@@ -135,7 +139,10 @@ class TestLinkedChannelExtraction:
         # Mock call to return channel data (uses username since it's available)
         mock_client.call = AsyncMock(
             side_effect=[
-                {"full_chat": {"participants_count": 500}},  # channels.getFullChannel
+                {
+                    "full_chat": {"participants_count": 500},
+                    "users": [],
+                },  # channels.getFullChannel
                 {"messages": [], "count": 0},  # messages.getHistory (recent posts)
             ]
         )

@@ -20,6 +20,7 @@ from .validation import (
 )
 from ...spam.message_context import collect_message_context
 from ...spam.spam_classifier import is_spam
+from ...types import MessageContextResult
 
 logger = logging.getLogger(__name__)
 
@@ -68,19 +69,19 @@ async def handle_moderated_message(message: types.Message) -> str:
             return reason
 
         # Collect message data for spam analysis
-        analysis_result = await collect_message_context(message)
+        message_context_result = await collect_message_context(message)
 
         # Perform spam classification
         try:
-            if analysis_result.is_story:
+            if message_context_result.is_story:
                 # Stories are always considered spam
                 spam_score, confidence, reason = 100, 100, "Story forward"
             else:
                 # Perform LLM-based spam classification
                 spam_score, confidence, reason = await is_spam(
-                    comment=analysis_result.message_text,
+                    comment=message_context_result.message_text,
                     admin_ids=group.admin_ids,
-                    context=analysis_result.context,
+                    context=message_context_result.context,
                 )
         except Exception as e:
             logger.warning(f"Failed to get spam score: {e}")
@@ -98,48 +99,53 @@ async def handle_moderated_message(message: types.Message) -> str:
             current_span.set_attribute("llm_reason", reason)
 
             # Set user context attributes
-            if analysis_result.bio:
-                current_span.set_attribute("user_bio", analysis_result.bio)
+            if message_context_result.bio:
+                current_span.set_attribute("user_bio", message_context_result.bio)
 
-            if analysis_result.context.name:
-                current_span.set_attribute("user_name", analysis_result.context.name)
+            if message_context_result.context.name:
+                current_span.set_attribute(
+                    "user_name", message_context_result.context.name
+                )
 
             # Set linked channel info if available
-            if analysis_result.context.linked_channel:
+            if message_context_result.context.linked_channel:
                 if (
-                    analysis_result.context.linked_channel.status == "found"
-                    and analysis_result.context.linked_channel.content
+                    message_context_result.context.linked_channel.status == "found"
+                    and message_context_result.context.linked_channel.content
                 ):
-                    channel_info = analysis_result.context.linked_channel.content.to_prompt_fragment()
+                    channel_info = message_context_result.context.linked_channel.content.to_prompt_fragment()
                     current_span.set_attribute("linked_channel_info", channel_info)
 
             # Set stories info if available
-            if analysis_result.context.stories:
-                if analysis_result.context.stories.status == "found":
+            if message_context_result.context.stories:
+                if message_context_result.context.stories.status == "found":
                     current_span.set_attribute(
-                        "user_stories", analysis_result.context.stories.content or ""
+                        "user_stories",
+                        message_context_result.context.stories.content or "",
                     )
 
             # Set account age info if available
-            if analysis_result.context.account_age:
+            if message_context_result.context.account_age:
                 if (
-                    analysis_result.context.account_age.status == "found"
-                    and analysis_result.context.account_age.content
+                    message_context_result.context.account_age.status == "found"
+                    and message_context_result.context.account_age.content
                 ):
-                    age_info = (
-                        analysis_result.context.account_age.content.to_prompt_fragment()
-                    )
+                    age_info = message_context_result.context.account_age.content.to_prompt_fragment()
                     current_span.set_attribute("account_age_info", age_info)
 
             # Set reply context if available
-            if analysis_result.context.reply:
+            if message_context_result.context.reply:
                 current_span.set_attribute(
-                    "reply_context", analysis_result.context.reply
+                    "reply_context", message_context_result.context.reply
                 )
 
         # Process spam or approve user
         return await process_spam_or_approve(
-            chat_id, user_id, spam_score, message, group.admin_ids, reason
+            message,
+            spam_score,
+            group.admin_ids,
+            reason,
+            message_context_result,
         )
 
     except Exception as e:
@@ -148,19 +154,16 @@ async def handle_moderated_message(message: types.Message) -> str:
 
 
 async def process_spam_or_approve(
-    chat_id: int,
-    user_id: int,
-    spam_score: float,
     message: types.Message,
+    spam_score: float,
     admin_ids: list[int],
     reason: str,
+    message_context_result: "MessageContextResult",
 ) -> str:
     """
     Process spam analysis result - delete spam or approve user.
 
     Args:
-        chat_id: The chat ID
-        user_id: The user ID
         spam_score: The spam score from classification
         message: The original message
         admin_ids: List of admin IDs for the group
@@ -168,9 +171,14 @@ async def process_spam_or_approve(
     Returns:
         Result identifier string
     """
+    chat_id = message.chat.id
+    user_id = determine_effective_user_id(message)
+    if user_id is None:
+        return "message_no_user_info"
+
     if spam_score > 50:
         if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
-            return await handle_spam(message, admin_ids, reason)
+            return await handle_spam(message, admin_ids, reason, message_context_result)
 
     elif await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
         await add_member(chat_id, user_id)

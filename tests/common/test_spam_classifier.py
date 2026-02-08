@@ -28,15 +28,27 @@ from src.app.spam.prompt_builder import (
             "Классифицировано как не спам с уверенностью 1%",
         ),
         ("<abc> да 77% <xyz>", 77, 77, "Классифицировано как спам с уверенностью 77%"),
-        ("<ответ> нет 0% <end>", 0, 0, "Классифицировано как не спам с уверенностью 0%"),
+        (
+            "<ответ> нет 0% <end>",
+            0,
+            0,
+            "Классифицировано как не спам с уверенностью 0%",
+        ),
         ("да 55% <любой тег>", 55, 55, "Классифицировано как спам с уверенностью 55%"),
         ("нет 12% <abc>", -12, 12, "Классифицировано как не спам с уверенностью 12%"),
         ("<abc> да 99% <abc>", 99, 99, "Классифицировано как спам с уверенностью 99%"),
         ("<abc> да 88% <zzz>", 88, 88, "Классифицировано как спам с уверенностью 88%"),
-        ("<abc> нет 66% <zzz>", -66, 66, "Классифицировано как не спам с уверенностью 66%"),
+        (
+            "<abc> нет 66% <zzz>",
+            -66,
+            66,
+            "Классифицировано как не спам с уверенностью 66%",
+        ),
     ],
 )
-def test_parse_classification_response_valid(response, expected_score, expected_confidence, expected_reason):
+def test_parse_classification_response_valid(
+    response, expected_score, expected_confidence, expected_reason
+):
     score, confidence, reason = parse_classification_response(response)
     assert score == expected_score
     assert confidence == expected_confidence
@@ -58,7 +70,7 @@ def test_parse_classification_response_invalid(response):
 
 
 def test_format_spam_request_basic():
-    from src.app.spam.context_types import SpamClassificationContext
+    from src.app.types import SpamClassificationContext
 
     context = SpamClassificationContext(name="User", bio="Bio")
     req = format_spam_request("Hello", context)
@@ -71,7 +83,7 @@ def test_format_spam_request_basic():
 
 
 def test_format_spam_request_with_stories():
-    from src.app.spam.context_types import (
+    from src.app.types import (
         SpamClassificationContext,
         ContextResult,
         ContextStatus,
@@ -89,7 +101,7 @@ def test_format_spam_request_with_stories():
 
 
 def test_format_spam_request_with_linked_channel():
-    from src.app.spam.context_types import (
+    from src.app.types import (
         SpamClassificationContext,
         ContextResult,
         ContextStatus,
@@ -113,7 +125,7 @@ def test_format_spam_request_with_linked_channel():
 
 
 def test_format_spam_request_with_reply_context():
-    from src.app.spam.context_types import SpamClassificationContext
+    from src.app.types import SpamClassificationContext
 
     context = SpamClassificationContext(reply="Original post text")
     req = format_spam_request("Hello", context)
@@ -126,12 +138,17 @@ def test_format_spam_request_with_reply_context():
 
 @pytest.mark.asyncio
 async def test_build_system_prompt_stories_guidance():
+    from src.app.types import ContextResult, ContextStatus, SpamClassificationContext
+
     with patch(
         "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
     ) as mock_examples:
         mock_examples.return_value = []
 
-        prompt = await build_system_prompt(include_stories_guidance=True)
+        context = SpamClassificationContext(
+            stories=ContextResult(status=ContextStatus.EMPTY)
+        )
+        prompt = await build_system_prompt(context=context)
 
         assert "## USER STORIES ANALYSIS" in prompt
         assert "Flag as HIGH SPAM if stories contain:" in prompt
@@ -139,12 +156,15 @@ async def test_build_system_prompt_stories_guidance():
 
 @pytest.mark.asyncio
 async def test_build_system_prompt_reply_context_guidance():
+    from src.app.types import SpamClassificationContext
+
     with patch(
         "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
     ) as mock_examples:
         mock_examples.return_value = []
 
-        prompt = await build_system_prompt(include_reply_context_guidance=True)
+        context = SpamClassificationContext(reply="Some reply context")
+        prompt = await build_system_prompt(context=context)
 
         assert "## DISCUSSION CONTEXT ANALYSIS" in prompt
         assert 'The "REPLY CONTEXT" is NOT the message you are classifying.' in prompt
@@ -157,31 +177,37 @@ async def test_build_system_prompt_reply_context_guidance():
 
 @pytest.mark.asyncio
 async def test_build_system_prompt_no_reply_context_guidance():
+    from src.app.types import SpamClassificationContext
+
     with patch(
         "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
     ) as mock_examples:
         mock_examples.return_value = []
 
-        prompt = await build_system_prompt(include_reply_context_guidance=False)
+        context = SpamClassificationContext(reply=None)
+        prompt = await build_system_prompt(context=context)
 
         assert "Раздел <контекст_обсуждения>" not in prompt
 
 
 @pytest.mark.asyncio
 async def test_build_system_prompt_no_guidance():
+    from src.app.types import SpamClassificationContext
+
     with patch(
         "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
     ) as mock_examples:
         mock_examples.return_value = []
 
-        prompt = await build_system_prompt(include_stories_guidance=False)
+        context = SpamClassificationContext()
+        prompt = await build_system_prompt(context=context)
 
         assert "Раздел <истории_пользователя>" not in prompt
 
 
 def test_format_spam_request_null_context_skipped():
     """Test that NULL context fields are skipped entirely"""
-    from src.app.spam.context_types import SpamClassificationContext
+    from src.app.types import SpamClassificationContext
 
     context = SpamClassificationContext(name="User", bio="Bio")
     req = format_spam_request("Hello", context)
@@ -200,7 +226,7 @@ def test_format_spam_request_null_context_skipped():
 
 def test_format_spam_request_empty_marker_shows_metadata():
     """Test that '[EMPTY]' markers show with metadata"""
-    from src.app.spam.context_types import (
+    from src.app.types import (
         SpamClassificationContext,
         ContextResult,
         ContextStatus,
@@ -227,7 +253,7 @@ def test_format_spam_request_empty_marker_shows_metadata():
 
 def test_format_spam_request_content_shows_normally():
     """Test that actual content shows normally"""
-    from src.app.spam.context_types import (
+    from src.app.types import (
         SpamClassificationContext,
         ContextResult,
         ContextStatus,
@@ -264,7 +290,7 @@ def test_format_spam_request_content_shows_normally():
 
 def test_format_spam_request_mixed_states():
     """Test mixed NULL, '[EMPTY]', and content states"""
-    from src.app.spam.context_types import (
+    from src.app.types import (
         SpamClassificationContext,
         ContextResult,
         ContextStatus,

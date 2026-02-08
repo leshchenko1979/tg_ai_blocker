@@ -373,7 +373,7 @@ async def test_model(
         InternalServerError,
     )
     from src.app.spam.spam_classifier import is_spam
-    from src.app.spam.context_types import (
+    from src.app.types import (
         SpamClassificationContext,
         ContextResult,
         ContextStatus,

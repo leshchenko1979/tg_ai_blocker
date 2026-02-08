@@ -3,7 +3,7 @@
 - **Runtime Architecture**: `aiohttp` web application exposes Telegram webhook endpoint, forwards updates to a shared `aiogram` dispatcher hosted in `src/app/handlers`. Execution wrapped with `logfire` spans for observability and guarded by timeout/error helpers. Logfire metrics (histograms and gauges) initialized once at module level to ensure proper recording. Handler return values determine logfire span tags - handlers must return descriptive strings to avoid "_ignored" tagging.
 - **Bot Composition**:
   - `src/app/common` encapsulates integrations: Telegram bot client, LLM providers, notifications, and shared utilities.
-  - `src/app/spam` contains spam detection and context collection: classifier logic, context types, user profile analysis, story processing, and message context extraction.
+- `src/app/spam` contains spam detection and context collection: classifier logic, user profile analysis, story processing, and message context extraction. Shared dataclasses and type definitions live in `src/app/types.py`.
   - `src/app/handlers` are organized by intent with modular substructure:
     - **Core handlers** by type (callbacks, commands, payments, spam handling)
     - **Message processing modules** under `handlers/message/`:
@@ -45,6 +45,7 @@
   - **Results Storage**: Automatically saves complete evaluation results to `eval_results/` directory as timestamped JSON files with full metadata.
   - **DRY Architecture**: Helper functions eliminate repetitive code for error handling, formatting, and calculations.
 - **Notification System**: Admin notifications use private→group fallback with optimized bot detection. Pre-filtered admin lists skip expensive API calls (assume_human_admins=True), while untrusted lists use full API validation. Bot removal events trigger enhanced logging showing who performed the removal. Database operations separated from business logic with dedicated cleanup functions. Logfire instrumentation provides automatic start/finish logging with argument extraction and return value recording.
+- **MTProto Userbot Notifications**: When spam is blocked and a channel is discovered during context collection (either from channel-sender spam or linked channels on human spammers), the system sends promotional notifications via MTProto userbot directly to the spammer (if human sender with linked channel) or to administrators of the spamming channel (if channel sender). This leverages existing `channels.getFullChannel` API responses to extract human admin lists from spamming channels without additional calls, with user data stored directly in `LinkedChannelSummary` for clean data organization. Promoting the bot to channel promoters who are actively posting spam. Notifications include bot website and channel links for increased reach.
 - **Database Integrity**: Stored procedures include bot filtering (negative IDs, known bot accounts). Admin lists prevent bot contamination through API validation and database-level checks. Cleanup operations properly separate connection management from business logic.
 - **Context Preparation Contract**: All context preparation code (stories, account age, linked channel, reply context) MUST follow a strict ContextResult contract using status enums to distinguish between extraction states:
 

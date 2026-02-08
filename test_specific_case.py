@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.app.spam.spam_classifier import is_spam
-from src.app.spam.context_types import SpamClassificationContext
+from src.app.types import SpamClassificationContext
 
 
 async def test_specific_case():

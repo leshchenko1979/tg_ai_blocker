@@ -11,7 +11,7 @@ Key Functions:
 import logging
 from typing import List, Optional, Tuple
 
-from .context_types import SpamClassificationContext
+from ..types import SpamClassificationContext
 from .llm_client import call_llm_with_spam_classification
 from .prompt_builder import build_system_prompt, format_spam_request
 
@@ -74,29 +74,17 @@ async def _prepare_classification_request(
     # Build the system prompt
     system_prompt = await build_system_prompt(
         admin_ids=admin_ids,
-        include_linked_channel_guidance=context.include_linked_channel_guidance,
-        include_stories_guidance=context.include_stories_guidance,
-        include_reply_context_guidance=context.include_reply_guidance,
-        include_account_age_guidance=context.include_account_age_guidance,
-        include_ai_detection_guidance=context.include_ai_detection_guidance,
+        context=context,
     )
 
     # Create messages for LLM
-    messages = _create_classification_messages(
-        comment,
-        context.name,
-        context.bio,
-        system_prompt,
-        context,
-    )
+    messages = _create_classification_messages(comment, system_prompt, context)
 
     return messages
 
 
 def _create_classification_messages(
     comment: str,
-    user_name: Optional[str],
-    user_bio: Optional[str],
     system_prompt: str,
     context: SpamClassificationContext,
 ) -> List[dict]:
@@ -108,8 +96,6 @@ def _create_classification_messages(
 
     Args:
         comment: The message content to classify
-        user_name: User's display name (optional, may be None)
-        user_bio: User's profile bio (optional, may be None)
         system_prompt: The system prompt with instructions and examples
         context: Full context for classification including user info and settings
 

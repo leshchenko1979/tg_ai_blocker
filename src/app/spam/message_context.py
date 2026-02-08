@@ -10,8 +10,9 @@ from typing import Optional, Tuple, Union
 
 from aiogram import types
 
-from ..spam.context_types import (
-    MessageAnalysisResult,
+from ..types import (
+    ContextStatus,
+    MessageContextResult,
     SpamClassificationContext,
     UserContext,
 )
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 async def collect_message_context(
     message: types.Message,
-) -> MessageAnalysisResult:
+) -> MessageContextResult:
     """
     Collect all relevant context data for message analysis.
 
@@ -33,7 +34,7 @@ async def collect_message_context(
         message: The Telegram message to analyze
 
     Returns:
-        MessageAnalysisResult containing all context data
+        MessageContextResult containing all context data
     """
     message_text, is_story = extract_message_with_forward_context(message)
 
@@ -44,7 +45,31 @@ async def collect_message_context(
 
     context = create_classification_context(sender_context, name, bio, reply_context)
 
-    return MessageAnalysisResult(message_text, is_story, bio, context)
+    # Extract context flags and users
+    linked_channel_found = False
+    channel_users = None
+
+    if isinstance(sender_context, UserContext):
+        # Channel found if linked_channel was successfully found
+        linked_channel_found = (
+            sender_context.linked_channel.status == ContextStatus.FOUND
+        )
+        # For human senders, we don't collect channel users (only send to spammer directly)
+    else:
+        # For channel senders, channel is always found
+        linked_channel_found = True
+        # Extract users from the channel context for admin notifications
+        if sender_context.linked_channel and sender_context.linked_channel.content:
+            channel_users = sender_context.linked_channel.content.users
+
+    return MessageContextResult(
+        message_text,
+        is_story,
+        bio,
+        context,
+        linked_channel_found,
+        channel_users,
+    )
 
 
 def extract_reply_context(message: types.Message) -> Optional[str]:

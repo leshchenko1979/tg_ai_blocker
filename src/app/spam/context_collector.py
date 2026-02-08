@@ -13,7 +13,7 @@ from typing import Optional, Union
 import logfire
 
 from ..common.bot import bot
-from .context_types import (
+from ..types import (
     ContextResult,
     ContextStatus,
     PeerResolutionContext,

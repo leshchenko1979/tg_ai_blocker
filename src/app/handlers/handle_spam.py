@@ -9,28 +9,113 @@
 """
 
 import logging
+from typing import Optional
 
 from aiogram import types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
+from ..common.mtproto_messaging import send_mtproto_message
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.utils import (
+    get_project_channel_url,
     get_setup_guide_url,
     get_spam_guide_url,
+    load_config,
     retry_on_network_error,
     sanitize_html,
 )
 from ..database import get_admins_map
 from ..database.group_operations import remove_member_from_group
 from .message.validation import determine_effective_user_id
+from ..types import MessageContextResult, MessageNotificationContext
 
 logger = logging.getLogger(__name__)
 
 
+def build_message_notification_context(
+    message: types.Message,
+) -> MessageNotificationContext:
+    effective_user_id = determine_effective_user_id(message)
+    content_text = message.text or message.caption or "[MEDIA_MESSAGE]"
+    content_text = sanitize_html(content_text)
+    chat_title = message.chat.title or "Группа"
+    chat_username_str = f" (@{message.chat.username})" if message.chat.username else ""
+    is_channel_sender = (
+        message.sender_chat is not None and message.sender_chat.id != message.chat.id
+    )
+
+    if is_channel_sender and message.sender_chat is not None:
+        violator_name = message.sender_chat.title or "Канал"
+        violator_username = (
+            f" (@{message.sender_chat.username})"
+            if message.sender_chat.username
+            else ""
+        )
+    elif message.from_user is not None:
+        violator_name = message.from_user.full_name or "Пользователь без имени"
+        violator_username = (
+            f" (@{message.from_user.username})" if message.from_user.username else ""
+        )
+    else:
+        violator_name = "Пользователь"
+        violator_username = ""
+
+    forward_source = ""
+    forward_chat = getattr(message, "forward_from_chat", None)
+    if forward_chat:
+        forward_title = getattr(forward_chat, "title", None) or "Канал"
+        forward_username = getattr(forward_chat, "username", None)
+        forward_username_str = f" (@{forward_username})" if forward_username else ""
+        forward_source = (
+            "\n\n"
+            f"<b>Источник пересланного:</b> "
+            f"{sanitize_html(forward_title)}{forward_username_str}"
+        )
+
+    message_link = (
+        f"https://t.me/{message.chat.username}/{message.message_id}"
+        if message.chat.username
+        else ""
+    )
+
+    if is_channel_sender and message.sender_chat is not None:
+        entity_name = message.sender_chat.title or "Канал"
+        entity_type = "канале"
+        entity_username = (
+            f" (@{message.sender_chat.username})"
+            if message.sender_chat.username
+            else ""
+        )
+    else:
+        entity_name = chat_title
+        entity_type = "группе"
+        entity_username = (
+            f" (@{message.chat.username})" if message.chat.username else ""
+        )
+
+    return MessageNotificationContext(
+        effective_user_id=effective_user_id,
+        content_text=content_text,
+        chat_title=chat_title,
+        chat_username_str=chat_username_str,
+        is_channel_sender=is_channel_sender,
+        violator_name=violator_name,
+        violator_username=violator_username,
+        forward_source=forward_source,
+        message_link=message_link,
+        entity_name=entity_name,
+        entity_type=entity_type,
+        entity_username=entity_username,
+    )
+
+
 async def handle_spam(
-    message: types.Message, admin_ids: list[int], reason: str | None = None
+    message: types.Message,
+    admin_ids: list[int],
+    reason: str | None = None,
+    message_context_result: Optional["MessageContextResult"] = None,
 ) -> str:
     """
     Обработка спам-сообщений
@@ -47,6 +132,12 @@ async def handle_spam(
         notification_sent = await notify_admins(
             message, all_admins_delete, admin_ids, reason
         )
+
+        # Отправка MTProto уведомлений спамеру/админам канала при обнаружении канала
+        if message_context_result and message_context_result.linked_channel_found:
+            await send_mtproto_spam_notifications(
+                message, reason, message_context_result
+            )
 
         if all_admins_delete:
             effective_user_id = determine_effective_user_id(message)
@@ -225,7 +316,9 @@ async def handle_permission_error(
 
 
 def format_admin_notification_message(
-    message: types.Message, all_admins_delete: bool, reason: str | None = None
+    context: MessageNotificationContext,
+    all_admins_delete: bool,
+    reason: str | None = None,
 ) -> str:
     """
     Форматирует текст уведомления для администратора.
@@ -238,32 +331,8 @@ def format_admin_notification_message(
     Returns:
         str: Отформатированный текст уведомления
     """
-    effective_user_id = determine_effective_user_id(message)
-    if effective_user_id is None:
+    if context.effective_user_id is None:
         return "Ошибка: сообщение без информации о пользователе"
-
-    content_text = message.text or message.caption or "[MEDIA_MESSAGE]"
-    # Escape HTML entities in content to prevent parsing errors
-    content_text = sanitize_html(content_text)
-    chat_username_str = f" (@{message.chat.username})" if message.chat.username else ""
-    is_channel_sender = (
-        message.sender_chat is not None and message.sender_chat.id != message.chat.id
-    )
-    if is_channel_sender and message.sender_chat is not None:
-        violator_name = message.sender_chat.title or "Канал"
-        violator_username = (
-            f" (@{message.sender_chat.username})"
-            if message.sender_chat.username
-            else ""
-        )
-    elif message.from_user is not None:
-        violator_name = message.from_user.full_name or "Пользователь без имени"
-        violator_username = (
-            f" (@{message.from_user.username})" if message.from_user.username else ""
-        )
-    else:
-        violator_name = "Пользователь"
-        violator_username = ""
 
     reason_text = (
         f"<b>Причина:</b><blockquote expandable>{sanitize_html(reason)}</blockquote>\n"
@@ -271,33 +340,21 @@ def format_admin_notification_message(
         else ""
     )
 
-    forward_source = ""
-    forward_chat = getattr(message, "forward_from_chat", None)
-    if forward_chat:
-        forward_title = getattr(forward_chat, "title", None) or "Канал"
-        forward_username = getattr(forward_chat, "username", None)
-        forward_username_str = f" (@{forward_username})" if forward_username else ""
-        forward_source = (
-            "\n\n"
-            f"<b>Источник пересланного:</b> "
-            f"{sanitize_html(forward_title)}{forward_username_str}"
-        )
-
     admin_msg = (
         "⚠️ <b>ВТОРЖЕНИЕ!</b>\n\n"
-        f"<b>Группа:</b> {sanitize_html(message.chat.title)}{chat_username_str}\n\n"
-        f"<b>Нарушитель:</b> {sanitize_html(violator_name)}{violator_username}\n\n"
-        f"<b>Содержание угрозы:</b>\n<blockquote expandable>{content_text}</blockquote>\n\n"
-        f"{reason_text}{forward_source}\n"
+        f"<b>Группа:</b> {sanitize_html(context.chat_title)}{context.chat_username_str}\n\n"
+        f"<b>Нарушитель:</b> {sanitize_html(context.violator_name)}{context.violator_username}\n\n"
+        f"<b>Содержание угрозы:</b>\n<blockquote expandable>{context.content_text}</blockquote>\n\n"
+        f"{reason_text}{context.forward_source}\n"
     )
 
     if all_admins_delete:
         admin_msg += (
             "<b>Вредоносное сообщение уничтожено, "
-            f"{'канал' if is_channel_sender else 'пользователь'} заблокирован.</b>"
+            f"{'канал' if context.is_channel_sender else 'пользователь'} заблокирован.</b>"
         )
     else:
-        link = f"https://t.me/{message.chat.username}/{message.message_id}"
+        link = context.message_link or get_project_channel_url()
         admin_msg += (
             f'<a href="{link}">Ссылка на сообщение</a>\n\n'
             "<b>💡 Совет:</b> Используйте команду /mode, "
@@ -334,9 +391,9 @@ async def notify_admins(
     if not message.from_user:
         return False
 
-    # admin_ids are passed as parameter
+    context = build_message_notification_context(message)
     private_message = format_admin_notification_message(
-        message, all_admins_delete, reason
+        context, all_admins_delete, reason
     )
     keyboard = create_admin_notification_keyboard(message, all_admins_delete)
     result = await notify_admins_with_fallback_and_cleanup(
@@ -440,3 +497,151 @@ async def ban_user_for_spam(
         logger.warning(
             f"Failed to remove user {user_id} from approved_members: {e}", exc_info=True
         )
+
+
+def build_spam_block_notification_message(
+    context: MessageNotificationContext,
+    reason: str | None = None,
+) -> str:
+    """
+    Build notification message for spam blocking.
+
+    This message is used for both human spammers and channel admins.
+
+    Args:
+        message: The spam message
+        reason: Reason for blocking
+
+    Returns:
+        Formatted notification message
+    """
+    # Load config for URLs
+    config = load_config()
+    project_website = config["system"]["project_website"]
+    project_channel = get_project_channel_url()
+
+    # Build message
+    notification_msg = (
+        f"Ваш комментарий в {context.entity_type} "
+        f"<b>{sanitize_html(context.entity_name)}{context.entity_username}</b> "
+        "был заблокирован админом при помощи @ai_antispam_blocker_bot.\n\n"
+        f"Ваш комментарий: <blockquote expandable>{context.content_text}</blockquote>\n\n"
+    )
+
+    if reason:
+        notification_msg += f"Причина блокировки: <b>{sanitize_html(reason)}</b>\n\n"
+
+    notification_msg += f"Сайт бота: {project_website}\nКанал бота: {project_channel}"
+
+    return notification_msg
+
+
+async def send_mtproto_spam_notifications(
+    message: types.Message,
+    reason: str | None = None,
+    message_context_result: Optional["MessageContextResult"] = None,
+) -> None:
+    """
+    Send MTProto notifications to spammers and channel admins when spam is blocked.
+
+    Args:
+        message: The spam message
+        reason: Reason for blocking
+        analysis_result: Message analysis result containing channel user information
+    """
+    channel_users = (
+        message_context_result.channel_users if message_context_result else None
+    )
+    context = build_message_notification_context(message)
+    notification_msg = build_spam_block_notification_message(context, reason)
+
+    # Check if this is a channel sender
+    is_channel_sender = (
+        message.sender_chat is not None and message.sender_chat.id != message.chat.id
+    )
+
+    if is_channel_sender and channel_users:
+        # For channel senders, send to channel admins (filter out bots)
+        admin_count = 0
+        for user in channel_users:
+            if user.get("bot", True):
+                continue  # Skip bots
+
+            user_id = user.get("id")
+            username = user.get("username")
+
+            if user_id:
+                success = await send_mtproto_message(
+                    user_id=user_id,
+                    username=username,
+                    message=notification_msg,
+                    parse_mode="HTML",
+                )
+
+                if success:
+                    admin_count += 1
+                    logger.info(
+                        "Sent MTProto spam notification to channel admin",
+                        extra={
+                            "user_id": user_id,
+                            "username": username,
+                            "channel_id": message.sender_chat.id
+                            if message.sender_chat
+                            else None,
+                            "message_type": "channel_admin_spam_notification",
+                        },
+                    )
+                else:
+                    logger.warning(
+                        "Failed to send MTProto spam notification to channel admin",
+                        extra={
+                            "user_id": user_id,
+                            "username": username,
+                            "channel_id": message.sender_chat.id
+                            if message.sender_chat
+                            else None,
+                            "message_type": "channel_admin_spam_notification",
+                        },
+                    )
+
+        logger.info(
+            f"Sent spam notifications to {admin_count} channel admins",
+            extra={
+                "channel_id": message.sender_chat.id if message.sender_chat else None,
+                "total_admins": len(
+                    [u for u in channel_users if not u.get("bot", True)]
+                ),
+                "successful_notifications": admin_count,
+            },
+        )
+
+    elif message.from_user:
+        # For human senders, send to the spammer
+        user_id = message.from_user.id
+        username = getattr(message.from_user, "username", None)
+
+        success = await send_mtproto_message(
+            user_id=user_id,
+            username=username,
+            message=notification_msg,
+            parse_mode="HTML",
+        )
+
+        if success:
+            logger.info(
+                "Sent MTProto spam notification to user",
+                extra={
+                    "user_id": user_id,
+                    "username": username,
+                    "message_type": "spam_notification",
+                },
+            )
+        else:
+            logger.warning(
+                "Failed to send MTProto spam notification to user",
+                extra={
+                    "user_id": user_id,
+                    "username": username,
+                    "message_type": "spam_notification",
+                },
+            )

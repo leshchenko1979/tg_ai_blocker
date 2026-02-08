@@ -4,7 +4,7 @@ from aiogram.exceptions import TelegramBadRequest
 
 from src.app.handlers.handle_spam import handle_spam_message_deletion
 from src.app.spam.message_context import collect_message_context
-from src.app.spam.context_types import (
+from src.app.types import (
     ContextStatus,
 )
 

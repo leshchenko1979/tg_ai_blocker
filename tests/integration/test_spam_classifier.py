@@ -27,7 +27,7 @@ from app.common.mtproto_client import (
     get_mtproto_client,
 )
 from app.spam.spam_classifier import is_spam
-from app.spam.context_types import (
+from app.types import (
     SpamClassificationContext,
     ContextResult,
     ContextStatus,

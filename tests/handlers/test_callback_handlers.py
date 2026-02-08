@@ -40,7 +40,7 @@ async def test_handle_spam_ignore_callback_answer_error():
         mock_bot.edit_message_text = AsyncMock()
         mock_bot.unban_chat_member = AsyncMock()
         # Mock UserContext return
-        from src.app.spam.context_types import UserContext, ContextResult, ContextStatus
+        from src.app.types import UserContext, ContextResult, ContextStatus
 
         mock_collect.return_value = UserContext(
             stories=ContextResult(status=ContextStatus.EMPTY),

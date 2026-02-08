@@ -58,7 +58,7 @@ async def test_collect_user_stories_success(mock_mtproto_client):
 
 @pytest.mark.asyncio
 async def test_collect_user_stories_no_stories(mock_mtproto_client):
-    from src.app.spam.context_types import ContextStatus
+    from src.app.types import ContextStatus
 
     mock_mtproto_client.call = AsyncMock(return_value={"stories": {"stories": []}})
     result = await collect_user_stories(123456, username="testuser")
@@ -67,7 +67,7 @@ async def test_collect_user_stories_no_stories(mock_mtproto_client):
 
 @pytest.mark.asyncio
 async def test_collect_user_stories_deleted(mock_mtproto_client):
-    from src.app.spam.context_types import ContextStatus
+    from src.app.types import ContextStatus
 
     mock_mtproto_client.call = AsyncMock(
         return_value={"stories": {"stories": [{"_": "storyItemDeleted", "id": 123}]}}
@@ -79,7 +79,7 @@ async def test_collect_user_stories_deleted(mock_mtproto_client):
 @pytest.mark.asyncio
 async def test_collect_user_stories_error(mock_mtproto_client):
     from src.app.common.mtproto_client import MtprotoHttpError
-    from src.app.spam.context_types import ContextStatus
+    from src.app.types import ContextStatus
 
     mock_mtproto_client.call = AsyncMock(side_effect=MtprotoHttpError("MTProto error"))
     result = await collect_user_stories(123456, username="testuser")
@@ -115,9 +115,9 @@ def test_story_summary_with_media_link():
                 "id": 123,
                 "url": "https://t.me/channel_invite_link",
                 "display_url": "t.me/channel_invite_link",
-                "title": "Join our channel"
-            }
-        }
+                "title": "Join our channel",
+            },
+        },
     )
     result = summary.to_string()
     assert "Link: https://t.me/channel_invite_link" in result
@@ -126,7 +126,7 @@ def test_story_summary_with_media_link():
 @pytest.mark.asyncio
 async def test_collect_user_stories_media_only_with_link(mock_mtproto_client):
     """Test that stories with only media links are included in results."""
-    from src.app.spam.context_types import ContextStatus
+    from src.app.types import ContextStatus
 
     mock_mtproto_client.call = AsyncMock(
         return_value={
@@ -141,9 +141,9 @@ async def test_collect_user_stories_media_only_with_link(mock_mtproto_client):
                             "webpage": {
                                 "id": 456,
                                 "url": "https://t.me/channel_invite_link",
-                                "display_url": "t.me/channel_invite_link"
-                            }
-                        }
+                                "display_url": "t.me/channel_invite_link",
+                            },
+                        },
                         # No caption or entities - should still be included
                     }
                 ]
@@ -161,7 +161,7 @@ async def test_collect_user_stories_media_only_with_link(mock_mtproto_client):
 @pytest.mark.asyncio
 async def test_collect_user_stories_with_media_area_link(mock_mtproto_client):
     """Test that stories with media area URLs (like clickable areas on videos) are included."""
-    from src.app.spam.context_types import ContextStatus
+    from src.app.types import ContextStatus
 
     mock_mtproto_client.call = AsyncMock(
         return_value={
@@ -173,15 +173,15 @@ async def test_collect_user_stories_with_media_area_link(mock_mtproto_client):
                         "_": "storyItem",
                         "media": {
                             "_": "messageMediaDocument",
-                            "document": {"id": 123, "mime_type": "video/mp4"}
+                            "document": {"id": 123, "mime_type": "video/mp4"},
                         },
                         "media_areas": [
                             {
                                 "_": "MediaAreaUrl",
                                 "coordinates": {"x": 50, "y": 80, "w": 90, "h": 10},
-                                "url": "https://t.me/+channel_invite_link"
+                                "url": "https://t.me/+channel_invite_link",
                             }
-                        ]
+                        ],
                         # No caption or entities - should still be included due to media area link
                     }
                 ]
@@ -203,15 +203,15 @@ def test_story_summary_with_media_area_link():
         date=123,
         media={
             "_": "messageMediaDocument",
-            "document": {"id": 123, "mime_type": "video/mp4"}
+            "document": {"id": 123, "mime_type": "video/mp4"},
         },
         media_areas=[
             {
                 "_": "MediaAreaUrl",
                 "coordinates": {"x": 50, "y": 80, "w": 90, "h": 10},
-                "url": "https://t.me/+channel_invite_link"
+                "url": "https://t.me/+channel_invite_link",
             }
-        ]
+        ],
     )
     result = summary.to_string()
     assert "Link: https://t.me/+channel_invite_link" in result
