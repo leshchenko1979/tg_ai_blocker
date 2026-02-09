@@ -16,9 +16,10 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
-from ..common.mtproto_messaging import send_mtproto_message
+from ..common.mcp_client import McpHttpError, get_mcp_client
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.utils import (
+    format_chat_or_channel_display,
     get_project_channel_url,
     get_setup_guide_url,
     get_spam_guide_url,
@@ -41,37 +42,30 @@ def build_message_notification_context(
     content_text = message.text or message.caption or "[MEDIA_MESSAGE]"
     content_text = sanitize_html(content_text)
     chat_title = message.chat.title or "Группа"
-    chat_username_str = f" (@{message.chat.username})" if message.chat.username else ""
+    chat_username = getattr(message.chat, "username", None)
     is_channel_sender = (
         message.sender_chat is not None and message.sender_chat.id != message.chat.id
     )
 
     if is_channel_sender and message.sender_chat is not None:
         violator_name = message.sender_chat.title or "Канал"
-        violator_username = (
-            f" (@{message.sender_chat.username})"
-            if message.sender_chat.username
-            else ""
-        )
+        violator_username = getattr(message.sender_chat, "username", None)
     elif message.from_user is not None:
         violator_name = message.from_user.full_name or "Пользователь без имени"
-        violator_username = (
-            f" (@{message.from_user.username})" if message.from_user.username else ""
-        )
+        violator_username = getattr(message.from_user, "username", None)
     else:
         violator_name = "Пользователь"
-        violator_username = ""
+        violator_username = None
 
     forward_source = ""
     forward_chat = getattr(message, "forward_from_chat", None)
     if forward_chat:
         forward_title = getattr(forward_chat, "title", None) or "Канал"
         forward_username = getattr(forward_chat, "username", None)
-        forward_username_str = f" (@{forward_username})" if forward_username else ""
         forward_source = (
             "\n\n"
             f"<b>Источник пересланного:</b> "
-            f"{sanitize_html(forward_title)}{forward_username_str}"
+            f"{format_chat_or_channel_display(forward_title, forward_username, 'Канал')}"
         )
 
     message_link = (
@@ -80,26 +74,24 @@ def build_message_notification_context(
         else ""
     )
 
-    if is_channel_sender and message.sender_chat is not None:
-        entity_name = message.sender_chat.title or "Канал"
+    reply_sender_chat = None
+    if message.reply_to_message is not None:
+        reply_sender_chat = getattr(message.reply_to_message, "sender_chat", None)
+
+    if reply_sender_chat is not None:
+        entity_name = reply_sender_chat.title or "Канал"
         entity_type = "канале"
-        entity_username = (
-            f" (@{message.sender_chat.username})"
-            if message.sender_chat.username
-            else ""
-        )
+        entity_username = getattr(reply_sender_chat, "username", None)
     else:
         entity_name = chat_title
         entity_type = "группе"
-        entity_username = (
-            f" (@{message.chat.username})" if message.chat.username else ""
-        )
+        entity_username = chat_username
 
     return MessageNotificationContext(
         effective_user_id=effective_user_id,
         content_text=content_text,
         chat_title=chat_title,
-        chat_username_str=chat_username_str,
+        chat_username=chat_username,
         is_channel_sender=is_channel_sender,
         violator_name=violator_name,
         violator_username=violator_username,
@@ -133,11 +125,9 @@ async def handle_spam(
             message, all_admins_delete, admin_ids, reason
         )
 
-        # Отправка MTProto уведомлений спамеру/админам канала при обнаружении канала
+        # Отправка MCP уведомлений спамеру/админам канала спамера при обнаружении канала
         if message_context_result and message_context_result.linked_channel_found:
-            await send_mtproto_spam_notifications(
-                message, reason, message_context_result
-            )
+            await notify_spam_contacts_via_mcp(message, reason, message_context_result)
 
         if all_admins_delete:
             effective_user_id = determine_effective_user_id(message)
@@ -218,13 +208,18 @@ def create_admin_notification_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=[row])
 
 
-def format_missing_permission_message(chat_title: str, permission_name: str) -> str:
+def format_missing_permission_message(
+    chat_title: str,
+    permission_name: str,
+    chat_username: Optional[str] = None,
+) -> str:
     """
     Форматирует сообщение о отсутствии прав доступа.
 
     Args:
         chat_title: Название группы
         permission_name: Название отсутствующего права
+        chat_username: Опциональный username группы (без @)
 
     Returns:
         str: Отформатированное сообщение для администраторов
@@ -239,10 +234,11 @@ def format_missing_permission_message(chat_title: str, permission_name: str) -> 
         permission_name, permission_name.lower()
     )
 
+    group_display = format_chat_or_channel_display(chat_title, chat_username)
     return (
         f"❗️ У меня нет права {action_description}. "
         f"Пожалуйста, дайте мне право '{permission_name}' для полной защиты.\n\n"
-        f"Группа: <b>{sanitize_html(chat_title)}</b>\n\n"
+        f"Группа: <b>{group_display}</b>\n\n"
         f'<a href="{get_setup_guide_url()}">ℹ️ Как выдать права боту</a>'
     )
 
@@ -254,6 +250,7 @@ async def handle_permission_error(
     group_title: str | None,
     permission_name: str,
     action_description: str,
+    group_username: Optional[str] = None,
 ) -> bool:
     """
     Обрабатывает ошибки связанные с отсутствием прав доступа.
@@ -265,6 +262,7 @@ async def handle_permission_error(
         group_title: Название группы
         permission_name: Название отсутствующего права
         action_description: Описание действия, которое пытались выполнить
+        group_username: Опциональный username группы (без @)
 
     Returns:
         bool: True если это была ошибка прав доступа, False иначе
@@ -296,7 +294,7 @@ async def handle_permission_error(
                     admin_ids,
                     chat_id,
                     private_message=format_missing_permission_message(
-                        display_title, permission_name
+                        display_title, permission_name, group_username
                     ),
                     group_message_template=(
                         f"{{mention}}, у меня нет права {permission_name}. "
@@ -342,8 +340,8 @@ def format_admin_notification_message(
 
     admin_msg = (
         "⚠️ <b>ВТОРЖЕНИЕ!</b>\n\n"
-        f"<b>Группа:</b> {sanitize_html(context.chat_title)}{context.chat_username_str}\n\n"
-        f"<b>Нарушитель:</b> {sanitize_html(context.violator_name)}{context.violator_username}\n\n"
+        f"<b>Группа:</b> {format_chat_or_channel_display(context.chat_title, context.chat_username)}\n\n"
+        f"<b>Нарушитель:</b> {format_chat_or_channel_display(context.violator_name, context.violator_username, 'Пользователь')}\n\n"
         f"<b>Содержание угрозы:</b>\n<blockquote expandable>{context.content_text}</blockquote>\n\n"
         f"{reason_text}{context.forward_source}\n"
     )
@@ -440,6 +438,7 @@ async def handle_spam_message_deletion(
             message.chat.title,
             "Удаление сообщений",
             "delete spam message",
+            getattr(message.chat, "username", None),
         ):
             # Not a permission error, log as general error
             logger.warning(
@@ -523,7 +522,7 @@ def build_spam_block_notification_message(
     # Build message
     notification_msg = (
         f"Ваш комментарий в {context.entity_type} "
-        f"<b>{sanitize_html(context.entity_name)}{context.entity_username}</b> "
+        f"<b>{format_chat_or_channel_display(context.entity_name, context.entity_username, 'Канал')}</b> "
         "был заблокирован админом при помощи @ai_antispam_blocker_bot.\n\n"
         f"Ваш комментарий: <blockquote expandable>{context.content_text}</blockquote>\n\n"
     )
@@ -536,13 +535,55 @@ def build_spam_block_notification_message(
     return notification_msg
 
 
-async def send_mtproto_spam_notifications(
+async def send_mcp_message_to_user(
+    *,
+    user_id: int,
+    username: Optional[str],
+    message: str,
+    message_type: str,
+) -> bool:
+    client = get_mcp_client()
+    chat_identifier = f"@{username}" if username else user_id
+    log_extra = {
+        "user_id": user_id,
+        "username": username,
+        "chat_identifier": chat_identifier,
+        "message_type": message_type,
+    }
+    try:
+        await client.call_tool(
+            "send_message",
+            arguments={
+                "chat_id": chat_identifier,
+                "message": message,
+                "parse_mode": "HTML",
+            },
+        )
+        logger.info("Sent MCP spam notification", extra=log_extra)
+        return True
+    except McpHttpError as e:
+        logger.warning(
+            "Failed to send MCP message",
+            extra={**log_extra, "error": str(e)},
+            exc_info=True,
+        )
+        return False
+    except Exception as e:
+        logger.error(
+            "Unexpected error sending MCP message",
+            extra={**log_extra, "error": str(e)},
+            exc_info=True,
+        )
+        return False
+
+
+async def notify_spam_contacts_via_mcp(
     message: types.Message,
     reason: str | None = None,
     message_context_result: Optional["MessageContextResult"] = None,
 ) -> None:
     """
-    Send MTProto notifications to spammers and channel admins when spam is blocked.
+    Send MCP notifications to spammers and spamming channel admins when spam is blocked.
 
     Args:
         message: The spam message
@@ -571,38 +612,14 @@ async def send_mtproto_spam_notifications(
             username = user.get("username")
 
             if user_id:
-                success = await send_mtproto_message(
+                success = await send_mcp_message_to_user(
                     user_id=user_id,
                     username=username,
                     message=notification_msg,
-                    parse_mode="HTML",
+                    message_type="spammer_channel_admin_notification",
                 )
-
                 if success:
                     admin_count += 1
-                    logger.info(
-                        "Sent MTProto spam notification to channel admin",
-                        extra={
-                            "user_id": user_id,
-                            "username": username,
-                            "channel_id": message.sender_chat.id
-                            if message.sender_chat
-                            else None,
-                            "message_type": "channel_admin_spam_notification",
-                        },
-                    )
-                else:
-                    logger.warning(
-                        "Failed to send MTProto spam notification to channel admin",
-                        extra={
-                            "user_id": user_id,
-                            "username": username,
-                            "channel_id": message.sender_chat.id
-                            if message.sender_chat
-                            else None,
-                            "message_type": "channel_admin_spam_notification",
-                        },
-                    )
 
         logger.info(
             f"Sent spam notifications to {admin_count} channel admins",
@@ -619,29 +636,12 @@ async def send_mtproto_spam_notifications(
         # For human senders, send to the spammer
         user_id = message.from_user.id
         username = getattr(message.from_user, "username", None)
-
-        success = await send_mtproto_message(
+        success = await send_mcp_message_to_user(
             user_id=user_id,
             username=username,
             message=notification_msg,
-            parse_mode="HTML",
+            message_type="spammer_user_notification",
         )
 
-        if success:
-            logger.info(
-                "Sent MTProto spam notification to user",
-                extra={
-                    "user_id": user_id,
-                    "username": username,
-                    "message_type": "spam_notification",
-                },
-            )
-        else:
-            logger.warning(
-                "Failed to send MTProto spam notification to user",
-                extra={
-                    "user_id": user_id,
-                    "username": username,
-                    "message_type": "spam_notification",
-                },
-            )
+        if not success:
+            return

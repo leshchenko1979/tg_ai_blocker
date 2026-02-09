@@ -188,6 +188,9 @@ start_welcome_text: |
   📢 Новости: https://t.me/ai_antispam
   🌐 Сайт: https://ai-antispam.ru
 
+# Shown to new users when a linked channel was detected (profile or bio). {channel_display} is replaced with "Title (@username)".
+start_linked_channel_offer_template: "У вас есть канал {channel_display}. Хотите подключить защиту комментариев?"
+
 start_existing_user_text: |
   👋 <b>С возвращением!</b>
 

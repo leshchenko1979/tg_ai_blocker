@@ -14,7 +14,7 @@ from typing import Optional, Sequence, Tuple, Union
 from aiogram.types import ChatMember, ChatMemberAdministrator, ChatMemberOwner
 
 from ..common.bot import bot
-from ..common.utils import retry_on_network_error
+from ..common.utils import format_chat_or_channel_display, retry_on_network_error
 from ..database import deduct_credits_from_admins, get_admin, set_group_moderation
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,9 @@ async def handle_deactivation(chat_id: int) -> None:
         await send_group_deactivation_message(
             chat_id, ref_link, min_credits_admin, min_credits
         )
-        await notify_admins_about_deactivation(admins, chat.title, ref_link)
+        await notify_admins_about_deactivation(
+            admins, chat.title, ref_link, getattr(chat, "username", None)
+        )
 
 
 async def find_min_credits_admin(
@@ -145,7 +147,10 @@ async def send_group_deactivation_message(
 
 
 async def notify_admins_about_deactivation(
-    admins: Sequence[ChatMember], chat_title: str, ref_link: str
+    admins: Sequence[ChatMember],
+    chat_title: str,
+    ref_link: str,
+    chat_username: Optional[str] = None,
 ) -> None:
     """
     Отправляет персональные уведомления администраторам о деактивации.
@@ -154,7 +159,9 @@ async def notify_admins_about_deactivation(
         admins: Список администраторов
         chat_title: Название чата
         ref_link: Реферальная ссылка
+        chat_username: Опциональный username группы без @
     """
+    group_display = format_chat_or_channel_display(chat_title, chat_username, "Группа")
     for admin in admins:
         if not isinstance(admin, (ChatMemberAdministrator, ChatMemberOwner)):
             continue
@@ -164,7 +171,7 @@ async def notify_admins_about_deactivation(
         admin_id = admin.user.id
         message_text = (
             "Внимание, органическая форма жизни!\n\n"
-            f'Моя защита группы "{chat_title}" временно приостановлена '
+            f'Моя защита группы "{group_display}" временно приостановлена '
             "из-за истощения звездной энергии.\n\n"
             "Пополни запас звезд командой /buy, чтобы я продолжил охранять "
             "твоё киберпространство от цифровых паразитов!\n\n"

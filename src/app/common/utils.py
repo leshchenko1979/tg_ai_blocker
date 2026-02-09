@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import yaml
 from aiogram.exceptions import TelegramBadRequest
@@ -80,6 +80,21 @@ def remove_lines_to_fit_len(text: str, max_len: int) -> str:
         text = text[: max_len - len("...")] + "..."
 
     return text
+
+
+def format_chat_or_channel_display(
+    title: Optional[str],
+    username: Optional[str],
+    default_title: str = "Группа",
+) -> str:
+    """
+    Format a chat or channel for user-facing messages: "Title (@username)" or "Title".
+    Title part is sanitized for HTML.
+    """
+    display_title = sanitize_html(title or default_title)
+    if username:
+        return f"{display_title} (@{username})"
+    return display_title
 
 
 def sanitize_html(text: str | None) -> str:

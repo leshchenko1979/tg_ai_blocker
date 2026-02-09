@@ -10,6 +10,7 @@ from typing import Optional, Tuple, Union
 
 from aiogram import types
 
+from ..common.utils import format_chat_or_channel_display
 from ..types import (
     ContextStatus,
     MessageContextResult,
@@ -164,12 +165,10 @@ def _collect_channel_info(message: types.Message) -> list[str]:
 
     if message.sender_chat and message.sender_chat.type == "channel":
         channel_title = message.sender_chat.title
-        channel_username = (
-            f" (@{message.sender_chat.username})"
-            if message.sender_chat.username
-            else ""
+        channel_username = getattr(message.sender_chat, "username", None)
+        channel_info.append(
+            f"Posted by channel: {format_chat_or_channel_display(channel_title, channel_username, 'Канал')}"
         )
-        channel_info.append(f"Posted by channel: {channel_title}{channel_username}")
 
     return channel_info
 

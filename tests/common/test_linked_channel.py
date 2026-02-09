@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from src.app.types import ContextStatus
 from src.app.types import LinkedChannelSummary, UserContext
 from src.app.spam.user_profile import (
+    _resolve_username_to_channel_id,
     collect_user_context,
     collect_channel_summary_by_id,
 )
@@ -161,3 +162,47 @@ class TestLinkedChannelExtraction:
             # Verify result
             assert result.status == ContextStatus.FOUND
             assert result.content.subscribers == 500
+
+
+class TestResolveUsernameToChannelId:
+    """Unit tests for _resolve_username_to_channel_id (no integration)."""
+
+    @pytest.mark.asyncio
+    async def test_returns_channel_id_for_channel(self):
+        mock_chat = MagicMock()
+        mock_chat.type = "channel"
+        mock_chat.id = -1001234567890
+
+        with patch("src.app.spam.user_profile.bot") as mock_bot:
+            mock_bot.get_chat = AsyncMock(return_value=mock_chat)
+            result = await _resolve_username_to_channel_id("mychannel")
+        assert result == -1001234567890
+        mock_bot.get_chat.assert_awaited_once_with("@mychannel")
+
+    @pytest.mark.asyncio
+    async def test_returns_channel_id_for_supergroup(self):
+        mock_chat = MagicMock()
+        mock_chat.type = "supergroup"
+        mock_chat.id = -1009876543210
+
+        with patch("src.app.spam.user_profile.bot") as mock_bot:
+            mock_bot.get_chat = AsyncMock(return_value=mock_chat)
+            result = await _resolve_username_to_channel_id("mygroup")
+        assert result == -1009876543210
+
+    @pytest.mark.asyncio
+    async def test_returns_none_for_private_chat(self):
+        mock_chat = MagicMock()
+        mock_chat.type = "private"
+
+        with patch("src.app.spam.user_profile.bot") as mock_bot:
+            mock_bot.get_chat = AsyncMock(return_value=mock_chat)
+            result = await _resolve_username_to_channel_id("someuser")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_error(self):
+        with patch("src.app.spam.user_profile.bot") as mock_bot:
+            mock_bot.get_chat = AsyncMock(side_effect=Exception("Chat not found"))
+            result = await _resolve_username_to_channel_id("nonexistent")
+        assert result is None

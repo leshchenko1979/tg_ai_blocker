@@ -5,7 +5,13 @@ from aiogram import F, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from ..common.utils import get_affiliate_url, sanitize_html
+from ..common.bot import bot
+from ..common.utils import (
+    format_chat_or_channel_display,
+    get_affiliate_url,
+    get_setup_guide_url,
+    sanitize_html,
+)
 from ..database import (
     get_admin,
     get_admin_credits,
@@ -16,6 +22,8 @@ from ..database import (
     save_admin,
     toggle_spam_deletion,
 )
+from ..spam.user_profile import collect_user_context
+from ..types import ContextStatus
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -55,11 +63,75 @@ async def handle_help_command(message: types.Message) -> str:
                 await save_admin(admin)
         if is_new:
             welcome_text = config.get("start_welcome_text", "Добро пожаловать!")
-            await message.reply(
-                welcome_text,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
+            # Collect linked channel from profile + bio (no message) and offer to protect
+            try:
+                user_context = await collect_user_context(
+                    user_id, username=user.username
+                )
+                linked = user_context.linked_channel
+                if (
+                    linked.status == ContextStatus.FOUND
+                    and linked.content
+                    and linked.content.channel_id
+                ):
+                    chat = await bot.get_chat(linked.content.channel_id)
+                    channel_display = format_chat_or_channel_display(
+                        chat.title, getattr(chat, "username", None), "Канал"
+                    )
+                    offer_template = config.get(
+                        "start_linked_channel_offer_template",
+                        "У вас есть канал {channel_display}. Хотите подключить защиту комментариев?",
+                    )
+                    welcome_text = (
+                        welcome_text.rstrip()
+                        + "\n\n"
+                        + offer_template.format(channel_display=channel_display)
+                    )
+                    keyboard = InlineKeyboardMarkup(
+                        inline_keyboard=[
+                            [
+                                InlineKeyboardButton(
+                                    text="Защитить канал",
+                                    url=get_setup_guide_url(),
+                                )
+                            ]
+                        ]
+                    )
+                    await message.reply(
+                        welcome_text,
+                        parse_mode="HTML",
+                        disable_web_page_preview=True,
+                        reply_markup=keyboard,
+                    )
+                    logger.info(
+                        "Sent /start welcome to new user with linked channel offer",
+                        extra={"user_id": user_id, "welcome_message": welcome_text},
+                    )
+                else:
+                    await message.reply(
+                        welcome_text,
+                        parse_mode="HTML",
+                        disable_web_page_preview=True,
+                    )
+                    logger.info(
+                        "Sent /start welcome to new user",
+                        extra={"user_id": user_id, "welcome_message": welcome_text},
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Failed to collect linked channel for /start offer: %s",
+                    e,
+                    exc_info=True,
+                )
+                await message.reply(
+                    welcome_text,
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                )
+                logger.info(
+                    "Sent /start welcome to new user (after linked channel error)",
+                    extra={"user_id": user_id, "welcome_message": welcome_text},
+                )
             return "command_start_new_user_sent"
         # Для существующих пользователей покажем приветствие с быстрым доступом к функциям
         existing_user_text = config.get("start_existing_user_text", "С возвращением!")

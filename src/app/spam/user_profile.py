@@ -13,14 +13,34 @@ from ..types import (
     UserAccountInfo,
     UserContext,
 )
+from ..common.bot import bot
 from ..common.mtproto_client import (
     MtprotoHttpClient,
     MtprotoHttpError,
     get_mtproto_client,
 )
 from ..common.mtproto_utils import bot_api_chat_id_to_mtproto
+from .linked_channel_mention import extract_first_channel_mention
 
 logger = logging.getLogger(__name__)
+
+
+async def _resolve_username_to_channel_id(username: str) -> Optional[int]:
+    """
+    Resolve a Telegram username to a channel/supergroup chat ID via Bot API.
+    Returns None if not a channel/supergroup or on error.
+    """
+    try:
+        chat = await bot.get_chat(f"@{username}")
+        chat_type = getattr(chat, "type", None)
+        if chat_type in ("channel", "supergroup"):
+            return chat.id
+    except Exception as e:
+        logger.debug(
+            "Could not resolve username to channel",
+            extra={"username": username, "error": str(e)},
+        )
+    return None
 
 
 async def collect_user_context(
@@ -133,23 +153,61 @@ async def collect_user_context(
                 status=ContextStatus.FAILED, error=str(e)
             )
 
-        # Extract Linked Channel
+        # Extract Linked Channel: preference profile > bio > message
         personal_channel_id = full_user.get("personal_channel_id")
         if personal_channel_id:
             channel_id = int(personal_channel_id)
             channel_result = await collect_channel_summary_by_id(
-                channel_id, actual_user_id
+                channel_id, actual_user_id, channel_source="linked"
             )
             linked_channel_result = channel_result
         else:
-            logger.debug(
-                "User has no linked channel in profile",
-                extra={
-                    "user_id": actual_user_id,
-                    "full_user_keys": list(full_user.keys()),
-                },
-            )
-            linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
+            candidate_username = None
+            source = None
+
+            # Try first mention in bio
+            about = full_user.get("about")
+            if about:
+                candidate_username = extract_first_channel_mention(about)
+                if candidate_username:
+                    source = "bio"
+
+            # If no candidate from bio, try first mention in message (if provided)
+            if not candidate_username and message is not None:
+                msg_text = (message.text or message.caption or "") or ""
+                entities = getattr(message, "entities", None)
+                candidate_username = extract_first_channel_mention(msg_text, entities)
+                if candidate_username:
+                    source = "message"
+
+            if candidate_username and source:
+                channel_id = await _resolve_username_to_channel_id(candidate_username)
+                if channel_id is not None:
+                    linked_channel_result = await collect_channel_summary_by_id(
+                        channel_id,
+                        actual_user_id,
+                        username=candidate_username,
+                        channel_source=source,
+                    )
+                else:
+                    logger.debug(
+                        "Resolved mention is not a channel",
+                        extra={
+                            "user_id": actual_user_id,
+                            "candidate": candidate_username,
+                            "source": source,
+                        },
+                    )
+                    linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
+            else:
+                logger.debug(
+                    "User has no linked channel in profile, bio, or message",
+                    extra={
+                        "user_id": actual_user_id,
+                        "full_user_keys": list(full_user.keys()),
+                    },
+                )
+                linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
 
     # Stories will be collected separately, so we return SKIPPED for now
     return UserContext(
@@ -165,6 +223,7 @@ async def collect_channel_summary_by_id(
     channel_id: int,
     user_reference: str | int | None = "unknown",
     username: Optional[str] = None,
+    channel_source: Optional[str] = None,
 ) -> ContextResult[LinkedChannelSummary]:
     """
     Collects summary stats and user list for a specific channel ID.
@@ -249,6 +308,8 @@ async def collect_channel_summary_by_id(
         post_age_delta=post_age_delta,
         recent_posts_content=recent_posts_content if recent_posts_content else None,
         users=users,
+        channel_source=channel_source,
+        channel_id=channel_id,
     )
 
     logger.info(

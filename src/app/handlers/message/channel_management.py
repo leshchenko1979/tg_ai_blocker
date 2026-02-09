@@ -10,7 +10,7 @@ import logging
 from aiogram import types
 from aiogram.client.bot import Bot
 
-from ...common.utils import retry_on_network_error
+from ...common.utils import format_chat_or_channel_display, retry_on_network_error
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,9 @@ async def get_discussion_username(chat: types.Chat, bot: Bot) -> str | None:
 
 
 def build_channel_instruction_message(
-    channel_title: str, discussion_link: str | None
+    channel_title: str,
+    discussion_link: str | None,
+    channel_username: str | None = None,
 ) -> str:
     """
     Build the instructional message for channel administrators.
@@ -70,12 +72,16 @@ def build_channel_instruction_message(
     Args:
         channel_title: Title of the channel
         discussion_link: URL to the discussion group if available
+        channel_username: Optional channel username without @
 
     Returns:
         Formatted HTML message with instructions
     """
+    channel_display = format_chat_or_channel_display(
+        channel_title, channel_username, "Канал"
+    )
     base_instruction = (
-        f"❗️ Бот был добавлен в канал <b>{channel_title}</b> вместо группы обсуждения.\n\n"
+        f"❗️ Бот был добавлен в канал <b>{channel_display}</b> вместо группы обсуждения.\n\n"
         "Для правильной работы бота добавьте его в группу обсуждения, связанную с вашим каналом.\n\n"
         "После этого бот сможет защищать ваши посты от спама в комментариях.\n\n"
     )
@@ -149,12 +155,15 @@ async def notify_channel_admins_and_leave(chat: types.Chat, bot: Bot) -> None:
         bot: The bot instance for sending messages and leaving
     """
     channel_title = chat.title or "(untitled)"
+    channel_username = getattr(chat, "username", None)
     discussion_username = await get_discussion_username(chat, bot)
 
     discussion_link = (
         f"https://t.me/{discussion_username}" if discussion_username else None
     )
-    instruction = build_channel_instruction_message(channel_title, discussion_link)
+    instruction = build_channel_instruction_message(
+        channel_title, discussion_link, channel_username
+    )
 
     notified_admins = await notify_channel_admins(chat, instruction, bot)
 

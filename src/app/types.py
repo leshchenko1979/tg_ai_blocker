@@ -29,6 +29,8 @@ class LinkedChannelSummary:
     post_age_delta: Optional[int]
     recent_posts_content: Optional[list[str]] = None
     users: Optional[list[dict]] = None
+    channel_source: Optional[str] = None  # "linked" | "bio" | "message"
+    channel_id: Optional[int] = None  # for display/resolve in /start etc.
 
     def to_prompt_fragment(self) -> str:
         if self.post_age_delta is None or self.post_age_delta < 0:
@@ -41,6 +43,8 @@ class LinkedChannelSummary:
             f"total_posts={self.total_posts if self.total_posts is not None else 'unknown'}",
             f"age_delta={post_age_str}",
         ]
+        if self.channel_source:
+            parts.append(f"channel_source={self.channel_source}")
 
         # Include recent posts content if available
         if self.recent_posts_content:
@@ -281,12 +285,12 @@ class MessageNotificationContext:
     effective_user_id: Optional[int]
     content_text: str
     chat_title: str
-    chat_username_str: str
+    chat_username: Optional[str]  # raw username without @
     is_channel_sender: bool
     violator_name: str
-    violator_username: str
+    violator_username: Optional[str]  # raw username without @
     forward_source: str
     message_link: str
     entity_name: str
     entity_type: str
-    entity_username: str
+    entity_username: Optional[str]  # raw username without @
