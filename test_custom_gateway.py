@@ -8,7 +8,6 @@ import json
 import logging
 import os
 import sys
-from typing import Dict, List
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
@@ -71,7 +70,7 @@ async def test_custom_gateway():
             messages=messages, temperature=0.0, response_format=response_format
         )
 
-        logger.info(f"✅ Custom gateway responded successfully!")
+        logger.info("✅ Custom gateway responded successfully!")
         logger.info(f"Response: {response}")
 
         # Try to parse the response as JSON
@@ -116,7 +115,7 @@ async def test_fallback():
         logger.info("Testing fallback to OpenRouter...")
         response = await get_llm_response_with_fallback(messages)
 
-        logger.info(f"✅ Fallback to OpenRouter worked!")
+        logger.info("✅ Fallback to OpenRouter worked!")
         logger.info(f"Response: {response}")
 
         # Restore original API_BASE
@@ -157,7 +156,7 @@ async def main():
         logger.error("Please set these variables in your .env file")
         return False
 
-    logger.info(f"✅ All required environment variables are set")
+    logger.info("✅ All required environment variables are set")
     logger.info(f"  - API_BASE: {os.getenv('API_BASE')}")
     logger.info(f"  - CUSTOM_GATEWAY_MODEL: {os.getenv('CUSTOM_GATEWAY_MODEL')}")
 

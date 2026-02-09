@@ -6,6 +6,7 @@
   - **Deep Context Analysis**: Inspection of linked channels and **User Stories** to catch "Trojan horse" spam (benign message, toxic profile).
   - **Custom spam examples** for community-specific tuning.
   - **Automated enforcement** actions (delete, ban).
+  - **Proactive Outreach**: When blocking spam sent by channels or human spammers with linked channels, the bot automatically notifies the spammers or spamming channel administrators via direct MTProto messages, increasing reach and conversion opportunities among active channel promoters.
 - **User Journeys**:
   - Onboard bot into a group, grant admin permissions, configure moderation mode, and observe automated clean-up.
   - Receive alerts about suspicious messages, approve or override actions, and curate trusted/blocked user lists.
