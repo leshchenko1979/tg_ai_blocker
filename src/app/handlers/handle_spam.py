@@ -543,7 +543,7 @@ async def send_mcp_message_to_user(
     message_type: str,
 ) -> bool:
     client = get_mcp_client()
-    chat_identifier = f"@{username}" if username else user_id
+    chat_identifier = f"@{username}" if username else str(user_id)
     log_extra = {
         "user_id": user_id,
         "username": username,
@@ -556,7 +556,7 @@ async def send_mcp_message_to_user(
             arguments={
                 "chat_id": chat_identifier,
                 "message": message,
-                "parse_mode": "HTML",
+                "parse_mode": "html",
             },
         )
         logger.info("Sent MCP spam notification", extra=log_extra)
