@@ -33,7 +33,7 @@ def extract_first_channel_mention(
     Returns:
         First candidate username without @, or None if none found.
     """
-    if not text:
+    if not text or not isinstance(text, str):
         return None
 
     # Prefer entities for exact boundaries
