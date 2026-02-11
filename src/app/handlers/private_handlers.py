@@ -202,9 +202,11 @@ async def handle_forwarded_message(message: types.Message) -> str:
 
     # Ask the user if they want to add this as a spam example
     row = [
-        types.InlineKeyboardButton(text="⚠️ Спам", callback_data="spam_example:spam"),
         types.InlineKeyboardButton(
-            text="💚 Не спам", callback_data="spam_example:not_spam"
+            text="⚠️ Спам", callback_data="spam_example:spam", style="danger"
+        ),
+        types.InlineKeyboardButton(
+            text="💚 Не спам", callback_data="spam_example:not_spam", style="success"
         ),
     ]
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=[row])

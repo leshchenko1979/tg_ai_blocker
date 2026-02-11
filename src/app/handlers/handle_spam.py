@@ -192,10 +192,12 @@ def create_admin_notification_keyboard(
             InlineKeyboardButton(
                 text="🗑️ Удалить",
                 callback_data=f"delete_spam_message:{effective_user_id}:{message.chat.id}:{message.message_id}",
+                style="danger",
             ),
             InlineKeyboardButton(
                 text="✅ Не спам",
                 callback_data=f"mark_as_not_spam:{effective_user_id}:{message.chat.id}",
+                style="success",
             ),
         ]
     else:
@@ -203,6 +205,7 @@ def create_admin_notification_keyboard(
             InlineKeyboardButton(
                 text="✅ Это не спам",
                 callback_data=f"mark_as_not_spam:{effective_user_id}:{message.chat.id}",
+                style="success",
             ),
         ]
     return InlineKeyboardMarkup(inline_keyboard=[row])
