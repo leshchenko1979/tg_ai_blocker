@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import ssl
@@ -115,8 +116,24 @@ class McpHttpClient:
                 async with session.post(url, headers=headers, json=payload) as response:
                     span.set_attribute("status", response.status)
                     try:
-                        data = await response.json()
-                    except aiohttp.ContentTypeError as e:
+                        if response.content_type == "text/event-stream":
+                            text = await response.text()
+                            # SSE format: "data: {json}\n\n"
+                            data = None
+                            for line in text.splitlines():
+                                if line.startswith("data: "):
+                                    try:
+                                        data = json.loads(line[len("data: ") :])
+                                        break
+                                    except json.JSONDecodeError:
+                                        continue
+                            if data is None:
+                                raise McpHttpError(
+                                    f"MCP HTTP bridge returned text/event-stream but no valid data found: {text}"
+                                )
+                        else:
+                            data = await response.json()
+                    except (aiohttp.ContentTypeError, json.JSONDecodeError) as e:
                         text = await response.text()
                         span.set_level("error")
                         span.record_exception(e)

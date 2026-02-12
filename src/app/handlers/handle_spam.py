@@ -531,7 +531,7 @@ def build_spam_block_notification_message(
     )
 
     if reason:
-        notification_msg += f"Причина блокировки: <b>{sanitize_html(reason)}</b>\n\n"
+        notification_msg += f"Причина блокировки: <blockquote expandable>{sanitize_html(reason)}</blockquote>\n\n"
 
     notification_msg += f"Сайт бота: {project_website}\nКанал бота: {project_channel}"
 
