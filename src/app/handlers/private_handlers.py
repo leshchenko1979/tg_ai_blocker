@@ -18,13 +18,12 @@ from ..common.logfire_lookup import (
 from ..common.utils import sanitize_llm_html
 from ..database import (
     add_spam_example,
-    get_admin,
     get_message_history,
     get_spam_examples,
     initialize_new_admin,
     remove_member_from_group,
-    save_admin,
     save_message,
+    update_admin_username_if_needed,
 )
 from ..database.group_operations import get_admin_groups
 from .dp import dp
@@ -56,15 +55,8 @@ async def handle_private_message(message: types.Message) -> str:
     if not admin_message:
         return "private_no_message_text"
 
-    # Initialize new administrator if needed and update username
     await initialize_new_admin(admin_id)
-
-    # Update admin with username if available
-    if user.username:
-        admin = await get_admin(admin_id)
-        if admin and (admin.username is None or admin.username != user.username):
-            admin.username = user.username
-            await save_admin(admin)
+    await update_admin_username_if_needed(admin_id, user.username)
 
     # Save user message to history
     await save_message(admin_id, "user", admin_message)
@@ -450,36 +442,17 @@ async def extract_original_message_info(
                     )
 
                     if context_result:
-                        # Store context fields, converting None to '[EMPTY]' for checked-but-empty
-                        info["stories_context"] = (
-                            (
-                                "[EMPTY]"
-                                if context_result["stories_context"] is None
-                                else context_result["stories_context"]
+                        for key in (
+                            "stories_context",
+                            "reply_context",
+                            "account_age_context",
+                        ):
+                            val = context_result.get(key)
+                            info[key] = (
+                                ("[EMPTY]" if val is None else val)
+                                if val is not None
+                                else None
                             )
-                            if context_result["stories_context"] is not None
-                            else None
-                        )
-
-                        info["reply_context"] = (
-                            (
-                                "[EMPTY]"
-                                if context_result["reply_context"] is None
-                                else context_result["reply_context"]
-                            )
-                            if context_result["reply_context"] is not None
-                            else None
-                        )
-
-                        info["account_age_context"] = (
-                            (
-                                "[EMPTY]"
-                                if context_result["account_age_context"] is None
-                                else context_result["account_age_context"]
-                            )
-                            if context_result["account_age_context"] is not None
-                            else None
-                        )
 
                         logger.info(
                             "Context extraction succeeded",

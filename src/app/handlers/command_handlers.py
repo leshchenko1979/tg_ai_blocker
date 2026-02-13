@@ -10,17 +10,17 @@ from ..common.utils import (
     format_chat_or_channel_display,
     get_affiliate_url,
     get_setup_guide_url,
+    load_config,
     sanitize_html,
 )
 from ..database import (
-    get_admin,
     get_admin_credits,
     get_admin_stats,
     get_spam_deletion_state,
     get_spent_credits_last_week,
     initialize_new_admin,
-    save_admin,
     toggle_spam_deletion,
+    update_admin_username_if_needed,
 )
 from ..spam.user_profile import collect_user_context, collect_channel_summary_by_id
 from ..spam.linked_channel_mention import extract_first_channel_mention
@@ -28,6 +28,88 @@ from ..types import ContextStatus, ContextResult
 from .dp import dp
 
 logger = logging.getLogger(__name__)
+
+
+async def _try_send_linked_channel_offer(
+    message: types.Message, user_id: int, username: str | None
+) -> bool:
+    """
+    Collect linked channel (Bot API first, MTProto fallback) and send protect offer.
+    Returns True if offer was sent, False otherwise.
+    """
+    linked = ContextResult(status=ContextStatus.EMPTY)
+    try:
+        chat_full = await bot.get_chat(user_id)
+        if chat_full.personal_chat and chat_full.personal_chat.type == "channel":
+            channel_id = chat_full.personal_chat.id
+            linked = await collect_channel_summary_by_id(
+                channel_id, user_id, channel_source="linked"
+            )
+        if linked.status != ContextStatus.FOUND and chat_full.bio:
+            candidate_username = extract_first_channel_mention(chat_full.bio)
+            if candidate_username:
+                try:
+                    channel_chat = await bot.get_chat(f"@{candidate_username}")
+                    if channel_chat.type in ("channel", "supergroup"):
+                        linked = await collect_channel_summary_by_id(
+                            channel_chat.id,
+                            user_id,
+                            username=candidate_username,
+                            channel_source="bio",
+                        )
+                except Exception:
+                    pass
+        if linked.status != ContextStatus.FOUND and username:
+            user_context = await collect_user_context(user_id, username=username)
+            linked = user_context.linked_channel or linked
+    except Exception as e:
+        logger.warning(
+            "Failed to collect context via Bot API for /start offer: %s",
+            e,
+            exc_info=True,
+        )
+        return False
+
+    if (
+        linked is None
+        or linked.status != ContextStatus.FOUND
+        or linked.content is None
+        or linked.content.channel_id is None
+    ):
+        return False
+
+    config = load_config()
+    channel_id = linked.content.channel_id
+    chat = await bot.get_chat(channel_id)
+    channel_display = format_chat_or_channel_display(
+        chat.title, getattr(chat, "username", None), "Канал"
+    )
+    offer_template = config.get(
+        "start_linked_channel_offer_template",
+        "У вас есть канал {channel_display}. Хотите подключить защиту комментариев?",
+    )
+    offer_text = offer_template.format(channel_display=channel_display)
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Защитить канал",
+                    url=get_setup_guide_url(),
+                )
+            ]
+        ]
+    )
+    await message.answer(
+        offer_text,
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+        reply_markup=keyboard,
+    )
+    logger.info(
+        "Sent second /start message with linked channel offer",
+        extra={"user_id": user_id, "offer_message": offer_text},
+    )
+    return True
 
 
 @dp.message(Command("start", "help"))
@@ -46,25 +128,13 @@ async def handle_help_command(message: types.Message) -> str:
     user_id = user.id
 
     command = message.text.split()[0]
-
-    # Загружаем конфигурацию
-    from ..common.utils import load_config
-
     config = load_config()
 
-    # Логика для /start
     if command == "/start":
         is_new = await initialize_new_admin(user_id)
-
-        # Update admin with username if available
-        if user.username:
-            admin = await get_admin(user_id)
-            if admin and (admin.username is None or admin.username != user.username):
-                admin.username = user.username
-                await save_admin(admin)
+        await update_admin_username_if_needed(user_id, user.username)
         if is_new:
             welcome_text = config.get("start_welcome_text", "Добро пожаловать!")
-            # Always send the initial welcome message first
             await message.reply(
                 welcome_text,
                 parse_mode="HTML",
@@ -74,88 +144,7 @@ async def handle_help_command(message: types.Message) -> str:
                 "Sent /start welcome to new user",
                 extra={"user_id": user_id, "welcome_message": welcome_text},
             )
-
-            # Then try to collect linked channel info and send a second message with an offer
-            linked = ContextResult(status=ContextStatus.EMPTY)
-            try:
-                # Use Bot API to get ChatFullInfo (safe even for users without usernames)
-                chat_full = await bot.get_chat(user_id)
-
-                # 1. Try personal_chat (Personal Channel feature)
-                if (
-                    chat_full.personal_chat
-                    and chat_full.personal_chat.type == "channel"
-                ):
-                    channel_id = chat_full.personal_chat.id
-                    linked = await collect_channel_summary_by_id(
-                        channel_id, user_id, channel_source="linked"
-                    )
-
-                # 2. Try first mention in bio if no personal_chat
-                if linked.status != ContextStatus.FOUND and chat_full.bio:
-                    candidate_username = extract_first_channel_mention(chat_full.bio)
-                    if candidate_username:
-                        try:
-                            channel_chat = await bot.get_chat(f"@{candidate_username}")
-                            if channel_chat.type in ("channel", "supergroup"):
-                                linked = await collect_channel_summary_by_id(
-                                    channel_chat.id,
-                                    user_id,
-                                    username=candidate_username,
-                                    channel_source="bio",
-                                )
-                        except Exception:
-                            pass
-
-                # 3. Fallback to full MTProto collection only if user has a username
-                if linked.status != ContextStatus.FOUND and user.username:
-                    user_context = await collect_user_context(
-                        user_id, username=user.username
-                    )
-                    linked = user_context.linked_channel
-
-            except Exception as e:
-                logger.warning(
-                    "Failed to collect context via Bot API for /start offer: %s",
-                    e,
-                    exc_info=True,
-                )
-
-            if (
-                linked is not None
-                and linked.status == ContextStatus.FOUND
-                and linked.content is not None
-                and linked.content.channel_id is not None
-            ):
-                chat = await bot.get_chat(linked.content.channel_id)
-                channel_display = format_chat_or_channel_display(
-                    chat.title, getattr(chat, "username", None), "Канал"
-                )
-                offer_template = config.get(
-                    "start_linked_channel_offer_template",
-                    "У вас есть канал {channel_display}. Хотите подключить защиту комментариев?",
-                )
-                offer_text = offer_template.format(channel_display=channel_display)
-                keyboard = InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [
-                            InlineKeyboardButton(
-                                text="Защитить канал",
-                                url=get_setup_guide_url(),
-                            )
-                        ]
-                    ]
-                )
-                await message.answer(
-                    offer_text,
-                    parse_mode="HTML",
-                    disable_web_page_preview=True,
-                    reply_markup=keyboard,
-                )
-                logger.info(
-                    "Sent second /start message with linked channel offer",
-                    extra={"user_id": user_id, "offer_message": offer_text},
-                )
+            await _try_send_linked_channel_offer(message, user_id, user.username)
             return "command_start_new_user_sent"
         # Для существующих пользователей покажем приветствие с быстрым доступом к функциям
         existing_user_text = config.get("start_existing_user_text", "С возвращением!")

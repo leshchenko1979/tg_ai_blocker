@@ -31,6 +31,16 @@ async def save_admin(admin: Administrator) -> None:
         )
 
 
+async def update_admin_username_if_needed(admin_id: int, username: str | None) -> None:
+    """Update administrator's username if it changed. No-op if username is None or unchanged."""
+    if not username:
+        return
+    admin = await get_admin(admin_id)
+    if admin and (admin.username is None or admin.username != username):
+        admin.username = username
+        await save_admin(admin)
+
+
 async def record_successful_payment(admin_id: int, stars_amount: int) -> None:
     """Record a successful Stars payment: add credits, record transaction, enable moderation."""
     pool = await get_pool()

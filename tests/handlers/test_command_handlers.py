@@ -41,16 +41,11 @@ class TestStartCommandNewUser:
                 return_value=True,
             ),
             patch(
-                "src.app.handlers.command_handlers.get_admin",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
-            patch(
-                "src.app.handlers.command_handlers.save_admin",
+                "src.app.handlers.command_handlers.update_admin_username_if_needed",
                 new_callable=AsyncMock,
             ),
             patch(
-                "src.app.common.utils.load_config",
+                "src.app.handlers.command_handlers.load_config",
                 return_value=config,
             ),
             patch(
@@ -102,16 +97,11 @@ class TestStartCommandNewUser:
                 return_value=True,
             ),
             patch(
-                "src.app.handlers.command_handlers.get_admin",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
-            patch(
-                "src.app.handlers.command_handlers.save_admin",
+                "src.app.handlers.command_handlers.update_admin_username_if_needed",
                 new_callable=AsyncMock,
             ),
             patch(
-                "src.app.common.utils.load_config",
+                "src.app.handlers.command_handlers.load_config",
                 return_value=config,
             ),
             patch(
@@ -161,16 +151,11 @@ class TestStartCommandNewUser:
                 return_value=True,
             ),
             patch(
-                "src.app.handlers.command_handlers.get_admin",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
-            patch(
-                "src.app.handlers.command_handlers.save_admin",
+                "src.app.handlers.command_handlers.update_admin_username_if_needed",
                 new_callable=AsyncMock,
             ),
             patch(
-                "src.app.common.utils.load_config",
+                "src.app.handlers.command_handlers.load_config",
                 return_value=config,
             ),
             patch(
