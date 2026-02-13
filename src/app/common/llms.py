@@ -604,7 +604,7 @@ async def _request_primary_gateway(
         data["response_format"] = response_format
 
     with logfire.span(
-        "custom gateway request/response", model=model, messages=messages
+        "Custom gateway request/response", model=model, messages=messages
     ) as span:
         try:
             async with session.post(

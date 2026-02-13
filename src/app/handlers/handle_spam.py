@@ -317,7 +317,7 @@ def format_admin_notification_message(
     Форматирует текст уведомления для администратора.
 
     Args:
-        message: Спам-сообщение
+        context: Контекст сообщения (группа, нарушитель, содержание)
         all_admins_delete: Флаг автоудаления спама
         reason: Причина классификации как спам
 
@@ -521,7 +521,7 @@ def build_spam_block_notification_message(
     This message is used for both human spammers and channel admins.
 
     Args:
-        message: The spam message
+        context: Notification context (entity, content, etc.)
         reason: Reason for blocking
 
     Returns:

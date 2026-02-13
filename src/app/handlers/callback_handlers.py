@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 def create_help_keyboard(config):
     """Создает клавиатуру помощи из конфигурации"""
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
     help_config = config.get("help_system", {})
     buttons_config = help_config.get("buttons", [])
 
