@@ -6,7 +6,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
 from ..common.utils import retry_on_network_error
-from ..database import get_pool
+from ..database import record_successful_payment
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -109,13 +109,7 @@ async def process_successful_payment(message: types.Message) -> str:
     stars_amount = message.successful_payment.total_amount
 
     try:
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "CALL process_successful_payment($1, $2)",
-                admin_id,
-                stars_amount,
-            )
+        await record_successful_payment(admin_id, stars_amount)
 
         @retry_on_network_error
         async def send_payment_confirmation():

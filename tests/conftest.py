@@ -93,6 +93,9 @@ class SQLiteConnectionAdapter:
             query,
             flags=re.IGNORECASE,
         )
+        # PostgreSQL false/true -> SQLite 0/1 for boolean comparison
+        query = re.sub(r"\bfalse\b", "0", query, flags=re.IGNORECASE)
+        query = re.sub(r"\btrue\b", "1", query, flags=re.IGNORECASE)
 
         # Convert PostgreSQL SERIAL to SQLite AUTOINCREMENT
         query = query.replace("SERIAL PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT")
@@ -321,6 +324,10 @@ async def create_sqlite_schema(conn):
             stories_context TEXT,
             reply_context TEXT,
             account_age_context TEXT,
+            confirmed INTEGER DEFAULT 1,
+            chat_id INTEGER,
+            message_id INTEGER,
+            effective_user_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (admin_id) REFERENCES administrators(admin_id)
         );

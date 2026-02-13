@@ -31,6 +31,17 @@ async def save_admin(admin: Administrator) -> None:
         )
 
 
+async def record_successful_payment(admin_id: int, stars_amount: int) -> None:
+    """Record a successful Stars payment: add credits, record transaction, enable moderation."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "CALL process_successful_payment($1, $2)",
+            admin_id,
+            stars_amount,
+        )
+
+
 async def get_admin(admin_id: int) -> Optional[Administrator]:
     """Retrieve administrator information from PostgreSQL"""
     pool = await get_pool()
@@ -280,7 +291,7 @@ async def get_admin_stats(admin_id: int) -> Dict[str, Any]:
                 """
                 SELECT COUNT(*)
                 FROM spam_examples
-                WHERE admin_id = $1
+                WHERE admin_id = $1 AND (confirmed IS NOT DISTINCT FROM true)
                 """,
                 admin_id,
             )
@@ -317,7 +328,7 @@ async def get_admin_stats(admin_id: int) -> Dict[str, Any]:
             """
             SELECT COUNT(*)
             FROM spam_examples
-            WHERE admin_id = $1
+            WHERE admin_id = $1 AND (confirmed IS NOT DISTINCT FROM true)
             """,
             admin_id,
         )

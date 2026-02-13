@@ -103,6 +103,10 @@ async def create_schema(conn: asyncpg.Connection):
                 stories_context TEXT,
                 reply_context TEXT,
                 account_age_context TEXT,
+                confirmed BOOLEAN DEFAULT true,
+                chat_id BIGINT,
+                message_id INTEGER,
+                effective_user_id BIGINT,
                 created_at TIMESTAMP NOT NULL DEFAULT NOW()
             );
 
@@ -140,6 +144,10 @@ async def create_schema(conn: asyncpg.Connection):
             CREATE INDEX IF NOT EXISTS idx_spam_examples_admin ON spam_examples(admin_id);
             CREATE INDEX IF NOT EXISTS idx_spam_examples_text ON spam_examples(text);
             CREATE INDEX IF NOT EXISTS idx_spam_examples_score ON spam_examples(score);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_spam_examples_pending_lookup
+                ON spam_examples (chat_id, message_id) WHERE chat_id IS NOT NULL AND message_id IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_spam_examples_confirmed
+                ON spam_examples (confirmed) WHERE confirmed = true;
 
             -- Transaction indexes
             CREATE INDEX IF NOT EXISTS idx_transactions_admin ON transactions(admin_id);

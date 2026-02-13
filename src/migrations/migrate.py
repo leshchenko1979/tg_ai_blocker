@@ -104,6 +104,70 @@ async def add_context_columns_migration(conn: Any) -> List[str]:
     return operations
 
 
+async def add_pending_spam_example_columns_migration(conn: Any) -> List[str]:
+    """
+    Add pending spam example columns: confirmed, chat_id, message_id, effective_user_id.
+    """
+    operations = []
+    print("Starting pending spam example columns migration...")
+
+    async with conn.transaction():
+        await conn.execute(
+            "ALTER TABLE spam_examples ADD COLUMN IF NOT EXISTS confirmed BOOLEAN DEFAULT true"
+        )
+        operations.append("Added confirmed column")
+        print("✓ Added confirmed column")
+
+        await conn.execute(
+            "ALTER TABLE spam_examples ADD COLUMN IF NOT EXISTS chat_id BIGINT"
+        )
+        operations.append("Added chat_id column")
+        print("✓ Added chat_id column")
+
+        await conn.execute(
+            "ALTER TABLE spam_examples ADD COLUMN IF NOT EXISTS message_id INTEGER"
+        )
+        operations.append("Added message_id column")
+        print("✓ Added message_id column")
+
+        await conn.execute(
+            "ALTER TABLE spam_examples ADD COLUMN IF NOT EXISTS effective_user_id BIGINT"
+        )
+        operations.append("Added effective_user_id column")
+        print("✓ Added effective_user_id column")
+
+        await conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_spam_examples_pending_lookup
+                ON spam_examples (chat_id, message_id) WHERE chat_id IS NOT NULL AND message_id IS NOT NULL
+            """
+        )
+        operations.append("Created idx_spam_examples_pending_lookup")
+        print("✓ Created idx_spam_examples_pending_lookup")
+
+        await conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_spam_examples_confirmed
+                ON spam_examples (confirmed) WHERE confirmed = true
+            """
+        )
+        operations.append("Created idx_spam_examples_confirmed")
+        print("✓ Created idx_spam_examples_confirmed")
+
+        await conn.execute(
+            """
+            UPDATE spam_examples SET confirmed = true WHERE confirmed IS NULL
+            """
+        )
+        operations.append("Backfilled confirmed for existing rows")
+        print("✓ Backfilled confirmed for existing rows")
+
+    print(
+        f"Pending spam example columns migration completed successfully. {len(operations)} operations performed."
+    )
+    return operations
+
+
 async def add_is_active_column_migration(conn: Any) -> List[str]:
     """
     Ensure administrators table has the is_active column.
@@ -171,12 +235,26 @@ async def run_is_active_column_migration():
         await add_is_active_column_migration(conn)
 
 
+async def run_pending_spam_example_migration():
+    """Run the pending spam example columns migration manually."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    print("Getting database pool...")
+    pool = await get_pool()
+    print("Running pending spam example columns migration...")
+    async with pool.acquire() as conn:
+        print("Acquired connection from pool")
+        await add_pending_spam_example_columns_migration(conn)
+
+
 async def main():
     if len(sys.argv) > 1:
         if sys.argv[1] == "--add-context-columns":
             await run_context_columns_migration()
         elif sys.argv[1] == "--add-is-active-column":
             await run_is_active_column_migration()
+        elif sys.argv[1] == "--add-pending-spam-columns":
+            await run_pending_spam_example_migration()
         else:
             raise ValueError(f"Unknown migration flag {sys.argv[1]!r}")
     else:

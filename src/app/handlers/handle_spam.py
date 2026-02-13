@@ -29,10 +29,67 @@ from ..common.utils import (
 )
 from ..database import get_admins_map
 from ..database.group_operations import remove_member_from_group
+from ..database.spam_examples import insert_pending_spam_example
 from .message.validation import determine_effective_user_id
-from ..types import MessageContextResult, MessageNotificationContext
+from ..types import ContextStatus, MessageContextResult, MessageNotificationContext
 
 logger = logging.getLogger(__name__)
+
+
+def _payload_to_row_values(payload: dict) -> dict:
+    """Extract spam_examples row kwargs from payload dict."""
+    return {
+        "text": payload.get("text") or "[MEDIA_MESSAGE]",
+        "name": payload.get("name"),
+        "bio": payload.get("bio"),
+        "linked_channel_fragment": payload.get("linked_channel_fragment"),
+        "stories_context": payload.get("stories_context"),
+        "reply_context": payload.get("reply_context"),
+        "account_age_context": payload.get("account_age_context"),
+    }
+
+
+def build_spam_example_payload(
+    message_context_result: Optional["MessageContextResult"],
+    effective_user_id: Optional[int],
+) -> dict:
+    """Build payload dict for insert_pending_spam_example from MessageContextResult."""
+    if not message_context_result:
+        return {"text": "[MEDIA_MESSAGE]", "effective_user_id": effective_user_id}
+
+    ctx = message_context_result.context
+    payload = {
+        "text": message_context_result.message_text or "[MEDIA_MESSAGE]",
+        "name": ctx.name if ctx else None,
+        "bio": ctx.bio if ctx else message_context_result.bio,
+        "effective_user_id": effective_user_id,
+    }
+
+    if ctx:
+        if (
+            ctx.linked_channel
+            and ctx.linked_channel.status == ContextStatus.FOUND
+            and ctx.linked_channel.content
+        ):
+            payload["linked_channel_fragment"] = (
+                ctx.linked_channel.content.to_prompt_fragment()
+            )
+        if ctx.stories:
+            payload["stories_context"] = (
+                ctx.stories.content
+                if ctx.stories.status == ContextStatus.FOUND
+                else "[EMPTY]"
+            )
+        payload["reply_context"] = ctx.reply
+        if ctx.account_age:
+            payload["account_age_context"] = (
+                ctx.account_age.content.to_prompt_fragment()
+                if ctx.account_age.status == ContextStatus.FOUND
+                and ctx.account_age.content
+                else "[EMPTY]"
+            )
+
+    return payload
 
 
 def build_message_notification_context(
@@ -122,7 +179,7 @@ async def handle_spam(
 
         # Уведомление администраторов...
         notification_sent = await notify_admins(
-            message, all_admins_delete, admin_ids, reason
+            message, all_admins_delete, admin_ids, reason, message_context_result
         )
 
         # Отправка MCP уведомлений спамеру/админам канала спамера при обнаружении канала
@@ -171,7 +228,9 @@ async def check_admin_delete_preferences(admin_ids: list[int]) -> bool:
 
 
 def create_admin_notification_keyboard(
-    message: types.Message, all_admins_delete: bool
+    message: types.Message,
+    all_admins_delete: bool,
+    pending_id: Optional[int] = None,
 ) -> InlineKeyboardMarkup:
     """
     Создает клавиатуру для уведомления администратора.
@@ -179,12 +238,13 @@ def create_admin_notification_keyboard(
     Args:
         message: Спам-сообщение
         all_admins_delete: Флаг автоудаления спама
+        pending_id: ID pending spam_example row for "Не спам" button (required for callback)
 
     Returns:
         InlineKeyboardMarkup: Клавиатура с кнопками действий
     """
     effective_user_id = determine_effective_user_id(message)
-    if effective_user_id is None:
+    if effective_user_id is None or pending_id is None:
         return InlineKeyboardMarkup(inline_keyboard=[[]])
 
     if not all_admins_delete:
@@ -196,7 +256,7 @@ def create_admin_notification_keyboard(
             ),
             InlineKeyboardButton(
                 text="✅ Не спам",
-                callback_data=f"mark_as_not_spam:{effective_user_id}:{message.chat.id}",
+                callback_data=f"mark_as_not_spam:{pending_id}",
                 style="success",
             ),
         ]
@@ -204,7 +264,7 @@ def create_admin_notification_keyboard(
         row = [
             InlineKeyboardButton(
                 text="✅ Это не спам",
-                callback_data=f"mark_as_not_spam:{effective_user_id}:{message.chat.id}",
+                callback_data=f"mark_as_not_spam:{pending_id}",
                 style="success",
             ),
         ]
@@ -376,6 +436,7 @@ async def notify_admins(
     all_admins_delete: bool,
     admin_ids: list[int],
     reason: str | None = None,
+    message_context_result: Optional["MessageContextResult"] = None,
 ) -> bool:
     """
     Отправляет уведомления администраторам о спам-сообщении.
@@ -385,6 +446,7 @@ async def notify_admins(
         all_admins_delete: Флаг автоудаления спама
         admin_ids: IDs of admins to notify
         reason: Причина классификации как спам
+        message_context_result: Collected context for payload (used for "Не спам" flow)
 
     Returns:
         bool: True если хотя бы одно уведомление отправлено успешно
@@ -396,7 +458,23 @@ async def notify_admins(
     private_message = format_admin_notification_message(
         context, all_admins_delete, reason
     )
-    keyboard = create_admin_notification_keyboard(message, all_admins_delete)
+
+    pending_id = None
+    if context.effective_user_id is not None:
+        payload = build_spam_example_payload(
+            message_context_result, context.effective_user_id
+        )
+        row_kwargs = _payload_to_row_values(payload)
+        pending_id = await insert_pending_spam_example(
+            message.chat.id,
+            message.message_id,
+            context.effective_user_id,
+            **row_kwargs,
+        )
+
+    keyboard = create_admin_notification_keyboard(
+        message, all_admins_delete, pending_id
+    )
     result = await notify_admins_with_fallback_and_cleanup(
         bot,
         admin_ids,
@@ -635,8 +713,9 @@ async def notify_spam_contacts_via_mcp(
             },
         )
 
-    elif message.from_user:
-        # For human senders, send to the spammer
+    elif not is_channel_sender and message.from_user:
+        # For human senders only - never use message.from_user for channel posts
+        # (Telegram uses Channel Bot 136817688 as from_user for channel messages)
         user_id = message.from_user.id
         username = getattr(message.from_user, "username", None)
         success = await send_mcp_message_to_user(

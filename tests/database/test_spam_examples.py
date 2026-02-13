@@ -1,6 +1,12 @@
 import pytest
 
-from app.database import add_spam_example, get_spam_examples, remove_spam_example
+from app.database import (
+    add_spam_example,
+    confirm_pending_spam_example,
+    get_spam_examples,
+    insert_pending_spam_example,
+    remove_spam_example,
+)
 
 
 @pytest.mark.asyncio
@@ -353,3 +359,98 @@ async def test_add_spam_example_with_empty_context_markers(patched_db_conn, clea
         assert example["stories_context"] == "[EMPTY]"
         assert example["reply_context"] == "Some reply content"
         assert example["account_age_context"] == "[EMPTY]"
+
+
+@pytest.mark.asyncio
+async def test_insert_pending_spam_example(patched_db_conn, clean_db):
+    """Test inserting a pending spam example"""
+    async with clean_db.acquire() as conn:
+        admin_id = 12345
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, 'testadmin', 100)
+            ON CONFLICT DO NOTHING
+        """,
+            admin_id,
+        )
+
+        pending_id = await insert_pending_spam_example(
+            chat_id=100,
+            message_id=50,
+            effective_user_id=999,
+            text="Not spam message",
+            name="User",
+            bio="Bio",
+        )
+
+        assert pending_id > 0
+
+        # Pending rows should not appear in get_spam_examples
+        examples = await get_spam_examples([admin_id])
+        assert len(examples) == 0
+
+
+@pytest.mark.asyncio
+async def test_confirm_pending_spam_example(patched_db_conn, clean_db):
+    """Test confirming a pending spam example"""
+    async with clean_db.acquire() as conn:
+        admin_id = 12345
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, 'testadmin', 100)
+            ON CONFLICT DO NOTHING
+        """,
+            admin_id,
+        )
+
+        pending_id = await insert_pending_spam_example(
+            chat_id=200, message_id=60, effective_user_id=888, text="Safe message"
+        )
+
+        row = await confirm_pending_spam_example(pending_id, admin_id)
+
+        assert row is not None
+        assert row["chat_id"] == 200
+        assert row["message_id"] == 60
+        assert row["effective_user_id"] == 888
+
+        # After confirm, example should appear in get_spam_examples
+        examples = await get_spam_examples([admin_id])
+        assert len(examples) == 1
+        assert examples[0]["text"] == "Safe message"
+
+
+@pytest.mark.asyncio
+async def test_confirm_pending_spam_example_not_found(patched_db_conn, clean_db):
+    """Test confirm returns None when pending record not found"""
+    row = await confirm_pending_spam_example(99999, 12345)
+    assert row is None
+
+
+@pytest.mark.asyncio
+async def test_get_spam_examples_excludes_pending(patched_db_conn, clean_db):
+    """Test that get_spam_examples excludes pending (unconfirmed) rows"""
+    async with clean_db.acquire() as conn:
+        admin_id = 12345
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, 'testadmin', 100)
+            ON CONFLICT DO NOTHING
+        """,
+            admin_id,
+        )
+
+        # Add confirmed example
+        await add_spam_example(text="Confirmed spam", score=80)
+
+        # Add pending via insert_pending_spam_example
+        await insert_pending_spam_example(
+            chat_id=1, message_id=1, effective_user_id=1, text="Pending"
+        )
+
+        examples = await get_spam_examples()
+        assert len(examples) == 1
+        assert examples[0]["text"] == "Confirmed spam"

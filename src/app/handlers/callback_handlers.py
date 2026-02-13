@@ -5,10 +5,9 @@ from aiogram import F, types
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
-from ..spam.user_profile import collect_user_context
 from ..common.utils import load_config, retry_on_network_error
 from ..database.group_operations import add_member
-from ..database.spam_examples import add_spam_example
+from ..database.spam_examples import confirm_pending_spam_example
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -108,8 +107,8 @@ async def handle_help_back(callback: CallbackQuery) -> str:
 @dp.callback_query(F.data.startswith("mark_as_not_spam:"))
 async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
     """
-    Обработчик колбэка для добавления сообщения в базу безопасных примеров.
-    Обновляет сообщение-уведомление, отмечая его как "Не спам".
+    Обработчик колбэка для подтверждения сообщения как не спам.
+    Callback data: mark_as_not_spam:{pending_id}
     """
     try:
         admin_id = callback.from_user.id
@@ -123,98 +122,68 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
                 "✅ Сообщение добавлено как безопасный пример", show_alert=False
             )
         except Exception:
-            # Игнорируем ошибки ответа на колбэк (например, если он устарел),
-            # чтобы не прерывать основную логику
             pass
 
-        # Разбираем callback_data
-        # Ожидается формат: mark_as_not_spam:{user_id}:{chat_id}
         parts = callback.data.split(":")
-        if len(parts) < 3:
+        if len(parts) < 2:
             return "callback_invalid_data_format"
-        author_id = int(parts[1])
-        group_id = int(parts[2])
-        author_info = await bot.get_chat(author_id)
 
-        # Get message text safely
+        try:
+            pending_id = int(parts[1])
+        except ValueError:
+            return "callback_invalid_data_format"
+
+        row = await confirm_pending_spam_example(pending_id, admin_id)
+
         message = callback.message
         if not isinstance(message, types.Message):
             return "callback_invalid_message_type"
 
-        message_text = message.text or message.caption
-        if not message_text:
-            return "callback_no_message_text"
-
-        # Обновляем текст сообщения, добавляя пометку "Не спам"
+        message_text = message.text or message.caption or ""
         updated_message_text = f"{message_text}\n\n✅ <b>Отмечено как НЕ СПАМ</b>"
 
-        channel_fragment = None
-        user_context = None
-        if author_id > 0:
-            try:
-                user_context = await collect_user_context(
-                    author_id, username=author_info.username if author_info else None
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.info(
-                    "Failed to load user context for author",
-                    extra={
-                        "author_id": author_id,
-                        "username": author_info.username if author_info else None,
-                        "error": str(exc),
-                    },
-                )
-                user_context = None
-            if user_context and user_context.linked_channel.status == "found":
-                assert user_context.linked_channel.content is not None
-                channel_fragment = (
-                    user_context.linked_channel.content.to_prompt_fragment()
-                )
+        if row:
+            group_id = row["chat_id"]
+            effective_user_id = row["effective_user_id"]
 
-        author_name = None
-        author_bio = None
-        if author_info:
-            if author_id > 0:
-                author_name = author_info.full_name
-                author_bio = author_info.bio
-            else:
-                author_name = getattr(author_info, "title", None)
-                author_bio = getattr(author_info, "description", None)
-
-        # Все тяжелые операции параллельно
-        async with asyncio.TaskGroup() as tg:
-            if author_id < 0:
+            async with asyncio.TaskGroup() as tg:
+                if effective_user_id < 0:
+                    tg.create_task(
+                        bot.unban_chat_sender_chat(
+                            group_id, sender_chat_id=effective_user_id
+                        )
+                    )
+                else:
+                    tg.create_task(
+                        bot.unban_chat_member(
+                            group_id, effective_user_id, only_if_banned=True
+                        )
+                    )
+                tg.create_task(add_member(group_id, effective_user_id))
                 tg.create_task(
-                    bot.unban_chat_sender_chat(group_id, sender_chat_id=author_id)
+                    bot.edit_message_text(
+                        chat_id=callback.message.chat.id,
+                        message_id=callback.message.message_id,
+                        text=updated_message_text,
+                        parse_mode="HTML",
+                        reply_markup=None,
+                    )
                 )
-            else:
-                tg.create_task(
-                    bot.unban_chat_member(group_id, author_id, only_if_banned=True)
-                )
-            tg.create_task(add_member(group_id, author_id))
-            tg.create_task(
-                add_spam_example(
-                    text=message_text,
-                    score=-100,  # Безопасное сообщение с отрицательным score
-                    name=author_name,
-                    bio=author_bio,
-                    admin_id=admin_id,
-                    linked_channel_fragment=channel_fragment,
-                    stories_context=None,  # Not available for user approvals
-                    reply_context=None,  # Not available for user approvals
-                    account_age_context=None,  # Not available for user approvals
-                )
+        else:
+            logger.warning(
+                "mark_as_not_spam: pending record not found, skipping unban/add",
+                extra={"pending_id": pending_id},
             )
-
-            tg.create_task(
-                bot.edit_message_text(
+            try:
+                await bot.edit_message_text(
                     chat_id=callback.message.chat.id,
                     message_id=callback.message.message_id,
                     text=updated_message_text,
                     parse_mode="HTML",
-                    reply_markup=None,  # Убираем клавиатуру
+                    reply_markup=None,
                 )
-            )
+            except Exception:
+                pass
 
         return "callback_marked_as_not_spam"
 
