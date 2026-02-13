@@ -9,6 +9,7 @@ import logging
 from typing import Optional, Tuple, Union
 
 from aiogram import types
+import logfire
 
 from ..common.utils import format_chat_or_channel_display
 from ..types import (
@@ -93,6 +94,10 @@ def extract_reply_context(message: types.Message) -> Optional[str]:
     )
 
 
+# The logfire trace of this function is used in common.logfire_lookup:find_spam_classification_context(),
+# so it's important to decorate this function with @logfire.instrument(record_return=True)
+@logfire.no_auto_trace
+@logfire.instrument(record_return=True)
 def create_classification_context(
     sender_context: Union[UserContext, SpamClassificationContext],
     name: str,
