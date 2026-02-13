@@ -139,7 +139,7 @@ class TestStartCommandNewUser:
         message.reply.assert_awaited_once()
         sent_welcome = message.reply.call_args[0][0]
         assert base_welcome in sent_welcome
-        
+
         # Second message: offer
         message.answer.assert_awaited_once()
         offer_text = message.answer.call_args[0][0]
@@ -183,7 +183,7 @@ class TestStartCommandNewUser:
             ) as mock_bot,
         ):
             mock_bot.get_chat = AsyncMock(side_effect=Exception("API error"))
-            
+
             result = await handle_help_command(message)
 
         assert result == "command_start_new_user_sent"

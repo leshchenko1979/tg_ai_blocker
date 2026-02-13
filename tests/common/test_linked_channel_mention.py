@@ -1,7 +1,5 @@
 """Tests for extract_first_channel_mention."""
 
-import pytest
-
 from src.app.spam.linked_channel_mention import extract_first_channel_mention
 
 
@@ -20,7 +18,9 @@ class TestExtractFirstChannelMention:
             extract_first_channel_mention("Link: https://t.me/example_ch")
             == "example_ch"
         )
-        assert extract_first_channel_mention("https://t.me/validname12") == "validname12"
+        assert (
+            extract_first_channel_mention("https://t.me/validname12") == "validname12"
+        )
 
     def test_first_mention_wins(self):
         assert extract_first_channel_mention("@first @second_channel") == "first"

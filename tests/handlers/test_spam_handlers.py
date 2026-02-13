@@ -210,10 +210,9 @@ class TestSpamDeletion:
             }
 
             result = await collect_message_context(mock_message)
-            message_text, is_story, bio, context = (
+            message_text, is_story, context = (
                 result.message_text,
                 result.is_story,
-                result.bio,
                 result.context,
             )
 

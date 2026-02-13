@@ -1,7 +1,9 @@
 import logging
+import re
 from typing import Any, Dict, Optional
 
 import yaml
+from aiogram import types
 from aiogram.exceptions import TelegramBadRequest
 from aiohttp import ClientError, ClientOSError
 from tenacity import (
@@ -82,6 +84,26 @@ def remove_lines_to_fit_len(text: str, max_len: int) -> str:
     return text
 
 
+def determine_effective_user_id(message: types.Message) -> Optional[int]:
+    """
+    Determine the effective user ID for moderation.
+
+    For channel messages (sender_chat), use channel ID unless it's the group itself (anonymous admin).
+    For regular users, use their user ID.
+
+    Args:
+        message: The Telegram message to analyze
+
+    Returns:
+        The effective user ID for moderation, or None if not available
+    """
+    if message.sender_chat and message.sender_chat.id != message.chat.id:
+        return message.sender_chat.id
+    elif message.from_user:
+        return message.from_user.id
+    return None
+
+
 def format_chat_or_channel_display(
     title: Optional[str],
     username: Optional[str],
@@ -136,9 +158,6 @@ def sanitize_llm_html(text: str) -> str:
 
     All other HTML tags are stripped while preserving their content.
     """
-
-    import re
-
     if not text:
         return text
 

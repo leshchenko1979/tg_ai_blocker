@@ -13,9 +13,9 @@ from opentelemetry.trace import get_current_span
 from ...database import APPROVE_PRICE, DELETE_PRICE, add_member
 from ..handle_spam import handle_spam
 from ..try_deduct_credits import try_deduct_credits
+from ...common.utils import determine_effective_user_id
 from .validation import (
     check_skip_channel_bot_message,
-    determine_effective_user_id,
     validate_group_and_check_early_exits,
 )
 from ...spam.message_context import collect_message_context
@@ -99,8 +99,10 @@ async def handle_moderated_message(message: types.Message) -> str:
             current_span.set_attribute("llm_reason", reason)
 
             # Set user context attributes
-            if message_context_result.bio:
-                current_span.set_attribute("user_bio", message_context_result.bio)
+            if message_context_result.context.bio:
+                current_span.set_attribute(
+                    "user_bio", message_context_result.context.bio
+                )
 
             if message_context_result.context.name:
                 current_span.set_attribute(

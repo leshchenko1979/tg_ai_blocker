@@ -5,6 +5,14 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Generic, List, Optional, TypeVar
 
+from aiogram import types
+
+from .common.utils import (
+    determine_effective_user_id,
+    format_chat_or_channel_display,
+    sanitize_html,
+)
+
 T = TypeVar("T")
 
 
@@ -96,13 +104,6 @@ class UserAccountInfo:
 
 
 @dataclass(slots=True)
-class UserContext:
-    stories: ContextResult[str]
-    linked_channel: ContextResult[LinkedChannelSummary]
-    account_info: ContextResult[UserAccountInfo]
-
-
-@dataclass(slots=True)
 class PeerResolutionContext:
     """Context information for MTProto peer resolution operations."""
 
@@ -120,6 +121,59 @@ class PeerResolutionContext:
     main_channel_username: Optional[str] = None
     original_channel_post_id: Optional[int] = None
 
+    @classmethod
+    def from_message(
+        cls, message: types.Message, user_id: int
+    ) -> PeerResolutionContext:
+        """Create PeerResolutionContext from a Telegram message object."""
+        chat_id = int(message.chat.id)
+        message_id = int(message.message_id)
+        chat_username = getattr(message.chat, "username", None)
+        message_thread_id = getattr(message, "message_thread_id", None)
+        is_topic_message = bool(getattr(message, "is_topic_message", False))
+
+        main_channel_id = None
+        main_channel_username = None
+
+        if (
+            message_thread_id
+            and not is_topic_message
+            and hasattr(message, "reply_to_message")
+            and message.reply_to_message
+        ):
+            reply_to = message.reply_to_message
+            if hasattr(reply_to, "sender_chat") and reply_to.sender_chat:
+                sender_chat = reply_to.sender_chat
+                if getattr(sender_chat, "type", None) == "channel":
+                    main_channel_id = getattr(sender_chat, "id", None)
+                    main_channel_username = getattr(sender_chat, "username", None)
+
+        reply_to_message_id = None
+        original_channel_post_id = None
+        if hasattr(message, "reply_to_message") and message.reply_to_message:
+            reply_to_message_id = getattr(message.reply_to_message, "message_id", None)
+            if (
+                hasattr(message, "message_thread_id")
+                and message.message_thread_id
+                and not getattr(message, "is_topic_message", False)
+            ):
+                original_channel_post_id = getattr(
+                    message.reply_to_message, "forward_from_message_id", None
+                )
+
+        return cls(
+            chat_id=chat_id,
+            user_id=user_id,
+            message_id=message_id,
+            chat_username=chat_username,
+            message_thread_id=message_thread_id,
+            reply_to_message_id=reply_to_message_id,
+            is_topic_message=is_topic_message,
+            main_channel_id=main_channel_id,
+            main_channel_username=main_channel_username,
+            original_channel_post_id=original_channel_post_id,
+        )
+
 
 @dataclass(slots=True)
 class MessageContextResult:
@@ -127,7 +181,6 @@ class MessageContextResult:
 
     message_text: str
     is_story: bool
-    bio: Optional[str]
     context: "SpamClassificationContext"
     linked_channel_found: bool = False
     channel_users: Optional[list[dict]] = None
@@ -158,6 +211,7 @@ class SpamClassificationContext:
     stories: Optional[ContextResult[str]] = None
     reply: Optional[str] = None
     account_age: Optional[ContextResult[UserAccountInfo]] = None
+    is_channel_sender: bool = False
 
     @property
     def include_linked_channel_guidance(self) -> bool:
@@ -294,3 +348,71 @@ class MessageNotificationContext:
     entity_name: str
     entity_type: str
     entity_username: Optional[str]  # raw username without @
+
+    @classmethod
+    def from_message(cls, message: types.Message) -> MessageNotificationContext:
+        """Create MessageNotificationContext from a Telegram message."""
+        effective_user_id = determine_effective_user_id(message)
+        content_text = message.text or message.caption or "[MEDIA_MESSAGE]"
+        content_text = sanitize_html(content_text)
+        chat_title = message.chat.title or "Группа"
+        chat_username = getattr(message.chat, "username", None)
+        is_channel_sender = (
+            message.sender_chat is not None
+            and message.sender_chat.id != message.chat.id
+        )
+
+        if is_channel_sender and message.sender_chat is not None:
+            violator_name = message.sender_chat.title or "Канал"
+            violator_username = getattr(message.sender_chat, "username", None)
+        elif message.from_user is not None:
+            violator_name = message.from_user.full_name or "Пользователь без имени"
+            violator_username = getattr(message.from_user, "username", None)
+        else:
+            violator_name = "Пользователь"
+            violator_username = None
+
+        forward_source = ""
+        forward_chat = getattr(message, "forward_from_chat", None)
+        if forward_chat:
+            forward_title = getattr(forward_chat, "title", None) or "Канал"
+            forward_username = getattr(forward_chat, "username", None)
+            forward_source = (
+                "\n\n"
+                f"<b>Источник пересланного:</b> "
+                f"{format_chat_or_channel_display(forward_title, forward_username, 'Канал')}"
+            )
+
+        message_link = (
+            f"https://t.me/{message.chat.username}/{message.message_id}"
+            if message.chat.username
+            else ""
+        )
+
+        reply_sender_chat = None
+        if message.reply_to_message is not None:
+            reply_sender_chat = getattr(message.reply_to_message, "sender_chat", None)
+
+        if reply_sender_chat is not None:
+            entity_name = reply_sender_chat.title or "Канал"
+            entity_type = "канале"
+            entity_username = getattr(reply_sender_chat, "username", None)
+        else:
+            entity_name = chat_title
+            entity_type = "группе"
+            entity_username = chat_username
+
+        return cls(
+            effective_user_id=effective_user_id,
+            content_text=content_text,
+            chat_title=chat_title,
+            chat_username=chat_username,
+            is_channel_sender=is_channel_sender,
+            violator_name=violator_name,
+            violator_username=violator_username,
+            forward_source=forward_source,
+            message_link=message_link,
+            entity_name=entity_name,
+            entity_type=entity_type,
+            entity_username=entity_username,
+        )

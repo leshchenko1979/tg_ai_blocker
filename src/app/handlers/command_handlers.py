@@ -122,9 +122,10 @@ async def handle_help_command(message: types.Message) -> str:
                 )
 
             if (
-                linked.status == ContextStatus.FOUND
-                and linked.content
-                and linked.content.channel_id
+                linked is not None
+                and linked.status == ContextStatus.FOUND
+                and linked.content is not None
+                and linked.content.channel_id is not None
             ):
                 chat = await bot.get_chat(linked.content.channel_id)
                 channel_display = format_chat_or_channel_display(

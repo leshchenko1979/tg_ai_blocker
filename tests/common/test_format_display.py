@@ -1,7 +1,5 @@
 """Tests for format_chat_or_channel_display."""
 
-import pytest
-
 from src.app.common.utils import format_chat_or_channel_display
 
 
@@ -20,10 +18,7 @@ class TestFormatChatOrChannelDisplay:
         assert format_chat_or_channel_display("", None) == "Группа"
 
     def test_username_only_uses_default_title(self):
-        assert (
-            format_chat_or_channel_display(None, "chan")
-            == "Группа (@chan)"
-        )
+        assert format_chat_or_channel_display(None, "chan") == "Группа (@chan)"
 
     def test_html_escaped(self):
         assert "&lt;" in format_chat_or_channel_display("<script>", "x")

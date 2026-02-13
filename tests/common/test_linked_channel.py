@@ -3,8 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.app.types import ContextStatus
-from src.app.types import LinkedChannelSummary, UserContext
+from src.app.types import ContextStatus, LinkedChannelSummary, SpamClassificationContext
 from src.app.spam.user_profile import (
     _resolve_username_to_channel_id,
     collect_user_context,
@@ -53,7 +52,7 @@ class TestLinkedChannelExtraction:
             assert third_call[0][0] == "messages.getHistory"
 
             # Verify we got the expected result
-            assert isinstance(result, UserContext)
+            assert isinstance(result, SpamClassificationContext)
             assert result.linked_channel is not None
             from src.app.types import ContextStatus
 
@@ -83,10 +82,8 @@ class TestLinkedChannelExtraction:
         ):
             result = await collect_user_context(user_id, username="testuser")
 
-            # Should return UserContext with empty linked_channel when no linked channel
-            assert isinstance(result, UserContext)
-            from src.app.types import ContextStatus
-
+            # Should return SpamClassificationContext with empty linked_channel when no linked channel
+            assert isinstance(result, SpamClassificationContext)
             assert result.linked_channel.status == ContextStatus.EMPTY
 
             # Verify call was made

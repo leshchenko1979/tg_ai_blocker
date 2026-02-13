@@ -6,19 +6,13 @@ and performs spam analysis using the collected context.
 """
 
 import logging
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 from aiogram import types
-import logfire
 
 from ..common.utils import format_chat_or_channel_display
-from ..types import (
-    ContextStatus,
-    MessageContextResult,
-    SpamClassificationContext,
-    UserContext,
-)
-from .context_collector import route_sender_context_collection
+from ..types import ContextStatus, MessageContextResult
+from .context_collector import collect_sender_context
 
 logger = logging.getLogger(__name__)
 
@@ -41,34 +35,26 @@ async def collect_message_context(
     message_text, is_story = extract_message_with_forward_context(message)
 
     reply_context = extract_reply_context(message)
-    sender_context, name, bio = await route_sender_context_collection(
-        message, message.chat.id
-    )
+    sender_context = await collect_sender_context(message)
 
-    context = create_classification_context(sender_context, name, bio, reply_context)
+    sender_context.reply = reply_context
 
-    # Extract context flags and users
-    linked_channel_found = False
-    channel_users = None
-
-    if isinstance(sender_context, UserContext):
-        # Channel found if linked_channel was successfully found
-        linked_channel_found = (
-            sender_context.linked_channel.status == ContextStatus.FOUND
-        )
-        # For human senders, we don't collect channel users (only send to spammer directly)
-    else:
-        # For channel senders, channel is always found
+    if sender_context.is_channel_sender:
         linked_channel_found = True
-        # Extract users from the channel context for admin notifications
+        channel_users = None
         if sender_context.linked_channel and sender_context.linked_channel.content:
             channel_users = sender_context.linked_channel.content.users
+    else:
+        linked_channel_found = (
+            sender_context.linked_channel is not None
+            and sender_context.linked_channel.status == ContextStatus.FOUND
+        )
+        channel_users = None
 
     return MessageContextResult(
         message_text,
         is_story,
-        bio,
-        context,
+        sender_context,
         linked_channel_found,
         channel_users,
     )
@@ -92,43 +78,6 @@ def extract_reply_context(message: types.Message) -> Optional[str]:
         or message.reply_to_message.caption
         or "[MEDIA_MESSAGE]"
     )
-
-
-# The logfire trace of this function is used in common.logfire_lookup:find_spam_classification_context(),
-# so it's important to decorate this function with @logfire.instrument(record_return=True)
-@logfire.no_auto_trace
-@logfire.instrument(record_return=True)
-def create_classification_context(
-    sender_context: Union[UserContext, SpamClassificationContext],
-    name: str,
-    bio: Optional[str],
-    reply_context: Optional[str],
-) -> SpamClassificationContext:
-    """
-    Create spam classification context from sender context.
-
-    Args:
-        sender_context: The raw sender context
-        name: Sender name
-        bio: Sender bio
-        reply_context: Context from replied message
-
-    Returns:
-        SpamClassificationContext for classification
-    """
-    if isinstance(sender_context, UserContext):
-        return SpamClassificationContext(
-            name=name,
-            bio=bio,
-            linked_channel=sender_context.linked_channel,
-            stories=sender_context.stories,
-            reply=reply_context,
-            account_age=sender_context.account_info,
-        )
-    else:
-        # Channel sender - context is already SpamClassificationContext, just add reply
-        sender_context.reply = reply_context
-        return sender_context
 
 
 def _extract_message_text(message: types.Message) -> str:

@@ -10,8 +10,8 @@ from ..types import (
     ContextResult,
     ContextStatus,
     LinkedChannelSummary,
+    SpamClassificationContext,
     UserAccountInfo,
-    UserContext,
 )
 from ..common.bot import bot
 from ..common.mtproto_client import (
@@ -47,7 +47,7 @@ async def collect_user_context(
     user_id_or_message,
     username: Optional[str] = None,
     chat_id: Optional[int] = None,
-) -> UserContext:
+) -> SpamClassificationContext:
     """
     Collects user context including linked channel summary and account age signals.
 
@@ -55,6 +55,9 @@ async def collect_user_context(
         user_id_or_message: Either a user_id (int) or a Telegram message object
         username: Optional username for the user (ignored when message object is passed)
         chat_id: Optional chat ID (ignored when message object is passed)
+
+    Returns:
+        SpamClassificationContext with linked_channel, account_age; stories=SKIPPED
     """
     client = get_mtproto_client()
     linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
@@ -92,16 +95,12 @@ async def collect_user_context(
                     "No username and invalid user_id for user_id-based collection",
                     extra={"user_id": actual_user_id, "username": username},
                 )
-                return UserContext(
-                    stories=ContextResult(
-                        status=ContextStatus.FAILED,
-                        error="Invalid user_id for user_id-based collection",
-                    ),
+                return SpamClassificationContext(
                     linked_channel=ContextResult(
                         status=ContextStatus.FAILED,
                         error="Invalid user_id for user_id-based collection",
                     ),
-                    account_info=ContextResult(
+                    account_age=ContextResult(
                         status=ContextStatus.FAILED,
                         error="Invalid user_id for user_id-based collection",
                     ),
@@ -209,13 +208,9 @@ async def collect_user_context(
                 )
                 linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
 
-    # Stories will be collected separately, so we return SKIPPED for now
-    return UserContext(
-        stories=ContextResult(
-            status=ContextStatus.SKIPPED, error="Stories collected separately"
-        ),
+    return SpamClassificationContext(
         linked_channel=linked_channel_result,
-        account_info=account_info_result,
+        account_age=account_info_result,
     )
 
 

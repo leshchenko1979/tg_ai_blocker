@@ -7,6 +7,7 @@ Contract (spam_examples.text): ONLY original message content — no alert wrappe
 With the pending flow, new examples are stored at notify time from the original
 message, so this script is only needed for legacy rows inserted before that change.
 """
+
 import argparse
 import asyncio
 import logging
@@ -73,7 +74,9 @@ async def clean_spam_examples(*, dry_run: bool = False) -> int:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Clean alert wrapper from spam_examples.text")
+    parser = argparse.ArgumentParser(
+        description="Clean alert wrapper from spam_examples.text"
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",

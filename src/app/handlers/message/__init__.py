@@ -7,6 +7,7 @@ This module contains the core message processing functionality split into:
 - channel_management: Channel and discussion group handling
 """
 
+from ...common.utils import determine_effective_user_id
 from .channel_management import (
     build_channel_instruction_message,
     get_discussion_username,
@@ -21,7 +22,6 @@ from .pipeline import (
 from .validation import (
     check_known_member,
     check_skip_channel_bot_message,
-    determine_effective_user_id,
     fetch_linked_chat_id,
     get_and_check_group,
     is_admin_posting_as_group,

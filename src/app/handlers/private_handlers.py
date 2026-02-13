@@ -9,6 +9,7 @@ from aiogram.filters import or_f
 
 from ..common.bot import bot
 from ..spam.user_profile import collect_user_context
+from ..types import ContextStatus
 from ..common.llms import get_llm_response_with_fallback
 from ..common.logfire_lookup import (
     find_original_message,
@@ -249,11 +250,13 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                     extra={"user_id": user_id, "username": username, "error": str(exc)},
                 )
                 user_context = None
-            if user_context and user_context.linked_channel.status == "found":
-                assert user_context.linked_channel.content is not None
-                channel_fragment = (
-                    user_context.linked_channel.content.to_prompt_fragment()
-                )
+            linked = user_context.linked_channel if user_context else None
+            if (
+                linked is not None
+                and linked.status == ContextStatus.FOUND
+                and linked.content is not None
+            ):
+                channel_fragment = linked.content.to_prompt_fragment()
 
         try:
             await callback.answer(

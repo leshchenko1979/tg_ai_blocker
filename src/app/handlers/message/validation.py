@@ -17,26 +17,6 @@ from ...database.models import Group
 logger = logging.getLogger(__name__)
 
 
-def determine_effective_user_id(message: types.Message) -> Optional[int]:
-    """
-    Determine the effective user ID for moderation.
-
-    For channel messages (sender_chat), use channel ID unless it's the group itself (anonymous admin).
-    For regular users, use their user ID.
-
-    Args:
-        message: The Telegram message to analyze
-
-    Returns:
-        The effective user ID for moderation, or None if not available
-    """
-    if message.sender_chat and message.sender_chat.id != message.chat.id:
-        return message.sender_chat.id
-    elif message.from_user:
-        return message.from_user.id
-    return None
-
-
 async def validate_group_and_check_early_exits(
     chat_id: int, user_id: int
 ) -> Tuple[Optional[Group], str]:

@@ -19,6 +19,7 @@ from ..common.bot import bot
 from ..common.mcp_client import McpHttpError, get_mcp_client
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.utils import (
+    determine_effective_user_id,
     format_chat_or_channel_display,
     get_project_channel_url,
     get_setup_guide_url,
@@ -30,7 +31,6 @@ from ..common.utils import (
 from ..database import get_admins_map
 from ..database.group_operations import remove_member_from_group
 from ..database.spam_examples import insert_pending_spam_example
-from .message.validation import determine_effective_user_id
 from ..types import ContextStatus, MessageContextResult, MessageNotificationContext
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ def build_spam_example_payload(
     payload = {
         "text": message_context_result.message_text or "[MEDIA_MESSAGE]",
         "name": ctx.name if ctx else None,
-        "bio": ctx.bio if ctx else message_context_result.bio,
+        "bio": ctx.bio,
         "effective_user_id": effective_user_id,
     }
 
@@ -90,74 +90,6 @@ def build_spam_example_payload(
             )
 
     return payload
-
-
-def build_message_notification_context(
-    message: types.Message,
-) -> MessageNotificationContext:
-    effective_user_id = determine_effective_user_id(message)
-    content_text = message.text or message.caption or "[MEDIA_MESSAGE]"
-    content_text = sanitize_html(content_text)
-    chat_title = message.chat.title or "Группа"
-    chat_username = getattr(message.chat, "username", None)
-    is_channel_sender = (
-        message.sender_chat is not None and message.sender_chat.id != message.chat.id
-    )
-
-    if is_channel_sender and message.sender_chat is not None:
-        violator_name = message.sender_chat.title or "Канал"
-        violator_username = getattr(message.sender_chat, "username", None)
-    elif message.from_user is not None:
-        violator_name = message.from_user.full_name or "Пользователь без имени"
-        violator_username = getattr(message.from_user, "username", None)
-    else:
-        violator_name = "Пользователь"
-        violator_username = None
-
-    forward_source = ""
-    forward_chat = getattr(message, "forward_from_chat", None)
-    if forward_chat:
-        forward_title = getattr(forward_chat, "title", None) or "Канал"
-        forward_username = getattr(forward_chat, "username", None)
-        forward_source = (
-            "\n\n"
-            f"<b>Источник пересланного:</b> "
-            f"{format_chat_or_channel_display(forward_title, forward_username, 'Канал')}"
-        )
-
-    message_link = (
-        f"https://t.me/{message.chat.username}/{message.message_id}"
-        if message.chat.username
-        else ""
-    )
-
-    reply_sender_chat = None
-    if message.reply_to_message is not None:
-        reply_sender_chat = getattr(message.reply_to_message, "sender_chat", None)
-
-    if reply_sender_chat is not None:
-        entity_name = reply_sender_chat.title or "Канал"
-        entity_type = "канале"
-        entity_username = getattr(reply_sender_chat, "username", None)
-    else:
-        entity_name = chat_title
-        entity_type = "группе"
-        entity_username = chat_username
-
-    return MessageNotificationContext(
-        effective_user_id=effective_user_id,
-        content_text=content_text,
-        chat_title=chat_title,
-        chat_username=chat_username,
-        is_channel_sender=is_channel_sender,
-        violator_name=violator_name,
-        violator_username=violator_username,
-        forward_source=forward_source,
-        message_link=message_link,
-        entity_name=entity_name,
-        entity_type=entity_type,
-        entity_username=entity_username,
-    )
 
 
 async def handle_spam(
@@ -454,7 +386,7 @@ async def notify_admins(
     if not message.from_user:
         return False
 
-    context = build_message_notification_context(message)
+    context = MessageNotificationContext.from_message(message)
     private_message = format_admin_notification_message(
         context, all_admins_delete, reason
     )
@@ -674,7 +606,7 @@ async def notify_spam_contacts_via_mcp(
     channel_users = (
         message_context_result.channel_users if message_context_result else None
     )
-    context = build_message_notification_context(message)
+    context = MessageNotificationContext.from_message(message)
     notification_msg = build_spam_block_notification_message(context, reason)
 
     # Check if this is a channel sender
