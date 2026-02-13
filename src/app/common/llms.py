@@ -30,6 +30,7 @@ MODELS = [
     # "meta-llama/llama-3.3-70b-instruct:free",
     # "upstage/solar-pro-3:free", Times out every time
     "arcee-ai/trinity-large-preview:free",
+    "stepfun/step-3.5-flash:free",
     #    "qwen/qwen3-next-80b-a3b-instruct:free", "Payment required"
 ]
 
