@@ -66,7 +66,7 @@ HIGH SPAM INDICATORS:
 - BIO: Links to Telegram bots, external sites, or "consultation" offers.
 - "GHOST" PROFILES: No bio and no username combined with generic messages.
 
-Spammers often use a "clean" name with a professional bio to build false authority before posting bait comments.""")
+Spammers often use a "clean" name with a professional bio to build false legitimacy before posting bait comments.""")
         return self
 
     def add_linked_channel_guidance(self) -> "SpamPromptBuilder":
@@ -177,7 +177,7 @@ A major spam indicator is the use of AI to generate comments that appear "clean"
 HIGH SPAM INDICATORS:
 1. ROBOTIC TONE:
    - Message is a generic rephrasing or summary of the "REPLY CONTEXT".
-   - Phrasing is overly polite, hollow, or reads like an automated summary (e.g., "This post discusses...", "Basically, the author says...").
+   - Phrasing is overly polite, hollow, or reads like an automated summary (e.g., "This post discusses...", "Basically, the writer says...").
    - Zero unique contribution, personal opinion, or genuine human insight.
 
 2. UNUSUAL EMOJI USAGE:
