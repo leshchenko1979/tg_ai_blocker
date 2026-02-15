@@ -11,6 +11,8 @@ Key Functions:
 import logging
 from typing import List, Optional, Tuple
 
+import logfire
+
 from ..types import SpamClassificationContext
 from .llm_client import call_llm_with_spam_classification
 from .prompt_builder import build_system_prompt, format_spam_request
@@ -18,6 +20,8 @@ from .prompt_builder import build_system_prompt, format_spam_request
 logger = logging.getLogger(__name__)
 
 
+@logfire.no_auto_trace
+@logfire.instrument(extract_args=True, record_return=True)
 async def is_spam(
     comment: str,
     admin_ids: Optional[List[int]] = None,
@@ -28,6 +32,11 @@ async def is_spam(
 
     This is the main entry point for spam classification that orchestrates
     the entire process from prompt building through LLM interaction to response parsing.
+
+    NOTE: The frunction is decorated with logfire.no_auto_trace and logfire.instrument
+    so that logfire keeps the context collected for this message. Without these decorators,
+    logfire_lookup.py:find_spam_classification_context() will not work. Also, changing
+    the function's name from is_spam to something else will break find_spam_classification_context.
 
     Args:
         comment: The message content to classify

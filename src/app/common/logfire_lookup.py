@@ -166,7 +166,7 @@ async def find_original_message(
     WHERE
         attributes->'update' IS NOT NULL
         AND (
-            attributes->'update'->'message' IS NOT NULL 
+            attributes->'update'->'message' IS NOT NULL
             OR attributes->'update'->'edited_message' IS NOT NULL
         )
         {user_id_condition}
@@ -325,87 +325,3 @@ async def find_spam_classification_context(
             extra={"logfire_context_lookup": "error", "error": str(e)},
         )
         return None
-
-
-async def get_weekly_stats(chat_ids: Sequence[int]) -> Dict[int, Dict[str, int]]:
-    """
-    Query Logfire for weekly statistics (last 7 days) for the given chat IDs.
-
-    Args:
-        chat_ids: List of chat IDs to get stats for
-
-    Returns:
-        Dict mapping chat_id to a dict with 'processed' and 'spam' counts.
-    """
-    if not chat_ids:
-        return {}
-
-    start_time = datetime.now() - timedelta(days=7)
-    chat_ids_str = ", ".join(f"'{chat_id}'" for chat_id in chat_ids)
-
-    # Tags indicating different outcomes
-    spam_tags = {"spam_auto_deleted", "spam_admins_notified"}
-    processed_tags = {
-        "message_user_approved",
-        "message_known_member_skipped",
-        "message_insufficient_credits",
-        "message_spam_check_failed",
-        "message_from_group_admin_skipped",
-        "message_from_channel_bot_skipped",
-        "message_from_admin_skipped",
-    } | spam_tags
-
-    sql = f"""
-    SELECT
-        (attributes->'update'->'message'->'chat'->>'id')::bigint as chat_id,
-        tags,
-        count(*) as count
-    FROM records
-    WHERE
-        start_timestamp >= '{start_time.isoformat()}'
-        AND (attributes->'update'->'message'->'chat'->>'id')::bigint IN ({chat_ids_str})
-    GROUP BY 1, 2
-    """
-
-    # Default structure
-    stats: Dict[int, Dict[str, int]] = {
-        chat_id: {"processed": 0, "spam": 0} for chat_id in chat_ids
-    }
-
-    try:
-        client = _get_client()
-        results = await asyncio.to_thread(
-            client.query_json_rows,
-            sql=sql,
-            min_timestamp=start_time,
-        )
-
-        if results and results.get("rows"):
-            for row in results["rows"]:
-                chat_id_val = row.get("chat_id")
-                if chat_id_val is None:
-                    continue
-                chat_id = int(chat_id_val)
-
-                tags = row.get("tags") or []
-                count = int(row.get("count", 0))
-
-                if chat_id not in stats:
-                    continue
-
-                # Check tags
-                is_spam = any(t in spam_tags for t in tags)
-                is_processed = any(t in processed_tags for t in tags)
-
-                if is_spam:
-                    stats[chat_id]["spam"] += count
-
-                if is_processed:
-                    stats[chat_id]["processed"] += count
-
-        return stats
-
-    except Exception as e:
-        logger.warning(f"Failed to get weekly stats from Logfire: {e}", exc_info=True)
-        # Return empty stats (zeros) on failure
-        return stats
