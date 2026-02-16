@@ -156,7 +156,6 @@ ERROR_CHAT_ID_INVALID = "chat id invalid"
 ERROR_PEER_ID_INVALID = "peer id invalid"
 
 # Context source types
-CONTEXT_SOURCE_LINKED_CHANNEL = "linked_channel"
 CONTEXT_SOURCE_DISCUSSION_GROUP = "discussion_group"
 
 
@@ -374,12 +373,9 @@ async def establish_context_via_thread_reading(
     """
     Establish peer resolution context by reading messages from a discussion thread.
 
-    This function is specifically designed for discussion groups linked to channels.
-    It reads thread replies from either the linked public channel or the discussion
-    group itself to establish MTProto peer context for user resolution.
-
-    For discussion threads, reading from the linked channel (public) is preferred
-    over the discussion group (potentially private) to establish peer context.
+    For discussion groups linked to channels, GetReplies always works on the
+    discussion group—message_thread_id is the thread ID there. Reading from the
+    linked channel fails for forwarded posts (msg_id mismatch).
 
     Args:
         context: PeerResolutionContext object containing all resolution parameters
@@ -389,23 +385,10 @@ async def establish_context_via_thread_reading(
     """
     client = get_mtproto_client()
 
-    # Determine reading strategy based on main channel availability
-    if context.main_channel_id:
-        # Use the main channel (public) for reading thread replies
-        target_chat_id = context.main_channel_id
-        target_chat_username = (
-            context.main_channel_username
-        )  # Use main channel username if available
-        target_message_id = (
-            context.original_channel_post_id or context.reply_to_message_id
-        )
-        context_source = CONTEXT_SOURCE_LINKED_CHANNEL
-    else:
-        # Fallback to discussion group (for backward compatibility)
-        target_chat_id = context.chat_id
-        target_chat_username = context.chat_username
-        target_message_id = context.reply_to_message_id
-        context_source = CONTEXT_SOURCE_DISCUSSION_GROUP
+    target_chat_id = context.chat_id
+    target_chat_username = context.chat_username
+    target_message_id = context.message_thread_id or context.reply_to_message_id
+    context_source = CONTEXT_SOURCE_DISCUSSION_GROUP
 
     chat_identifier = get_mtproto_chat_identifier(target_chat_id, target_chat_username)
     logging_context = _create_chat_context(
@@ -433,7 +416,7 @@ async def establish_context_via_thread_reading(
             "messages.getReplies",
             params={
                 "peer": chat_identifier,
-                "msg_id": target_message_id,  # The message being replied to (channel post)
+                "msg_id": target_message_id,  # Thread starter in discussion group
                 "offset_id": DEFAULT_OFFSET,
                 "offset_date": DEFAULT_OFFSET,
                 "add_offset": DEFAULT_OFFSET,
