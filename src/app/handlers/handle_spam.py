@@ -41,9 +41,18 @@ async def handle_spam(
     admin_ids: list[int],
     reason: str | None = None,
     message_context_result: Optional["MessageContextResult"] = None,
+    skip_auto_delete: bool = False,
 ) -> str:
     """
-    Обработка спам-сообщений
+    Обработка спам-сообщений.
+
+    Args:
+        message: Спам-сообщение
+        admin_ids: IDs администраторов
+        reason: Причина классификации как спам
+        message_context_result: Контекст сообщения (для "Не спам" flow)
+        skip_auto_delete: Если True, не удалять/банить автоматически (низкая уверенность).
+                          Админы всегда получают кнопки «Удалить» и «Не спам».
     """
     try:
         if not message.from_user:
@@ -52,17 +61,22 @@ async def handle_spam(
 
         # Проверяем настройки автоудаления у админов
         all_admins_delete = await check_admin_delete_preferences(admin_ids)
+        effective_all_admins_delete = all_admins_delete and not skip_auto_delete
 
         # Уведомление администраторов...
         notification_sent = await notify_admins(
-            message, all_admins_delete, admin_ids, reason, message_context_result
+            message,
+            effective_all_admins_delete,
+            admin_ids,
+            reason,
+            message_context_result,
         )
 
         # Отправка MCP уведомлений спамеру/админам канала спамера при обнаружении канала
         if message_context_result and message_context_result.linked_channel_found:
             await notify_spam_contacts_via_mcp(message, reason, message_context_result)
 
-        if all_admins_delete:
+        if effective_all_admins_delete:
             effective_user_id = determine_effective_user_id(message)
             if effective_user_id is None:
                 logger.warning("Message without effective user info, skipping ban")

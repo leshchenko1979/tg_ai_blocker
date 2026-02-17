@@ -295,8 +295,8 @@
                         <img src="assets/favicon.png" alt="Shield" class="w-8 h-8 rounded-full">
                     </div>
                     <h3 class="text-xl font-bold mb-3">Умный бан</h3>
-                    <p class="text-slate-400">При обнаружении спама бот мгновенно удаляет сообщение и банит нарушителя,
-                        предотвращая повторные атаки.</p>
+                    <p class="text-slate-400">При высокой уверенности (≥90%) бот сразу удаляет спам. В пограничных
+                        случаях уведомляет вас и ждёт подтверждения кнопками «Удалить» или «Не спам».</p>
                 </div>
 
                 <div class="feature-item">
@@ -351,7 +351,9 @@
                             <div>
                                 <h4 class="font-bold mb-1">Обратная связь</h4>
                                 <p class="text-slate-400 text-sm">Если бот ошибся, кнопка «Не спам» не только разбанит
-                                    пользователя, но и поможет ИИ не совершать таких ошибок в будущем.</p>
+                                    пользователя, но и поможет ИИ не совершать таких ошибок в будущем. В спорных
+                                    случаях бот не удаляет сообщение сам, а присылает уведомление с кнопками
+                                    «Удалить» и «Не спам».</p>
                             </div>
                         </li>
                     </ul>
@@ -445,6 +447,21 @@
                 <!-- FAQ Item 4 -->
                 <div class="faq-item">
                     <button class="faq-button" onclick="toggleFaq(this)">
+                        <span>Что происходит, когда ИИ не уверен на 100%?</span>
+                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div class="faq-content">
+                        <p>В пограничных случаях (уверенность 50–90%) бот не удаляет сообщение автоматически. Вы
+                            получите уведомление с кнопками «Удалить» и «Не спам» — решение остаётся за вами. При
+                            высокой уверенности (≥90%) автоудаление работает по вашим настройкам.</p>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 5 -->
+                <div class="faq-item">
+                    <button class="faq-button" onclick="toggleFaq(this)">
                         <span>Сколько стоит использование?</span>
                         <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -485,6 +502,13 @@
         <div class="container mx-auto max-w-5xl px-4">
             <h2 class="section-title">Новости и гайды</h2>
             <div class="space-y-6">
+                <a href="https://t.me/ai_antispam/41" class="news-card">
+                    <div class="text-blue-500 font-bold text-sm mb-2">17 февраля 2026</div>
+                    <h3 class="text-xl font-bold mb-2">Вы контролируете пограничные случаи</h3>
+                    <p class="text-slate-400">Теперь при низкой уверенности ИИ (50–90%) бот не удаляет сообщение сам —
+                        вы получаете уведомление с кнопками «Удалить» и «Не спам». Меньше ложных срабатываний.</p>
+                </a>
+
                 <a href="https://t.me/ai_antispam/36" class="news-card">
                     <div class="text-blue-500 font-bold text-sm mb-2">09 декабря 2025</div>
                     <h3 class="text-xl font-bold mb-2">Проверка возраста аккаунта</h3>

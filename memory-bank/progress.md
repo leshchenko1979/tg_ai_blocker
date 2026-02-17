@@ -14,6 +14,7 @@
 - **Robust Permission Handling**:
   - Message deletion permission checks.
   - **User ban permission checks** (New: notifies admins if ban fails).
+- **Low-Confidence Spam Admin Confirmation**: ✅ **Complete** — When LLM classifies as spam but score < 90%, admins receive notification with "Удалить"/"Не спам" buttons; no auto-delete/ban. High-confidence (≥90%) keeps prior behavior. Config: `spam.high_confidence_threshold`. Unit tests added.
 - Admin Notifications:
   - Private chat priority
   - Group chat fallback
@@ -24,13 +25,13 @@
 - Linked Channel detection (Username-first resolution)
 - **Enhanced Channel Content Analysis**: ✅ **Tested & Working** - Now fetches and analyzes text content from recent posts, not just metadata (successfully detects porn/spam channels by content)
 - **Spam Example Curation**: ✅ **Database Optimized** - Promoted 15 high-quality patterns to common, deduplicated 14 redundant entries from the baseline, and cleaned up top 2 admins. Baseline now provides high-quality starting point with balanced scores.
-- **Testing Infrastructure**: ✅ **Complete** - Proper separation of unit tests (93) from integration tests. pytest.ini addopts correctly excludes integration tests from deployment. All integration tests properly marked with `@pytest.mark.integration`.
+- **Testing Infrastructure**: ✅ **Complete** - Proper separation of unit tests (129) from integration tests. Pipeline and handle_spam tests cover score thresholds and skip_auto_delete flow. pytest.ini addopts correctly excludes integration tests from deployment. All integration tests properly marked with `@pytest.mark.integration`.
 - **Documentation**: ✅ **Updated PRD** - `PRD.md` synchronized with codebase and memory bank. ✅ **Spam Tactics File** - Created `memory-bank/spamTactics.md` to track evolving spam patterns and examples, supported by a new Cursor rule.
 - **MTProto Optimization**: ✅ **Peer Resolution Optimized** - Eliminated 90%+ failing numeric ID calls by requiring username-only resolution.
 - **Logfire Message Lookup**: ✅ **Improved** - Added support for recovering edited messages and implemented robust text matching using `LIKE` patterns that bypass hidden characters (e.g., zero-width spaces/word joiners).
 - Hidden User ID Recovery
 - **Edited Message Handling**: ✅ **Added Handler for Edited Messages** - Edited messages now return "edited_message_ignored" tag instead of generic "unhandled" for better Logfire observability. Handler does nothing else - edited messages are not moderated.
-    - **Landing Page**: ✅ **Complete** - Professional Russian landing page with Tailwind CSS, real spam examples, FAQ, strong CTA, optimized styling, improved accessibility, and automated CI/CD deployment to GitHub Pages. Explicitly emphasizes Telegram spam protection.
+    - **Landing Page**: ✅ **Complete** - Professional Russian landing page with Tailwind CSS, real spam examples, FAQ, strong CTA, optimized styling, improved accessibility, and automated CI/CD deployment to GitHub Pages. Updated with low-confidence spam feature (Умный бан text, Learning section, FAQ item, news card).
 - **Handler Return Values**: ✅ **Fixed** - All Telegram update handlers now return descriptive strings instead of None, preventing "_ignored" tags in logfire traces. Fixed payment handlers (`handle_buy_command`, `handle_buy_stars_callback`, `process_pre_checkout_query`, `process_successful_payment`) and command handlers (`cmd_ref`).
 - **Logfire Instrumentation Pattern**: ✅ **Complete** - Implemented approved system pattern: auto-tracing for modules (`app.database`, `app.handlers`, `app.spam`) with `@logfire.no_auto_trace` decorators on manually instrumented functions to prevent span duplication while maintaining granular monitoring.
 - **Enhanced Spam Examples Context Storage**: ✅ **Complete** - Added `stories_context`, `reply_context`, `account_age_context` fields to spam examples database with three-state differentiation (NULL for historical, '[EMPTY]' for checked-but-empty, content for found). Logfire trace recovery enables context extraction from forwarded messages. Examples now include full classification context for improved LLM training effectiveness.

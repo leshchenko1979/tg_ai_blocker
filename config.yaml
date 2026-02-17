@@ -1,8 +1,16 @@
+# This file is a port of the bot's prompt for private messages.
+# It should not contain any sensitive information.
+
 pricing:
   initial_credits: 100  # Начальные кредиты для новых пользователей
   approve_price: 1      # Стоимость одобрения нового участника
   delete_price: 1       # Стоимость удаления спама
   skip_price: 0         # Стоимость пропуска (всегда 0)
+
+# Threshold for auto-delete: spam with score >= this is high-confidence (may auto-delete).
+# Spam with 50 < score < threshold is low-confidence (notify only, admin confirms).
+spam:
+  high_confidence_threshold: 90
 
 system:
   admin_chat_id: 133526395  # ID администратора для уведомлений

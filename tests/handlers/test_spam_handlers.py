@@ -2,7 +2,10 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.exceptions import TelegramBadRequest
 
-from src.app.handlers.handle_spam import handle_spam_message_deletion
+from src.app.handlers.handle_spam import (
+    handle_spam,
+    handle_spam_message_deletion,
+)
 from src.app.spam.message_context import collect_message_context
 from src.app.types import (
     ContextStatus,
@@ -228,3 +231,85 @@ class TestSpamDeletion:
             assert context.linked_channel.status == ContextStatus.FOUND
             assert context.stories is None  # No stories collection for channels
             assert context.reply is None  # No reply in this test
+
+
+class TestHandleSpamSkipAutoDelete:
+    """Test handle_spam with skip_auto_delete (low-confidence spam flow)."""
+
+    @pytest.fixture
+    def mock_message(self):
+        """Create a mock message for testing."""
+        message = MagicMock()
+        message.message_id = 12345
+        message.chat.id = -1001234567890
+        message.chat.title = "Test Group"
+
+        user = MagicMock()
+        user.id = 67890
+        user.full_name = "Test User"
+        user.username = "testuser"
+        message.from_user = user
+        message.sender_chat = None
+
+        return message
+
+    @pytest.mark.asyncio
+    async def test_skip_auto_delete_no_deletion_no_ban(self, mock_message):
+        """With skip_auto_delete=True, should not delete message or ban user."""
+        with (
+            patch(
+                "src.app.handlers.handle_spam.check_admin_delete_preferences",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "src.app.handlers.handle_spam.notify_admins",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "src.app.handlers.handle_spam.handle_spam_message_deletion",
+                new_callable=AsyncMock,
+            ) as mock_delete,
+            patch(
+                "src.app.handlers.handle_spam.ban_user_for_spam",
+                new_callable=AsyncMock,
+            ) as mock_ban,
+        ):
+            result = await handle_spam(
+                mock_message,
+                [123],
+                reason="test",
+                skip_auto_delete=True,
+            )
+
+            assert result == "spam_admins_notified"
+            mock_delete.assert_not_called()
+            mock_ban.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skip_auto_delete_notify_with_both_buttons(self, mock_message):
+        """With skip_auto_delete=True, notify_admins receives all_admins_delete=False."""
+        with (
+            patch(
+                "src.app.handlers.handle_spam.check_admin_delete_preferences",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "src.app.handlers.handle_spam.notify_admins",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_notify,
+        ):
+            await handle_spam(
+                mock_message,
+                [123],
+                reason="test",
+                skip_auto_delete=True,
+            )
+
+            mock_notify.assert_called_once()
+            call_args = mock_notify.call_args[0]
+            # all_admins_delete is the second positional arg (index 1)
+            assert call_args[1] is False  # effective_all_admins_delete

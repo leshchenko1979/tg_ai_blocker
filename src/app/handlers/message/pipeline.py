@@ -14,7 +14,7 @@ from ...common.trace_context import get_root_span
 from ...database import APPROVE_PRICE, DELETE_PRICE, add_member
 from ..handle_spam import handle_spam
 from ..try_deduct_credits import try_deduct_credits
-from ...common.utils import determine_effective_user_id
+from ...common.utils import determine_effective_user_id, load_config
 from .validation import (
     check_skip_channel_bot_message,
     validate_group_and_check_early_exits,
@@ -137,8 +137,16 @@ async def process_spam_or_approve(
         return "message_no_user_info"
 
     if spam_score > 50:
+        threshold = load_config().get("spam", {}).get("high_confidence_threshold", 90)
+        skip_auto_delete = spam_score < threshold
         if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
-            return await handle_spam(message, admin_ids, reason, message_context_result)
+            return await handle_spam(
+                message,
+                admin_ids,
+                reason,
+                message_context_result,
+                skip_auto_delete=skip_auto_delete,
+            )
 
     elif await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
         await add_member(chat_id, user_id)
