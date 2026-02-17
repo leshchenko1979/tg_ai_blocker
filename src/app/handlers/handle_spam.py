@@ -31,65 +31,9 @@ from ..common.utils import (
 from ..database import get_admins_map
 from ..database.group_operations import remove_member_from_group
 from ..database.spam_examples import insert_pending_spam_example
-from ..types import ContextStatus, MessageContextResult, MessageNotificationContext
+from ..types import MessageContextResult, MessageNotificationContext
 
 logger = logging.getLogger(__name__)
-
-
-def _payload_to_row_values(payload: dict) -> dict:
-    """Extract spam_examples row kwargs from payload dict."""
-    return {
-        "text": payload.get("text") or "[MEDIA_MESSAGE]",
-        "name": payload.get("name"),
-        "bio": payload.get("bio"),
-        "linked_channel_fragment": payload.get("linked_channel_fragment"),
-        "stories_context": payload.get("stories_context"),
-        "reply_context": payload.get("reply_context"),
-        "account_age_context": payload.get("account_age_context"),
-    }
-
-
-def build_spam_example_payload(
-    message_context_result: Optional["MessageContextResult"],
-    effective_user_id: Optional[int],
-) -> dict:
-    """Build payload dict for insert_pending_spam_example from MessageContextResult."""
-    if not message_context_result:
-        return {"text": "[MEDIA_MESSAGE]", "effective_user_id": effective_user_id}
-
-    ctx = message_context_result.context
-    payload = {
-        "text": message_context_result.message_text or "[MEDIA_MESSAGE]",
-        "name": ctx.name if ctx else None,
-        "bio": ctx.bio,
-        "effective_user_id": effective_user_id,
-    }
-
-    if ctx:
-        if (
-            ctx.linked_channel
-            and ctx.linked_channel.status == ContextStatus.FOUND
-            and ctx.linked_channel.content
-        ):
-            payload["linked_channel_fragment"] = (
-                ctx.linked_channel.content.to_prompt_fragment()
-            )
-        if ctx.stories:
-            payload["stories_context"] = (
-                ctx.stories.content
-                if ctx.stories.status == ContextStatus.FOUND
-                else "[EMPTY]"
-            )
-        payload["reply_context"] = ctx.reply
-        if ctx.account_age:
-            payload["account_age_context"] = (
-                ctx.account_age.content.to_prompt_fragment()
-                if ctx.account_age.status == ContextStatus.FOUND
-                and ctx.account_age.content
-                else "[EMPTY]"
-            )
-
-    return payload
 
 
 async def handle_spam(
@@ -393,15 +337,39 @@ async def notify_admins(
 
     pending_id = None
     if context.effective_user_id is not None:
-        payload = build_spam_example_payload(
-            message_context_result, context.effective_user_id
-        )
-        row_kwargs = _payload_to_row_values(payload)
+        text = "[MEDIA_MESSAGE]"
+        name = None
+        bio = None
+        linked_channel_fragment = None
+        stories_context = None
+        reply_context = None
+        account_age_context = None
+        if message_context_result:
+            ctx = message_context_result.context
+            text = message_context_result.message_text or "[MEDIA_MESSAGE]"
+            name = ctx.name if ctx else None
+            bio = ctx.bio if ctx else None
+            if ctx:
+                if ctx.linked_channel:
+                    frag = ctx.linked_channel.get_fragment()
+                    if frag:
+                        linked_channel_fragment = frag
+                if ctx.stories:
+                    stories_context = ctx.stories.get_fragment("[EMPTY]")
+                reply_context = ctx.reply
+                if ctx.account_age:
+                    account_age_context = ctx.account_age.get_fragment("[EMPTY]")
         pending_id = await insert_pending_spam_example(
             message.chat.id,
             message.message_id,
             context.effective_user_id,
-            **row_kwargs,
+            text=text,
+            name=name,
+            bio=bio,
+            linked_channel_fragment=linked_channel_fragment,
+            stories_context=stories_context,
+            reply_context=reply_context,
+            account_age_context=account_age_context,
         )
 
     keyboard = create_admin_notification_keyboard(

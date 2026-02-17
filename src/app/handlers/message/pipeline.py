@@ -8,7 +8,8 @@ the entire message processing flow from validation to spam analysis to result pr
 import logging
 
 from aiogram import types
-from opentelemetry.trace import get_current_span
+
+from ...common.trace_context import get_root_span
 
 from ...database import APPROVE_PRICE, DELETE_PRICE, add_member
 from ..handle_spam import handle_spam
@@ -91,53 +92,48 @@ async def handle_moderated_message(message: types.Message) -> str:
             logger.warning("Failed to get spam score")
             return "message_spam_check_failed"
 
-        # Set LLM response and context attributes on the root span
-        current_span = get_current_span()
-        if current_span:
-            current_span.set_attribute("llm_score", spam_score)
-            current_span.set_attribute("llm_confidence", confidence)
-            current_span.set_attribute("llm_reason", reason)
+        # Set LLM response and context attributes on the root span for trace-level visibility
+        target_span = get_root_span()
+        if target_span:
+            target_span.set_attribute("llm_score", spam_score)
+            target_span.set_attribute("llm_confidence", confidence)
+            target_span.set_attribute("llm_reason", reason)
 
             # Set user context attributes
             if message_context_result.context.bio:
-                current_span.set_attribute(
+                target_span.set_attribute(
                     "user_bio", message_context_result.context.bio
                 )
 
             if message_context_result.context.name:
-                current_span.set_attribute(
+                target_span.set_attribute(
                     "user_name", message_context_result.context.name
                 )
 
             # Set linked channel info if available
-            if message_context_result.context.linked_channel:
-                if (
-                    message_context_result.context.linked_channel.status == "found"
-                    and message_context_result.context.linked_channel.content
-                ):
-                    channel_info = message_context_result.context.linked_channel.content.to_prompt_fragment()
-                    current_span.set_attribute("linked_channel_info", channel_info)
+            linked = message_context_result.context.linked_channel
+            if linked:
+                channel_info = linked.get_fragment()
+                if channel_info:
+                    target_span.set_attribute("linked_channel_info", channel_info)
 
             # Set stories info if available
-            if message_context_result.context.stories:
-                if message_context_result.context.stories.status == "found":
-                    current_span.set_attribute(
-                        "user_stories",
-                        message_context_result.context.stories.content or "",
-                    )
+            stories = message_context_result.context.stories
+            if stories:
+                stories_info = stories.get_fragment()
+                if stories_info is not None:
+                    target_span.set_attribute("user_stories", stories_info or "")
 
             # Set account age info if available
-            if message_context_result.context.account_age:
-                if (
-                    message_context_result.context.account_age.status == "found"
-                    and message_context_result.context.account_age.content
-                ):
-                    age_info = message_context_result.context.account_age.content.to_prompt_fragment()
-                    current_span.set_attribute("account_age_info", age_info)
+            account_age = message_context_result.context.account_age
+            if account_age:
+                age_info = account_age.get_fragment()
+                if age_info:
+                    target_span.set_attribute("account_age_info", age_info)
 
             # Set reply context if available
             if message_context_result.context.reply:
-                current_span.set_attribute(
+                target_span.set_attribute(
                     "reply_context", message_context_result.context.reply
                 )
 

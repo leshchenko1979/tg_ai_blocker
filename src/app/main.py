@@ -28,6 +28,7 @@ from aiohttp import web
 from .handlers import *
 
 from .common.bot import LESHCHENKO_CHAT_ID, bot
+from .common.trace_context import set_root_span
 from .common.llms import LocationNotSupported, RateLimitExceeded
 from .common.utils import get_dotted_path, remove_lines_to_fit_len
 from .database.postgres_connection import close_pool
@@ -71,6 +72,7 @@ async def handle_update(request: web.Request) -> web.Response:
     start_time = time.time()
 
     with logfire.span(extract_chat_or_user(json), update=json) as span:
+        set_root_span(span)
         try:
             # Wrap the update handling in a timeout
             result = await asyncio.wait_for(

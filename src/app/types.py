@@ -29,6 +29,19 @@ class ContextResult(Generic[T]):
     content: Optional[T] = None
     error: Optional[str] = None
 
+    def get_fragment(self, not_found_default: Optional[str] = None) -> Optional[str]:
+        """Extract content as prompt fragment string.
+
+        Uses to_prompt_fragment if available, else str(content).
+        Returns not_found_default when status != FOUND or content is None.
+        """
+        if self.status != ContextStatus.FOUND or self.content is None:
+            return not_found_default
+        method = getattr(self.content, "to_prompt_fragment", None)
+        if callable(method):
+            return str(method())
+        return str(self.content)
+
 
 @dataclass(slots=True)
 class LinkedChannelSummary:
