@@ -94,48 +94,10 @@ async def handle_moderated_message(message: types.Message) -> str:
 
         # Set LLM response and context attributes on the root span for trace-level visibility
         target_span = get_root_span()
-        if target_span:
-            target_span.set_attribute("llm_score", spam_score)
-            target_span.set_attribute("llm_confidence", confidence)
-            target_span.set_attribute("llm_reason", reason)
-
-            # Set user context attributes
-            if message_context_result.context.bio:
-                target_span.set_attribute(
-                    "user_bio", message_context_result.context.bio
-                )
-
-            if message_context_result.context.name:
-                target_span.set_attribute(
-                    "user_name", message_context_result.context.name
-                )
-
-            # Set linked channel info if available
-            linked = message_context_result.context.linked_channel
-            if linked:
-                channel_info = linked.get_fragment()
-                if channel_info:
-                    target_span.set_attribute("linked_channel_info", channel_info)
-
-            # Set stories info if available
-            stories = message_context_result.context.stories
-            if stories:
-                stories_info = stories.get_fragment()
-                if stories_info is not None:
-                    target_span.set_attribute("user_stories", stories_info or "")
-
-            # Set account age info if available
-            account_age = message_context_result.context.account_age
-            if account_age:
-                age_info = account_age.get_fragment()
-                if age_info:
-                    target_span.set_attribute("account_age_info", age_info)
-
-            # Set reply context if available
-            if message_context_result.context.reply:
-                target_span.set_attribute(
-                    "reply_context", message_context_result.context.reply
-                )
+        target_span.set_attribute("llm_score", spam_score)
+        target_span.set_attribute("llm_confidence", confidence)
+        target_span.set_attribute("llm_reason", reason)
+        target_span.set_attribute("context", message_context_result.context)  # type: ignore[arg-type]
 
         # Process spam or approve user
         return await process_spam_or_approve(
