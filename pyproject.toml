@@ -15,7 +15,7 @@ dependencies = [
     "aiogram>=3.25.0",
     "pyyaml",
     "asyncpg",
-    "logfire",
+    "logfire>=4.24.0",
     "httpx", # required for logfire
     "tenacity",
     "pydantic",
