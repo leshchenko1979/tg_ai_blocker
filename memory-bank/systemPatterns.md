@@ -1,6 +1,6 @@
 ## System Patterns
 
-- **Runtime Architecture**: `aiohttp` web application exposes Telegram webhook endpoint, forwards updates to a shared `aiogram` dispatcher hosted in `src/app/handlers`. Execution wrapped with `logfire` spans for observability and guarded by timeout/error helpers. Logfire metrics (histograms and gauges) initialized once at module level to ensure proper recording. Handler return values determine logfire span tags - handlers must return descriptive strings to avoid "_ignored" tagging.
+- **Runtime Architecture**: `aiohttp` web application exposes Telegram webhook at `/process-tg-updates` (POST only) and health at `/health`. Traefik routes only these paths; other requests return 404 at edge. Updates forwarded to shared `aiogram` dispatcher hosted in `src/app/handlers`. Execution wrapped with `logfire` spans for observability and guarded by timeout/error helpers. Logfire metrics (histograms and gauges) initialized once at module level to ensure proper recording. Handler return values determine logfire span tags - handlers must return descriptive strings to avoid "_ignored" tagging.
 - **Bot Composition**:
   - `src/app/common` encapsulates integrations: Telegram bot client, LLM providers, notifications, and shared utilities.
 - `src/app/spam` contains spam detection and context collection: classifier logic, user profile analysis, story processing, and message context extraction. Shared dataclasses and type definitions live in `src/app/types.py`.

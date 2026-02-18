@@ -52,8 +52,7 @@ async def healthcheck(_: web.Request) -> web.Response:
     return web.Response(text="ok")
 
 
-@routes.post("/")
-@routes.get("/")
+@routes.post("/process-tg-updates")
 async def handle_update(request: web.Request) -> web.Response:
     """Handle incoming Telegram update"""
     if not await request.read():
@@ -149,7 +148,7 @@ async def _on_startup_register_logging(app: web.Application) -> None:
 async def _on_startup_setup_webhook(app: web.Application) -> None:
     """Set up Telegram webhook on startup"""
     try:
-        webhook_url = "https://tg-ai-blocker.redevest.ru/"
+        webhook_url = "https://tg-ai-blocker.redevest.ru/process-tg-updates"
         logger.info(f"Setting webhook URL to: {webhook_url}")
         await bot.set_webhook(webhook_url)
         logger.info("Webhook setup completed successfully")

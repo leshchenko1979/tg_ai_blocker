@@ -1,6 +1,6 @@
 ## Active Context
 
-- **Current Focus**: Low-confidence spam admin confirmation — completed. Spam with score 50–90% now triggers notification-only flow (admins get "Удалить"/"Не спам" buttons) instead of auto-delete.
+- **Current Focus**: Obscure webhook path change ready for deploy. Pending: promotional channel post (draft in docs/channel_post_low_confidence_spam.md), update landing news card after publish.
 - **Key Decisions**:
   - **Cloudflare Primary Provider**: All bot operations (spam classification, private chat) now use Cloudflare AI Gateway exclusively.
   - **Spam Tactics File**: Created a dedicated `memory-bank/spamTactics.md` to track evolving spam patterns and examples.
@@ -24,4 +24,5 @@
 - **HTML Hyperlink Preservation**: ✅ **Fixed** - Modified `sanitize_llm_html()` to preserve `<a>` tags in private chat responses, ensuring hyperlinks from LLM-generated content are now clickable instead of being stripped.
 - **MTProto Spam Notifications**: ✅ **Complete** - Added MTProto-based notifications to human spammers with linked channels and spamming channel administrators when spam is blocked and a channel is discovered during context collection. Fixed MCP tool call validation (chat_id as string, lowercase parse_mode) and implemented SSE (Server-Sent Events) support in `McpHttpClient` to handle `text/event-stream` responses from the bridge. Uses existing `channels.getFullChannel` response to extract human admin users without additional API calls. Notifications promote the bot by increasing reach to channel promoters.
 - **Linked Channel & Display Utils**: ✅ **Complete** - Linked channel collected from profile (linked) > bio > message (first mention only). `LinkedChannelSummary` has `channel_source` ("linked"|"bio"|"message") and `channel_id`. DRY display util `format_chat_or_channel_display(title, username)` used everywhere for "Title (@username)". New-user /start uses Bot API `get_chat()` for safe linked channel (profile + bio) collection before MTProto fallback, appending offer to protect that channel.
+- **Obscure Webhook Path**: ✅ **Complete** - Webhook moved from `/` to `/process-tg-updates`. Traefik rule restricted to `Path(/process-tg-updates) || Path(/health)`. GET removed from webhook handler; only POST accepted. Scanner bots probing `/`, `/?author=1`, and WordPress paths now hit 404 at Traefik before reaching the app. Webhook URL set on startup via `bot.set_webhook()`.
 - **Spam Examples Pending Flow**: ✅ **Complete** - Implemented unified `spam_examples` with `confirmed` flag. At notify, full payload stored via `insert_pending_spam_example`; callback data passes only DB id. `confirm_pending_spam_example` returns row for unban/add_member; no fallback if not found. Migration: `--add-pending-spam-columns`.

@@ -19,7 +19,7 @@ services:
       - ${LOGS_DIR:-/home/$${REMOTE_USER}/logs}:/app/logs
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.tg-ai-blocker.rule=Host(`tg-ai-blocker.redevest.ru`) && (Path(`/`) || Path(`/health`))"
+      - "traefik.http.routers.tg-ai-blocker.rule=Host(`tg-ai-blocker.redevest.ru`) && (Path(`/process-tg-updates`) || Path(`/health`))"
       - "traefik.http.routers.tg-ai-blocker.entryPoints=websecure"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health').read() == b'ok' else 1)\""]
