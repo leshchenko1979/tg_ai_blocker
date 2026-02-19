@@ -153,13 +153,31 @@ async def collect_user_context(
             )
 
         # Extract Linked Channel: preference profile > bio > message
+        # MTProto ID-Query Prohibition: never call collect_channel_summary with ID only
         personal_channel_id = full_user.get("personal_channel_id")
         if personal_channel_id:
             channel_id = int(personal_channel_id)
-            channel_result = await collect_channel_summary_by_id(
-                channel_id, actual_user_id, channel_source="linked"
-            )
-            linked_channel_result = channel_result
+            # Resolve username via Bot API before MTProto; skip if inaccessible
+            linked_username: Optional[str] = None
+            try:
+                chat = await bot.get_chat(channel_id)
+                linked_username = getattr(chat, "username", None)
+            except Exception as e:
+                logger.debug(
+                    "Could not resolve personal channel for username (skipping MTProto): %s",
+                    e,
+                    extra={"user_id": actual_user_id, "channel_id": channel_id},
+                )
+            if linked_username is not None:
+                channel_result = await collect_channel_summary_by_id(
+                    channel_id,
+                    actual_user_id,
+                    username=linked_username,
+                    channel_source="linked",
+                )
+                linked_channel_result = channel_result
+            else:
+                linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
         else:
             candidate_username = None
             source = None

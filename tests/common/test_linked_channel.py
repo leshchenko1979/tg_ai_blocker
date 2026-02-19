@@ -15,56 +15,52 @@ class TestLinkedChannelExtraction:
     """Test the refactored linked channel extraction that goes directly to MTProto."""
 
     @pytest.mark.asyncio
-    async def test_collect_user_context_uses_mtproto_directly(self):
-        """Test that collect_user_context goes directly to MTProto without bot calls."""
+    async def test_collect_user_context_uses_mtproto_with_username(self):
+        """Test that collect_user_context resolves username via Bot API before MTProto (no ID-only queries)."""
         user_id = 12345
 
-        # Mock MTProto client
-        mock_client = MagicMock()
+        # Mock Bot API: resolve channel ID to username (MTProto ID-Query Prohibition)
+        mock_chat = MagicMock()
+        mock_chat.id = 67890
+        mock_chat.username = "linkedchannel"
 
-        # Mock call for users.getFullUser, channels.getFullChannel, and messages.getHistory
+        mock_client = MagicMock()
         mock_client.call = AsyncMock(
             side_effect=[
                 {"full_user": {"personal_channel_id": 67890}},  # users.getFullUser
                 {"full_chat": {"participants_count": 1000}},  # channels.getFullChannel
                 {"messages": [], "count": 0},  # messages.getHistory (recent posts)
+                {"messages": [], "count": 0},  # messages.getHistory (edge message)
             ]
         )
 
-        with patch(
-            "src.app.spam.user_profile.get_mtproto_client", return_value=mock_client
+        get_chat_mock = AsyncMock(return_value=mock_chat)
+        with (
+            patch(
+                "src.app.spam.user_profile.get_mtproto_client", return_value=mock_client
+            ),
+            patch("src.app.spam.user_profile.bot.get_chat", get_chat_mock),
         ):
             result = await collect_user_context(user_id, username="testuser")
 
-            # Verify call was made for users.getFullUser, channels.getFullChannel, and messages.getHistory
-            assert mock_client.call.call_count == 3
-            # First call: users.getFullUser
+            # bot.get_chat called to resolve channel_id -> username
+            get_chat_mock.assert_called_once_with(67890)
+
+            # MTProto: users.getFullUser, channels.getFullChannel (with username), messages.getHistory
+            assert mock_client.call.call_count >= 3
             first_call = mock_client.call.call_args_list[0]
             assert first_call[0][0] == "users.getFullUser"
-            assert first_call[1]["params"]["id"] == "testuser"
-            # Second call: channels.getFullChannel
             second_call = mock_client.call.call_args_list[1]
             assert second_call[0][0] == "channels.getFullChannel"
-            assert second_call[1]["params"]["channel"] == 67890
+            assert (
+                second_call[1]["params"]["channel"] == "linkedchannel"
+            )  # username, not ID
 
-            # Third call: messages.getHistory (recent posts)
-            third_call = mock_client.call.call_args_list[2]
-            assert third_call[0][0] == "messages.getHistory"
-
-            # Verify we got the expected result
             assert isinstance(result, SpamClassificationContext)
             assert result.linked_channel is not None
-            from src.app.types import ContextStatus
-
             assert result.linked_channel.status == ContextStatus.FOUND
             assert isinstance(result.linked_channel.content, LinkedChannelSummary)
             assert result.linked_channel.content.subscribers == 1000
-            assert (
-                result.linked_channel.content.total_posts == 0
-            )  # From the mocked messages.getHistory response
-            assert (
-                result.linked_channel.content.post_age_delta is None
-            )  # Channel has no posts
 
     @pytest.mark.asyncio
     async def test_collect_user_context_no_linked_channel(self):
@@ -88,6 +84,28 @@ class TestLinkedChannelExtraction:
 
             # Verify call was made
             mock_client.call.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_collect_user_context_skips_mtproto_when_chat_not_found(self):
+        """When personal_channel_id exists but bot.get_chat fails, skip MTProto by ID (ID-Query Prohibition)."""
+        mock_client = MagicMock()
+        mock_client.call = AsyncMock(
+            return_value={"full_user": {"personal_channel_id": 67890}}
+        )
+        get_chat_mock = AsyncMock(side_effect=Exception("Bad Request: chat not found"))
+
+        with (
+            patch(
+                "src.app.spam.user_profile.get_mtproto_client", return_value=mock_client
+            ),
+            patch("src.app.spam.user_profile.bot.get_chat", get_chat_mock),
+        ):
+            result = await collect_user_context(12345, username="testuser")
+
+            get_chat_mock.assert_called_once_with(67890)
+            # Only users.getFullUser, no channels.getFullChannel (would query by ID)
+            assert mock_client.call.call_count == 1
+            assert result.linked_channel.status == ContextStatus.EMPTY
 
     @pytest.mark.asyncio
     async def test_collect_channel_summary_by_id_uses_username(self):

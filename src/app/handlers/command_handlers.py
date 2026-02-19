@@ -2,8 +2,9 @@ import logging
 from typing import cast
 
 from aiogram import F, types
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import Chat, InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
 from ..common.utils import (
@@ -36,15 +37,24 @@ async def _try_send_linked_channel_offer(
     """
     Collect linked channel (Bot API first, MTProto fallback) and send protect offer.
     Returns True if offer was sent, False otherwise.
+    Never queries MTProto by ID—always uses username when available.
     """
     linked = ContextResult(status=ContextStatus.EMPTY)
+    display_chat: Chat | None = None  # Cached when from Bot API (personal_chat/bio)
     try:
         chat_full = await bot.get_chat(user_id)
         if chat_full.personal_chat and chat_full.personal_chat.type == "channel":
-            channel_id = chat_full.personal_chat.id
+            personal_chat = chat_full.personal_chat
+            channel_id = personal_chat.id
+            personal_username = getattr(personal_chat, "username", None)
             linked = await collect_channel_summary_by_id(
-                channel_id, user_id, channel_source="linked"
+                channel_id,
+                user_id,
+                username=personal_username,
+                channel_source="linked",
             )
+            if linked.status == ContextStatus.FOUND:
+                display_chat = personal_chat
         if linked.status != ContextStatus.FOUND and chat_full.bio:
             candidate_username = extract_first_channel_mention(chat_full.bio)
             if candidate_username:
@@ -57,6 +67,8 @@ async def _try_send_linked_channel_offer(
                             username=candidate_username,
                             channel_source="bio",
                         )
+                        if linked.status == ContextStatus.FOUND:
+                            display_chat = channel_chat
                 except Exception:
                     pass
         if linked.status != ContextStatus.FOUND and username:
@@ -78,9 +90,21 @@ async def _try_send_linked_channel_offer(
     ):
         return False
 
+    if display_chat is not None:
+        chat = display_chat
+    else:
+        # Linked from collect_user_context (MTProto); bot.get_chat by ID may fail
+        try:
+            chat = await bot.get_chat(linked.content.channel_id)
+        except TelegramBadRequest as e:
+            logger.warning(
+                "Linked channel not accessible for offer display: %s",
+                e,
+                extra={"user_id": user_id, "channel_id": linked.content.channel_id},
+            )
+            return False
+
     config = load_config()
-    channel_id = linked.content.channel_id
-    chat = await bot.get_chat(channel_id)
     channel_display = format_chat_or_channel_display(
         chat.title, getattr(chat, "username", None), "Канал"
     )
