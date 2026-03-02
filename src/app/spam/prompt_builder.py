@@ -20,6 +20,8 @@ Prompt Structure:
 import logging
 from typing import List, Optional
 
+import logfire
+
 from ..database.spam_examples import get_spam_examples
 from ..types import ContextResult, ContextStatus, SpamClassificationContext
 
@@ -341,6 +343,7 @@ def _format_context_section(
     return ""
 
 
+@logfire.no_auto_trace
 def format_spam_request(
     text: str,
     context: Optional[SpamClassificationContext] = None,

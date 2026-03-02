@@ -221,7 +221,9 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
 
         # Разбираем данные из callback
         # chat_id и message_id относятся к оригинальному сообщению в группе
-        _, author_id_str, original_chat_id, original_message_id = callback.data.split(":")
+        _, author_id_str, original_chat_id, original_message_id = callback.data.split(
+            ":"
+        )
         effective_user_id = int(author_id_str)
         chat_id = int(original_chat_id)
 
@@ -246,9 +248,7 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
 
             @retry_on_network_error
             async def delete_original_message():
-                return await bot.delete_message(
-                    chat_id, int(original_message_id)
-                )
+                return await bot.delete_message(chat_id, int(original_message_id))
 
             await delete_original_message()
         except Exception as e:
@@ -261,9 +261,7 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
         # Баним спамера после подтверждения админом (режим уведомлений)
         group = await get_group(chat_id)
         admin_ids = group.admin_ids if group else None
-        await ban_user_for_spam(
-            chat_id, effective_user_id, admin_ids, group_title=None
-        )
+        await ban_user_for_spam(chat_id, effective_user_id, admin_ids, group_title=None)
 
         return "callback_spam_message_deleted"
 
