@@ -31,6 +31,26 @@ from .dp import dp
 logger = logging.getLogger(__name__)
 
 
+@dp.message(F.text.startswith("/"), F.chat.type != "private")
+async def delete_and_redirect_to_pm(message: types.Message) -> str:
+    """Удаляет команду в группе и отправляет сообщение о переходе в ЛС. Использует answer(), т.к. reply() падает после delete()."""
+    try:
+        await message.delete()
+    except Exception:
+        pass
+    group_help_text = (
+        "🤖 <b>Команды бота работают только в личных сообщениях</b>\n\n"
+        "Чтобы настроить бота или получить помощь, "
+        "начните личный разговор со мной: @ai_spam_blocker_bot\n"
+    )
+    await message.answer(
+        group_help_text,
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
+    return "command_group_redirect_to_pm"
+
+
 async def _try_send_linked_channel_offer(
     message: types.Message, user_id: int, username: str | None
 ) -> bool:
@@ -178,30 +198,6 @@ async def handle_help_command(message: types.Message) -> str:
         )
         return "command_start_existing_user"
 
-    # Логика для /help
-    if message.chat.type != "private":
-        # В групповых чатах показываем сообщение о необходимости приватного общения
-        group_help_text = (
-            "🤖 <b>Команды бота работают только в личных сообщениях</b>\n\n"
-            "Чтобы настроить бота или получить помощь, "
-            "начните личный разговор со мной: @ai_spam_blocker_bot\n"
-        )
-
-        # Удаляем команду из группового чата
-        try:
-            await message.delete()
-        except Exception:
-            # Игнорируем ошибки удаления (например, если нет прав)
-            pass
-
-        await message.reply(
-            group_help_text,
-            parse_mode="HTML",
-            disable_web_page_preview=True,
-        )
-        return "command_help_group_redirect"
-
-    # В приватном чате показываем полную справку
     # config["help_text"] contains safe HTML that we control, no need to sanitize
     safe_text = config["help_text"]
 
@@ -373,24 +369,3 @@ async def cmd_ref(message: types.Message) -> str:
         parse_mode="HTML",
     )
     return "command_ref_sent"
-
-
-@dp.message(F.text.startswith("/"), F.chat.type != "private")
-async def handle_group_commands(message: types.Message) -> str:
-    """
-    Handler for any commands sent in group chats (except /help and /start).
-    Deletes the command message to prevent other users from accidentally triggering it.
-    """
-    # Skip /help and /start commands as they are handled separately
-    if message.text:
-        command = message.text.split()[0].split("@")[0]  # Remove bot mention if present
-        if command in ["/help", "/start"]:
-            return "command_help_start_allowed"
-
-    try:
-        await message.delete()
-    except Exception:
-        # Ignore deletion errors (e.g., insufficient permissions)
-        pass
-
-    return "command_group_deleted"
