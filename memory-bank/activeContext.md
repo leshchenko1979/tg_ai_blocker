@@ -1,6 +1,7 @@
 ## Active Context
 
 - **Current Focus**: Obscure webhook path change ready for deploy. Pending: promotional channel post (draft in docs/channel_post_low_confidence_spam.md), update landing news card after publish.
+- **Spam Prompt Consistency**: ✅ **Complete** - Fixed system prompt inconsistencies: removed unused -100/+100 score scale, fixed typo (intensity→intensive), removed XML wrapper from examples, normalized blank line formatting, unified empty section phrasing (ACCOUNT AGE uses photo_age=unknown).
 - **Key Decisions**:
   - **Cloudflare Primary Provider**: All bot operations (spam classification, private chat) now use Cloudflare AI Gateway exclusively.
   - **Spam Tactics File**: Created a dedicated `memory-bank/spamTactics.md` to track evolving spam patterns and examples.

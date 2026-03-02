@@ -101,6 +101,4 @@ async def test_handle_spam_confirm_callback_deletes_and_bans():
 
         assert result == "callback_spam_message_deleted"
         mock_bot.delete_message.assert_called_once_with(67890, 111)
-        mock_ban.assert_called_once_with(
-            67890, 12345, admin_ids=None, group_title=None
-        )
+        mock_ban.assert_called_once_with(67890, 12345, None, group_title=None)

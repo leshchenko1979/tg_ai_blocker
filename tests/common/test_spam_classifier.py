@@ -240,9 +240,9 @@ def test_format_spam_request_empty_marker_shows_metadata():
     )
     req = format_spam_request("Hello", context)
 
-    # Verify metadata is shown for empty markers
+    # Verify metadata is shown for empty markers (metric-style phrasing)
     assert "USER STORIES CONTENT:\nno stories posted" in req
-    assert "ACCOUNT AGE INFO:\nno photo on the account" in req
+    assert "ACCOUNT AGE INFO:\nphoto_age=unknown" in req
 
     # Verify regular fields are still present
     assert "MESSAGE TO CLASSIFY (Analyze this content):" in req

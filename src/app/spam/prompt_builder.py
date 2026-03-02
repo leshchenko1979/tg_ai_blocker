@@ -44,12 +44,7 @@ You will also receive context information (User Bio, Linked Channel, User Storie
 
 IMPORTANT: Do not classify the context information as spam. Only classify the message inside the markers.
 
-Return a spam score from -100 to +100, where:
-- Positive scores = spam (0 to 100)
-- Negative scores = legitimate (-100 to 0)
-- Zero = uncertain
-
-Also provide a confidence percentage (0-100) and a brief explanation.""")
+Provide a confidence percentage (0-100) and a brief explanation in Russian.""")
         return self
 
     def add_user_info_guidance(self) -> "SpamPromptBuilder":
@@ -155,7 +150,7 @@ Signs of irrelevant replies:
 A frequent spam tactic is offering "free" materials to lure users into private messages or external channels.
 
 HIGH SPAM INDICATORS:
-- BAIT OFFERS: "I have a free book/course/intensity", "I can share my material", "Write to me and I'll send you the link".
+- BAIT OFFERS: "I have a free book/course/intensive", "I can share my material", "Write to me and I'll send you the link".
 - VAGUE "HELP": Offering help or sharing experience in a way that requires leaving the current discussion.
 - "KARMA" BAIT: Using phrases like "giving away for free", "believing in karma", or "just want to help" to appear altruistic while posting advertisements.
 
@@ -240,12 +235,11 @@ Always respond with valid JSON in this exact format:
 
                 self.prompt_parts.append(f"""
 {example_request}
-<ответ>
+
 {{
     "is_spam": {"true" if is_spam_ex else "false"},
     "confidence": {confidence_ex}
-}}
-</ответ>""")
+}}""")
         except Exception as e:
             logger.warning(f"Failed to load spam examples for prompt: {e}")
 
@@ -327,18 +321,19 @@ def _format_context_section(
             "ACCOUNT AGE INFO": "no photo on the account",
         }
         message = empty_messages.get(section_name, "no data available")
-        return f"{section_name}:\n{message}\n\n"
+        return f"{section_name}:\n{message}\n"
 
     if status == "FAILED":
-        return f"{section_name}:\nverification failed: {context_result.error}\n\n"
+        return f"{section_name}:\nverification failed: {context_result.error}\n"
 
     if status == "FOUND":
         # Handle objects with custom prompt formatting
-        if hasattr(context_result.content, "to_prompt_fragment"):
-            content = context_result.content.to_prompt_fragment()
+        c = context_result.content
+        if c is not None and hasattr(c, "to_prompt_fragment"):
+            content = c.to_prompt_fragment()
         else:
-            content = str(context_result.content) if context_result.content else ""
-        return f"{section_name}:\n{content}\n\n"
+            content = str(c) if c else ""
+        return f"{section_name}:\n{content}\n"
 
     return ""
 
@@ -362,42 +357,39 @@ def format_spam_request(
     if context is None:
         context = SpamClassificationContext()
 
-    request_parts = [
+    parts = [
         "MESSAGE TO CLASSIFY (Analyze this content):",
         f">>> BEGIN MESSAGE\n{text}\n<<< END MESSAGE",
-        "",
     ]
 
     # Add basic user information
     if context.name:
-        request_parts.extend([f"USER NAME:\n{context.name}", ""])
-
+        parts.append(f"USER NAME:\n{context.name}")
     if context.bio:
-        request_parts.extend([f"USER BIO:\n{context.bio}", ""])
+        parts.append(f"USER BIO:\n{context.bio}")
 
     # Add context sections using the helper function
-    request_parts.append(
-        _format_context_section("LINKED CHANNEL INFO", context.linked_channel)
-    )
-    request_parts.append(
-        _format_context_section("USER STORIES CONTENT", context.stories)
-    )
-    request_parts.append(
-        _format_context_section("ACCOUNT AGE INFO", context.account_age)
-    )
+    for section_name, context_result in [
+        ("LINKED CHANNEL INFO", context.linked_channel),
+        ("USER STORIES CONTENT", context.stories),
+        ("ACCOUNT AGE INFO", context.account_age),
+    ]:
+        section = _format_context_section(section_name, context_result)
+        if section:
+            parts.append(section.rstrip())
 
     # Handle reply context (special case due to different formatting)
     if context.reply is not None:
         if context.reply == "[EMPTY]":
-            request_parts.append(
-                "REPLY CONTEXT (Original post being replied to):\n[checked, none found]\n\n"
+            parts.append(
+                "REPLY CONTEXT (Original post being replied to):\n[checked, none found]"
             )
         else:
-            request_parts.append(f"""REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):
+            parts.append(
+                f"""REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):
 >>> BEGIN CONTEXT
 {context.reply}
-<<< END CONTEXT
+<<< END CONTEXT""".rstrip()
+            )
 
-""")
-
-    return "\n".join(request_parts)
+    return "\n\n".join(parts)
