@@ -42,11 +42,6 @@ You will also receive context information (User Bio, Linked Channel, User Storie
 
 IMPORTANT: Do not classify the context information as spam. Only classify the message inside the markers.
 
-## CLASSIFICATION PHILOSOPHY
-Spam is not just unsolicited advertising. It is ANY content that does not add unique value to the discussion.
-A comment is likely spam if it's generic, purely reactive without insight, or serves only to lure users to a profile.
-Real human interaction is characterized by unique perspective, specific references, and genuine engagement.
-
 Return a spam score from -100 to +100, where:
 - Positive scores = spam (0 to 100)
 - Negative scores = legitimate (-100 to 0)
@@ -63,10 +58,7 @@ Examine the user's name and bio for professional labels or hidden promotions.
 
 HIGH SPAM INDICATORS:
 - NAME: Professional titles ("Psychologist", "Coach", "Investor", "Realtor") or links directly in the user's display name.
-- BIO: Links to Telegram bots, external sites, or "consultation" offers.
-- "GHOST" PROFILES: No bio and no username combined with generic messages.
-
-Spammers often use a "clean" name with a professional bio to build false legitimacy before posting bait comments.""")
+- BIO: Links to Telegram bots, external sites, or "consultation" offers.""")
         return self
 
     def add_linked_channel_guidance(self) -> "SpamPromptBuilder":
