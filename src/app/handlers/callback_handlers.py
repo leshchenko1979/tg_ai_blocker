@@ -6,9 +6,11 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from ..common.bot import bot
 from ..common.utils import load_config, retry_on_network_error
+from ..database import get_group
 from ..database.group_operations import add_member
 from ..database.spam_examples import confirm_pending_spam_example
 from .dp import dp
+from .handle_spam import ban_user_for_spam
 
 logger = logging.getLogger(__name__)
 
@@ -197,8 +199,9 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
 @dp.callback_query(F.data.startswith("delete_spam_message:"))
 async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
     """
-    Обработчик подтверждения спама. Удаляет оригинальное спам-сообщение из группы
-    и убирает клавиатуру с сообщения-уведомления.
+    Обработчик подтверждения спама (кнопка «Удалить» в режиме уведомлений).
+    Удаляет оригинальное спам-сообщение из группы, банит спамера и убирает
+    клавиатуру с сообщения-уведомления.
 
     Args:
         callback (CallbackQuery): Callback запрос от Telegram
@@ -218,7 +221,9 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
 
         # Разбираем данные из callback
         # chat_id и message_id относятся к оригинальному сообщению в группе
-        _, author_id, original_chat_id, original_message_id = callback.data.split(":")
+        _, author_id_str, original_chat_id, original_message_id = callback.data.split(":")
+        effective_user_id = int(author_id_str)
+        chat_id = int(original_chat_id)
 
         # Проверяем, что callback относится к сообщению-уведомлению
         if not callback.message:
@@ -242,7 +247,7 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
             @retry_on_network_error
             async def delete_original_message():
                 return await bot.delete_message(
-                    int(original_chat_id), int(original_message_id)
+                    chat_id, int(original_message_id)
                 )
 
             await delete_original_message()
@@ -252,6 +257,13 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
             )
             await callback.answer("❌ Не удалось удалить сообщение", show_alert=True)
             return "callback_error_deleting_original"
+
+        # Баним спамера после подтверждения админом (режим уведомлений)
+        group = await get_group(chat_id)
+        admin_ids = group.admin_ids if group else None
+        await ban_user_for_spam(
+            chat_id, effective_user_id, admin_ids, group_title=None
+        )
 
         return "callback_spam_message_deleted"
 
