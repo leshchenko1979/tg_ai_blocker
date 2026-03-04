@@ -9,7 +9,9 @@ import logging
 
 from aiogram import types
 from aiogram.client.bot import Bot
+from aiogram.exceptions import TelegramForbiddenError
 
+from ...common.userbot_messaging import send_userbot_dm
 from ...common.utils import format_chat_or_channel_display, retry_on_network_error
 
 logger = logging.getLogger(__name__)
@@ -96,6 +98,38 @@ def build_channel_instruction_message(
     return base_instruction
 
 
+def build_channel_instruction_userbot_message(
+    channel_title: str,
+    discussion_link: str | None,
+    channel_username: str | None = None,
+) -> str:
+    """
+    Build the instructional message for userbot fallback DM.
+
+    Used when the Bot API cannot reach the user (e.g. bot removed from channel).
+    The message comes from an unknown account, so it must include context:
+    who sent it, why from this account, and the actual instruction.
+
+    Args:
+        channel_title: Title of the channel
+        discussion_link: URL to the discussion group if available
+        channel_username: Optional channel username without @
+
+    Returns:
+        Formatted HTML message with preamble and instruction
+    """
+    instruction_body = build_channel_instruction_message(
+        channel_title, discussion_link, channel_username
+    )
+    preamble = (
+        "Сообщение от команды бота @ai_antispam_blocker_bot.\n\n"
+        "Бот не смог написать вам из своего аккаунта (возможно, вы ещё не начинали "
+        "с ним диалог или он был удалён из канала). Поэтому мы отправляем это "
+        "сообщение с этого аккаунта.\n\n"
+    )
+    return preamble + instruction_body
+
+
 async def notify_channel_admins(
     chat: types.Chat, instruction: str, bot: Bot
 ) -> list[int]:
@@ -141,7 +175,12 @@ async def notify_channel_admins(
     return notified_admins
 
 
-async def notify_channel_admins_and_leave(chat: types.Chat, bot: Bot) -> None:
+async def notify_channel_admins_and_leave(
+    chat: types.Chat,
+    bot: Bot,
+    *,
+    adding_user: types.User | None = None,
+) -> None:
     """
     Notify channel administrators about incorrect bot placement and leave the channel.
 
@@ -150,9 +189,13 @@ async def notify_channel_admins_and_leave(chat: types.Chat, bot: Bot) -> None:
     2. Attempts to find and notify all channel administrators
     3. Leaves the channel to prevent confusion
 
+    If the primary flow fails (e.g. bot not a member, TelegramForbiddenError),
+    falls back to userbot DM to the adding user when they have a username.
+
     Args:
         chat: The channel chat object
         bot: The bot instance for sending messages and leaving
+        adding_user: Optional user who added the bot (for fallback DM when primary fails)
     """
     channel_title = chat.title or "(untitled)"
     channel_username = getattr(chat, "username", None)
@@ -165,9 +208,40 @@ async def notify_channel_admins_and_leave(chat: types.Chat, bot: Bot) -> None:
         channel_title, discussion_link, channel_username
     )
 
-    notified_admins = await notify_channel_admins(chat, instruction, bot)
-
-    await bot.leave_chat(chat.id)
-    logger.info(
-        f"Bot left channel {chat.id} after notifying {len(notified_admins)} admins."
-    )
+    try:
+        notified_admins = await notify_channel_admins(chat, instruction, bot)
+        await bot.leave_chat(chat.id)
+        logger.info(
+            f"Bot left channel {chat.id} after notifying {len(notified_admins)} admins."
+        )
+    except TelegramForbiddenError as e:
+        logger.warning(
+            f"Bot API failed for channel {chat.id} (e.g. bot not a member): {e}"
+        )
+        # Fallback: userbot DM to adding user if they have username
+        adding_username = (
+            getattr(adding_user, "username", None) if adding_user else None
+        )
+        if (
+            adding_user
+            and adding_username
+            and not getattr(adding_user, "is_bot", False)
+        ):
+            userbot_message = build_channel_instruction_userbot_message(
+                channel_title, discussion_link, channel_username
+            )
+            success = await send_userbot_dm(
+                username=adding_username,
+                user_id=adding_user.id,
+                message=userbot_message,
+            )
+            if success:
+                logger.info(
+                    "Sent channel instruction to adding user via userbot fallback",
+                    extra={"username": adding_username, "channel_id": chat.id},
+                )
+            else:
+                logger.warning(
+                    "Userbot fallback DM failed for adding user",
+                    extra={"username": adding_username, "channel_id": chat.id},
+                )

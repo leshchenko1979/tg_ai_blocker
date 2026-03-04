@@ -62,7 +62,9 @@ async def handle_bot_status_update(event: types.ChatMemberUpdated) -> str:
             "member",
             "restricted",
         ]:
-            await notify_channel_admins_and_leave(event.chat, bot)
+            await notify_channel_admins_and_leave(
+                event.chat, bot, adding_user=event.from_user
+            )
 
         return result_tag
 

@@ -318,7 +318,7 @@ def _format_context_section(
         empty_messages = {
             "LINKED CHANNEL INFO": "no channel linked",
             "USER STORIES CONTENT": "no stories posted",
-            "ACCOUNT AGE INFO": "no photo on the account",
+            "ACCOUNT AGE INFO": "photo_age=unknown",
         }
         message = empty_messages.get(section_name, "no data available")
         return f"{section_name}:\n{message}\n"
