@@ -47,7 +47,7 @@ class McpHttpClient:
         *,
         base_url_env: str = "MCP_HTTP_BASE_URL",
         token_env: str = "MCP_HTTP_BEARER_TOKEN",
-        default_base_url: str = "https://tg-mcp.redevest.ru",
+        default_base_url: str = "https://tg-mcp.l1979.ru",
         disable_ssl_verify_env: str = "MCP_HTTP_DISABLE_SSL_VERIFY",
         ca_bundle_env: str = "MCP_HTTP_CA_BUNDLE",
     ) -> "McpHttpClient":

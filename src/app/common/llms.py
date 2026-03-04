@@ -21,6 +21,11 @@ DEFAULT_OPENROUTER_API_BASE = "https://openrouter.ai/api/v1"
 # Global SSL context for connection reuse
 _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
+# SSL context with verification disabled (for direct IP gateway workaround)
+_SSL_CONTEXT_INSECURE = ssl.create_default_context()
+_SSL_CONTEXT_INSECURE.check_hostname = False
+_SSL_CONTEXT_INSECURE.verify_mode = ssl.CERT_NONE
+
 # Global variable to track the currently active model for round-robin
 logger = logging.getLogger(__name__)
 
@@ -474,14 +479,22 @@ async def get_primary_gateway_response(
         "Authorization": f"Bearer {os.getenv('CUSTOM_GATEWAY_API_KEY')}",
         "Content-Type": "application/json",
     }
+    if host := os.getenv("AI_GATEWAY_HOST"):
+        headers["Host"] = host
 
     # Get model from environment variable
     model = os.getenv("CUSTOM_GATEWAY_MODEL")
     if not model:
         raise ValueError("CUSTOM_GATEWAY_MODEL environment variable is required")
 
-    # Use global SSL context for connection reuse
-    connector = aiohttp.TCPConnector(ssl=_SSL_CONTEXT)
+    # Use SSL context: disable verification when AI_GATEWAY_SSL_VERIFY is false/0
+    ssl_verify = os.getenv("AI_GATEWAY_SSL_VERIFY", "true").lower() not in (
+        "false",
+        "0",
+        "no",
+    )
+    ssl_context = _SSL_CONTEXT if ssl_verify else _SSL_CONTEXT_INSECURE
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
 
     async with aiohttp.ClientSession(connector=connector) as session:
         try:
