@@ -1,3 +1,4 @@
+import html
 import logging
 from typing import cast
 
@@ -12,7 +13,6 @@ from ..common.utils import (
     get_affiliate_url,
     get_setup_guide_url,
     load_config,
-    sanitize_html,
 )
 from ..database import (
     get_admin_credits,
@@ -281,7 +281,7 @@ async def handle_stats_command(message: types.Message) -> str:
             message_text += "<b>По группам:</b>\n"
             for group in groups:
                 status_emoji = "✅" if group["is_moderation_enabled"] else "❌"
-                safe_title = sanitize_html(group["title"])
+                safe_title = html.escape(group["title"] or "", quote=True)
                 g_stats = group["stats"]
 
                 # Формируем строку статистики группы

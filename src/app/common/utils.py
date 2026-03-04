@@ -1,3 +1,4 @@
+import html
 import logging
 import re
 from typing import Any, Dict, Optional
@@ -113,30 +114,10 @@ def format_chat_or_channel_display(
     Format a chat or channel for user-facing messages: "Title (@username)" or "Title".
     Title part is sanitized for HTML.
     """
-    display_title = sanitize_html(title or default_title)
+    display_title = html.escape(title or default_title, quote=True)
     if username:
         return f"{display_title} (@{username})"
     return display_title
-
-
-def sanitize_html(text: str | None) -> str:
-    """
-    Escapes special characters for Telegram HTML format.
-    See: https://core.telegram.org/bots/api#html-style
-    """
-    if text is None:
-        return ""
-
-    # HTML entities that need to be escaped
-    html_entities = {
-        "&": "&amp;",  # Must be first
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-    }
-    for char, entity in html_entities.items():
-        text = text.replace(char, entity)
-    return text
 
 
 def sanitize_llm_html(text: str) -> str:

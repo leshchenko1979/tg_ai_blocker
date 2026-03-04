@@ -8,6 +8,7 @@
 - Блокировки спамеров
 """
 
+import html
 import logging
 from typing import Optional
 
@@ -18,6 +19,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from ..common.bot import bot
 from ..common.mcp_client import McpHttpError, get_mcp_client
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
+
 from ..common.utils import (
     determine_effective_user_id,
     format_chat_or_channel_display,
@@ -26,7 +28,6 @@ from ..common.utils import (
     get_spam_guide_url,
     load_config,
     retry_on_network_error,
-    sanitize_html,
 )
 from ..database import get_admins_map
 from ..database.group_operations import remove_member_from_group
@@ -286,7 +287,7 @@ def format_admin_notification_message(
         return "Ошибка: сообщение без информации о пользователе"
 
     reason_text = (
-        f"<b>Причина:</b><blockquote expandable>{sanitize_html(reason)}</blockquote>\n"
+        f"<b>Причина:</b><blockquote expandable>{html.escape(reason, quote=True)}</blockquote>\n"
         if reason
         else ""
     )
@@ -523,7 +524,7 @@ def build_spam_block_notification_message(
     )
 
     if reason:
-        notification_msg += f"Причина блокировки: <blockquote expandable>{sanitize_html(reason)}</blockquote>\n\n"
+        notification_msg += f"Причина блокировки: <blockquote expandable>{html.escape(reason, quote=True)}</blockquote>\n\n"
 
     notification_msg += f"Сайт бота: {project_website}\nКанал бота: {project_channel}"
 

@@ -5,12 +5,13 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Generic, List, Optional, TypeVar
 
+import html
+
 from aiogram import types
 
 from .common.utils import (
     determine_effective_user_id,
     format_chat_or_channel_display,
-    sanitize_html,
 )
 
 T = TypeVar("T")
@@ -367,7 +368,7 @@ class MessageNotificationContext:
         """Create MessageNotificationContext from a Telegram message."""
         effective_user_id = determine_effective_user_id(message)
         content_text = message.text or message.caption or "[MEDIA_MESSAGE]"
-        content_text = sanitize_html(content_text)
+        content_text = html.escape(content_text, quote=True)
         chat_title = message.chat.title or "Группа"
         chat_username = getattr(message.chat, "username", None)
         is_channel_sender = (
