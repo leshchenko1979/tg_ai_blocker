@@ -26,7 +26,6 @@ _SSL_CONTEXT_INSECURE = ssl.create_default_context()
 _SSL_CONTEXT_INSECURE.check_hostname = False
 _SSL_CONTEXT_INSECURE.verify_mode = ssl.CERT_NONE
 
-# Global variable to track the currently active model for round-robin
 logger = logging.getLogger(__name__)
 
 # Available models - actively maintained free models
@@ -52,7 +51,7 @@ MODELS = [
 #   mistralai/devstral-2512:free, z-ai/glm-4.5-air:free, mistralai/mistral-small-3.2-24b-instruct:free
 
 
-# Initialize with a random model from the available list
+# Current model for round-robin (initialized randomly)
 _current_model = random.choice(MODELS)
 logger.debug("🎯 INITIAL MODEL SET: %s", _current_model)
 
@@ -273,37 +272,7 @@ def _process_response_errors(result: Dict[str, Any], model: str) -> None:
             raise RuntimeError(f"Provider error: {err}")
 
 
-# ===== Public API Functions =====
-
-
-def round_robin_with_start(models: List[str], start_model: Optional[str] = None):
-    """Create a round-robin generator for model selection starting from a specific model.
-
-    Each model is yielded twice before moving to the next one to provide
-    better load distribution and retry capability.
-
-    Args:
-        models: List of model identifiers to cycle through
-        start_model: Model to start the round-robin from (optional)
-
-    Yields:
-        Model identifiers in round-robin fashion
-    """
-    n = len(models)
-    if start_model and start_model in models:
-        start_idx = models.index(start_model)
-    else:
-        start_idx = 0
-    idx = start_idx
-    while True:
-        # Try each model twice for better retry capability
-        yield models[idx]
-        yield models[idx]
-        idx = (idx + 1) % n
-        logger.debug("Round-robin switched to model: %s", models[idx])
-
-
-# ===== Main API Function =====
+# ===== Main API Functions =====
 
 
 @logfire.no_auto_trace
@@ -357,7 +326,9 @@ async def get_openrouter_response(
             _current_model = current_model
 
             try:
-                result = await _request_openrouter(
+                api_base = os.getenv("OPENROUTER_API_BASE", DEFAULT_OPENROUTER_API_BASE)
+                result = await _request_chat_completions(
+                    api_base,
                     current_model,
                     messages,
                     headers,
@@ -403,7 +374,7 @@ async def get_openrouter_response(
 
 
 @logfire.no_auto_trace
-@logfire.instrument()
+@logfire.instrument(extract_args=True, record_return=True)
 async def get_llm_response_with_fallback(
     messages: List[Dict[str, Any]],
     temperature: float = DEFAULT_TEMPERATURE,
@@ -428,7 +399,6 @@ async def get_llm_response_with_fallback(
     """
     # Try custom gateway first
     try:
-        logger.info("Attempting to get response from custom gateway")
         return await get_primary_gateway_response(
             messages, temperature, response_format
         )
@@ -438,7 +408,6 @@ async def get_llm_response_with_fallback(
 
         # Try OpenRouter as fallback (with full retry logic)
         try:
-            logger.info("Attempting OpenRouter with full retry logic as fallback")
             return await get_openrouter_response(messages, temperature, response_format)
         except Exception as fallback_error:
             logger.error(
@@ -451,7 +420,7 @@ async def get_llm_response_with_fallback(
 
 
 @logfire.no_auto_trace
-@logfire.instrument()
+@logfire.instrument(extract_args=True, record_return=True)
 async def get_primary_gateway_response(
     messages: List[Dict[str, Any]],
     temperature: float = DEFAULT_TEMPERATURE,
@@ -496,9 +465,14 @@ async def get_primary_gateway_response(
     ssl_context = _SSL_CONTEXT if ssl_verify else _SSL_CONTEXT_INSECURE
     connector = aiohttp.TCPConnector(ssl=ssl_context)
 
+    api_base = os.getenv("API_BASE")
+    if not api_base:
+        raise ValueError("API_BASE environment variable is required")
+
     async with aiohttp.ClientSession(connector=connector) as session:
         try:
-            result = await _request_primary_gateway(
+            result = await _request_chat_completions(
+                api_base,
                 model,
                 messages,
                 headers,
@@ -516,7 +490,8 @@ async def get_primary_gateway_response(
             raise
 
 
-async def _request_openrouter(
+async def _request_chat_completions(
+    api_base: str,
     model: str,
     messages: List[Dict[str, Any]],
     headers: Dict[str, str],
@@ -524,9 +499,10 @@ async def _request_openrouter(
     temperature: float = DEFAULT_TEMPERATURE,
     response_format: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Make a single request to the OpenRouter API.
+    """Make a single POST request to a chat completions endpoint.
 
     Args:
+        api_base: Base URL for the API (e.g. https://openrouter.ai/api/v1)
         model: The model identifier to use
         messages: List of message dictionaries for the chat completion
         headers: HTTP headers including authorization
@@ -543,113 +519,28 @@ async def _request_openrouter(
         aiohttp.ClientResponseError: For other HTTP errors
         Exception: For JSON parsing or other errors
     """
-    api_base = os.getenv("OPENROUTER_API_BASE", DEFAULT_OPENROUTER_API_BASE)
-    data = {"model": model, "messages": messages, "temperature": temperature}
+    data: Dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+    }
     if response_format:
         data["response_format"] = response_format
 
-    with logfire.span(
-        "OpenRouter request/response", model=model, messages=messages
-    ) as span:
+    async with session.post(
+        f"{api_base.rstrip('/')}/chat/completions",
+        headers=headers,
+        json=data,
+        timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS),
+    ) as response:
         try:
-            async with session.post(
-                f"{api_base.rstrip('/')}/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS),
-            ) as response:
-                # Try to parse JSON response
-                try:
-                    result = await response.json()
-                except Exception as parse_error:
-                    # If JSON parsing fails, still try to handle HTTP errors
-                    # but then re-raise the parsing error
-                    _handle_http_errors(response, None, model)
-                    # If we get here, HTTP was OK but JSON parsing failed
-                    raise parse_error
+            result = await response.json()
+        except Exception as parse_error:
+            _handle_http_errors(response, None, model)
+            raise parse_error
 
-                span.set_attribute("status", response.status)
-                span.set_attribute("result", result)
-
-                # Handle HTTP errors now that we have the parsed result
-                _handle_http_errors(response, result, model)
-
-                # If we get here, response was successful and JSON parsed correctly
-                return result
-
-        except Exception as e:
-            span.record_exception(e)
-            span.set_attribute("error", str(e))
-            raise
-
-
-async def _request_primary_gateway(
-    model: str,
-    messages: List[Dict[str, Any]],
-    headers: Dict[str, str],
-    session: aiohttp.ClientSession,
-    temperature: float = DEFAULT_TEMPERATURE,
-    response_format: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Make a single request to the custom gateway API.
-
-    Args:
-        model: The model identifier to use
-        messages: List of message dictionaries for the chat completion
-        headers: HTTP headers including Authorization
-        session: The aiohttp client session to use
-        temperature: Sampling temperature for the model
-        response_format: Optional response format specification
-
-    Returns:
-        Parsed JSON response from the API
-
-    Raises:
-        RateLimitExceeded: When rate limit is hit
-        ModelNotFound: When the requested model is not available
-        aiohttp.ClientResponseError: For other HTTP errors
-        Exception: For JSON parsing or other errors
-    """
-    api_base = os.getenv("API_BASE")
-    if not api_base:
-        raise ValueError("API_BASE environment variable is required")
-    data = {"model": model, "messages": messages, "temperature": temperature}
-    if response_format:
-        data["response_format"] = response_format
-
-    with logfire.span(
-        "Custom gateway request/response", model=model, messages=messages
-    ) as span:
-        try:
-            async with session.post(
-                f"{api_base.rstrip('/')}/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS),
-            ) as response:
-                # Try to parse JSON response
-                try:
-                    result = await response.json()
-                except Exception as parse_error:
-                    # If JSON parsing fails, still try to handle HTTP errors
-                    # but then re-raise the parsing error
-                    _handle_http_errors(response, None, model)
-                    # If we get here, HTTP was OK but JSON parsing failed
-                    raise parse_error
-
-                span.set_attribute("status", response.status)
-                span.set_attribute("result", result)
-
-                # Handle HTTP errors now that we have the parsed result
-                _handle_http_errors(response, result, model)
-
-                # If we get here, response was successful and JSON parsed correctly
-                return result
-
-        except Exception as e:
-            span.record_exception(e)
-            span.set_attribute("error", str(e))
-            raise
+        _handle_http_errors(response, result, model)
+        return result
 
 
 def _extract_content(result: Dict[str, Any], model: str) -> str:

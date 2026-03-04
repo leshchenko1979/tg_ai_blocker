@@ -89,9 +89,7 @@ class TestProcessSpamOrApprove:
             ) as mock_load_config,
         ):
             mock_deduct.return_value = True
-            mock_load_config.return_value = {
-                "spam": {"high_confidence_threshold": 90}
-            }
+            mock_load_config.return_value = {"spam": {"high_confidence_threshold": 90}}
 
             result = await process_spam_or_approve(
                 mock_message,
@@ -124,9 +122,7 @@ class TestProcessSpamOrApprove:
             ) as mock_load_config,
         ):
             mock_deduct.return_value = True
-            mock_load_config.return_value = {
-                "spam": {"high_confidence_threshold": 90}
-            }
+            mock_load_config.return_value = {"spam": {"high_confidence_threshold": 90}}
 
             result = await process_spam_or_approve(
                 mock_message,
@@ -159,9 +155,7 @@ class TestProcessSpamOrApprove:
             ) as mock_load_config,
         ):
             mock_deduct.return_value = True
-            mock_load_config.return_value = {
-                "spam": {"high_confidence_threshold": 90}
-            }
+            mock_load_config.return_value = {"spam": {"high_confidence_threshold": 90}}
 
             result = await process_spam_or_approve(
                 mock_message,
@@ -194,9 +188,7 @@ class TestProcessSpamOrApprove:
             ) as mock_load_config,
         ):
             mock_deduct.return_value = True
-            mock_load_config.return_value = {
-                "spam": {"high_confidence_threshold": 80}
-            }
+            mock_load_config.return_value = {"spam": {"high_confidence_threshold": 80}}
 
             await process_spam_or_approve(
                 mock_message,
