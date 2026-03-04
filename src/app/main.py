@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 # Start the server
 import asyncio
 import time
-import traceback
 from asyncio import TimeoutError
 from typing import Optional, Tuple, Union
 
@@ -27,10 +26,10 @@ from aiohttp import web
 # Import all handlers to register them with the dispatcher
 from .handlers import *
 
-from .common.bot import LESHCHENKO_CHAT_ID, bot
+from .common.bot import bot
 from .common.trace_context import set_root_span
 from .common.llms import LocationNotSupported, RateLimitExceeded
-from .common.utils import get_dotted_path, remove_lines_to_fit_len
+from .common.utils import get_dotted_path
 from .database.postgres_connection import close_pool
 from .handlers.dp import dp
 from .logging_setup import get_telegram_handler, register_telegram_logging_loop
@@ -148,7 +147,7 @@ async def _on_startup_register_logging(app: web.Application) -> None:
 async def _on_startup_setup_webhook(app: web.Application) -> None:
     """Set up Telegram webhook on startup"""
     try:
-        webhook_url = "https://tg-ai-blocker.redevest.ru/process-tg-updates"
+        webhook_url = "https://tg-ai-blocker.l1979.ru/process-tg-updates"
         logger.info(f"Setting webhook URL to: {webhook_url}")
         await bot.set_webhook(webhook_url)
         logger.info("Webhook setup completed successfully")
@@ -290,15 +289,10 @@ async def handle_unhandled_exception(
     span.tags = ["unhandled_exception"]
     span.record_exception(e)
 
-    chat_id, admin_id = extract_ids_from_update(json)
-
-    text = f"Bot error: <code>{e}</code>\n<pre>\n{traceback.format_exc()}\n</pre>"
-    asyncio.create_task(
-        bot.send_message(
-            LESHCHENKO_CHAT_ID,
-            remove_lines_to_fit_len(text, 4096),
-            parse_mode="HTML",
-        )
+    logger.error(
+        "Unhandled exception in webhook: %s",
+        e,
+        exc_info=(type(e), e, e.__traceback__),
     )
 
     return web.json_response({"message": "Error processing request"})
