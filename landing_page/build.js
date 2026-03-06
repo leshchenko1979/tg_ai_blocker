@@ -27,15 +27,6 @@ const hashedCssFilename = `output.${cssHash}.css`;
 // Rename CSS file with hash
 fs.renameSync('dist/temp.css', `dist/${hashedCssFilename}`);
 
-// Read HTML template and update CSS reference
-let htmlContent = fs.readFileSync('src/index.html', 'utf8');
-
-// Replace CSS link with hashed version
-htmlContent = htmlContent.replace(
-  /href="output\.css"/g,
-  `href="${hashedCssFilename}"`
-);
-
 // Add cache control meta tags for HTML
 const cacheControlMeta = `
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -43,14 +34,22 @@ const cacheControlMeta = `
     <meta http-equiv="Expires" content="0">
 `;
 
-// Insert cache control meta tags after the charset meta tag
-htmlContent = htmlContent.replace(
-  /(<meta charset="UTF-8">)/,
-  `$1${cacheControlMeta}`
-);
+const htmlFiles = ['index.html', 'index-en.html'];
+for (const htmlFile of htmlFiles) {
+  let htmlContent = fs.readFileSync(path.join('src', htmlFile), 'utf8');
 
-// Write updated HTML to dist
-fs.writeFileSync('dist/index.html', htmlContent);
+  htmlContent = htmlContent.replace(
+    /href="output\.css"/g,
+    `href="${hashedCssFilename}"`
+  );
+
+  htmlContent = htmlContent.replace(
+    /(<meta charset="UTF-8">)/,
+    `$1${cacheControlMeta}`
+  );
+
+  fs.writeFileSync(path.join('dist', htmlFile), htmlContent);
+}
 
 // Copy assets folder if it exists
 const srcAssetsDir = path.join(__dirname, 'src', 'assets');

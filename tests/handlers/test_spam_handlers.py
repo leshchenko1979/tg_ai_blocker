@@ -78,8 +78,16 @@ class TestSpamDeletion:
         self, mock_message
     ):
         """Test spam deletion failure due to permission error with successful admin notification."""
+        mock_admin = MagicMock()
+        mock_admin.language_code = "ru"
+
         with (
             patch("src.app.handlers.handle_spam.bot") as mock_bot,
+            patch(
+                "src.app.handlers.handle_spam.get_admin",
+                new_callable=AsyncMock,
+                return_value=mock_admin,
+            ),
             patch(
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
             ) as mock_notify,

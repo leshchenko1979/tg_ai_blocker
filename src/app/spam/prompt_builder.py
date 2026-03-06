@@ -23,6 +23,7 @@ from typing import List, Optional
 import logfire
 
 from ..database.spam_examples import get_spam_examples
+from ..i18n import t
 from ..types import ContextResult, ContextStatus, SpamClassificationContext
 
 logger = logging.getLogger(__name__)
@@ -34,9 +35,10 @@ class SpamPromptBuilder:
     def __init__(self):
         self.prompt_parts = []
 
-    def build_base_instructions(self) -> "SpamPromptBuilder":
+    def build_base_instructions(self, lang: str = "en") -> "SpamPromptBuilder":
         """Add the core spam classification instructions."""
-        self.prompt_parts.append("""You are a spam message classifier for Telegram groups.
+        explanation_hint = t(lang, "prompt.explanation_hint")
+        self.prompt_parts.append(f"""You are a spam message classifier for Telegram groups.
 
 Your task: Analyze user messages and determine if they are spam or legitimate.
 The message to classify is enclosed in >>> BEGIN MESSAGE markers.
@@ -44,7 +46,7 @@ You will also receive context information (User Bio, Linked Channel, User Storie
 
 IMPORTANT: Do not classify the context information as spam. Only classify the message inside the markers.
 
-Provide a confidence percentage (0-100) and a brief explanation in Russian.""")
+{explanation_hint}""")
         return self
 
     def add_user_info_guidance(self) -> "SpamPromptBuilder":
@@ -178,16 +180,17 @@ HIGH SPAM INDICATORS:
 These AI signatures are strong indicators of spam REGARDLESS of whether the profile has promotional links in stories or linked channels. The goal of such posts is to clutter the discussion and lure users to a bot-controlled profile.""")
         return self
 
-    def add_response_format(self) -> "SpamPromptBuilder":
+    def add_response_format(self, lang: str = "en") -> "SpamPromptBuilder":
         """Add the required response format specification."""
-        self.prompt_parts.append("""
+        reason_format = t(lang, "prompt.reason_format")
+        self.prompt_parts.append(f"""
 ## RESPONSE FORMAT
 Always respond with valid JSON in this exact format:
-{
+{{
     "is_spam": true/false,
     "confidence": 0-100,
-    "reason": "Причина такой классификации и на основании каких элементов входящих данных сделан такой вывод. Пиши по-русски."
-}
+    "reason": "{reason_format}"
+}}
 
 ## SPAM CLASSIFICATION EXAMPLES""")
         return self
@@ -253,6 +256,7 @@ Always respond with valid JSON in this exact format:
 async def build_system_prompt(
     admin_ids: Optional[List[int]] = None,
     context: Optional[SpamClassificationContext] = None,
+    lang: str = "en",
 ) -> str:
     """
     Build a complete spam classification system prompt.
@@ -260,11 +264,12 @@ async def build_system_prompt(
     Args:
         admin_ids: Optional list of admin IDs for personalized examples
         context: Optional spam classification context for prompt guidance flags
+        lang: Language for explanation (ru/en)
 
     Returns:
         Complete system prompt string
     """
-    builder = SpamPromptBuilder().build_base_instructions()
+    builder = SpamPromptBuilder().build_base_instructions(lang=lang)
 
     # Always include user info guidance as it's fundamental
     builder.add_user_info_guidance()
@@ -285,7 +290,7 @@ async def build_system_prompt(
         # Knowledge sharing is often linked with AI content or generic bait
         builder.add_knowledge_sharing_guidance()
 
-    builder.add_response_format()
+    builder.add_response_format(lang=lang)
 
     # Add examples (async operation)
     await builder.add_spam_examples(admin_ids)

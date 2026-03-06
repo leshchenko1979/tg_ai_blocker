@@ -1,5 +1,6 @@
 ## System Patterns
 
+- **i18n (Internationalization)**: Supported languages `ru` and `en`. Locale files in `src/app/locales/ru.yaml` and `en.yaml`. `t(lang, key, **kwargs)` for translations with fallback to other language if key missing. `resolve_lang(message_or_user, admin)` priority: `admin.language_code` → `user.language_code` → `"en"`. `normalize_lang()` maps `en-US` → `en`, unknown → `"en"`. `/lang` command lets admins switch. `Administrator` model has `language_code` (migration `--add-language-code`). LLM spam classification and private chat prompts use admin language for explanations.
 - **Runtime Architecture**: `aiohttp` web application exposes Telegram webhook at `/process-tg-updates` (POST only) and health at `/health`. Traefik routes only these paths; other requests return 404 at edge. Updates forwarded to shared `aiogram` dispatcher hosted in `src/app/handlers`. Execution wrapped with `logfire` spans for observability and guarded by timeout/error helpers. Logfire metrics (histograms and gauges) initialized once at module level to ensure proper recording. Handler return values determine logfire span tags - handlers must return descriptive strings to avoid "_ignored" tagging.
 - **Bot Composition**:
   - `src/app/common` encapsulates integrations: Telegram bot client, LLM providers, notifications, and shared utilities.

@@ -1,0 +1,324 @@
+# English locale for AI Anti-Spam Bot
+
+common:
+  group: "Group"
+  channel: "Channel"
+  user: "User"
+  notify_no_dm: "{mention}, I can't send a private message to any administrator. Please message me privately to receive important group notifications!"
+
+group_redirect:
+  title: "🤖 <b>Bot commands work only in private messages</b>\n\n"
+  body: "To configure the bot or get help, start a private chat with me: @ai_spam_blocker_bot\n"
+
+start:
+  welcome: |
+    🤖 <b>Welcome to AI Anti-Spam!</b>
+
+    I'm your smart protector against spam in Telegram groups.
+
+    🚀 <b>Getting started:</b>
+    1. Add me to your group
+    2. Make me an administrator
+    3. Done! I'll start working automatically
+
+    💡 Use /help for the full command list
+
+    📢 News: https://t.me/ai_antispam
+    🌐 Website: https://ai-antispam.ru
+  existing_user: |
+    👋 <b>Welcome back!</b>
+
+    📊 /stats — check balance and groups
+    💡 /help — all available commands
+
+    I keep protecting your groups from spam! ✨
+  linked_channel_offer: "You have a channel {channel_display}. Want to enable comment protection?"
+
+help:
+  main: |
+    🤖 <b>AI Anti-Spam Bot</b> - your Telegram spam protector
+    🌐 Project website: <a href="https://ai-antispam.ru">ai-antispam.ru</a>
+
+    <b>🚀 Quick start:</b>
+    1. Add me to your group
+    2. Make me an administrator
+    3. I'll start protecting automatically!
+
+    <b>💡 What I do:</b>
+    • Analyze messages with AI
+    • Delete spam and ban violators
+    • Learn from your examples
+    • Notify about suspicious content
+
+    <b>💰 Payment:</b> Telegram Stars (buy via /buy)
+
+    Select a section for details:
+  getting_started: |
+    <b>🚀 How to start using the bot:</b>
+
+    <b>For groups:</b>
+    1. Add me to your group
+    2. Make me an administrator:
+       • Open group settings -> Administrators
+       • Tap "Add administrator"
+       • Enter @ai_spam_blocker_bot and select me
+    3. Grant permissions:
+       • Delete messages
+       • Ban users
+    4. Done! I'll start protecting automatically
+
+    <b>For channels with comments:</b>
+    1. Add me to the discussion group (IMPORTANT: the discussion group, not the channel itself!)
+    2. Make me an administrator
+    3. I'll moderate comments on your channel posts
+
+    <b>Detailed guide:</b>
+    https://t.me/ai_antispam/14
+
+    After setup I'll send you a personal confirmation that I'm ready.
+  training: |
+    <b>📚 Training the bot with your examples:</b>
+
+    To help the bot understand what counts as spam:
+
+    1. <b>Forward a suspicious message</b> to me in private
+    2. I'll analyze it and show the result
+    3. <b>Tap the rating button:</b>
+       • "Spam" - bot will remember as bad example
+       • "Not spam" - bot will remember as good example
+
+    <b>The more examples you provide, the better the protection!</b>
+
+    Examples help the bot tell apart:
+    • Spam links from useful links
+    • Scam messages from normal chat
+    • Suspicious channels from legitimate ones
+
+    <b>Tip:</b> Train the bot regularly for best protection.
+  moderation: |
+    <b>⚙️ What the bot checks:</b>
+
+    <b>✅ Moderated:</b>
+    • All messages from new members
+    • Text messages
+    • Photos, videos, documents, stickers
+    • Voice and video messages
+    • Forwarded messages
+    • Auto-blocks forwarded stories
+    • Deletes join/leave messages
+
+    <b>❌ Not moderated:</b>
+    • Administrator messages
+    • System notifications (except join/leave)
+    • Edited messages
+    • Group name/photo changes
+
+    <b>🤖 How AI works:</b>
+    The bot analyzes context, links, channels and sender behavior. The more spam examples you provide, the more accurate the protection.
+  commands: |
+    <b>💡 Available commands:</b>
+
+    /start - welcome and get started
+    /help - this help
+    /buy - buy stars for payment
+    /stats - balance and group status
+    /mode - toggle mode (delete/notify)
+    /ref - get referral link
+    /lang - change language
+
+    <b>💬 Free-form chat:</b>
+    Just write to me in private, e.g.:
+    • "how do you detect spam?"
+    • "what if the bot doesn't work?"
+    • "how to add to a channel?"
+
+    I'll answer any questions!
+  support: |
+    <b>🔧 Support and updates:</b>
+
+    <b>📢 Official channel:</b>
+    @ai_antispam
+
+    <b>👨‍💻 Technical support:</b>
+    @leshchenko1979
+
+    <b>📖 Documentation:</b>
+    • Project website: https://ai-antispam.ru
+    • How the bot detects spam: https://t.me/ai_antispam/7
+    • Channel setup: https://t.me/ai_antispam/14
+
+    <b>💬 How to get help:</b>
+    • Contact support with a description
+    • Include group ID and message examples
+    • We reply within 24 hours
+
+    <b>🐛 Report an issue:</b>
+    Send error logs and screenshots - that helps us fix it faster.
+  payment: |
+    <b>💰 Payment and balance:</b>
+
+    The bot runs on Telegram Stars ⭐
+
+    <b>💡 How to top up:</b>
+    • Use the /buy command
+    • Select the amount of stars
+    • Pay via Telegram
+
+    <b>📊 Star usage:</b>
+    • Message analysis: always free
+    • New members: 1 star for first message
+    • Approved members: chat for free 💚
+    • When stars run out: moderation stops
+
+    <b>📈 Usage stats:</b>
+    • /stats - check current balance
+    • Weekly spend statistics
+
+    <b>🎁 Free for new users:</b>
+    You get <b>100 stars</b> as a welcome gift! ⭐
+  back_button: "⬅️ Back to help"
+  default_page: "Information temporarily unavailable. Please try again later."
+  buttons:
+    getting_started: "🚀 Getting started"
+    training: "📚 Bot training"
+    moderation: "⚙️ What's checked"
+    commands: "💡 Commands"
+    payment: "💰 Payment"
+    support: "🔧 Support"
+
+stats:
+  balance: "💰 Balance: <b>{balance}</b> stars"
+  spent_week: "📊 Spent in last 7 days: <b>{spent}</b> stars"
+  stats_7d: "<b>Stats for 7 days:</b>"
+  processed: "📨 Messages processed: <b>{count}</b>"
+  spam_blocked: "🗑 Spam blocked: <b>{count}</b>"
+  by_groups: "<b>All time:</b>"
+  approved_users: "👤 Approved users: <b>{count}</b>"
+  spam_examples: "📝 Spam examples saved: <b>{count}</b>"
+  by_groups_header: "<b>By groups:</b>"
+  no_groups: "You have no groups where you're an administrator."
+  mode_delete: "🗑 Delete mode"
+  mode_notify: "🔔 Notify mode"
+  current_mode: "Current mode: <b>{mode}</b>"
+  error: "An error occurred while fetching statistics."
+
+mode:
+  delete_enabled: "🗑 <b>Delete mode</b> enabled\n\nI will automatically delete messages classified as spam in your groups."
+  notify_enabled: "🔔 <b>Notify mode</b> enabled\n\nI will only notify about messages classified as spam, but won't delete them."
+  error: "An error occurred while changing mode."
+
+ref:
+  title: "<b>How to get your referral link for this bot:</b>\n\n"
+  steps: "1. Open this bot's profile in Telegram.\n2. Tap <b>Partner Program</b>.\n3. Tap <b>Participate</b>.\n4. Your personal referral link will appear — copy and share with friends.\n\n"
+
+payment:
+  choose_stars: "🛒 Choose amount of stars to buy:\n\n"
+  buy_menu: "• 100 stars - basic package\n• 500 stars - popular choice\n• 1000 stars - for active groups\n"
+  buy_tip: "💡 More stars = longer protection for your groups!\n\n"
+  channel_link: '📢 <a href="https://t.me/ai_antispam">Follow project updates</a>'
+  stars_label: "{amount} stars"
+  stars_100: "100 stars 💫"
+  stars_500: "500 stars ⭐"
+  stars_1000: "1000 stars 🌟"
+  stars_5000: "5000 stars 🌠"
+  max_protection: "• 5000 stars - maximum protection\n\n"
+  invalid_data: "❌ Error: invalid payment data"
+  send_failed: "❌ Error: unable to send invoice"
+  invoice_title: "Stars for spam protection"
+  invoice_description: "Purchase of {amount} stars for protecting your groups from spam"
+  success: "✅ Thanks! Stars credited. You now have protection in your groups.\n\n"
+  success_full: "🎉 Congrats! I've credited {amount} stars and activated protection in your groups.\n\nI'll now guard your cyberspace with triple force! 💪"
+
+spam:
+  delete_button: "🗑️ Delete"
+  not_spam_button: "✅ Not spam"
+  not_spam_confirm: "✅ Not spam"
+  notify_title: "⚠️ <b>INTRUSION!</b>\n\n"
+  group_label: "<b>Group:</b> {display}\n\n"
+  violator_label: "<b>Violator:</b> {display}\n\n"
+  content_label: "<b>Threat content:</b>\n<blockquote expandable>{content}</blockquote>\n\n"
+  reason_label: "<b>Reason:</b><blockquote expandable>{reason}</blockquote>\n"
+  destroyed_channel: "<b>Malicious message destroyed, channel banned.</b>"
+  destroyed_user: "<b>Malicious message destroyed, user banned.</b>"
+  message_link: "<a href=\"{link}\">Link to message</a>\n\n"
+  mode_tip: "<b>💡 Tip:</b> Use /mode to switch to automatic spam deletion."
+  spam_guide_link: "ℹ️ Learn how spam detection works</a>"
+  error_no_user: "Error: message without user info"
+  permission_delete: "Delete messages"
+  permission_delete_action: "delete spam messages"
+  permission_ban: "Ban users"
+  permission_ban_action: "ban users"
+  no_permission: "❗️ I don't have permission to {action}. Please grant me '{permission}' for full protection.\n\nGroup: <b>{group}</b>\n\n"
+  setup_guide_link: "<a href=\"{url}\">ℹ️ How to grant bot permissions</a>"
+  group_no_permission: "{mention}, I don't have permission to {permission}. Please grant me '{permission}'!\n\n"
+  group_message_template: "{mention}, I can't send a private message to any administrator. Please message me privately to receive important group notifications!"
+  no_delete_service: "❗️ I don't have permission to delete service messages in the group. Please grant me 'Delete messages' for proper operation.\n\nGroup: <b>{group}</b>"
+  no_delete_service_group: "{mention}, I don't have permission to delete service messages. Please grant me 'Delete messages'!"
+  blocked_comment: "Your comment in {entity_type} <b>{entity_display}</b> was blocked by an admin using @ai_antispam_blocker_bot.\n\nYour comment: <blockquote expandable>{content}</blockquote>\n\n"
+  entity_channel: "the channel"
+  entity_group: "the group"
+  block_reason: "Block reason: <blockquote expandable>{reason}</blockquote>\n\n"
+  site_channel: "Bot website: {website}\nBot channel: {channel}"
+
+private:
+  add_example_confirm: "Add this message to the example database?"
+  spam_button: "⚠️ Spam"
+  not_spam_button: "💚 Not spam"
+  example_spam_added: "Message added as spam example."
+  example_spam_removed: "Message added as spam example, user removed from approved."
+  example_not_spam_added: "Message added as valuable example."
+  example_added: "Message added as {type} example."
+  error_forward_info: "❌ Failed to get original message info"
+  error_generic: "❌ An error occurred"
+
+callback:
+  message_inaccessible: "❌ Message unavailable"
+  safe_added: "✅ Message added as safe example"
+  spam_deleted: "✅ Spam deleted"
+  invalid_callback: "❌ Invalid callback"
+  delete_failed: "❌ Failed to delete message"
+  error_generic: "❌ An error occurred"
+
+channel:
+  wrong_place: "❗️ The bot was added to channel <b>{channel}</b> instead of the discussion group.\n\nFor proper operation, add the bot to the discussion group linked to your channel.\n\nThe bot will then protect your posts from spam in comments.\n\n"
+  more_info: "More info: https://t.me/ai_antispam/14"
+  userbot_preamble: "Message from the @ai_antispam_blocker_bot team.\n\nThe bot couldn't message you from its account (maybe you haven't started a chat with it, or it was removed from the channel). So we're sending this from this account.\n\n"
+
+status:
+  setup_done: "✅ Setup complete! I have the necessary permissions and now protect group <b>{group}</b>.\n\nIf you need help — message me privately or use /help."
+  group_label: "Group: <b>{group}</b>\n\n"
+  permission_steps: "📱 How to set permissions:\n1. Open group profile\n2. Tap 'Edit' or 'Group management'\n3. Go to 'Administrators'\n"
+  permission_steps_public: "4. Find me in the administrators list"
+  permission_steps_private: "4. Tap 'Add administrator' and select me"
+  permission_steps_5: "5. Enable two permissions:\n   • <b>Delete messages</b> - to delete spam\n   • <b>Ban users</b> - to ban spammers\n\nAfter setting permissions I'll be able to protect the group! 🛡"
+  hello: "🤖 Hi! I need administrator permissions to protect this group.\n\n"
+  bot_removed: "🔔 I was removed from group <b>{group}</b>\n\nIf that was accidental, you can add me back and restore protection."
+  setup_button: "🔰 Start setup"
+  group_intro: "👋 Hello everyone in this digital space!\n\nI'm an AI created to protect groups from spam and unwanted content.\n\n🛡 My capabilities:\n• Instant spammer detection\n• Automatic spam deletion\n• Whitelist management\n• Learning from your examples\n\n"
+  spam_guide_link: 'ℹ️ <a href="https://t.me/ai_antispam/7">Learn how spam detection works</a>\n'
+  channel_link: '📢 <a href="https://t.me/ai_antispam">Follow project updates</a>\n\n'
+  setup_click: "Tap the button below to start protection setup."
+
+deactivate:
+  group_message: "⚠️ <b>Attention! Group protection deactivated</b>\n\nThe neuromoderator paused due to low stars.\nThe group is left unprotected from:\n• Spam and ads\n• Scammers\n• Unwanted messages\n\n👉 Admins can restore protection via private messages with the bot\n\n🤖 <a href=\"{ref_link}\">Want this moderator in your group? Add bot</a>\n📢 <a href=\"https://t.me/ai_antispam\">Follow project updates</a>"
+  admin_message: "Attention, organic life form!\n\nMy protection of \"{group}\" is temporarily paused due to star energy depletion.\n\nTop up with /buy so I can continue guarding your cyberspace from digital parasites!\n\n"
+  admin_invite: "Or invite other admins: {ref_link}"
+
+low_balance:
+  in_7_days: "in 7 days"
+  week_ahead: "⚠️ <b>Balance running low</b>\n\n~{credits} stars left. At current spend rate, less than a week remaining.\n\nTop up via /buy to keep group protection running."
+  depleted: "⚠️ <b>Protection disabled</b>\n\nTop up before {deadline} — otherwise in 7 days the bot will leave groups where you're the sole payer.\n\nTop up via /buy to keep protection."
+  tomorrow: "⚠️ <b>Bot leaves groups tomorrow</b>\n\nNo payment received. Top up via /buy to keep protection."
+  left_groups: "⚠️ <b>Bot left groups</b>\n\nNo payment received. Groups:\n• {groups}\n\nYour training examples are preserved. Top up via /buy and add the bot again.\n\nBuy: {ref_link}"
+
+lang:
+  changed_ru: "✅ Язык изменён на Русский."
+  changed_en: "✅ Language set to English."
+  select: "Select language / Выберите язык:"
+
+offer:
+  protect_channel: "Protect channel"
+
+prompt:
+  explanation_hint: "Provide a confidence percentage (0-100) and a brief explanation in English."
+  reason_format: "Classification reason and which input elements led to this conclusion. Write in English."

@@ -13,6 +13,8 @@ from typing import List, Optional, Tuple
 
 import logfire
 
+from ..database import get_admin
+from ..i18n import normalize_lang
 from ..types import SpamClassificationContext
 from .llm_client import call_llm_with_spam_classification
 from .prompt_builder import build_system_prompt, format_spam_request
@@ -55,9 +57,16 @@ async def is_spam(
     # Use empty context if none provided
     classification_context = context or SpamClassificationContext()
 
+    # Resolve lang from first admin for LLM explanation language
+    lang = "en"
+    if admin_ids:
+        admin = await get_admin(admin_ids[0])
+        if admin and admin.language_code:
+            lang = normalize_lang(admin.language_code)
+
     # Prepare the classification request (prompt building and message formatting)
     messages = await _prepare_classification_request(
-        comment, admin_ids, classification_context
+        comment, admin_ids, classification_context, lang
     )
 
     # Call LLM with retry logic (handles all LLM interaction, retries, and response parsing)
@@ -68,6 +77,7 @@ async def _prepare_classification_request(
     comment: str,
     admin_ids: Optional[List[int]],
     context: SpamClassificationContext,
+    lang: str = "en",
 ) -> List[dict]:
     """
     Prepare the messages for LLM classification request.
@@ -76,6 +86,7 @@ async def _prepare_classification_request(
         comment: The message content to classify
         admin_ids: Optional list of admin IDs for personalized spam examples
         context: Contextual information for classification
+        lang: Language for LLM explanation (ru/en)
 
     Returns:
         List[dict]: Messages array ready for LLM API
@@ -84,6 +95,7 @@ async def _prepare_classification_request(
     system_prompt = await build_system_prompt(
         admin_ids=admin_ids,
         context=context,
+        lang=lang,
     )
 
     # Create messages for LLM

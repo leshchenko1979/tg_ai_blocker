@@ -16,6 +16,7 @@ from aiogram.types import ChatMember, ChatMemberAdministrator, ChatMemberOwner
 from ..common.bot import bot
 from ..common.utils import format_chat_or_channel_display, retry_on_network_error
 from ..database import deduct_credits_from_admins, get_admin, set_group_moderation
+from ..i18n import normalize_lang, t
 
 logger = logging.getLogger(__name__)
 
@@ -117,17 +118,13 @@ async def send_group_deactivation_message(
         min_credits_admin: Админ с минимальным балансом
         min_credits: Минимальный баланс
     """
-    message_text = (
-        "⚠️ <b>Внимание! Защита группы деактивирована</b>\n\n"
-        "Нейромодератор приостановил работу из-за нехватки звезд.\n"
-        "Группа осталась без защиты от:\n"
-        "• Спама и рекламы\n"
-        "• Мошенников\n"
-        "• Нежелательных сообщений\n\n"
-        "👉 Администраторы могут восстановить защиту через личные сообщения с ботом\n\n"
-        f'🤖 <a href="{ref_link}">Хотите такого же модератора в свою группу? Подключить</a>\n'
-        '📢 <a href="https://t.me/ai_antispam">Следите за обновлениями в канале проекта</a>'
+    first_admin = await get_admin(min_credits_admin.user.id)
+    lang = (
+        normalize_lang(first_admin.language_code)
+        if first_admin and first_admin.language_code
+        else "en"
     )
+    message_text = t(lang, "deactivate.group_message", ref_link=ref_link)
 
     try:
 
@@ -161,7 +158,27 @@ async def notify_admins_about_deactivation(
         ref_link: Реферальная ссылка
         chat_username: Опциональный username группы без @
     """
-    group_display = format_chat_or_channel_display(chat_title, chat_username, "Группа")
+    first_admin_id = next(
+        (
+            a.user.id
+            for a in admins
+            if isinstance(a, (ChatMemberAdministrator, ChatMemberOwner))
+            and not a.user.is_bot
+        ),
+        None,
+    )
+    lang = "en"
+    if first_admin_id:
+        first_admin = await get_admin(first_admin_id)
+        lang = (
+            normalize_lang(first_admin.language_code)
+            if first_admin and first_admin.language_code
+            else "en"
+        )
+
+    group_display = format_chat_or_channel_display(
+        chat_title, chat_username, t(lang, "common.group")
+    )
     for admin in admins:
         if not isinstance(admin, (ChatMemberAdministrator, ChatMemberOwner)):
             continue
@@ -169,14 +186,14 @@ async def notify_admins_about_deactivation(
             continue
 
         admin_id = admin.user.id
-        message_text = (
-            "Внимание, органическая форма жизни!\n\n"
-            f'Моя защита группы "{group_display}" временно приостановлена '
-            "из-за истощения звездной энергии.\n\n"
-            "Пополни запас звезд командой /buy, чтобы я продолжил охранять "
-            "твоё киберпространство от цифровых паразитов!\n\n"
-            f"Или пригласи других администраторов: {ref_link}"
+        admin_obj = await get_admin(admin_id)
+        admin_lang = (
+            normalize_lang(admin_obj.language_code)
+            if admin_obj and admin_obj.language_code
+            else lang
         )
+        message_text = t(admin_lang, "deactivate.admin_message", group=group_display)
+        message_text += t(admin_lang, "deactivate.admin_invite", ref_link=ref_link)
 
         try:
 

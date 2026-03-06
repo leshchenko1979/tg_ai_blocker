@@ -15,10 +15,21 @@ from ..common.bot import bot
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
 from ..common.utils import format_chat_or_channel_display, retry_on_network_error
 from ..database import deactivate_admin, get_admin, get_group, update_group_admins
+from ..i18n import normalize_lang, t
 from .dp import dp
 from .message.channel_management import notify_channel_admins_and_leave
 
 logger = logging.getLogger(__name__)
+
+
+async def _resolve_lang(admin_ids: list[int] | None, fallback: str = "en") -> str:
+    """Resolve language from first admin's language_code."""
+    if not admin_ids:
+        return fallback
+    admin = await get_admin(admin_ids[0])
+    if admin and admin.language_code:
+        return normalize_lang(admin.language_code)
+    return fallback
 
 
 @dp.my_chat_member()
@@ -125,17 +136,18 @@ async def _handle_permission_update(
                 [admin_id],
                 admin_id,
             )
-            # NEW: Send confirmation to admin
+            # Send confirmation to admin
             try:
+                lang = await _resolve_lang([admin_id])
                 group_display = format_chat_or_channel_display(
-                    chat_title, event.chat.username, "Группа"
+                    chat_title, event.chat.username, t(lang, "common.group")
                 )
 
                 @retry_on_network_error
                 async def send_setup_confirmation():
                     return await bot.send_message(
                         admin_id,
-                        f"✅ Настройка завершена! Я получил все необходимые права и теперь защищаю группу <b>{group_display}</b>.\n\nЕсли потребуется помощь — напишите мне в личку или воспользуйтесь командой /help.",
+                        t(lang, "status.setup_done", group=group_display),
                         parse_mode="HTML",
                     )
 
@@ -190,17 +202,18 @@ async def _handle_bot_added(
             [admin_id],
             admin_id,
         )
-        # NEW: Send confirmation to admin
+        # Send confirmation to admin
         try:
+            lang = await _resolve_lang([admin_id])
             group_display = format_chat_or_channel_display(
-                chat_title, event.chat.username, "Группа"
+                chat_title, event.chat.username, t(lang, "common.group")
             )
 
             @retry_on_network_error
             async def send_setup_confirmation():
                 return await bot.send_message(
                     admin_id,
-                    f"✅ Настройка завершена! Я получил все необходимые права и теперь защищаю группу <b>{group_display}</b>.\n\nЕсли потребуется помощь — напишите мне в личку или воспользуйтесь командой /help.",
+                    t(lang, "status.setup_done", group=group_display),
                     parse_mode="HTML",
                 )
 
@@ -269,25 +282,23 @@ async def _notify_admins_about_rights(
     is_already_admin: bool = False,
 ) -> None:
     """Notify admins about required bot permissions."""
-
-    if is_already_admin:
-        step_4 = "4. Найдите меня в списке администраторов"
-    else:
-        step_4 = "4. Нажмите 'Добавить администратора' и выберите меня"
-
-    group_display = format_chat_or_channel_display(chat_title, username, "Группа")
+    lang = await _resolve_lang(admin_ids)
+    step_4_key = (
+        "status.permission_steps_public"
+        if is_already_admin
+        else "status.permission_steps_private"
+    )
+    step_4 = t(lang, step_4_key)
+    group_display = format_chat_or_channel_display(
+        chat_title, username, t(lang, "common.group")
+    )
     private_message = (
-        "🤖 Приветствую! Для защиты группы мне нужны права администратора.\n\n"
-        f"Группа: <b>{group_display}</b>\n\n"
-        "📱 Как настроить права:\n"
-        "1. Откройте профиль группы\n"
-        "2. Нажмите 'Изменить' или 'Управление группой'\n"
-        "3. Перейдите в 'Администраторы'\n"
-        f"{step_4}\n"
-        "5. Включите два права:\n"
-        "   • <b>Удаление сообщений</b> - чтобы удалять спам\n"
-        "   • <b>Блокировка пользователей</b> - чтобы блокировать спамеров\n\n"
-        "После настройки прав я смогу защищать группу! 🛡"
+        t(lang, "status.hello")
+        + t(lang, "status.group_label", group=group_display)
+        + t(lang, "status.permission_steps")
+        + step_4
+        + "\n"
+        + t(lang, "status.permission_steps_5")
     )
 
     await notify_admins_with_fallback_and_cleanup(
@@ -295,7 +306,7 @@ async def _notify_admins_about_rights(
         admin_ids,
         chat_id,
         private_message,
-        group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
+        group_message_template=t(lang, "common.notify_no_dm"),
         cleanup_if_group_fails=True,
         parse_mode="HTML",
         assume_human_admins=assume_human_admins,
@@ -312,19 +323,18 @@ async def _notify_admins_about_removal(
     assume_human_admins: bool = False,
 ) -> None:
     """Notify admins when bot is removed from a group."""
-    group_display = format_chat_or_channel_display(chat_title, username, "Группа")
-    private_message = (
-        f"🔔 Я был удален из группы <b>{group_display}</b>\n\n"
-        "Если это произошло случайно, вы можете добавить меня обратно "
-        "и восстановить защиту группы."
+    lang = await _resolve_lang(admin_ids)
+    group_display = format_chat_or_channel_display(
+        chat_title, username, t(lang, "common.group")
     )
+    private_message = t(lang, "status.bot_removed", group=group_display)
 
     result = await notify_admins_with_fallback_and_cleanup(
         bot,
         admin_ids,
         chat_id,
         private_message,
-        group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
+        group_message_template=t(lang, "common.notify_no_dm"),
         cleanup_if_group_fails=True,
         parse_mode="HTML",
         assume_human_admins=assume_human_admins,
@@ -346,32 +356,30 @@ async def _send_promo_message(
 ) -> None:
     """Send promotional message to the group when bot is added."""
     try:
+        lang = await _resolve_lang(admin_ids or [added_by])
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text="🔰 Начать настройку",
+                        text=t(lang, "status.setup_button"),
                         url=f"https://t.me/{(await bot.get_me()).username}?start=setup_{chat_id}",
                     )
                 ]
             ]
         )
 
+        promo_text = (
+            t(lang, "status.group_intro")
+            + t(lang, "status.spam_guide_link")
+            + t(lang, "status.channel_link")
+            + t(lang, "status.setup_click")
+        )
+
         @retry_on_network_error
         async def send_promo_message():
             return await bot.send_message(
                 chat_id,
-                "👋 Приветствую всех обитателей этого цифрового пространства!\n\n"
-                "Я - искусственный интеллект, созданный для защиты групп от спама "
-                "и нежелательного контента.\n\n"
-                "🛡 Мои возможности:\n"
-                "• Мгновенное определение спамеров\n"
-                "• Автоматическое удаление спама\n"
-                "• Ведение белого списка участников\n"
-                "• Обучение на ваших примерах\n\n"
-                'ℹ️ <a href="https://t.me/ai_antispam/7">Узнайте, как работает определение спама</a>\n'
-                '📢 <a href="https://t.me/ai_antispam">Следите за обновлениями в канале проекта</a>\n\n'
-                "Нажмите на кнопку ниже, чтобы начать настройку защиты.",
+                promo_text,
                 reply_markup=keyboard,
                 parse_mode="HTML",
                 disable_web_page_preview=True,
@@ -449,20 +457,24 @@ async def handle_member_service_message(message: types.Message) -> str:
                     admin_ids = [
                         admin.user.id for admin in admins if not admin.user.is_bot
                     ]
+                    lang = await _resolve_lang(admin_ids)
                     group_title = message.chat.title or ""
                     group_username = getattr(message.chat, "username", None)
                     group_display = format_chat_or_channel_display(
-                        group_title, group_username, "Группа"
+                        group_title, group_username, t(lang, "common.group")
                     )
+                    private_msg = t(
+                        lang,
+                        "spam.no_delete_service",
+                        group=group_display,
+                    )
+                    group_msg_tpl = t(lang, "spam.no_delete_service_group")
                     notification_result = await notify_admins_with_fallback_and_cleanup(
                         bot,
                         admin_ids,
                         chat_id,
-                        private_message=(
-                            "❗️ У меня нет права удалять сервисные сообщения в группе. "
-                            f"Пожалуйста, дайте мне право 'Удаление сообщений' для корректной работы.\n\nГруппа: <b>{group_display}</b>"
-                        ),
-                        group_message_template="{mention}, у меня нет права удалять сервисные сообщения. Пожалуйста, дайте мне право 'Удаление сообщений'!",
+                        private_message=private_msg,
+                        group_message_template=group_msg_tpl,
                         cleanup_if_group_fails=True,
                         parse_mode="HTML",
                         assume_human_admins=True,

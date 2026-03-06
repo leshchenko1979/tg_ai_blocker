@@ -18,6 +18,7 @@ from ..common.utils import (
     load_config,
     retry_on_network_error,
 )
+from ..i18n import normalize_lang, t
 from ..database import (
     clear_depletion_flags,
     get_admin,
@@ -81,12 +82,13 @@ async def check_week_ahead_warnings() -> None:
         admin = await get_admin(admin_id)
         if admin and not admin.is_active:
             continue
-
-        text = (
-            "⚠️ <b>Баланс заканчивается</b>\n\n"
-            f"Осталось ~{credits} звезд. При текущем расходе хватит меньше чем на неделю.\n\n"
-            "Пополните /buy, чтобы защита групп продолжала работать."
+        lang = (
+            normalize_lang(admin.language_code)
+            if admin and admin.language_code
+            else "en"
         )
+
+        text = t(lang, "low_balance.week_ahead", credits=credits)
         if await _send_admin_message(admin_id, text):
             await mark_low_balance_warned(admin_id)
             logger.info(f"Sent week-ahead warning to admin {admin_id}")
@@ -128,32 +130,34 @@ async def check_depletion_timeline() -> None:
 
         # Day 1: warn about leaving in 7 days
         if warn_day_after and 1 <= days < 2:
+            lang = (
+                normalize_lang(admin.language_code)
+                if admin and admin.language_code
+                else "en"
+            )
             deadline = depleted_at
             if deadline:
-                deadline = (
+                deadline_dt = (
                     deadline.replace(tzinfo=timezone.utc)
                     if deadline.tzinfo is None
                     else deadline
                 )
-                deadline += timedelta(days=grace_days)
-                deadline_str = deadline.strftime("%d.%m.%Y")
+                deadline_dt += timedelta(days=grace_days)
+                deadline_str = deadline_dt.strftime("%d.%m.%Y")
             else:
-                deadline_str = "через 7 дней"
-            text = (
-                "⚠️ <b>Защита отключена</b>\n\n"
-                f"Пополните баланс до {deadline_str} — иначе через 7 дней бот выйдет из групп, "
-                "где вы единственный плательщик.\n\n"
-                "Пополните /buy, чтобы сохранить защиту."
-            )
+                deadline_str = t(lang, "low_balance.in_7_days")
+            text = t(lang, "low_balance.depleted", deadline=deadline_str)
             await _send_admin_message(admin_id, text)
             logger.info(f"Sent day-1 depletion warning to admin {admin_id}")
 
         # Day 6: final warning
         elif warn_day_before and grace_days - 1 <= days < grace_days:
-            text = (
-                "⚠️ <b>Завтра бот выйдет из групп</b>\n\n"
-                "Не было оплаты. Пополните /buy, чтобы сохранить защиту."
+            lang = (
+                normalize_lang(admin.language_code)
+                if admin and admin.language_code
+                else "en"
             )
+            text = t(lang, "low_balance.tomorrow")
             await _send_admin_message(admin_id, text)
             logger.info(f"Sent day-6 depletion warning to admin {admin_id}")
 
@@ -163,6 +167,11 @@ async def leave_sole_payer_groups(admin_id: int) -> None:
     Leave groups where admin is the sole payer (no other admins with credits > 0).
     Notify admin. No account deletion — admin record and training data preserved.
     """
+    admin = await get_admin(admin_id)
+    lang = (
+        normalize_lang(admin.language_code) if admin and admin.language_code else "en"
+    )
+
     group_ids = await get_admin_group_ids(admin_id)
     left_groups = []
     bot_info = await bot.me()
@@ -170,14 +179,14 @@ async def leave_sole_payer_groups(admin_id: int) -> None:
 
     for group_id in group_ids:
         paying = await get_paying_admins(group_id)
-        # Sole payer: we're the only one with credits, or only admin. Since admin has 0,
-        # paying is empty. Leave groups with no paying admins.
         if len(paying) == 0:
             try:
                 chat = await bot.get_chat(group_id)
                 title = getattr(chat, "title", None) or str(group_id)
                 username = getattr(chat, "username", None)
-                display = format_chat_or_channel_display(title, username, "Группа")
+                display = format_chat_or_channel_display(
+                    title, username, t(lang, "common.group")
+                )
                 left_groups.append(display)
             except Exception:
                 left_groups.append(str(group_id))
@@ -192,12 +201,7 @@ async def leave_sole_payer_groups(admin_id: int) -> None:
 
     if left_groups:
         groups_list = "\n• ".join(left_groups)
-        text = (
-            "⚠️ <b>Бот вышел из групп</b>\n\n"
-            f"Не было оплаты. Группы:\n• {groups_list}\n\n"
-            "Ваши примеры обучения сохранены. Пополните /buy и добавьте бота снова.\n\n"
-            f"Купить: {ref_link}"
-        )
+        text = t(lang, "low_balance.left_groups", groups=groups_list, ref_link=ref_link)
         await _send_admin_message(admin_id, text)
         logger.info(
             f"Notified admin {admin_id} about leaving {len(left_groups)} groups"

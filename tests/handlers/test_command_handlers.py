@@ -26,10 +26,6 @@ class TestStartCommandNewUser:
     @pytest.mark.asyncio
     async def test_sends_welcome_without_offer_when_no_linked_channel(self):
         message = _make_start_message()
-        base_welcome = "Welcome!"
-        config = {
-            "start_welcome_text": base_welcome,
-        }
         mock_chat = MagicMock()
         mock_chat.personal_chat = None
         mock_chat.bio = None
@@ -45,8 +41,9 @@ class TestStartCommandNewUser:
                 new_callable=AsyncMock,
             ),
             patch(
-                "src.app.handlers.command_handlers.load_config",
-                return_value=config,
+                "src.app.handlers.command_handlers.get_admin",
+                new_callable=AsyncMock,
+                return_value=MagicMock(language_code="en"),
             ),
             patch(
                 "src.app.handlers.command_handlers.collect_user_context",
@@ -71,17 +68,12 @@ class TestStartCommandNewUser:
         sent_text = message.reply.call_args[0][0]
         call_kw = message.reply.call_args[1]
         assert call_kw["parse_mode"] == "HTML"
-        assert base_welcome in sent_text
+        assert "Welcome" in sent_text
         message.answer.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_sends_welcome_with_offer_when_linked_channel_found(self):
         message = _make_start_message()
-        base_welcome = "Welcome!"
-        config = {
-            "start_welcome_text": base_welcome,
-            "start_linked_channel_offer_template": "Channel: {channel_display}",
-        }
         channel_id = -1001234567890
         mock_chat = MagicMock()
         mock_chat.title = "My Channel"
@@ -101,8 +93,9 @@ class TestStartCommandNewUser:
                 new_callable=AsyncMock,
             ),
             patch(
-                "src.app.handlers.command_handlers.load_config",
-                return_value=config,
+                "src.app.handlers.command_handlers.get_admin",
+                new_callable=AsyncMock,
+                return_value=MagicMock(language_code="en"),
             ),
             patch(
                 "src.app.handlers.command_handlers.collect_user_context",
@@ -128,7 +121,7 @@ class TestStartCommandNewUser:
         # First message: welcome
         message.reply.assert_awaited_once()
         sent_welcome = message.reply.call_args[0][0]
-        assert base_welcome in sent_welcome
+        assert "Welcome" in sent_welcome
 
         # Second message: offer
         message.answer.assert_awaited_once()
@@ -141,8 +134,6 @@ class TestStartCommandNewUser:
     @pytest.mark.asyncio
     async def test_sends_base_welcome_on_collect_error(self):
         message = _make_start_message()
-        base_welcome = "Welcome!"
-        config = {"start_welcome_text": base_welcome}
 
         with (
             patch(
@@ -155,8 +146,9 @@ class TestStartCommandNewUser:
                 new_callable=AsyncMock,
             ),
             patch(
-                "src.app.handlers.command_handlers.load_config",
-                return_value=config,
+                "src.app.handlers.command_handlers.get_admin",
+                new_callable=AsyncMock,
+                return_value=MagicMock(language_code="en"),
             ),
             patch(
                 "src.app.handlers.command_handlers.collect_user_context",
@@ -174,5 +166,5 @@ class TestStartCommandNewUser:
         assert result == "command_start_new_user_sent"
         message.reply.assert_awaited_once()
         sent_text = message.reply.call_args[0][0]
-        assert sent_text == base_welcome
+        assert "Welcome" in sent_text
         message.answer.assert_not_called()

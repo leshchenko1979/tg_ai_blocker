@@ -12,9 +12,9 @@ from ..common.utils import (
     format_chat_or_channel_display,
     get_affiliate_url,
     get_setup_guide_url,
-    load_config,
 )
 from ..database import (
+    get_admin,
     get_admin_credits,
     get_admin_stats,
     get_spam_deletion_state,
@@ -23,6 +23,7 @@ from ..database import (
     toggle_spam_deletion,
     update_admin_username_if_needed,
 )
+from ..i18n import normalize_lang, resolve_lang, t
 from ..spam.user_profile import collect_user_context, collect_channel_summary_by_id
 from ..spam.linked_channel_mention import extract_first_channel_mention
 from ..types import ContextStatus, ContextResult
@@ -38,11 +39,8 @@ async def delete_and_redirect_to_pm(message: types.Message) -> str:
         await message.delete()
     except Exception:
         pass
-    group_help_text = (
-        "🤖 <b>Команды бота работают только в личных сообщениях</b>\n\n"
-        "Чтобы настроить бота или получить помощь, "
-        "начните личный разговор со мной: @ai_spam_blocker_bot\n"
-    )
+    lang = resolve_lang(message, None)
+    group_help_text = t(lang, "group_redirect.title") + t(lang, "group_redirect.body")
     await message.answer(
         group_help_text,
         parse_mode="HTML",
@@ -124,20 +122,18 @@ async def _try_send_linked_channel_offer(
             )
             return False
 
-    config = load_config()
     channel_display = format_chat_or_channel_display(
-        chat.title, getattr(chat, "username", None), "Канал"
+        chat.title, getattr(chat, "username", None), t("ru", "common.channel")
     )
-    offer_template = config.get(
-        "start_linked_channel_offer_template",
-        "У вас есть канал {channel_display}. Хотите подключить защиту комментариев?",
-    )
-    offer_text = offer_template.format(channel_display=channel_display)
+    user_id = message.from_user.id if message.from_user else 0
+    admin = await get_admin(user_id)
+    lang = resolve_lang(message, admin)
+    offer_text = t(lang, "start.linked_channel_offer", channel_display=channel_display)
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Защитить канал",
+                    text=t(lang, "offer.protect_channel"),
                     url=get_setup_guide_url(),
                 )
             ]
@@ -172,13 +168,15 @@ async def handle_help_command(message: types.Message) -> str:
     user_id = user.id
 
     command = message.text.split()[0]
-    config = load_config()
+    admin = await get_admin(user_id)
+    lang = resolve_lang(message, admin)
 
     if command == "/start":
-        is_new = await initialize_new_admin(user_id)
+        lang_for_new = normalize_lang(getattr(user, "language_code", None))
+        is_new = await initialize_new_admin(user_id, language_code=lang_for_new)
         await update_admin_username_if_needed(user_id, user.username)
         if is_new:
-            welcome_text = config.get("start_welcome_text", "Добро пожаловать!")
+            welcome_text = t(lang, "start.welcome")
             await message.reply(
                 welcome_text,
                 parse_mode="HTML",
@@ -191,36 +189,45 @@ async def handle_help_command(message: types.Message) -> str:
             await _try_send_linked_channel_offer(message, user_id, user.username)
             return "command_start_new_user_sent"
         # Для существующих пользователей покажем приветствие с быстрым доступом к функциям
-        existing_user_text = config.get("start_existing_user_text", "С возвращением!")
+        existing_user_text = t(lang, "start.existing_user")
         await message.reply(
             existing_user_text,
             parse_mode="HTML",
         )
         return "command_start_existing_user"
 
-    # config["help_text"] contains safe HTML that we control, no need to sanitize
-    safe_text = config["help_text"]
-
-    # Создаем клавиатуру с кнопками для разных разделов помощи
+    safe_text = t(lang, "help.main")
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="🚀 Как начать", callback_data="help_getting_started"
+                    text=t(lang, "help.buttons.getting_started"),
+                    callback_data="help_getting_started",
                 ),
                 InlineKeyboardButton(
-                    text="📚 Обучение бота", callback_data="help_training"
+                    text=t(lang, "help.buttons.training"),
+                    callback_data="help_training",
                 ),
             ],
             [
                 InlineKeyboardButton(
-                    text="⚙️ Что проверяется", callback_data="help_moderation"
+                    text=t(lang, "help.buttons.moderation"),
+                    callback_data="help_moderation",
                 ),
-                InlineKeyboardButton(text="💡 Команды", callback_data="help_commands"),
+                InlineKeyboardButton(
+                    text=t(lang, "help.buttons.commands"),
+                    callback_data="help_commands",
+                ),
             ],
             [
-                InlineKeyboardButton(text="💰 Оплата", callback_data="help_payment"),
-                InlineKeyboardButton(text="🔧 Поддержка", callback_data="help_support"),
+                InlineKeyboardButton(
+                    text=t(lang, "help.buttons.payment"),
+                    callback_data="help_payment",
+                ),
+                InlineKeyboardButton(
+                    text=t(lang, "help.buttons.support"),
+                    callback_data="help_support",
+                ),
             ],
         ]
     )
@@ -246,39 +253,39 @@ async def handle_stats_command(message: types.Message) -> str:
 
     user = cast("types.User", message.from_user)  # Cast to ensure proper type hints
     user_id = user.id
+    admin = await get_admin(user_id)
+    lang = resolve_lang(message, admin)
 
     try:
-        # Получаем баланс пользователя
         balance = await get_admin_credits(user_id)
-
-        # Получаем потраченные звезды за неделю
         spent_week = await get_spent_credits_last_week(user_id)
-
-        # Получаем расширенную статистику (включая данные из Logfire)
         admin_stats = await get_admin_stats(user_id)
         global_stats = admin_stats["global"]
         groups = admin_stats["groups"]
 
-        # Формируем сообщение
-        # Баланс и расходы
         message_text = (
-            f"💰 Баланс: <b>{balance}</b> звезд\n"
-            f"📊 Потрачено за последние 7 дней: <b>{spent_week}</b> звезд\n\n"
+            t(lang, "stats.balance", balance=balance)
+            + "\n"
+            + t(lang, "stats.spent_week", spent=spent_week)
+            + "\n\n"
         )
-
-        # Глобальная статистика за неделю
         message_text += (
-            "<b>Статистика за 7 дней:</b>\n"
-            f"📨 Обработано сообщений: <b>{global_stats['processed']}</b>\n"
-            f"🗑 Заблокировано спама: <b>{global_stats['spam']}</b>\n\n"
-            "<b>За все время:</b>\n"
-            f"👤 Одобрено пользователей: <b>{global_stats['approved']}</b>\n"
-            f"📝 Сохраненных примеров спама: <b>{global_stats['spam_examples']}</b>\n\n"
+            t(lang, "stats.stats_7d")
+            + "\n"
+            + t(lang, "stats.processed", count=global_stats["processed"])
+            + "\n"
+            + t(lang, "stats.spam_blocked", count=global_stats["spam"])
+            + "\n\n"
+            + t(lang, "stats.by_groups")
+            + "\n"
+            + t(lang, "stats.approved_users", count=global_stats["approved"])
+            + "\n"
+            + t(lang, "stats.spam_examples", count=global_stats["spam_examples"])
+            + "\n\n"
         )
 
-        # Список групп
         if groups:
-            message_text += "<b>По группам:</b>\n"
+            message_text += t(lang, "stats.by_groups_header") + "\n"
             for group in groups:
                 status_emoji = "✅" if group["is_moderation_enabled"] else "❌"
                 safe_title = html.escape(group["title"] or "", quote=True)
@@ -293,21 +300,22 @@ async def handle_stats_command(message: types.Message) -> str:
 
                 message_text += f"{status_emoji} <b>{safe_title}</b>\n{stats_line}\n"
         else:
-            message_text += "У вас нет групп, где вы администратор."
+            message_text += t(lang, "stats.no_groups")
 
-        # Добавляем информацию о режиме работы
         delete_spam = await get_spam_deletion_state(user_id)
-        mode = "🗑 Режим удаления" if delete_spam else "🔔 Режим уведомлений"
-        message_text += f"\n\nТекущий режим: <b>{mode}</b>"
+        mode = (
+            t(lang, "stats.mode_delete")
+            if delete_spam
+            else t(lang, "stats.mode_notify")
+        )
+        message_text += "\n\n" + t(lang, "stats.current_mode", mode=mode)
 
         await message.reply(message_text, parse_mode="HTML")
         return "command_stats_sent"
 
     except Exception as e:
         logger.error(f"Error handling stats command: {e}", exc_info=True)
-        await message.reply(
-            "Произошла ошибка при получении статистики.", parse_mode="HTML"
-        )
+        await message.reply(t(lang, "stats.error"), parse_mode="HTML")
         return "command_stats_error"
 
 
@@ -322,24 +330,16 @@ async def handle_mode_command(message: types.Message) -> str:
 
     user = cast("types.User", message.from_user)  # Cast to ensure proper type hints
     user_id = user.id
+    admin = await get_admin(user_id)
+    lang = resolve_lang(message, admin)
 
     try:
-        # Переключаем режим
         delete_spam = await toggle_spam_deletion(user_id)
 
-        # Формируем сообщение о новом режиме
         if delete_spam:
-            message_text = (
-                "🗑 Включен <b>режим удаления</b>\n\n"
-                "Теперь я буду автоматически удалять сообщения, "
-                "определённые как спам, в ваших группах."
-            )
+            message_text = t(lang, "mode.delete_enabled")
         else:
-            message_text = (
-                "🔔 Включен <b>режим уведомлений</b>\n\n"
-                "Теперь я буду только уведомлять о сообщениях, "
-                "определённых как спам, но не буду их удалять."
-            )
+            message_text = t(lang, "mode.notify_enabled")
 
         await message.reply(message_text, parse_mode="HTML")
         return (
@@ -350,22 +350,43 @@ async def handle_mode_command(message: types.Message) -> str:
 
     except Exception as e:
         logger.error(f"Error handling mode command: {e}", exc_info=True)
-        await message.reply(
-            "Произошла ошибка при изменении режима работы.", parse_mode="HTML"
-        )
+        await message.reply(t(lang, "mode.error"), parse_mode="HTML")
         return "command_mode_error"
 
 
 @dp.message(Command("ref"), F.chat.type == "private")
 async def cmd_ref(message: types.Message) -> str:
     """Объясняет, как получить официальную реферальную ссылку Telegram Partner Program"""
-    await message.answer(
-        "<b>Как получить свою реферальную ссылку для этого бота:</b>\n\n"
-        "1. Откройте профиль этого бота в Telegram.\n"
-        "2. Нажмите <b>Партнёрская программа</b>.\n"
-        "3. Нажмите <b>Участвовать</b>.\n"
-        "4. После этого появится ваша персональная реферальная ссылка — её можно скопировать и отправить друзьям.\n\n"
-        f"<i>Подробнее: {get_affiliate_url()}</i>",
-        parse_mode="HTML",
+    if not message.from_user:
+        return "command_no_user_info"
+    admin = await get_admin(message.from_user.id)
+    lang = resolve_lang(message, admin)
+    text = (
+        t(lang, "ref.title")
+        + t(lang, "ref.steps")
+        + f"<i>Подробнее: {get_affiliate_url()}</i>"
     )
+    await message.answer(text, parse_mode="HTML")
     return "command_ref_sent"
+
+
+@dp.message(Command("lang"), F.chat.type == "private")
+async def cmd_lang(message: types.Message) -> str:
+    """Change bot language. Private chat only."""
+    if not message.from_user:
+        return "command_no_user_info"
+    admin = await get_admin(message.from_user.id)
+    lang = resolve_lang(message, admin)
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Русский", callback_data="lang_set:ru"),
+                InlineKeyboardButton(text="English", callback_data="lang_set:en"),
+            ]
+        ]
+    )
+    await message.answer(
+        t(lang, "lang.select"),
+        reply_markup=keyboard,
+    )
+    return "command_lang_sent"

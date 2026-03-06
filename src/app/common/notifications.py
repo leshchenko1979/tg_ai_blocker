@@ -39,7 +39,7 @@ async def notify_admins_with_fallback_and_cleanup(
     admin_ids: list[int],
     group_id: int,
     private_message: str,
-    group_message_template: str = "{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
+    group_message_template: str = "{mention}, I can't send a private message to any administrator. Please message me privately to receive important group notifications!",
     cleanup_if_group_fails: bool = True,
     parse_mode: str = "HTML",
     reply_markup: InlineKeyboardMarkup | None = None,

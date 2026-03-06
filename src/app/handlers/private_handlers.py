@@ -18,6 +18,7 @@ from ..common.logfire_lookup import (
 from ..common.utils import sanitize_llm_html
 from ..database import (
     add_spam_example,
+    get_admin,
     get_message_history,
     get_spam_examples,
     initialize_new_admin,
@@ -26,6 +27,7 @@ from ..database import (
     update_admin_username_if_needed,
 )
 from ..database.group_operations import get_admin_groups
+from ..i18n import normalize_lang, t
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -193,19 +195,29 @@ async def handle_forwarded_message(message: types.Message) -> str:
     if not message.from_user:
         return "private_forward_no_user_info"
 
-    # Ask the user if they want to add this as a spam example
+    admin_id = cast("types.User", message.from_user).id
+    await initialize_new_admin(admin_id)
+    admin = await get_admin(admin_id)
+    lang = (
+        normalize_lang(admin.language_code) if admin and admin.language_code else "en"
+    )
+
     row = [
         types.InlineKeyboardButton(
-            text="⚠️ Спам", callback_data="spam_example:spam", style="danger"
+            text=t(lang, "private.spam_button"),
+            callback_data="spam_example:spam",
+            style="danger",
         ),
         types.InlineKeyboardButton(
-            text="💚 Не спам", callback_data="spam_example:not_spam", style="success"
+            text=t(lang, "private.not_spam_button"),
+            callback_data="spam_example:not_spam",
+            style="success",
         ),
     ]
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=[row])
 
     await message.reply(
-        "Добавить это сообщение в базу примеров?",
+        t(lang, "private.add_example_confirm"),
         reply_markup=keyboard,
         parse_mode="HTML",
     )
@@ -245,16 +257,26 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
             linked = user_context.linked_channel if user_context else None
             channel_fragment = linked.get_fragment() if linked else None
 
+        admin = await get_admin(admin_id)
+        lang = (
+            normalize_lang(admin.language_code)
+            if admin and admin.language_code
+            else "en"
+        )
+
+        answer_text = (
+            t(lang, "private.example_spam_removed")
+            if action == "spam"
+            else t(lang, "private.example_not_spam_added")
+        )
         try:
-            await callback.answer(
-                (
-                    "Сообщение добавлено как пример спама, пользователь удален из одобренных."
-                    if action == "spam"
-                    else "Сообщение добавлено как пример ценного сообщения."
-                ),
-            )
+            await callback.answer(answer_text)
         except Exception:
             pass
+
+        edit_type = "спама" if action == "spam" else "ценного сообщения"
+        if lang == "en":
+            edit_type = "spam" if action == "spam" else "valuable"
 
         tasks: List[Coroutine[Any, Any, Any]] = [
             add_spam_example(
@@ -271,7 +293,7 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
             bot.edit_message_text(
                 chat_id=callback.message.chat.id,
                 message_id=callback.message.message_id,
-                text=f"Сообщение добавлено как пример {'спама' if action == 'spam' else 'ценного сообщения'}.",
+                text=t(lang, "private.example_added", type=edit_type),
                 parse_mode="HTML",
             ),
         ]
@@ -316,13 +338,23 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
 
     except OriginalMessageExtractionError as e:
         logger.error(f"Failed to extract original message info: {e}")
-        await callback.answer(
-            "❌ Не удалось получить информацию об исходном сообщении", show_alert=True
+        admin = await get_admin(admin_id)
+        lang = (
+            normalize_lang(admin.language_code)
+            if admin and admin.language_code
+            else "en"
         )
+        await callback.answer(t(lang, "private.error_forward_info"), show_alert=True)
         return "spam_example_extraction_error"
     except Exception as e:
         logger.error(f"Error processing spam example: {e}", exc_info=True)
-        await callback.answer("❌ Произошла ошибка", show_alert=True)
+        admin = await get_admin(admin_id)
+        lang = (
+            normalize_lang(admin.language_code)
+            if admin and admin.language_code
+            else "en"
+        )
+        await callback.answer(t(lang, "private.error_generic"), show_alert=True)
         return "spam_example_error"
 
 

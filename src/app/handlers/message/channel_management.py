@@ -13,6 +13,7 @@ from aiogram.exceptions import TelegramForbiddenError
 
 from ...common.userbot_messaging import send_userbot_dm
 from ...common.utils import format_chat_or_channel_display, retry_on_network_error
+from ...i18n import normalize_lang, t
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,8 @@ def build_channel_instruction_message(
     channel_title: str,
     discussion_link: str | None,
     channel_username: str | None = None,
+    *,
+    lang: str = "en",
 ) -> str:
     """
     Build the instructional message for channel administrators.
@@ -75,25 +78,22 @@ def build_channel_instruction_message(
         channel_title: Title of the channel
         discussion_link: URL to the discussion group if available
         channel_username: Optional channel username without @
+        lang: Language for message
 
     Returns:
         Formatted HTML message with instructions
     """
     channel_display = format_chat_or_channel_display(
-        channel_title, channel_username, "Канал"
+        channel_title, channel_username, t(lang, "common.channel")
     )
-    base_instruction = (
-        f"❗️ Бот был добавлен в канал <b>{channel_display}</b> вместо группы обсуждения.\n\n"
-        "Для правильной работы бота добавьте его в группу обсуждения, связанную с вашим каналом.\n\n"
-        "После этого бот сможет защищать ваши посты от спама в комментариях.\n\n"
-    )
+    base_instruction = t(lang, "channel.wrong_place", channel=channel_display)
 
     if discussion_link:
         base_instruction += (
             f'<b>Discussion Group:</b> <a href="{discussion_link}">go to group</a>\n\n'
         )
 
-    base_instruction += "Подробнее: https://t.me/ai_antispam/14"
+    base_instruction += t(lang, "channel.more_info")
 
     return base_instruction
 
@@ -102,6 +102,8 @@ def build_channel_instruction_userbot_message(
     channel_title: str,
     discussion_link: str | None,
     channel_username: str | None = None,
+    *,
+    lang: str = "en",
 ) -> str:
     """
     Build the instructional message for userbot fallback DM.
@@ -119,14 +121,9 @@ def build_channel_instruction_userbot_message(
         Formatted HTML message with preamble and instruction
     """
     instruction_body = build_channel_instruction_message(
-        channel_title, discussion_link, channel_username
+        channel_title, discussion_link, channel_username, lang=lang
     )
-    preamble = (
-        "Сообщение от команды бота @ai_antispam_blocker_bot.\n\n"
-        "Бот не смог написать вам из своего аккаунта (возможно, вы ещё не начинали "
-        "с ним диалог или он был удалён из канала). Поэтому мы отправляем это "
-        "сообщение с этого аккаунта.\n\n"
-    )
+    preamble = t(lang, "channel.userbot_preamble")
     return preamble + instruction_body
 
 
@@ -204,8 +201,25 @@ async def notify_channel_admins_and_leave(
     discussion_link = (
         f"https://t.me/{discussion_username}" if discussion_username else None
     )
+
+    lang = "en"
+    try:
+        admins = await bot.get_chat_administrators(chat.id)
+        for a in admins:
+            if not a.user.is_bot:
+                from ...database import get_admin
+
+                admin_obj = await get_admin(a.user.id)
+                if admin_obj and admin_obj.language_code:
+                    lang = normalize_lang(admin_obj.language_code)
+                elif getattr(a.user, "language_code", None):
+                    lang = normalize_lang(a.user.language_code)
+                break
+    except Exception:
+        pass
+
     instruction = build_channel_instruction_message(
-        channel_title, discussion_link, channel_username
+        channel_title, discussion_link, channel_username, lang=lang
     )
 
     try:
@@ -227,8 +241,9 @@ async def notify_channel_admins_and_leave(
             and adding_username
             and not getattr(adding_user, "is_bot", False)
         ):
+            fallback_lang = normalize_lang(getattr(adding_user, "language_code", None))
             userbot_message = build_channel_instruction_userbot_message(
-                channel_title, discussion_link, channel_username
+                channel_title, discussion_link, channel_username, lang=fallback_lang
             )
             success = await send_userbot_dm(
                 username=adding_username,

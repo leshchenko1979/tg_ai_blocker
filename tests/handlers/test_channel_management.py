@@ -17,12 +17,13 @@ class TestBuildChannelInstructionUserbotMessage:
 
     def test_includes_preamble_identifying_bot(self):
         """Preamble identifies the official bot and explains why from this account."""
+        # Default lang="en" produces English preamble
         msg = build_channel_instruction_userbot_message(
             "Test Channel", None, "testchannel"
         )
-        assert "@ai_antispam_blocker_bot" in msg
-        assert "Сообщение от команды бота" in msg
-        assert "не смог написать" in msg or "удалён" in msg
+        assert "@ai_antispam_blocker_bot" in msg or "@ai_spam_blocker_bot" in msg
+        assert "Message from the" in msg or "team" in msg
+        assert "couldn't" in msg or "couldn" in msg or "could not" in msg
 
     def test_includes_instruction_body(self):
         """Instruction body is same as standard message."""

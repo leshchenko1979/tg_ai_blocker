@@ -266,6 +266,7 @@ async def create_sqlite_schema(conn):
             credits INTEGER DEFAULT 0 CHECK (credits >= 0),
             delete_spam BOOLEAN DEFAULT 1,
             is_active BOOLEAN DEFAULT 1,
+            language_code TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             credits_depleted_at TIMESTAMP,

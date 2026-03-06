@@ -1,6 +1,6 @@
 ## Active Context
 
-- **Current Focus**: Low-balance warning system ready for deploy. Pending: run migration `--add-low-balance-columns`, promotional channel post (draft in docs/channel_post_low_confidence_spam.md).
+- **Current Focus**: Bot and landing i18n (RU/EN) complete. Run migration `--add-language-code` before deploy. Pending: run migration `--add-low-balance-columns`, promotional channel post (draft in docs/channel_post_low_confidence_spam.md).
 - **Spam Prompt Consistency**: ✅ **Complete** - Fixed system prompt inconsistencies: removed unused -100/+100 score scale, fixed typo (intensity→intensive), removed XML wrapper from examples, normalized blank line formatting, unified empty section phrasing (ACCOUNT AGE uses photo_age=unknown).
 - **Key Decisions**:
   - **Cloudflare Primary Provider**: All bot operations (spam classification, private chat) now use Cloudflare AI Gateway exclusively.
@@ -32,3 +32,4 @@
 - **Spam Examples Pending Flow**: ✅ **Complete** - Implemented unified `spam_examples` with `confirmed` flag. At notify, full payload stored via `insert_pending_spam_example`; callback data passes only DB id. `confirm_pending_spam_example` returns row for unban/add_member; no fallback if not found. Migration: `--add-pending-spam-columns`.
 - **Group Command Unification**: ✅ **Complete** - `_delete_and_redirect_to_pm()` in command_handlers: delete + answer for all commands in groups. handle_help_command returns early for groups; handle_group_commands calls it for /stats, /mode, /ref and others.
 - **Admin Low-Balance Warning System**: ✅ **Complete** - Proactive warnings: week-ahead when credits low, day-1/day-6/day-7 depletion timeline. Asyncio daily loop in `src/app/billing/`. On deadline bot leaves sole-payer groups (no account deletion). Migration `--add-low-balance-columns`.
+- **Bot and Landing i18n (RU/EN)**: ✅ **Complete** - Added `language_code` column to administrators (migration `--add-language-code`), locale files `src/app/locales/ru.yaml` and `en.yaml`, `/lang` command with RU/EN buttons. All handlers use `t(lang, key)` and `resolve_lang()`. LLM spam prompt explanation varies by admin language. Landing: `index-en.html` with full English translation and language switcher in header/footer. Build processes both HTML files.

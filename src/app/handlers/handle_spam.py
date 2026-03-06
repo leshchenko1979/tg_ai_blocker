@@ -26,10 +26,10 @@ from ..common.utils import (
     get_project_channel_url,
     get_setup_guide_url,
     get_spam_guide_url,
-    load_config,
     retry_on_network_error,
 )
-from ..database import get_admins_map
+from ..database import get_admin, get_admins_map
+from ..i18n import t
 from ..database.group_operations import remove_member_from_group
 from ..database.spam_examples import insert_pending_spam_example
 from ..types import MessageContextResult, MessageNotificationContext
@@ -122,6 +122,8 @@ def create_admin_notification_keyboard(
     message: types.Message,
     all_admins_delete: bool,
     pending_id: Optional[int] = None,
+    *,
+    lang: str = "en",
 ) -> InlineKeyboardMarkup:
     """
     Создает клавиатуру для уведомления администратора.
@@ -130,6 +132,7 @@ def create_admin_notification_keyboard(
         message: Спам-сообщение
         all_admins_delete: Флаг автоудаления спама
         pending_id: ID pending spam_example row for "Не спам" button (required for callback)
+        lang: Language for button labels
 
     Returns:
         InlineKeyboardMarkup: Клавиатура с кнопками действий
@@ -141,12 +144,12 @@ def create_admin_notification_keyboard(
     if not all_admins_delete:
         row = [
             InlineKeyboardButton(
-                text="🗑️ Удалить",
+                text=t(lang, "spam.delete_button"),
                 callback_data=f"delete_spam_message:{effective_user_id}:{message.chat.id}:{message.message_id}",
                 style="danger",
             ),
             InlineKeyboardButton(
-                text="✅ Не спам",
+                text=t(lang, "spam.not_spam_button"),
                 callback_data=f"mark_as_not_spam:{pending_id}",
                 style="success",
             ),
@@ -154,7 +157,7 @@ def create_admin_notification_keyboard(
     else:
         row = [
             InlineKeyboardButton(
-                text="✅ Это не спам",
+                text=t(lang, "spam.not_spam_confirm"),
                 callback_data=f"mark_as_not_spam:{pending_id}",
                 style="success",
             ),
@@ -166,35 +169,38 @@ def format_missing_permission_message(
     chat_title: str,
     permission_name: str,
     chat_username: Optional[str] = None,
+    *,
+    lang: str = "en",
 ) -> str:
     """
     Форматирует сообщение о отсутствии прав доступа.
 
     Args:
         chat_title: Название группы
-        permission_name: Название отсутствующего права
+        permission_name: Localized permission display name
         chat_username: Опциональный username группы (без @)
+        lang: Language for message
 
     Returns:
         str: Отформатированное сообщение для администраторов
     """
-    # Map permission names to user-friendly descriptions
-    permission_descriptions = {
-        "Удаление сообщений": "удалять спам-сообщения",
-        "Блокировка пользователей": "блокировать пользователей",
-    }
-
-    action_description = permission_descriptions.get(
-        permission_name, permission_name.lower()
+    perm_key = (
+        "spam.permission_delete_action"
+        if ("delete" in permission_name.lower() or "удал" in permission_name.lower())
+        else "spam.permission_ban_action"
     )
+    action_description = t(lang, perm_key)
 
-    group_display = format_chat_or_channel_display(chat_title, chat_username)
-    return (
-        f"❗️ У меня нет права {action_description}. "
-        f"Пожалуйста, дайте мне право '{permission_name}' для полной защиты.\n\n"
-        f"Группа: <b>{group_display}</b>\n\n"
-        f'<a href="{get_setup_guide_url()}">ℹ️ Как выдать права боту</a>'
+    group_display = format_chat_or_channel_display(
+        chat_title, chat_username, t(lang, "common.group")
     )
+    return t(
+        lang,
+        "spam.no_permission",
+        action=action_description,
+        permission=permission_name,
+        group=group_display,
+    ) + t(lang, "spam.setup_guide_link", url=get_setup_guide_url())
 
 
 async def handle_permission_error(
@@ -205,6 +211,8 @@ async def handle_permission_error(
     permission_name: str,
     action_description: str,
     group_username: Optional[str] = None,
+    *,
+    lang: str = "en",
 ) -> bool:
     """
     Обрабатывает ошибки связанные с отсутствием прав доступа.
@@ -214,9 +222,10 @@ async def handle_permission_error(
         chat_id: ID чата
         admin_ids: Список ID администраторов для уведомления
         group_title: Название группы
-        permission_name: Название отсутствующего права
-        action_description: Описание действия, которое пытались выполнить
+        permission_name: Localized permission display name
+        action_description: Описание действия для логов
         group_username: Опциональный username группы (без @)
+        lang: Language for notification messages
 
     Returns:
         bool: True если это была ошибка прав доступа, False иначе
@@ -239,22 +248,24 @@ async def handle_permission_error(
             f"Cannot {action_description} in chat {chat_id}: {error}",
             exc_info=True,
         )
-        # Notify admins about missing permission
         if admin_ids:
             try:
                 display_title = group_title or str(chat_id)
+                group_msg_tpl = t(
+                    lang,
+                    "spam.group_no_permission",
+                    mention="{mention}",
+                    permission=permission_name,
+                )
                 await notify_admins_with_fallback_and_cleanup(
                     bot,
                     admin_ids,
                     chat_id,
                     private_message=format_missing_permission_message(
-                        display_title, permission_name, group_username
+                        display_title, permission_name, group_username, lang=lang
                     ),
-                    group_message_template=(
-                        f"{{mention}}, у меня нет права {permission_name}. "
-                        f"Пожалуйста, дайте мне право '{permission_name}'!\n\n"
-                        f'<a href="{get_setup_guide_url()}">ℹ️ Как выдать права боту</a>'
-                    ),
+                    group_message_template=group_msg_tpl
+                    + t(lang, "spam.setup_guide_link", url=get_setup_guide_url()),
                     cleanup_if_group_fails=True,
                     parse_mode="HTML",
                 )
@@ -271,6 +282,8 @@ def format_admin_notification_message(
     context: MessageNotificationContext,
     all_admins_delete: bool,
     reason: str | None = None,
+    *,
+    lang: str = "en",
 ) -> str:
     """
     Форматирует текст уведомления для администратора.
@@ -279,44 +292,49 @@ def format_admin_notification_message(
         context: Контекст сообщения (группа, нарушитель, содержание)
         all_admins_delete: Флаг автоудаления спама
         reason: Причина классификации как спам
+        lang: Language for message
 
     Returns:
         str: Отформатированный текст уведомления
     """
     if context.effective_user_id is None:
-        return "Ошибка: сообщение без информации о пользователе"
+        return t(lang, "spam.error_no_user")
+
+    group_display = format_chat_or_channel_display(
+        context.chat_title, context.chat_username, t(lang, "common.group")
+    )
+    violator_display = format_chat_or_channel_display(
+        context.violator_name, context.violator_username, t(lang, "common.user")
+    )
 
     reason_text = (
-        f"<b>Причина:</b><blockquote expandable>{html.escape(reason, quote=True)}</blockquote>\n"
+        t(lang, "spam.reason_label", reason=html.escape(reason or "", quote=True))
         if reason
         else ""
     )
 
     admin_msg = (
-        "⚠️ <b>ВТОРЖЕНИЕ!</b>\n\n"
-        f"<b>Группа:</b> {format_chat_or_channel_display(context.chat_title, context.chat_username)}\n\n"
-        f"<b>Нарушитель:</b> {format_chat_or_channel_display(context.violator_name, context.violator_username, 'Пользователь')}\n\n"
-        f"<b>Содержание угрозы:</b>\n<blockquote expandable>{context.content_text}</blockquote>\n\n"
-        f"{reason_text}{context.forward_source}\n"
+        t(lang, "spam.notify_title")
+        + t(lang, "spam.group_label", display=group_display)
+        + t(lang, "spam.violator_label", display=violator_display)
+        + t(lang, "spam.content_label", content=context.content_text)
+        + f"{reason_text}{context.forward_source}\n"
     )
 
     if all_admins_delete:
-        admin_msg += (
-            "<b>Вредоносное сообщение уничтожено, "
-            f"{'канал' if context.is_channel_sender else 'пользователь'} заблокирован.</b>"
+        key = (
+            "spam.destroyed_channel"
+            if context.is_channel_sender
+            else "spam.destroyed_user"
         )
+        admin_msg += t(lang, key)
     else:
         link = context.message_link or get_project_channel_url()
-        admin_msg += (
-            f'<a href="{link}">Ссылка на сообщение</a>\n\n'
-            "<b>💡 Совет:</b> Используйте команду /mode, "
-            "чтобы переключиться в режим автоматического удаления спама."
-        )
+        admin_msg += t(lang, "spam.message_link", link=link)
+        admin_msg += t(lang, "spam.mode_tip")
 
     admin_msg += (
-        "\n\n"
-        f'<a href="{get_spam_guide_url()}">'
-        "ℹ️ Подробнее о том, как работает определение спама</a>"
+        "\n\n" + f'<a href="{get_spam_guide_url()}">' + t(lang, "spam.spam_guide_link")
     )
 
     return admin_msg
@@ -345,9 +363,21 @@ async def notify_admins(
     if not message.from_user:
         return False
 
+    lang = "en"
+    if admin_ids:
+        first_admin = await get_admin(admin_ids[0])
+        if first_admin and first_admin.language_code:
+            from ..i18n import normalize_lang
+
+            lang = normalize_lang(first_admin.language_code)
+        else:
+            from ..i18n import resolve_lang
+
+            lang = resolve_lang(message.from_user, None)
+
     context = MessageNotificationContext.from_message(message)
     private_message = format_admin_notification_message(
-        context, all_admins_delete, reason
+        context, all_admins_delete, reason, lang=lang
     )
 
     pending_id = None
@@ -388,14 +418,14 @@ async def notify_admins(
         )
 
     keyboard = create_admin_notification_keyboard(
-        message, all_admins_delete, pending_id
+        message, all_admins_delete, pending_id, lang=lang
     )
     result = await notify_admins_with_fallback_and_cleanup(
         bot,
         admin_ids,
         message.chat.id,
         private_message,
-        group_message_template="{mention}, я не могу отправить ни одному администратору личное сообщение. Пожалуйста, напишите мне в личку, чтобы получать важные уведомления о группе!",
+        group_message_template=t(lang, "spam.group_message_template"),
         cleanup_if_group_fails=True,
         parse_mode="HTML",
         reply_markup=keyboard,
@@ -426,15 +456,26 @@ async def handle_spam_message_deletion(
             f"Deleted spam message {message.message_id} in chat {message.chat.id}"
         )
     except TelegramBadRequest as e:
-        # Handle permission errors using unified helper
+        lang = "en"
+        if admin_ids:
+            first_admin = await get_admin(admin_ids[0])
+            from ..i18n import normalize_lang
+
+            lang = (
+                normalize_lang(first_admin.language_code)
+                if first_admin and first_admin.language_code
+                else "en"
+            )
+        perm_name = t(lang, "spam.permission_delete")
         if not await handle_permission_error(
             e,
             message.chat.id,
             admin_ids,
             message.chat.title,
-            "Удаление сообщений",
+            perm_name,
             "delete spam message",
             getattr(message.chat, "username", None),
+            lang=lang,
         ):
             # Not a permission error, log as general error
             logger.warning(
@@ -469,14 +510,25 @@ async def ban_user_for_spam(
         await ban_spam_user()
         logger.info(f"Banned user {user_id} in chat {chat_id} for spam")
     except TelegramBadRequest as e:
-        # Handle permission errors using unified helper
+        lang = "en"
+        if admin_ids:
+            first_admin = await get_admin(admin_ids[0])
+            from ..i18n import normalize_lang
+
+            lang = (
+                normalize_lang(first_admin.language_code)
+                if first_admin and first_admin.language_code
+                else "en"
+            )
+        perm_name = t(lang, "spam.permission_ban")
         if not await handle_permission_error(
             e,
             chat_id,
             admin_ids,
             group_title,
-            "Блокировка пользователей",
+            perm_name,
             "ban user",
+            lang=lang,
         ):
             # Not a permission error, log as general error
             logger.warning(
@@ -497,36 +549,57 @@ async def ban_user_for_spam(
 def build_spam_block_notification_message(
     context: MessageNotificationContext,
     reason: str | None = None,
+    *,
+    lang: str = "en",
 ) -> str:
     """
     Build notification message for spam blocking.
-
-    This message is used for both human spammers and channel admins.
+    Sent to spammers/channel admins via MCP. Uses lang for localization.
 
     Args:
         context: Notification context (entity, content, etc.)
         reason: Reason for blocking
+        lang: Language (default en for external recipients)
 
     Returns:
         Formatted notification message
     """
-    # Load config for URLs
+    from ..common.utils import load_config
+
     config = load_config()
     project_website = config["system"]["project_website"]
     project_channel = get_project_channel_url()
 
-    # Build message
-    notification_msg = (
-        f"Ваш комментарий в {context.entity_type} "
-        f"<b>{format_chat_or_channel_display(context.entity_name, context.entity_username, 'Канал')}</b> "
-        "был заблокирован админом при помощи @ai_antispam_blocker_bot.\n\n"
-        f"Ваш комментарий: <blockquote expandable>{context.content_text}</blockquote>\n\n"
+    entity_display = format_chat_or_channel_display(
+        context.entity_name, context.entity_username, t(lang, "common.channel")
+    )
+    entity_type_key = (
+        "spam.entity_channel"
+        if context.entity_type == "канале"
+        else "spam.entity_group"
+    )
+    entity_type = t(lang, entity_type_key)
+    notification_msg = t(
+        lang,
+        "spam.blocked_comment",
+        entity_type=entity_type,
+        entity_display=entity_display,
+        content=context.content_text,
     )
 
     if reason:
-        notification_msg += f"Причина блокировки: <blockquote expandable>{html.escape(reason, quote=True)}</blockquote>\n\n"
+        notification_msg += t(
+            lang,
+            "spam.block_reason",
+            reason=html.escape(reason, quote=True),
+        )
 
-    notification_msg += f"Сайт бота: {project_website}\nКанал бота: {project_channel}"
+    notification_msg += t(
+        lang,
+        "spam.site_channel",
+        website=project_website,
+        channel=project_channel,
+    )
 
     return notification_msg
 

@@ -5,66 +5,67 @@ from aiogram import F, types
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
-from ..common.utils import load_config, retry_on_network_error
-from ..database import get_group
+from ..common.utils import retry_on_network_error
+from ..database import get_admin, get_group, update_admin_language
 from ..database.group_operations import add_member
 from ..database.spam_examples import confirm_pending_spam_example
+from ..i18n import resolve_lang, t
 from .dp import dp
 from .handle_spam import ban_user_for_spam
 
 logger = logging.getLogger(__name__)
 
 
-def create_help_keyboard(config):
-    """Создает клавиатуру помощи из конфигурации"""
-    help_config = config.get("help_system", {})
-    buttons_config = help_config.get("buttons", [])
+@dp.callback_query(F.data.startswith("lang_set:"))
+async def handle_lang_set_callback(callback: CallbackQuery) -> str:
+    """Handle language selection. Callback data: lang_set:ru or lang_set:en."""
+    if not callback.data or not callback.message or not callback.from_user:
+        return "callback_invalid_data"
+    parts = callback.data.split(":")
+    if len(parts) != 2 or parts[1] not in ("ru", "en"):
+        return "callback_invalid_lang"
+    lang = parts[1]
+    admin_id = callback.from_user.id
+    await update_admin_language(admin_id, lang)
+    confirm_text = (
+        t(lang, "lang.changed_ru") if lang == "ru" else t(lang, "lang.changed_en")
+    )
+    await callback.answer(confirm_text, show_alert=False)
+    if callback.message and isinstance(callback.message, types.Message):
+        await callback.message.edit_text(confirm_text)
+    return "callback_lang_set"
 
-    if not buttons_config:
-        return InlineKeyboardMarkup(inline_keyboard=[])
 
-    inline_keyboard = []
-    for row_config in buttons_config:
-        row = []
-        # row_config - это массив вида ["text1", "callback1", "text2", "callback2", ...]
-        for i in range(0, len(row_config), 2):
-            if i + 1 < len(row_config):
-                text = row_config[i]
-                callback_data = row_config[i + 1]
-                row.append(InlineKeyboardButton(text=text, callback_data=callback_data))
-        if row:  # Добавляем только непустые ряды
-            inline_keyboard.append(row)
-
-    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+def _help_callback_to_key(callback_data: str) -> str:
+    """Map help_getting_started -> help.getting_started etc."""
+    return "help." + callback_data.replace("help_", "", 1).replace("_", ".")
 
 
 @dp.callback_query(F.data.startswith("help_") & ~F.data.in_(["help_back"]))
 async def handle_help_pages(callback: CallbackQuery) -> str:
     """Единый обработчик для всех страниц помощи"""
     if not callback.message or not isinstance(callback.message, types.Message):
-        await callback.answer("❌ Сообщение недоступно", show_alert=True)
+        await callback.answer(t("en", "callback.message_inaccessible"), show_alert=True)
         return "callback_message_inaccessible"
 
-    config = load_config()
-    help_config = config.get("help_system", {})
+    admin_id = callback.from_user.id if callback.from_user else 0
+    admin = await get_admin(admin_id)
+    lang = resolve_lang(callback.from_user, admin)
 
-    callback_data = callback.data
+    callback_data = callback.data or ""
+    text_key = _help_callback_to_key(callback_data)
+    text = t(lang, text_key)
+    if text == text_key:
+        text = t(lang, "help.default_page")
 
-    # Вычисляем всё на лету
-    text_key = f"{callback_data}_text"
-    return_value = f"{callback_data}_shown"
-    default_text = help_config.get(
-        "default_page_text", "Информация временно недоступна."
-    )
-
-    # Получаем текст страницы
-    text = config.get(text_key, default_text)
-
-    # Создаем кнопку "Назад"
-    back_button_text = help_config.get("back_button_text", "⬅️ Назад к справке")
     back_button = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=back_button_text, callback_data="help_back")]
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "help.back_button"),
+                    callback_data="help_back",
+                )
+            ]
         ]
     )
 
@@ -76,23 +77,55 @@ async def handle_help_pages(callback: CallbackQuery) -> str:
     )
     await callback.answer()
 
-    return return_value
+    return f"{callback_data}_shown"
 
 
 @dp.callback_query(F.data == "help_back")
 async def handle_help_back(callback: CallbackQuery) -> str:
     """Возвращает к основному меню помощи"""
     if not callback.message or not isinstance(callback.message, types.Message):
-        await callback.answer("❌ Сообщение недоступно", show_alert=True)
+        await callback.answer(t("en", "callback.message_inaccessible"), show_alert=True)
         return "callback_message_inaccessible"
 
-    config = load_config()
+    admin_id = callback.from_user.id if callback.from_user else 0
+    admin = await get_admin(admin_id)
+    lang = resolve_lang(callback.from_user, admin)
 
-    # Получаем текст главного меню (всегда "help_text")
-    text = config.get("help_text", "Справка временно недоступна.")
-
-    # Создаем клавиатуру
-    keyboard = create_help_keyboard(config)
+    text = t(lang, "help.main")
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "help.buttons.getting_started"),
+                    callback_data="help_getting_started",
+                ),
+                InlineKeyboardButton(
+                    text=t(lang, "help.buttons.training"),
+                    callback_data="help_training",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "help.buttons.moderation"),
+                    callback_data="help_moderation",
+                ),
+                InlineKeyboardButton(
+                    text=t(lang, "help.buttons.commands"),
+                    callback_data="help_commands",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "help.buttons.payment"),
+                    callback_data="help_payment",
+                ),
+                InlineKeyboardButton(
+                    text=t(lang, "help.buttons.support"),
+                    callback_data="help_support",
+                ),
+            ],
+        ]
+    )
 
     await callback.message.edit_text(
         text,
@@ -116,11 +149,10 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         if not callback.data or not callback.message:
             return "callback_invalid_data"
 
-        # Быстрый ответ Telegram, чтобы избежать таймаута
+        admin = await get_admin(admin_id)
+        lang = resolve_lang(callback.from_user, admin)
         try:
-            await callback.answer(
-                "✅ Сообщение добавлено как безопасный пример", show_alert=False
-            )
+            await callback.answer(t(lang, "callback.safe_added"), show_alert=False)
         except Exception:
             pass
 
@@ -140,7 +172,9 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
             return "callback_invalid_message_type"
 
         message_text = message.text or message.caption or ""
-        updated_message_text = f"{message_text}\n\n✅ <b>Отмечено как НЕ СПАМ</b>"
+        updated_message_text = (
+            f"{message_text}\n\n✅ <b>{t(lang, 'callback.safe_added')}</b>"
+        )
 
         if row:
             group_id = row["chat_id"]
@@ -190,7 +224,11 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
     except Exception as e:
         logger.error(f"Error in spam ignore callback: {e}", exc_info=True)
         try:
-            await callback.answer("❌ Произошла ошибка", show_alert=True)
+            admin = (
+                await get_admin(callback.from_user.id) if callback.from_user else None
+            )
+            lang = resolve_lang(callback.from_user, admin)
+            await callback.answer(t(lang, "callback.error_generic"), show_alert=True)
         except Exception:
             pass
         return "callback_error_marking_not_spam"
@@ -209,13 +247,15 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
     Returns:
         str: Статус обработки callback
     """
-    if not callback.data:
+    if not callback.data or not callback.from_user:
         return "callback_invalid_data"
 
+    admin = await get_admin(callback.from_user.id)
+    lang = resolve_lang(callback.from_user, admin)
+
     try:
-        # Быстрый ответ Telegram, чтобы избежать таймаута
         try:
-            await callback.answer("✅ Спам удален", show_alert=False)
+            await callback.answer(t(lang, "callback.spam_deleted"), show_alert=False)
         except Exception:
             pass
 
@@ -230,7 +270,7 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
         # Проверяем, что callback относится к сообщению-уведомлению
         if not callback.message:
             logger.warning("No notification message in callback")
-            await callback.answer("❌ Неверный callback", show_alert=True)
+            await callback.answer(t(lang, "callback.invalid_callback"), show_alert=True)
             return "callback_invalid_message"
 
         # Удаляем клавиатуру с сообщения-уведомления
@@ -255,7 +295,7 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
             logger.warning(
                 f"Failed to delete original spam message: {e}", exc_info=True
             )
-            await callback.answer("❌ Не удалось удалить сообщение", show_alert=True)
+            await callback.answer(t(lang, "callback.delete_failed"), show_alert=True)
             return "callback_error_deleting_original"
 
         # Баним спамера после подтверждения админом (режим уведомлений)
@@ -268,7 +308,7 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
     except Exception as e:
         logger.error(f"Error in spam confirm callback: {e}", exc_info=True)
         try:
-            await callback.answer("❌ Произошла ошибка", show_alert=True)
+            await callback.answer(t(lang, "callback.error_generic"), show_alert=True)
         except Exception:
             pass
         return "callback_error_deleting_spam"

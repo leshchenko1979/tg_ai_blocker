@@ -54,6 +54,7 @@ async def create_schema(conn: asyncpg.Connection):
                 credits INTEGER DEFAULT 0 CHECK (credits >= 0),
                 delete_spam BOOLEAN DEFAULT false,
                 is_active BOOLEAN DEFAULT true,
+                language_code VARCHAR(10),
                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                 last_active TIMESTAMP NOT NULL DEFAULT NOW(),
                 credits_depleted_at TIMESTAMP,

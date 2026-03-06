@@ -216,6 +216,40 @@ async def add_low_balance_columns_migration(conn: Any) -> List[str]:
     return operations
 
 
+async def add_language_code_migration(conn: Any) -> List[str]:
+    """
+    Add language_code column to administrators.
+    Backfill: all existing admins get language_code = 'ru'.
+    """
+    operations = []
+    print("Starting language_code column migration...")
+
+    async with conn.transaction():
+        await conn.execute(
+            """
+            ALTER TABLE administrators
+            ADD COLUMN IF NOT EXISTS language_code VARCHAR(10)
+            """
+        )
+        operations.append("Added language_code column")
+        print("✓ Added language_code column")
+
+        await conn.execute(
+            """
+            UPDATE administrators
+            SET language_code = 'ru'
+            WHERE language_code IS NULL
+            """
+        )
+        operations.append("Backfilled language_code = 'ru' for existing admins")
+        print("✓ Backfilled language_code = 'ru' for existing admins")
+
+    print(
+        f"Language code migration completed successfully. {len(operations)} operations performed."
+    )
+    return operations
+
+
 async def add_is_active_column_migration(conn: Any) -> List[str]:
     """
     Ensure administrators table has the is_active column.
@@ -283,6 +317,18 @@ async def run_low_balance_columns_migration():
         await add_low_balance_columns_migration(conn)
 
 
+async def run_language_code_migration():
+    """Run the language_code column migration manually."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    print("Getting database pool...")
+    pool = await get_pool()
+    print("Running language_code migration...")
+    async with pool.acquire() as conn:
+        print("Acquired connection from pool")
+        await add_language_code_migration(conn)
+
+
 async def run_is_active_column_migration():
     """Run the is_active column migration manually."""
     print("Creating database if it doesn't exist...")
@@ -317,6 +363,8 @@ async def main():
             await run_is_active_column_migration()
         elif sys.argv[1] == "--add-pending-spam-columns":
             await run_pending_spam_example_migration()
+        elif sys.argv[1] == "--add-language-code":
+            await run_language_code_migration()
         else:
             raise ValueError(f"Unknown migration flag {sys.argv[1]!r}")
     else:

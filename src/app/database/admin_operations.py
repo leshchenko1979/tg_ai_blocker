@@ -12,13 +12,14 @@ async def save_admin(admin: Administrator) -> None:
         await conn.execute(
             """
             INSERT INTO administrators (
-                admin_id, username, credits, delete_spam, is_active, created_at, last_active
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                admin_id, username, credits, delete_spam, is_active, language_code, created_at, last_active
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (admin_id) DO UPDATE SET
                 username = EXCLUDED.username,
                 credits = EXCLUDED.credits,
                 delete_spam = EXCLUDED.delete_spam,
                 is_active = EXCLUDED.is_active,
+                language_code = EXCLUDED.language_code,
                 last_active = EXCLUDED.last_active
         """,
             admin.admin_id,
@@ -26,8 +27,24 @@ async def save_admin(admin: Administrator) -> None:
             admin.credits,
             admin.delete_spam,
             admin.is_active,
+            admin.language_code,
             admin.created_at,
             admin.last_updated,
+        )
+
+
+async def update_admin_language(admin_id: int, language_code: str) -> None:
+    """Update administrator's preferred language. Supports 'ru' and 'en'."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE administrators
+            SET language_code = $1, last_active = NOW()
+            WHERE admin_id = $2
+            """,
+            language_code,
+            admin_id,
         )
 
 
@@ -67,6 +84,7 @@ async def get_admin(admin_id: int) -> Optional[Administrator]:
             return None
 
         is_active_column = row["is_active"] if "is_active" in row.keys() else True
+        language_code = row["language_code"] if "language_code" in row.keys() else None
 
         return Administrator(
             admin_id=row["admin_id"],
@@ -74,6 +92,7 @@ async def get_admin(admin_id: int) -> Optional[Administrator]:
             credits=row["credits"],
             is_active=is_active_column,
             delete_spam=row["delete_spam"],
+            language_code=language_code,
             created_at=row["created_at"],
             last_updated=row["last_active"],
         )
@@ -100,6 +119,9 @@ async def get_admins_map(admin_ids: list[int]) -> dict[int, Administrator]:
                 credits=row["credits"],
                 is_active=row["is_active"] if "is_active" in row.keys() else True,
                 delete_spam=row["delete_spam"],
+                language_code=(
+                    row["language_code"] if "language_code" in row.keys() else None
+                ),
                 created_at=row["created_at"],
                 last_updated=row["last_active"],
             )
@@ -120,7 +142,11 @@ async def get_admin_credits(admin_id: int) -> int:
         return credits if credits is not None else INITIAL_CREDITS
 
 
-async def initialize_new_admin(admin_id: int) -> bool:
+async def initialize_new_admin(
+    admin_id: int,
+    *,
+    language_code: str | None = None,
+) -> bool:
     """Initialize a new administrator with initial credits"""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -140,11 +166,12 @@ async def initialize_new_admin(admin_id: int) -> bool:
             await conn.execute(
                 """
                 INSERT INTO administrators (
-                    admin_id, credits, delete_spam, is_active, created_at, last_active
-                ) VALUES ($1, $2, false, TRUE, NOW(), NOW())
+                    admin_id, credits, delete_spam, is_active, language_code, created_at, last_active
+                ) VALUES ($1, $2, false, TRUE, $3, NOW(), NOW())
             """,
                 admin_id,
                 INITIAL_CREDITS,
+                language_code,
             )
 
             # Record initial credit transaction
@@ -243,6 +270,9 @@ async def get_all_admins() -> List[Administrator]:
             credits=row["credits"],
             is_active=row.get("is_active", True),
             delete_spam=row["delete_spam"],
+            language_code=(
+                row["language_code"] if "language_code" in row.keys() else None
+            ),
             created_at=row["created_at"],
             last_updated=row["last_active"],
         )

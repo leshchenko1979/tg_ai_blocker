@@ -36,7 +36,9 @@ async def test_check_week_ahead_warnings_sends_and_marks():
         mock_get.return_value = [
             {"admin_id": 111, "credits": 30, "spent_last_week": 40},
         ]
-        mock_get_admin.return_value = type("Admin", (), {"is_active": True})()
+        mock_get_admin.return_value = type(
+            "Admin", (), {"is_active": True, "language_code": "ru"}
+        )()
         mock_send.return_value = True
 
         await check_week_ahead_warnings()
@@ -67,7 +69,9 @@ async def test_check_week_ahead_skips_inactive_admin():
         mock_get.return_value = [
             {"admin_id": 111, "credits": 30, "spent_last_week": 40}
         ]
-        mock_get_admin.return_value = type("Admin", (), {"is_active": False})()
+        mock_get_admin.return_value = type(
+            "Admin", (), {"is_active": False, "language_code": None}
+        )()
         mock_send.return_value = True
 
         await check_week_ahead_warnings()
@@ -104,7 +108,9 @@ async def test_check_depletion_timeline_day7_leaves_groups():
         mock_get.return_value = [
             {"admin_id": 222, "credits_depleted_at": depleted_at},
         ]
-        mock_get_admin.return_value = type("Admin", (), {"is_active": True})()
+        mock_get_admin.return_value = type(
+            "Admin", (), {"is_active": True, "language_code": "ru"}
+        )()
 
         await check_depletion_timeline()
 
@@ -123,6 +129,9 @@ async def test_leave_sole_payer_groups_leaves_and_notifies():
             "app.billing.low_balance_jobs.get_paying_admins", new_callable=AsyncMock
         ) as mock_paying,
         patch("app.billing.low_balance_jobs.load_config") as mock_load,
+        patch(
+            "app.billing.low_balance_jobs.get_admin", new_callable=AsyncMock
+        ) as mock_get_admin,
         patch("app.billing.low_balance_jobs.bot") as mock_bot,
         patch(
             "app.billing.low_balance_jobs.perform_complete_group_cleanup",
@@ -138,6 +147,9 @@ async def test_leave_sole_payer_groups_leaves_and_notifies():
             [333],
         ]  # group 100: no payers, group 200: admin 333 pays
         mock_load.return_value = {"system": {"project_website": "https://test.ru"}}
+        mock_get_admin.return_value = type(
+            "Admin", (), {"is_active": True, "language_code": "ru"}
+        )()
         mock_bot.get_chat = AsyncMock(
             return_value=type("Chat", (), {"title": "Test", "username": "test"})()
         )
