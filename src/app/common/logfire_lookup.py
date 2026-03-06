@@ -1,9 +1,10 @@
 import asyncio
+import json
 import logging
 import os
 import re
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 try:
     from logfire.query_client import LogfireQueryClient
@@ -11,6 +12,8 @@ except ImportError:
     raise ImportError(
         "logfire package is required for message lookup. Install with: pip install logfire"
     )
+
+from ..types import ContextResult, UserAccountInfo
 
 logger = logging.getLogger(__name__)
 
@@ -90,17 +93,10 @@ def _build_text_matching_condition(message_text: str) -> str:
 
 
 def _build_user_id_condition(user_id: Optional[int]) -> str:
-    """
-    Build SQL condition for user ID filtering.
-
-    Args:
-        user_id: User ID to filter by, or None to skip filtering
-
-    Returns:
-        SQL condition string for user ID filtering
-    """
-    if user_id is not None:
-        return f"""
+    """Build SQL condition for user ID filtering, or empty string if user_id is None."""
+    if user_id is None:
+        return ""
+    return f"""
         AND (
             COALESCE(
                 (attributes->'update'->'message'->'from'->>'id')::bigint,
@@ -108,7 +104,23 @@ def _build_user_id_condition(user_id: Optional[int]) -> str:
             ) = {user_id}
         )
         """
-    return ""
+
+
+def _has_rows(result: Any) -> bool:
+    """Return True if result contains at least one row."""
+    return bool(result and result.get("rows"))
+
+
+def _parse_attributes(attrs_raw: Any) -> Optional[Dict]:
+    """Parse attributes from Logfire record; return dict or None if invalid."""
+    if not attrs_raw:
+        return None
+    if isinstance(attrs_raw, str):
+        try:
+            return json.loads(attrs_raw)
+        except json.JSONDecodeError:
+            return None
+    return attrs_raw if isinstance(attrs_raw, dict) else None
 
 
 async def find_original_message(
@@ -166,7 +178,7 @@ async def find_original_message(
     WHERE
         attributes->'update' IS NOT NULL
         AND (
-            attributes->'update'->'message' IS NOT NULL 
+            attributes->'update'->'message' IS NOT NULL
             OR attributes->'update'->'edited_message' IS NOT NULL
         )
         {user_id_condition}
@@ -191,7 +203,7 @@ async def find_original_message(
             limit=1,
         )
 
-        if results and results.get("rows") and len(results["rows"]) > 0:
+        if _has_rows(results):
             row = results["rows"][0]
             message_id = int(row["message_id"])
             chat_id = int(row["chat_id"])
@@ -233,6 +245,9 @@ async def find_spam_classification_context(
     """
     Query Logfire to find the spam classification context for a message.
 
+    Uses a two-step approach: (1) find trace_id from a record with the update,
+    (2) find the is_spam span in that trace and extract context from attributes.context.
+
     Args:
         message_id: The ID of the message that was classified
         chat_id: The chat ID where the message was sent
@@ -249,66 +264,41 @@ async def find_spam_classification_context(
     # Build user ID condition if provided
     user_id_condition = _build_user_id_condition(user_id)
 
-    sql = f"""
-    SELECT
-        attributes->'function_args'->>'stories_context' as stories_context,
-        attributes->'function_args'->>'reply_context' as reply_context,
-        attributes->'function_args'->>'account_age_context' as account_age_context,
-        start_timestamp
-    FROM records
-    WHERE
-        attributes->'function_name' = '"is_spam"'
-        AND (
-            attributes->'update'->'message'->>'message_id' = '{message_id}'
-            OR attributes->'update'->'edited_message'->>'message_id' = '{message_id}'
-        )
-        AND COALESCE(
-            (attributes->'update'->'message'->'chat'->>'id')::bigint,
-            (attributes->'update'->'edited_message'->'chat'->>'id')::bigint
-        ) = {chat_id}
-        {user_id_condition}
-        AND start_timestamp >= '{start_time.isoformat()}'
-    ORDER BY start_timestamp DESC
-    LIMIT 1
-    """
-
     try:
         client = _get_client()
 
-        # Run the blocking query in a thread pool
-        results = await asyncio.to_thread(
+        # Step 1: Find trace_id from a record that has the update (message metadata)
+        step1_sql = f"""
+        SELECT trace_id
+        FROM records
+        WHERE
+            attributes->'update' IS NOT NULL
+            AND (
+                attributes->'update'->'message' IS NOT NULL
+                OR attributes->'update'->'edited_message' IS NOT NULL
+            )
+            AND (
+                (attributes->'update'->'message'->>'message_id') = '{message_id}'
+                OR (attributes->'update'->'edited_message'->>'message_id') = '{message_id}'
+            )
+            AND COALESCE(
+                (attributes->'update'->'message'->'chat'->>'id')::bigint,
+                (attributes->'update'->'edited_message'->'chat'->>'id')::bigint
+            ) = {chat_id}
+            {user_id_condition}
+            AND start_timestamp >= '{start_time.isoformat()}'
+        ORDER BY start_timestamp DESC
+        LIMIT 1
+        """
+
+        step1_results = await asyncio.to_thread(
             client.query_json_rows,
-            sql=sql,
+            sql=step1_sql,
             min_timestamp=start_time,
             limit=1,
         )
 
-        if results and results.get("rows") and len(results["rows"]) > 0:
-            row = results["rows"][0]
-
-            # Extract context fields, handling potential None values
-            stories_context = row.get("stories_context")
-            reply_context = row.get("reply_context")
-            account_age_context = row.get("account_age_context")
-
-            # Convert "null" strings to None (JSON null becomes "null" string in some cases)
-            if stories_context == "null":
-                stories_context = None
-            if reply_context == "null":
-                reply_context = None
-            if account_age_context == "null":
-                account_age_context = None
-
-            logger.info(
-                f"Found spam classification context: stories={bool(stories_context)}, reply={bool(reply_context)}, age={bool(account_age_context)}",
-                extra={"logfire_context_lookup": "success"},
-            )
-            return {
-                "stories_context": stories_context,
-                "reply_context": reply_context,
-                "account_age_context": account_age_context,
-            }
-        else:
+        if not _has_rows(step1_results):
             logger.info(
                 "No spam classification context found in Logfire",
                 extra={
@@ -318,6 +308,110 @@ async def find_spam_classification_context(
                 },
             )
             return None
+
+        trace_id = step1_results["rows"][0].get("trace_id")
+        if not trace_id:
+            logger.info(
+                "Trace has no trace_id",
+                extra={
+                    "logfire_context_lookup": "miss",
+                    "message_id": message_id,
+                    "chat_id": chat_id,
+                },
+            )
+            return None
+
+        # Step 2: Find is_spam span in that trace and extract context from attributes.context
+        trace_id_escaped = trace_id.replace("'", "''")
+        step2_sql = f"""
+        SELECT attributes
+        FROM records
+        WHERE
+            trace_id = '{trace_id_escaped}'
+            AND span_name LIKE '%spam_classifier.is_spam%'
+        ORDER BY start_timestamp ASC
+        LIMIT 1
+        """
+
+        step2_results = await asyncio.to_thread(
+            client.query_json_rows,
+            sql=step2_sql,
+            min_timestamp=start_time,
+            limit=1,
+        )
+
+        if not _has_rows(step2_results):
+            logger.info(
+                "No is_spam span found in trace",
+                extra={
+                    "logfire_context_lookup": "miss",
+                    "message_id": message_id,
+                    "chat_id": chat_id,
+                    "trace_id": trace_id,
+                },
+            )
+            return None
+
+        attrs = _parse_attributes(step2_results["rows"][0].get("attributes"))
+        if attrs is None:
+            logger.info(
+                "is_spam span attributes invalid",
+                extra={
+                    "logfire_context_lookup": "miss",
+                    "message_id": message_id,
+                    "chat_id": chat_id,
+                },
+            )
+            return None
+
+        context = attrs.get("context")
+        if not context or not isinstance(context, dict):
+            logger.info(
+                "is_spam span has no context",
+                extra={
+                    "logfire_context_lookup": "miss",
+                    "message_id": message_id,
+                    "chat_id": chat_id,
+                },
+            )
+            return None
+
+        # Extract reply (direct string; empty or "null" becomes None)
+        reply_raw = context.get("reply")
+        reply_context = (
+            reply_raw
+            if isinstance(reply_raw, str) and reply_raw != "null" and reply_raw.strip()
+            else None
+        )
+
+        # Extract stories (ContextResult-like: status, content)
+        stories_obj = context.get("stories")
+        stories_context = ContextResult.fragment_from_logfire_dict(stories_obj)
+
+        # Extract account_age (ContextResult-like; content is dict with profile_photo_date)
+        account_age_obj = context.get("account_age")
+        account_age_context = None
+        if account_age_obj and isinstance(account_age_obj, dict):
+            status = account_age_obj.get("status")
+            content = account_age_obj.get("content")
+            if status == "found" and content:
+                account_age_context = UserAccountInfo.fragment_from_logfire_dict(
+                    content
+                )
+            elif status == "empty":
+                account_age_context = "[EMPTY]"
+
+        result = {
+            "stories_context": stories_context,
+            "reply_context": reply_context,
+            "account_age_context": account_age_context,
+        }
+
+        logger.info(
+            f"Found spam classification context: stories={bool(stories_context)}, reply={bool(reply_context)}, age={bool(account_age_context)}",
+            extra={"logfire_context_lookup": "success"},
+        )
+        return result
 
     except Exception as e:
         logger.warning(
@@ -380,7 +474,7 @@ async def get_weekly_stats(chat_ids: Sequence[int]) -> Dict[int, Dict[str, int]]
             min_timestamp=start_time,
         )
 
-        if results and results.get("rows"):
+        if _has_rows(results):
             for row in results["rows"]:
                 chat_id_val = row.get("chat_id")
                 if chat_id_val is None:

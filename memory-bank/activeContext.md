@@ -19,6 +19,7 @@
   - **Memory Bank Documentation**: ✅ **Complete** - Updated systemPatterns.md to document Cloudflare AI Gateway usage.
   - **Logfire Trace Analysis**: ✅ **Complete** - Identified and fixed authentication issues in deployed code.
   - **Logfire Instrumentation Cleanup**: ✅ **Complete** - Implemented approved Logfire pattern: auto-tracing for modules with `@logfire.no_auto_trace` decorators on manually instrumented functions to prevent span duplication.
+  - **Logfire Context Lookup Fix**: ✅ **Complete** - Fixed `find_spam_classification_context` two-step trace lookup. Reply, stories, and account_age context are now correctly extracted from Logfire when adding spam examples from forwarded messages. Unit tests in `tests/common/test_logfire_lookup.py`.
 - **Immediate Next Steps**:
   - Publish promotional channel post (draft in docs/channel_post_low_confidence_spam.md).
   - Update landing news card link after channel post is published.

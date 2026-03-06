@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Generic, List, Optional, TypeVar
 
@@ -42,6 +42,32 @@ class ContextResult(Generic[T]):
         if callable(method):
             return str(method())
         return str(self.content)
+
+    @staticmethod
+    def fragment_from_logfire_dict(
+        obj: Any,
+        *,
+        empty_marker: str = "[EMPTY]",
+    ) -> Optional[str]:
+        """Extract fragment string from Logfire-serialized ContextResult dict.
+
+        Handles dict with status/content/error. Returns content if status=found
+        and content is a string; empty_marker if status=empty; None otherwise.
+        For dict content (e.g. account_age), returns None - caller handles separately.
+        """
+        if not obj or not isinstance(obj, dict):
+            return None
+        status = obj.get("status")
+        content = obj.get("content")
+        if status == "found" and content is not None:
+            if isinstance(content, str):
+                return content
+            if isinstance(content, dict):
+                return None  # Handled separately (e.g. UserAccountInfo.fragment_from_logfire_dict)
+            return str(content)
+        if status == "empty":
+            return empty_marker
+        return None
 
 
 @dataclass(slots=True)
@@ -92,8 +118,6 @@ class UserAccountInfo:
     def photo_age_months(self) -> Optional[int]:
         if not self.profile_photo_date:
             return None
-        from datetime import timezone
-
         now = datetime.now(timezone.utc)
         return (
             (now.year - self.profile_photo_date.year) * 12
@@ -115,6 +139,34 @@ class UserAccountInfo:
             parts.append("photo_age=unknown")
 
         return "; ".join(parts)
+
+    @classmethod
+    def fragment_from_logfire_dict(cls, content: Any) -> str:
+        """Convert Logfire-serialized account_age content dict to prompt fragment.
+
+        Expects dict with user_id and profile_photo_date (ISO string).
+        Returns 'photo_age=Xmo' or 'photo_age=unknown' per to_prompt_fragment contract.
+        """
+        if not content or not isinstance(content, dict):
+            return "photo_age=unknown"
+        date_val = content.get("profile_photo_date")
+        if not date_val:
+            return "photo_age=unknown"
+        try:
+            if isinstance(date_val, str):
+                dt = datetime.fromisoformat(date_val.replace("Z", "+00:00"))
+            else:
+                return "photo_age=unknown"
+            now = datetime.now(timezone.utc)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            age_months = max(
+                0,
+                (now.year - dt.year) * 12 + now.month - dt.month,
+            )
+            return f"photo_age={age_months}mo"
+        except (ValueError, TypeError):
+            return "photo_age=unknown"
 
 
 @dataclass(slots=True)
@@ -277,74 +329,58 @@ class StorySummary:
     media_areas: Optional[List[Dict[str, Any]]] = None
 
     @staticmethod
-    def _media_has_links_static(
+    def contains_links(
         media: Optional[Dict[str, Any]],
         media_areas: Optional[List[Dict[str, Any]]] = None,
     ) -> bool:
-        """Check if media or media_areas contain any links that should be included in context."""
-        # Check media_areas first (these can be attached to any media type)
+        """Return True if media or media_areas contain links for context."""
         if media_areas:
             for area in media_areas:
                 if area.get("_") == "MediaAreaUrl" and area.get("url"):
                     return True
-
-        if not media:
-            return False
-
-        media_type = media.get("_")
-        if media_type == "messageMediaWebPage":
-            webpage = media.get("webpage", {})
-            return bool(webpage.get("url"))
-        # Add other media types as needed
-
+        if media and media.get("_") == "messageMediaWebPage":
+            return bool(media.get("webpage", {}).get("url"))
         return False
+
+    @staticmethod
+    def _link_strings_from_areas(
+        areas: Optional[List[Dict[str, Any]]],
+    ) -> List[str]:
+        """Extract 'Link: url' strings from MediaAreaUrl areas."""
+        if not areas:
+            return []
+        return [
+            f"Link: {area['url']}"
+            for area in areas
+            if area.get("_") == "MediaAreaUrl" and area.get("url")
+        ]
 
     def to_string(self) -> str:
         parts = []
         if self.caption:
             parts.append(f"Caption: {self.caption}")
         if self.entities:
-            links = []
-            for entity in self.entities:
-                if entity.get("_") == "messageEntityTextUrl":
-                    links.append(f"Link: {entity.get('url')}")
-                elif entity.get("_") == "messageEntityUrl":
-                    # URL is likely in the text/caption itself, but good to note
-                    pass
-            if links:
-                parts.append(f"Links: {', '.join(links)}")
-
-        # Extract links from media (e.g., webpage URLs, document links)
+            entity_links = [
+                f"Link: {entity['url']}"
+                for entity in self.entities
+                if entity.get("_") == "messageEntityTextUrl" and entity.get("url")
+            ]
+            if entity_links:
+                parts.append(f"Links: {', '.join(entity_links)}")
         if self.media:
             media_links = []
-            media_type = self.media.get("_")
-
-            if media_type == "messageMediaWebPage":
-                webpage = self.media.get("webpage", {})
-                if webpage.get("url"):
-                    media_links.append(f"Link: {webpage['url']}")
-            elif media_type == "messageMediaDocument":
-                # Check for media areas with URLs
-                media_areas = self.media.get("media_areas", [])
-                for area in media_areas:
-                    if area.get("_") == "MediaAreaUrl" and area.get("url"):
-                        media_links.append(f"Link: {area['url']}")
-                # Could also check document attributes for links, but focus on media areas for now
-            # Add other media types as needed
-
+            if self.media.get("_") == "messageMediaWebPage":
+                url = self.media.get("webpage", {}).get("url")
+                if url:
+                    media_links.append(f"Link: {url}")
+            media_links.extend(
+                self._link_strings_from_areas(self.media.get("media_areas"))
+            )
             if media_links:
                 parts.append(f"Links: {', '.join(media_links)}")
-
-        # Extract links from media areas (clickable areas on media)
-        if self.media_areas:
-            area_links = []
-            for area in self.media_areas:
-                if area.get("_") == "MediaAreaUrl" and area.get("url"):
-                    area_links.append(f"Link: {area['url']}")
-
-            if area_links:
-                parts.append(f"Links: {', '.join(area_links)}")
-
+        area_links = self._link_strings_from_areas(self.media_areas)
+        if area_links:
+            parts.append(f"Links: {', '.join(area_links)}")
         return " | ".join(parts) if parts else "Media story"
 
 

@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import pathlib
-from typing import Any, Dict, cast
+from collections.abc import Coroutine
+from typing import Any, Dict, List, cast
 
 from aiogram import F, types
 from aiogram.exceptions import TelegramBadRequest
@@ -255,7 +256,7 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
         except Exception:
             pass
 
-        tasks = [
+        tasks: List[Coroutine[Any, Any, Any]] = [
             add_spam_example(
                 info["text"],
                 name=info["name"],

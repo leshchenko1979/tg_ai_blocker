@@ -57,7 +57,7 @@ async def collect_user_stories(
                 has_content = bool(
                     caption
                     or entities
-                    or StorySummary._media_has_links_static(media, media_areas)
+                    or StorySummary.contains_links(media, media_areas)
                 )
 
                 # If there's no text content and no media links, skip

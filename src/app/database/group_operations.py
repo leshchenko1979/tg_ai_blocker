@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 
 from aiogram.exceptions import TelegramBadRequest
 
@@ -346,10 +346,11 @@ async def update_group_admins(
             )
 
             # Handle both old format (just IDs) and new format (IDs with usernames)
-            usernames: List[Optional[str]] = (
+            usernames = cast(
+                List[Optional[str]],
                 admin_usernames
                 if admin_usernames is not None
-                else [None] * len(admin_ids)
+                else [None] * len(admin_ids),
             )
 
             # Ensure we have usernames for all admins
