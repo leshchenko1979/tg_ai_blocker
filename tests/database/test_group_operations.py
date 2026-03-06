@@ -3,6 +3,8 @@ import pytest
 from app.database import (
     Administrator,
     add_member,
+    deduct_credits_from_admins,
+    get_admin_group_ids,
     get_paying_admins,
     is_member_in_group,
     is_moderation_enabled,
@@ -150,3 +152,56 @@ async def test_set_group_moderation(patched_db_conn, clean_db):
         # Verify moderation is enabled
         is_enabled = await is_moderation_enabled(group_id)
         assert is_enabled is True
+
+
+@pytest.mark.asyncio
+async def test_deduct_credits_sets_credits_depleted_at_when_zero(
+    patched_db_conn, clean_db
+):
+    """When deduction brings credits to 0, credits_depleted_at is set."""
+    async with clean_db.acquire() as conn:
+        group_id = 555555
+        admin_id = 777
+        await conn.execute(
+            "INSERT INTO groups (group_id) VALUES ($1)",
+            group_id,
+        )
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits, credits_depleted_at)
+            VALUES ($1, 'sole', 5, NULL)
+            """,
+            admin_id,
+        )
+        await conn.execute(
+            "INSERT INTO group_administrators (group_id, admin_id) VALUES ($1, $2)",
+            group_id,
+            admin_id,
+        )
+
+    result = await deduct_credits_from_admins(group_id, 5)
+    assert result == admin_id
+
+    async with clean_db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT credits, credits_depleted_at FROM administrators WHERE admin_id = $1",
+            admin_id,
+        )
+        assert row["credits"] == 0
+        assert row["credits_depleted_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_get_admin_group_ids(patched_db_conn, clean_db):
+    """get_admin_group_ids returns group IDs for admin."""
+    async with clean_db.acquire() as conn:
+        await conn.execute("INSERT INTO groups (group_id) VALUES (1), (2)")
+        await conn.execute(
+            "INSERT INTO administrators (admin_id, username, credits) VALUES (99, 'x', 10)"
+        )
+        await conn.execute(
+            "INSERT INTO group_administrators (group_id, admin_id) VALUES (1, 99), (2, 99)"
+        )
+
+    ids = await get_admin_group_ids(99)
+    assert set(ids) == {1, 2}

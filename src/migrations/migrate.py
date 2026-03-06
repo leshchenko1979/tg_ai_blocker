@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 from src.app.database import get_pool
-from src.app.database.database_schema import create_schema
+from src.app.database.database_schema import create_procedures, create_schema
 
 
 async def create_database():
@@ -168,6 +168,54 @@ async def add_pending_spam_example_columns_migration(conn: Any) -> List[str]:
     return operations
 
 
+async def add_low_balance_columns_migration(conn: Any) -> List[str]:
+    """
+    Add credits_depleted_at and low_balance_warned_at to administrators.
+    Backfill credits_depleted_at = NOW() for existing admins with credits = 0.
+    """
+    operations = []
+    print("Starting low balance columns migration...")
+
+    async with conn.transaction():
+        await conn.execute(
+            """
+            ALTER TABLE administrators
+            ADD COLUMN IF NOT EXISTS credits_depleted_at TIMESTAMP
+            """
+        )
+        operations.append("Added credits_depleted_at column")
+        print("✓ Added credits_depleted_at column")
+
+        await conn.execute(
+            """
+            ALTER TABLE administrators
+            ADD COLUMN IF NOT EXISTS low_balance_warned_at TIMESTAMP
+            """
+        )
+        operations.append("Added low_balance_warned_at column")
+        print("✓ Added low_balance_warned_at column")
+
+        await conn.execute(
+            """
+            UPDATE administrators
+            SET credits_depleted_at = NOW()
+            WHERE credits = 0 AND credits_depleted_at IS NULL
+            """
+        )
+        operations.append("Backfilled credits_depleted_at for existing zeros")
+        print("✓ Backfilled credits_depleted_at for existing zeros")
+
+        print("Updating process_successful_payment procedure...")
+        await create_procedures(conn)
+        operations.append("Updated process_successful_payment to clear depletion flags")
+        print("✓ Updated process_successful_payment procedure")
+
+    print(
+        f"Low balance columns migration completed successfully. {len(operations)} operations performed."
+    )
+    return operations
+
+
 async def add_is_active_column_migration(conn: Any) -> List[str]:
     """
     Ensure administrators table has the is_active column.
@@ -223,6 +271,18 @@ async def run_context_columns_migration():
         await add_context_columns_migration(conn)
 
 
+async def run_low_balance_columns_migration():
+    """Run the low balance columns migration manually."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    print("Getting database pool...")
+    pool = await get_pool()
+    print("Running low balance columns migration...")
+    async with pool.acquire() as conn:
+        print("Acquired connection from pool")
+        await add_low_balance_columns_migration(conn)
+
+
 async def run_is_active_column_migration():
     """Run the is_active column migration manually."""
     print("Creating database if it doesn't exist...")
@@ -251,6 +311,8 @@ async def main():
     if len(sys.argv) > 1:
         if sys.argv[1] == "--add-context-columns":
             await run_context_columns_migration()
+        elif sys.argv[1] == "--add-low-balance-columns":
+            await run_low_balance_columns_migration()
         elif sys.argv[1] == "--add-is-active-column":
             await run_is_active_column_migration()
         elif sys.argv[1] == "--add-pending-spam-columns":

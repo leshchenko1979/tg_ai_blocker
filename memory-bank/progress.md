@@ -7,6 +7,7 @@
 - Spam classifier (LLM + Context + Stories + Account Age + Discussion Context with relevance evaluation)
 - **AI & Emoji Detection**: ✅ **Complete** - Expanded prompt guidance to detect robotic AI tone, generic summaries, and unusual emoji usage. Filters low-value content regardless of conversion tactic (stories/linked channels).
 - Billing via Telegram Stars
+- **Admin Low-Balance Warnings**: ✅ **Complete** - Week-ahead, day-1/6/7 depletion timeline, leave sole-payer groups on deadline. Asyncio daily loop in `src/app/billing/`. Config: `billing.low_balance_threshold`, `depletion_grace_days`.
 - **Prompt Optimization & Cleanup**: ✅ **Complete** - Refined system prompt with guidance for User Name analysis, Knowledge Sharing bait, and Value-Add philosophy. Audited and cleaned few-shot examples database, stripping AI-generated reasons and notification wrappers.
 - **Prompt Consistency Fixes**: ✅ **Complete** - Removed unused spam score scale, fixed intensity→intensive typo, removed `<ответ>` XML wrapper from examples, normalized blank line formatting, unified empty section phrasing (ACCOUNT AGE: photo_age=unknown).
 - PostgreSQL data layer

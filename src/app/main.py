@@ -26,6 +26,7 @@ from aiohttp import web
 # Import all handlers to register them with the dispatcher
 from .handlers import *
 
+from .billing.low_balance_jobs import low_balance_loop
 from .common.bot import bot
 from .common.trace_context import set_root_span
 from .common.llms import LocationNotSupported, RateLimitExceeded
@@ -156,6 +157,16 @@ async def _on_startup_setup_webhook(app: web.Application) -> None:
         raise
 
 
+_low_balance_task: Optional[asyncio.Task] = None
+
+
+async def _on_startup_low_balance_loop(app: web.Application) -> None:
+    """Start the low balance warning background loop."""
+    global _low_balance_task
+    _low_balance_task = asyncio.create_task(low_balance_loop())
+    logger.info("Low balance loop started")
+
+
 async def _on_startup_log_server_started(app: web.Application) -> None:
     logging.warning("Server started")
 
@@ -163,6 +174,14 @@ async def _on_startup_log_server_started(app: web.Application) -> None:
 async def _shutdown(app: web.Application) -> None:
     """Gracefully shutdown all resources."""
     logger.warning("Starting graceful shutdown...")
+
+    global _low_balance_task
+    if _low_balance_task and not _low_balance_task.done():
+        _low_balance_task.cancel()
+        try:
+            await _low_balance_task
+        except asyncio.CancelledError:
+            pass
 
     async with asyncio.TaskGroup() as tg:
         tg.create_task(bot.session.close())
@@ -179,6 +198,7 @@ async def _shutdown(app: web.Application) -> None:
 
 app.on_startup.append(_on_startup_register_logging)
 app.on_startup.append(_on_startup_setup_webhook)
+app.on_startup.append(_on_startup_low_balance_loop)
 app.on_startup.append(_on_startup_log_server_started)
 app.on_shutdown.append(_shutdown)
 

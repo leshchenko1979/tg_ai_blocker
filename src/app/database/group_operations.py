@@ -129,9 +129,13 @@ async def deduct_credits_from_admins(group_id: int, amount: int) -> int:
             await conn.execute(
                 """
                 UPDATE administrators
-                SET credits = credits - $1, last_active = NOW()
-                WHERE admin_id = $2
+                SET credits = credits - $1, last_active = NOW(),
+                    credits_depleted_at = CASE
+                        WHEN credits - $2 = 0 AND credits_depleted_at IS NULL
+                        THEN NOW() ELSE credits_depleted_at END
+                WHERE admin_id = $3
             """,
+                amount,
                 amount,
                 admin_row["admin_id"],
             )
@@ -182,6 +186,19 @@ async def cleanup_group_data(group_id: int) -> None:
         )
 
     logger.info(f"Successfully cleaned up database records for group {group_id}")
+
+
+async def get_admin_group_ids(admin_id: int) -> List[int]:
+    """Get list of group IDs where admin is a member (DB only, no Telegram API)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT group_id FROM group_administrators WHERE admin_id = $1
+            """,
+            admin_id,
+        )
+        return [row["group_id"] for row in rows]
 
 
 async def get_admin_groups(admin_id: int) -> List[Dict]:

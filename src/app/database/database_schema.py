@@ -55,7 +55,9 @@ async def create_schema(conn: asyncpg.Connection):
                 delete_spam BOOLEAN DEFAULT false,
                 is_active BOOLEAN DEFAULT true,
                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                last_active TIMESTAMP NOT NULL DEFAULT NOW()
+                last_active TIMESTAMP NOT NULL DEFAULT NOW(),
+                credits_depleted_at TIMESTAMP,
+                low_balance_warned_at TIMESTAMP
             );
 
             -- Groups table
@@ -234,7 +236,9 @@ async def create_procedures(conn: asyncpg.Connection):
                 VALUES (p_admin_id, p_stars_amount, NOW(), NOW())
                 ON CONFLICT (admin_id) DO UPDATE
                 SET credits = administrators.credits + p_stars_amount,
-                    last_active = NOW();
+                    last_active = NOW(),
+                    credits_depleted_at = NULL,
+                    low_balance_warned_at = NULL;
 
                 -- Record payment transaction
                 INSERT INTO transactions (

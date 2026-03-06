@@ -267,6 +267,106 @@ async def deactivate_admin(admin_id: int) -> bool:
     return row is not None
 
 
+async def set_credits_depleted_at(admin_id: int) -> None:
+    """Set credits_depleted_at = NOW() when admin credits hit 0. No-op if already set."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE administrators
+            SET credits_depleted_at = NOW(), last_active = NOW()
+            WHERE admin_id = $1 AND credits = 0 AND credits_depleted_at IS NULL
+            """,
+            admin_id,
+        )
+
+
+async def mark_low_balance_warned(admin_id: int) -> None:
+    """Record that the week-ahead low balance warning was sent."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE administrators
+            SET low_balance_warned_at = NOW(), last_active = NOW()
+            WHERE admin_id = $1
+            """,
+            admin_id,
+        )
+
+
+async def get_admins_for_low_balance_warnings(
+    threshold: int,
+) -> List[Dict[str, Any]]:
+    """
+    Get active admins who need week-ahead warning: credits < min(threshold, spent_last_week)
+    and not yet warned.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT a.admin_id, a.credits,
+                COALESCE(
+                    (SELECT SUM(ABS(amount))::int
+                     FROM transactions t
+                     WHERE t.admin_id = a.admin_id AND t.amount < 0
+                       AND t.created_at >= NOW() - INTERVAL '7 days'),
+                    0
+                ) as spent_last_week
+            FROM administrators a
+            WHERE a.is_active = TRUE
+              AND a.low_balance_warned_at IS NULL
+              AND a.credits > 0
+            """,
+        )
+
+    result = []
+    for row in rows:
+        spent = row["spent_last_week"] or 0
+        limit = min(threshold, spent) if spent > 0 else threshold
+        if row["credits"] < limit:
+            result.append(
+                {
+                    "admin_id": row["admin_id"],
+                    "credits": row["credits"],
+                    "spent_last_week": spent,
+                }
+            )
+    return result
+
+
+async def clear_depletion_flags(admin_id: int) -> None:
+    """Clear credits_depleted_at after day-7 processing so admin is not re-processed daily."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE administrators
+            SET credits_depleted_at = NULL, last_active = NOW()
+            WHERE admin_id = $1
+            """,
+            admin_id,
+        )
+
+
+async def get_admins_for_depletion_timeline() -> List[Dict[str, Any]]:
+    """Get active admins with credits_depleted_at set for timeline checks."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT admin_id, credits_depleted_at
+            FROM administrators
+            WHERE is_active = TRUE AND credits_depleted_at IS NOT NULL
+            """,
+        )
+    return [
+        {"admin_id": row["admin_id"], "credits_depleted_at": row["credits_depleted_at"]}
+        for row in rows
+    ]
+
+
 async def remove_admin(admin_id: int) -> None:
     """Remove administrator from database"""
     pool = await get_pool()

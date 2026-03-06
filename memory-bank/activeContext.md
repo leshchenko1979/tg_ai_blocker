@@ -1,6 +1,6 @@
 ## Active Context
 
-- **Current Focus**: Obscure webhook path change ready for deploy. Pending: promotional channel post (draft in docs/channel_post_low_confidence_spam.md), update landing news card after publish.
+- **Current Focus**: Low-balance warning system ready for deploy. Pending: run migration `--add-low-balance-columns`, promotional channel post (draft in docs/channel_post_low_confidence_spam.md).
 - **Spam Prompt Consistency**: ✅ **Complete** - Fixed system prompt inconsistencies: removed unused -100/+100 score scale, fixed typo (intensity→intensive), removed XML wrapper from examples, normalized blank line formatting, unified empty section phrasing (ACCOUNT AGE uses photo_age=unknown).
 - **Key Decisions**:
   - **Cloudflare Primary Provider**: All bot operations (spam classification, private chat) now use Cloudflare AI Gateway exclusively.
@@ -21,6 +21,7 @@
   - **Logfire Instrumentation Cleanup**: ✅ **Complete** - Implemented approved Logfire pattern: auto-tracing for modules with `@logfire.no_auto_trace` decorators on manually instrumented functions to prevent span duplication.
   - **Logfire Context Lookup Fix**: ✅ **Complete** - Fixed `find_spam_classification_context` two-step trace lookup. Reply, stories, and account_age context are now correctly extracted from Logfire when adding spam examples from forwarded messages. Unit tests in `tests/common/test_logfire_lookup.py`.
 - **Immediate Next Steps**:
+  - Run migration `--add-low-balance-columns` before deploy.
   - Publish promotional channel post (draft in docs/channel_post_low_confidence_spam.md).
   - Update landing news card link after channel post is published.
 - **HTML Hyperlink Preservation**: ✅ **Fixed** - Modified `sanitize_llm_html()` to preserve `<a>` tags in private chat responses, ensuring hyperlinks from LLM-generated content are now clickable instead of being stripped.
@@ -30,3 +31,4 @@
 - **Channel-Add Userbot Fallback**: ✅ **Complete** - When bot is added to a channel, primary flow (notify admins via Bot API, leave) runs first. On `TelegramForbiddenError` (e.g. bot not a member), falls back to userbot DM to adding user if they have a username. Message includes preamble explaining sender and context. New `userbot_messaging.send_userbot_dm` and `build_channel_instruction_userbot_message`. Unit tests in `test_channel_management.py`.
 - **Spam Examples Pending Flow**: ✅ **Complete** - Implemented unified `spam_examples` with `confirmed` flag. At notify, full payload stored via `insert_pending_spam_example`; callback data passes only DB id. `confirm_pending_spam_example` returns row for unban/add_member; no fallback if not found. Migration: `--add-pending-spam-columns`.
 - **Group Command Unification**: ✅ **Complete** - `_delete_and_redirect_to_pm()` in command_handlers: delete + answer for all commands in groups. handle_help_command returns early for groups; handle_group_commands calls it for /stats, /mode, /ref and others.
+- **Admin Low-Balance Warning System**: ✅ **Complete** - Proactive warnings: week-ahead when credits low, day-1/day-6/day-7 depletion timeline. Asyncio daily loop in `src/app/billing/`. On deadline bot leaves sole-payer groups (no account deletion). Migration `--add-low-balance-columns`.

@@ -267,7 +267,9 @@ async def create_sqlite_schema(conn):
             delete_spam BOOLEAN DEFAULT 1,
             is_active BOOLEAN DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            credits_depleted_at TIMESTAMP,
+            low_balance_warned_at TIMESTAMP
         );
     """)
 
