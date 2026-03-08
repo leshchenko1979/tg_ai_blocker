@@ -77,11 +77,11 @@
     <section id="main-content" class="pt-32 pb-20 px-4">
         <div class="container mx-auto max-w-4xl text-center">
             <h1 class="text-4xl md:text-7xl font-bold mb-8 tracking-tight">
-                Забудьте о <span class="text-blue-500">спаме</span> в Telegram навсегда
+                ИИ-бот для <span class="text-blue-500">Telegram</span>, который ловит спам, который пропускают другие
             </h1>
             <p class="text-xl md:text-2xl text-slate-400 mb-12 leading-relaxed">
-                Наш ИИ-модератор охраняет ваши чаты и комментарии 24/7.
-                Он мгновенно распознает ботов, скам и навязчивую рекламу, пока вы заняты более важным.
+                Подключение за 1 минуту в Telegram, модерация 24/7, 100 бесплатных проверок. Наш ИИ анализирует профиль,
+                био, истории и связанные каналы — не только текст.
             </p>
             <div class="flex flex-col md:flex-row gap-4 justify-center">
                 <a href="https://t.me/ai_spam_blocker_bot" class="btn-hero-primary"
@@ -148,6 +148,56 @@
                         ведут
                         упоминания и ссылки в сообщениях.
                     </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How we detect spam - Mermaid Infographics -->
+    <section class="py-24 bg-slate-800/50">
+        <div class="section-container">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">Как мы обнаруживаем спам</h2>
+                <p class="text-slate-400 text-lg">Обычные боты проверяют только текст. Наш ИИ-бот для Telegram
+                    анализирует
+                    профиль целиком.</p>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-12 items-center mb-16">
+                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
+                    <h3 class="text-xl font-bold mb-6 text-center">Обычные боты vs наш ИИ-бот</h3>
+                    <div class="mermaid">
+                        flowchart LR
+                        subgraph TraditionalBots[Traditional bots]
+                        T1[Message text only] --> T2[Keyword filter]
+                        T2 --> T3[Miss Trojan Horse]
+                        end
+
+                        subgraph OurBot[Our AI Telegram bot]
+                        O1[Message] --> O2[Profile bio]
+                        O1 --> O3[Stories]
+                        O1 --> O4[Linked channels]
+                        O1 --> O5[Account age]
+                        O2 --> O6[Full context]
+                        O3 --> O6
+                        O4 --> O6
+                        O5 --> O6
+                        O6 --> O7[Blocks Trojan Horse]
+                        end
+                    </div>
+                </div>
+                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
+                    <h3 class="text-xl font-bold mb-6 text-center">Как работает проверка</h3>
+                    <div class="mermaid">
+                        flowchart TD
+                        Msg[New message] --> AI[AI analyzes text]
+                        AI --> Profile[Check profile and bio]
+                        Profile --> Stories[Check Stories and links]
+                        Stories --> Decision{Spam?}
+                        Decision -->|High confidence| Auto[Auto-delete]
+                        Decision -->|Borderline| Notify[Notify admin]
+                        Decision -->|No| Pass[Allow]
+                    </div>
                 </div>
             </div>
         </div>
@@ -413,6 +463,38 @@
         </div>
     </section>
 
+    <!-- Pricing Section -->
+    <section class="section-padding bg-slate-900">
+        <div class="section-container">
+            <h2 class="section-title">Стоимость</h2>
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
+                    <ul class="space-y-4 text-slate-300">
+                        <li class="flex items-start gap-3">
+                            <span class="text-green-500 font-bold text-xl">✓</span>
+                            <span><b>100 бесплатных проверок</b> при старте — для новых участников групп и
+                                комментаторов</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-blue-500 font-bold">•</span>
+                            <span>Далее <b>1 звезда Telegram</b> за проверку (одобрение нового участника или
+                                комментатора)</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-green-500 font-bold text-xl">✓</span>
+                            <span><b>Анализ сообщений бесплатен</b> — списываются только проверки новых
+                                участников</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-green-500 font-bold text-xl">✓</span>
+                            <span><b>Одобренные пользователи общаются бесплатно</b> — без постоянных списаний</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- FAQ Section -->
     <section class="section-padding" id="faq">
         <div class="container mx-auto max-w-3xl">
@@ -455,9 +537,10 @@
                         </svg>
                     </button>
                     <div class="faq-content">
-                        <p>Ложные срабатывания крайне редки (менее 0.1%). Если это произошло, вы можете разбанить
-                            пользователя вручную через настройки группы. Мы также постоянно обучаем ИИ, чтобы исключить
-                            такие ситуации.</p>
+                        <p>Ложные срабатывания минимальны. В пограничных случаях (уверенность 50–90%) бот сначала
+                            спрашивает
+                            вас — авто-бан без проверки человеком не применяется. Если ошибка случилась, разбаньте в
+                            настройках группы и нажмите «Не спам», чтобы ИИ запомнил.</p>
                     </div>
                 </div>
 
@@ -476,6 +559,36 @@
                     </div>
                 </div>
 
+                <!-- FAQ: Will the bot bother regular users? -->
+                <div class="faq-item">
+                    <button class="faq-button" onclick="toggleFaq(this)">
+                        <span>Будет ли бот беспокоить обычных пользователей?</span>
+                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div class="faq-content">
+                        <p>Нет. Только новые участники проходят проверку при первом сообщении. Одобренные пользователи
+                            общаются свободно без вмешательства. Анализ сообщений действующих участников всегда
+                            бесплатен.</p>
+                    </div>
+                </div>
+
+                <!-- FAQ: Can I train the bot? -->
+                <div class="faq-item">
+                    <button class="faq-button" onclick="toggleFaq(this)">
+                        <span>Можно ли обучить бота под специфику моего чата?</span>
+                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div class="faq-content">
+                        <p>Да. Перешлите любое сообщение боту в личку и пометьте его как «Спам» или «Не спам». Для
+                            каждой
+                            группы создаётся своя база исключений и типов спама, актуальных именно для вас.</p>
+                    </div>
+                </div>
+
                 <!-- FAQ Item 5 -->
                 <div class="faq-item">
                     <button class="faq-button" onclick="toggleFaq(this)">
@@ -485,9 +598,11 @@
                         </svg>
                     </button>
                     <div class="faq-content">
-                        <p>У бота есть бесплатный базовый тариф, которого достаточно для большинства небольших чатов.
-                            Для крупных сообществ с высокой активностью предусмотрены расширенные тарифы с
-                            дополнительными возможностями настройки.</p>
+                        <p>При старте вы получаете 100 бесплатных проверок новых участников и комментаторов. Далее — 1
+                            звезда
+                            Telegram за проверку. Анализ сообщений всегда бесплатен; одобренные пользователи общаются
+                            без
+                            дополнительных списаний.</p>
                     </div>
                 </div>
             </div>
@@ -592,6 +707,10 @@
                 item.classList.add('active');
             }
         }
+    </script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
     </script>
 </body>
 

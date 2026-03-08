@@ -77,11 +77,11 @@
     <section id="main-content" class="pt-32 pb-20 px-4">
         <div class="container mx-auto max-w-4xl text-center">
             <h1 class="text-4xl md:text-7xl font-bold mb-8 tracking-tight">
-                Forget about <span class="text-blue-500">spam</span> in Telegram for good
+                AI <span class="text-blue-500">Telegram</span> bot that catches spam others miss
             </h1>
             <p class="text-xl md:text-2xl text-slate-400 mb-12 leading-relaxed">
-                Our AI moderator guards your chats and comments 24/7. It instantly detects bots, scams,
-                and intrusive ads while you focus on what matters.
+                1-minute setup in Telegram, 24/7 moderation, 100 free checks. Our AI analyzes profile,
+                bio, stories and linked channels — not just text.
             </p>
             <div class="flex flex-col md:flex-row gap-4 justify-center">
                 <a href="https://t.me/ai_spam_blocker_bot" class="btn-hero-primary"
@@ -142,6 +142,56 @@
                         their main channel from instant Telegram bans. Our AI analyzes what resources the mentions and
                         links in messages lead to.
                     </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How we detect spam - Mermaid Infographics -->
+    <section class="py-24 bg-slate-800/50">
+        <div class="section-container">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">How we detect spam</h2>
+                <p class="text-slate-400 text-lg">Traditional bots check text only. Our AI Telegram bot analyzes the
+                    full
+                    profile.</p>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-12 items-center mb-16">
+                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
+                    <h3 class="text-xl font-bold mb-6 text-center">Traditional bots vs our AI bot</h3>
+                    <div class="mermaid">
+                        flowchart LR
+                        subgraph TraditionalBots[Traditional bots]
+                        T1[Message text only] --> T2[Keyword filter]
+                        T2 --> T3[Miss Trojan Horse]
+                        end
+
+                        subgraph OurBot[Our AI Telegram bot]
+                        O1[Message] --> O2[Profile bio]
+                        O1 --> O3[Stories]
+                        O1 --> O4[Linked channels]
+                        O1 --> O5[Account age]
+                        O2 --> O6[Full context]
+                        O3 --> O6
+                        O4 --> O6
+                        O5 --> O6
+                        O6 --> O7[Blocks Trojan Horse]
+                        end
+                    </div>
+                </div>
+                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
+                    <h3 class="text-xl font-bold mb-6 text-center">Spam detection flow</h3>
+                    <div class="mermaid">
+                        flowchart TD
+                        Msg[New message] --> AI[AI analyzes text]
+                        AI --> Profile[Check profile and bio]
+                        Profile --> Stories[Check Stories and links]
+                        Stories --> Decision{Spam?}
+                        Decision -->|High confidence| Auto[Auto-delete]
+                        Decision -->|Borderline| Notify[Notify admin]
+                        Decision -->|No| Pass[Allow]
+                    </div>
                 </div>
             </div>
         </div>
@@ -398,6 +448,35 @@
         </div>
     </section>
 
+    <!-- Pricing Section -->
+    <section class="section-padding bg-slate-900">
+        <div class="section-container">
+            <h2 class="section-title">Pricing</h2>
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
+                    <ul class="space-y-4 text-slate-300">
+                        <li class="flex items-start gap-3">
+                            <span class="text-green-500 font-bold text-xl">✓</span>
+                            <span><b>100 free checks</b> when you start — for new group members and commenters</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-blue-500 font-bold">•</span>
+                            <span>Then <b>1 Telegram Star</b> per check (new member / new commenter approval)</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-green-500 font-bold text-xl">✓</span>
+                            <span><b>Message analysis is free</b> — we charge only for approving new participants</span>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <span class="text-green-500 font-bold text-xl">✓</span>
+                            <span><b>Approved users chat for free</b> — no ongoing cost once they are in</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- FAQ Section -->
     <section class="section-padding" id="faq">
         <div class="container mx-auto max-w-3xl">
@@ -437,8 +516,10 @@
                         </svg>
                     </button>
                     <div class="faq-content">
-                        <p>False positives are rare (under 0.1%). If it happens, you can unban the user manually in
-                            group settings. We also continuously train the AI to prevent such cases.</p>
+                        <p>False positives are minimal. In borderline cases (50–90% confidence) the bot asks you first —
+                            it never auto-bans without human review. If a mistake happens, unban the user in group
+                            settings
+                            and use "Not spam" so the AI learns.</p>
                     </div>
                 </div>
 
@@ -458,14 +539,43 @@
 
                 <div class="faq-item">
                     <button class="faq-button" onclick="toggleFaq(this)">
+                        <span>Will the bot bother regular users?</span>
+                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div class="faq-content">
+                        <p>No. Only new members need approval when they first post. Once approved, users chat freely
+                            with no
+                            interruption. Message analysis for existing participants is always free.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-button" onclick="toggleFaq(this)">
+                        <span>Can I train the bot for my community?</span>
+                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div class="faq-content">
+                        <p>Yes. Forward any message to the bot in a private chat and label it "Spam" or "Not spam". Each
+                            group gets its own personal knowledge base of exceptions and spam types relevant to you.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-button" onclick="toggleFaq(this)">
                         <span>How much does it cost?</span>
                         <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
                     <div class="faq-content">
-                        <p>The bot has a free tier that's enough for most small chats. Extended plans with more features
-                            are available for large communities.</p>
+                        <p>You get 100 free checks for new members and commenters when you start. After that, 1 Telegram
+                            Star
+                            per check. Message analysis is always free; approved users chat without any ongoing cost.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -570,6 +680,10 @@
                 item.classList.add('active');
             }
         }
+    </script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
     </script>
 </body>
 
