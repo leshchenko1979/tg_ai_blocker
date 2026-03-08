@@ -27,6 +27,7 @@ from aiohttp import web
 from .handlers import *
 
 from .billing.low_balance_jobs import low_balance_loop
+from .bot_commands import setup_bot_commands
 from .common.bot import bot
 from .common.trace_context import set_root_span
 from .common.llms import LocationNotSupported, RateLimitExceeded
@@ -157,6 +158,11 @@ async def _on_startup_setup_webhook(app: web.Application) -> None:
         raise
 
 
+async def _on_startup_setup_commands(app: web.Application) -> None:
+    """Register bot command menus (EN and RU) on startup."""
+    await setup_bot_commands(bot)
+
+
 _low_balance_task: Optional[asyncio.Task] = None
 
 
@@ -198,6 +204,7 @@ async def _shutdown(app: web.Application) -> None:
 
 app.on_startup.append(_on_startup_register_logging)
 app.on_startup.append(_on_startup_setup_webhook)
+app.on_startup.append(_on_startup_setup_commands)
 app.on_startup.append(_on_startup_low_balance_loop)
 app.on_startup.append(_on_startup_log_server_started)
 app.on_shutdown.append(_shutdown)

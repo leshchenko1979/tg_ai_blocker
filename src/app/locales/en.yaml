@@ -10,6 +10,16 @@ group_redirect:
   title: "🤖 <b>Bot commands work only in private messages</b>\n\n"
   body: "To configure the bot or get help, start a private chat with me: @ai_spam_blocker_bot\n"
 
+# Short descriptions for Telegram bot command menu (setMyCommands)
+bot_commands:
+  start: "Welcome and get started"
+  help: "Show help and capabilities"
+  buy: "Buy stars for moderation"
+  stats: "Show balance and group status"
+  mode: "Switch mode (delete/notify)"
+  ref: "How to get referral link"
+  lang: "Change language"
+
 start:
   welcome: |
     🤖 <b>Welcome to AI Anti-Spam!</b>
