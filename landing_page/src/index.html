@@ -167,6 +167,9 @@
                         flowchart TD
                         T1[Message text only] --> T2[Keyword filter]
                         T2 --> T3[Miss hidden profile ads]
+                        style T1 fill:#475569,stroke:#64748b,color:#fff
+                        style T2 fill:#475569,stroke:#64748b,color:#fff
+                        style T3 fill:#dc2626,stroke:#b91c1c,color:#fff
                     </div>
                 </div>
                 <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
@@ -182,6 +185,13 @@
                         O4 --> O6
                         O5 --> O6
                         O6 --> O7[Blocks profile ads]
+                        style O1 fill:#475569,stroke:#64748b,color:#fff
+                        style O2 fill:#2563eb,stroke:#1d4ed8,color:#fff
+                        style O3 fill:#2563eb,stroke:#1d4ed8,color:#fff
+                        style O4 fill:#2563eb,stroke:#1d4ed8,color:#fff
+                        style O5 fill:#2563eb,stroke:#1d4ed8,color:#fff
+                        style O6 fill:#374151,stroke:#4b5563,color:#fff
+                        style O7 fill:#16a34a,stroke:#15803d,color:#fff
                     </div>
                 </div>
             </div>
@@ -198,6 +208,14 @@
                     Decision -->|High confidence| Auto[Auto-delete]
                     Decision -->|Borderline| Notify[Notify admin]
                     Decision -->|No| Pass[Allow]
+                    style Msg fill:#475569,stroke:#64748b,color:#fff
+                    style AI fill:#2563eb,stroke:#1d4ed8,color:#fff
+                    style Profile fill:#2563eb,stroke:#1d4ed8,color:#fff
+                    style Stories fill:#2563eb,stroke:#1d4ed8,color:#fff
+                    style Decision fill:#374151,stroke:#4b5563,color:#fff
+                    style Auto fill:#dc2626,stroke:#b91c1c,color:#fff
+                    style Notify fill:#d97706,stroke:#b45309,color:#fff
+                    style Pass fill:#16a34a,stroke:#15803d,color:#fff
                 </div>
             </div>
         </div>
