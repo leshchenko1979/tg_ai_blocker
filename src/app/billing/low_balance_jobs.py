@@ -15,6 +15,7 @@ from ..common.bot import bot
 from ..common.notifications import perform_complete_group_cleanup
 from ..common.utils import (
     format_chat_or_channel_display,
+    get_add_to_group_url,
     load_config,
     retry_on_network_error,
 )
@@ -201,7 +202,13 @@ async def leave_sole_payer_groups(admin_id: int) -> None:
 
     if left_groups:
         groups_list = "\n• ".join(left_groups)
-        text = t(lang, "low_balance.left_groups", groups=groups_list, ref_link=ref_link)
+        text = t(
+            lang,
+            "low_balance.left_groups",
+            groups=groups_list,
+            ref_link=ref_link,
+            add_to_group_url=get_add_to_group_url(),
+        )
         await _send_admin_message(admin_id, text)
         logger.info(
             f"Notified admin {admin_id} about leaving {len(left_groups)} groups"

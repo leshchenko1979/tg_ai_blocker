@@ -5,7 +5,7 @@ from aiogram import F, types
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
-from ..common.utils import retry_on_network_error
+from ..common.utils import get_add_to_group_url, retry_on_network_error
 from ..database import get_admin, get_group, update_admin_language
 from ..database.group_operations import add_member
 from ..database.spam_examples import confirm_pending_spam_example
@@ -54,7 +54,10 @@ async def handle_help_pages(callback: CallbackQuery) -> str:
 
     callback_data = callback.data or ""
     text_key = _help_callback_to_key(callback_data)
-    text = t(lang, text_key)
+    if text_key == "help.getting_started":
+        text = t(lang, text_key, add_to_group_url=get_add_to_group_url())
+    else:
+        text = t(lang, text_key)
     if text == text_key:
         text = t(lang, "help.default_page")
 

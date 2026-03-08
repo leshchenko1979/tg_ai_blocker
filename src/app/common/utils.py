@@ -297,6 +297,15 @@ def get_affiliate_url():
     )
 
 
+def get_add_to_group_url():
+    """Get deep link to add bot to group with admin permissions (delete_messages, restrict_members)."""
+    global _system_config
+    if _system_config is None:
+        _system_config = get_system_config()
+    username = _system_config.get("bot_username", "ai_spam_blocker_bot")
+    return f"https://t.me/{username}?startgroup&admin=delete_messages+restrict_members"
+
+
 def get_webhook_timeout():
     """Get webhook timeout"""
     global _system_config

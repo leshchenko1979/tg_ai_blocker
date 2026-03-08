@@ -10,6 +10,7 @@ from aiogram.types import Chat, InlineKeyboardButton, InlineKeyboardMarkup
 from ..common.bot import bot
 from ..common.utils import (
     format_chat_or_channel_display,
+    get_add_to_group_url,
     get_affiliate_url,
     get_setup_guide_url,
 )
@@ -40,7 +41,19 @@ async def delete_and_redirect_to_pm(message: types.Message) -> str:
     except Exception:
         pass
     lang = resolve_lang(message, None)
-    group_help_text = t(lang, "group_redirect.title") + t(lang, "group_redirect.body")
+
+    # When /start has a param (e.g. from startgroup=landing deep link), show brief ready message
+    text = message.text or ""
+    if text.startswith("/start ") and len(text) > 7:
+        param = text[7:].strip()
+        if param in ("landing",) or param.startswith("setup_"):
+            brief = t(lang, "group_redirect.start_param_brief")
+            await message.answer(brief)
+            return "command_group_start_param_brief"
+
+    group_help_text = t(lang, "group_redirect.title") + t(
+        lang, "group_redirect.body", add_to_group_url=get_add_to_group_url()
+    )
     await message.answer(
         group_help_text,
         parse_mode="HTML",

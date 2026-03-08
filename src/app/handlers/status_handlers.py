@@ -13,7 +13,11 @@ from ..common.trace_context import get_root_span
 
 from ..common.bot import bot
 from ..common.notifications import notify_admins_with_fallback_and_cleanup
-from ..common.utils import format_chat_or_channel_display, retry_on_network_error
+from ..common.utils import (
+    format_chat_or_channel_display,
+    get_add_to_group_url,
+    retry_on_network_error,
+)
 from ..database import deactivate_admin, get_admin, get_group, update_group_admins
 from ..i18n import normalize_lang, t
 from .dp import dp
@@ -299,6 +303,11 @@ async def _notify_admins_about_rights(
         + step_4
         + "\n"
         + t(lang, "status.permission_steps_5")
+        + t(
+            lang,
+            "status.permission_alternative",
+            add_to_group_url=get_add_to_group_url(),
+        )
     )
 
     await notify_admins_with_fallback_and_cleanup(

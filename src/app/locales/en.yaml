@@ -8,7 +8,8 @@ common:
 
 group_redirect:
   title: "🤖 <b>Bot commands work only in private messages</b>\n\n"
-  body: "To configure the bot or get help, start a private chat with me: @ai_spam_blocker_bot\n"
+  body: "To configure the bot or get help, start a private chat with me: @ai_spam_blocker_bot\n\nOr add me to a group with the right permissions: <a href=\"{add_to_group_url}\">Add to group</a>\n"
+  start_param_brief: "✅ Bot is ready! Configure in private chat: @ai_spam_blocker_bot"
 
 # Short descriptions for Telegram bot command menu (setMyCommands)
 bot_commands:
@@ -66,21 +67,17 @@ help:
   getting_started: |
     <b>🚀 How to start using the bot:</b>
 
-    <b>For groups:</b>
-    1. Add me to your group
-    2. Make me an administrator:
-       • Open group settings -> Administrators
-       • Tap "Add administrator"
-       • Enter @ai_spam_blocker_bot and select me
-    3. Grant permissions:
-       • Delete messages
-       • Ban users
-    4. Done! I'll start protecting automatically
+    <b>For groups (easiest):</b>
+    Use this link to add me with the right permissions in one click: <a href="{add_to_group_url}">Add to group</a>
+
+    <b>If you already added me manually:</b>
+    1. Open group settings -> Administrators
+    2. Find me or tap "Add administrator" and select @ai_spam_blocker_bot
+    3. Enable: Delete messages, Ban users
+    4. Done!
 
     <b>For channels with comments:</b>
-    1. Add me to the discussion group (IMPORTANT: the discussion group, not the channel itself!)
-    2. Make me an administrator
-    3. I'll moderate comments on your channel posts
+    Use the same link: <a href="{add_to_group_url}">Add to group</a> — when the group selection appears, choose your channel's <b>discussion group</b> (not the channel itself!). The bot will get the right permissions automatically.
 
     <b>Detailed guide:</b>
     https://t.me/ai_antispam/14
@@ -301,6 +298,7 @@ status:
   permission_steps_public: "4. Find me in the administrators list"
   permission_steps_private: "4. Tap 'Add administrator' and select me"
   permission_steps_5: "5. Enable two permissions:\n   • <b>Delete messages</b> - to delete spam\n   • <b>Ban users</b> - to ban spammers\n\nAfter setting permissions I'll be able to protect the group! 🛡"
+  permission_alternative: "\n\n<b>Or</b> remove me and add again with this link (grants permissions automatically): <a href=\"{add_to_group_url}\">Add to group</a>"
   hello: "🤖 Hi! I need administrator permissions to protect this group.\n\n"
   bot_removed: "🔔 I was removed from group <b>{group}</b>\n\nIf that was accidental, you can add me back and restore protection."
   setup_button: "🔰 Start setup"
@@ -310,7 +308,7 @@ status:
   setup_click: "Tap the button below to start protection setup."
 
 deactivate:
-  group_message: "⚠️ <b>Attention! Group protection deactivated</b>\n\nThe neuromoderator paused due to low stars.\nThe group is left unprotected from:\n• Spam and ads\n• Scammers\n• Unwanted messages\n\n👉 Admins can restore protection via private messages with the bot\n\n🤖 <a href=\"{ref_link}\">Want this moderator in your group? Add bot</a>\n📢 <a href=\"https://t.me/ai_antispam\">Follow project updates</a>"
+  group_message: "⚠️ <b>Attention! Group protection deactivated</b>\n\nThe neuromoderator paused due to low stars.\nThe group is left unprotected from:\n• Spam and ads\n• Scammers\n• Unwanted messages\n\n👉 Admins can restore protection via private messages with the bot\n\n🤖 <a href=\"{add_to_group_url}\">Want this moderator in your group? Add bot</a>\n📢 <a href=\"https://t.me/ai_antispam\">Follow project updates</a>"
   admin_message: "Attention, organic life form!\n\nMy protection of \"{group}\" is temporarily paused due to star energy depletion.\n\nTop up with /buy so I can continue guarding your cyberspace from digital parasites!\n\n"
   admin_invite: "Or invite other admins: {ref_link}"
 
@@ -319,7 +317,7 @@ low_balance:
   week_ahead: "⚠️ <b>Balance running low</b>\n\n~{credits} stars left. At current spend rate, less than a week remaining.\n\nTop up via /buy to keep group protection running."
   depleted: "⚠️ <b>Protection disabled</b>\n\nTop up before {deadline} — otherwise in 7 days the bot will leave groups where you're the sole payer.\n\nTop up via /buy to keep protection."
   tomorrow: "⚠️ <b>Bot leaves groups tomorrow</b>\n\nNo payment received. Top up via /buy to keep protection."
-  left_groups: "⚠️ <b>Bot left groups</b>\n\nNo payment received. Groups:\n• {groups}\n\nYour training examples are preserved. Top up via /buy and add the bot again.\n\nBuy: {ref_link}"
+  left_groups: "⚠️ <b>Bot left groups</b>\n\nNo payment received. Groups:\n• {groups}\n\nYour training examples are preserved. Top up via /buy and add the bot again.\n\nBuy: {ref_link}\nAdd to group: <a href=\"{add_to_group_url}\">Add to group</a>"
 
 lang:
   changed_ru: "✅ Язык изменён на Русский."

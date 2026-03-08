@@ -14,7 +14,11 @@ from typing import Optional, Sequence, Tuple, Union
 from aiogram.types import ChatMember, ChatMemberAdministrator, ChatMemberOwner
 
 from ..common.bot import bot
-from ..common.utils import format_chat_or_channel_display, retry_on_network_error
+from ..common.utils import (
+    format_chat_or_channel_display,
+    get_add_to_group_url,
+    retry_on_network_error,
+)
 from ..database import deduct_credits_from_admins, get_admin, set_group_moderation
 from ..i18n import normalize_lang, t
 
@@ -124,7 +128,11 @@ async def send_group_deactivation_message(
         if first_admin and first_admin.language_code
         else "en"
     )
-    message_text = t(lang, "deactivate.group_message", ref_link=ref_link)
+    message_text = t(
+        lang,
+        "deactivate.group_message",
+        add_to_group_url=get_add_to_group_url(),
+    )
 
     try:
 
