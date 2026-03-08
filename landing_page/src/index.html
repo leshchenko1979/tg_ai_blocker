@@ -82,8 +82,8 @@
                 AI <span class="text-blue-500">Telegram</span> bot that catches spam others miss
             </h1>
             <p class="text-xl md:text-2xl text-slate-400 mb-12 leading-relaxed">
-                1-minute setup in Telegram, 24/7 moderation, 100 free checks. Our AI analyzes profile,
-                bio, stories and linked channels — not just text.
+                1-minute setup in Telegram, 24/7 moderation, 100 free checks. Our AI checks bio, stories,
+                linked channels and profile age — not just text.
             </p>
             <div class="flex flex-col md:flex-row gap-4 justify-center">
                 <a href="https://t.me/ai_spam_blocker_bot?startgroup&admin=delete_messages+restrict_members"
@@ -108,9 +108,9 @@
             <div class="grid md:grid-cols-2 gap-12">
                 <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
                     <div class="text-blue-500 text-4xl mb-6">🕵️‍♂️</div>
-                    <h3 class="text-2xl font-bold mb-4">"Trojan Horse"</h3>
+                    <h3 class="text-2xl font-bold mb-4">Hidden ads in profile</h3>
                     <p class="text-slate-400 leading-relaxed">
-                        The bot sends a short, friendly message: "Hi! How are you?". No ads in the text, but the
+                        Someone sends a short, friendly message: "Hi! How are you?". No ads in the text, but the
                         <b>profile Bio</b> and <b>Stories</b> link to a scam channel. Simple filters let these through —
                         our AI checks the full profile.
                     </p>
@@ -166,7 +166,7 @@
                     flowchart LR
                     subgraph TraditionalBots[Traditional bots]
                     T1[Message text only] --> T2[Keyword filter]
-                    T2 --> T3[Miss Trojan Horse]
+                    T2 --> T3[Miss hidden profile ads]
                     end
 
                     subgraph OurBot[Our AI Telegram bot]
@@ -178,7 +178,7 @@
                     O3 --> O6
                     O4 --> O6
                     O5 --> O6
-                    O6 --> O7[Blocks Trojan Horse]
+                    O6 --> O7[Blocks profile ads]
                     end
                 </div>
             </div>
@@ -241,8 +241,8 @@
                         <div class="spam-blocked-header">
                             <span>🚫 BLOCKED</span>
                         </div>
-                        <p class="spam-blocked-reason">Reason: "Trojan Horse". Harmless message with ad offer in bio and
-                            stories.</p>
+                        <p class="spam-blocked-reason">Reason: Hidden ad in profile. Harmless message, but bio and
+                            stories link to scam.</p>
                     </div>
                 </div>
 
@@ -342,9 +342,9 @@
                 <div class="feature-item">
                     <div class="feature-icon">🧠</div>
                     <h3 class="text-xl font-bold mb-3">Deep analysis</h3>
-                    <p class="text-slate-400">We don't just search for words. The AI understands <b>context</b>,
-                        analyzes bio,
-                        stories, linked channels, and <b>emoji usage patterns</b> to detect robotic content.</p>
+                    <p class="text-slate-400">We don't just search for words. The AI checks <b>bio</b>, <b>stories</b>,
+                        <b>linked channels</b>, <b>profile age</b>, and emoji patterns to detect robotic content.
+                    </p>
                 </div>
 
                 <div class="feature-item">

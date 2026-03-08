@@ -121,7 +121,7 @@ help:
     • Group name/photo changes
 
     <b>🤖 How AI works:</b>
-    The bot analyzes context, links, channels and sender behavior. The more spam examples you provide, the more accurate the protection.
+    The bot checks bio, stories, linked channels, and profile age — not just message text. The more spam examples you provide, the more accurate the protection.
   commands: |
     <b>💡 Available commands:</b>
 
