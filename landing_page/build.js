@@ -34,7 +34,7 @@ const cacheControlMeta = `
     <meta http-equiv="Expires" content="0">
 `;
 
-const htmlFiles = ['index.html', 'index-en.html'];
+const htmlFiles = ['index.html', 'index-ru.html'];
 for (const htmlFile of htmlFiles) {
   let htmlContent = fs.readFileSync(path.join('src', htmlFile), 'utf8');
 

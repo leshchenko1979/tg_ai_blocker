@@ -1,18 +1,33 @@
 <!DOCTYPE html>
-<html lang="ru" class="dark">
+<html lang="en" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Telegram Anti-Spam - Умная защита чатов от спама</title>
+    <title>AI Telegram Anti-Spam - Smart Chat Protection from Spam</title>
     <meta name="description"
-        content="Забудьте о ручном удалении спама в Telegram. Наш ИИ анализирует контекст и профили участников 24/7, обеспечивая идеальную чистоту ваших чатов.">
+        content="Stop manually removing spam in Telegram. Our AI analyzes context and user profiles 24/7, keeping your chats clean.">
     <link rel="stylesheet" href="output.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" as="style"
+        onload="this.onload=null;this.rel='stylesheet'">
+    <noscript>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
+    </noscript>
     <link rel="dns-prefetch" href="//t.me">
     <link rel="icon" type="image/png" href="assets/favicon.png">
+
+    <script>
+        (function () {
+            var saved = localStorage.getItem('lang');
+            var prefersRu = function () {
+                var lang = (navigator.language || (navigator.languages && navigator.languages[0]) || 'en').split('-')[0].toLowerCase();
+                return ['ru', 'uk', 'be'].indexOf(lang) >= 0;
+            };
+            if (saved === 'ru' || (!saved && prefersRu())) { location.replace('index-ru.html'); }
+        })();
+    </script>
 
     <!-- Yandex.Metrika counter -->
     <script type="text/javascript">
@@ -33,7 +48,7 @@
 </head>
 
 <body>
-    <a href="#main-content" class="skip-link">Перейти к основному содержимому</a>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <!-- Header -->
     <header class="fixed top-0 w-full bg-slate-900/90 backdrop-blur-md border-b border-slate-700 z-50">
         <div class="container flex justify-between items-center py-4 px-4 mx-auto max-w-6xl">
@@ -42,13 +57,14 @@
                     class="w-8 h-8 inline-block rounded-full"> AI <span class="text-blue-500">Telegram</span> Anti-Spam
             </div>
             <nav class="hidden md:flex items-center gap-8">
-                <a href="https://t.me/ai_antispam" class="nav-link">Канал</a>
-                <a href="index-en.html" class="nav-link" aria-label="English">EN</a>
+                <a href="https://t.me/ai_antispam" class="nav-link">Channel</a>
+                <a href="index-ru.html" class="nav-link" aria-label="Russian"
+                    onclick="localStorage.setItem('lang','ru')">RU</a>
                 <a href="https://t.me/ai_spam_blocker_bot" class="nav-link-primary">
-                    Добавить в Telegram
+                    Add to Telegram
                 </a>
             </nav>
-            <a href="https://t.me/ai_spam_blocker_bot" class="nav-link-mobile" aria-label="Добавить бота в Telegram">
+            <a href="https://t.me/ai_spam_blocker_bot" class="nav-link-mobile" aria-label="Add bot to Telegram">
                 <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path
                         d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1 .53-1.42.52-.47-.01-1.37-.26-2.03-.48-.82-.27-1.47-.42-1.42-.88.03-.24.35-.49.96-.75 3.78-1.65 6.31-2.74 7.58-3.27 3.61-1.5 4.35-1.76 4.84-1.77.11 0 .35.03.51.16.13.11.17.26.19.37.02.12.02.24.01.37z" />
@@ -61,20 +77,19 @@
     <section id="main-content" class="pt-32 pb-20 px-4">
         <div class="container mx-auto max-w-4xl text-center">
             <h1 class="text-4xl md:text-7xl font-bold mb-8 tracking-tight">
-                Забудьте о <span class="text-blue-500">спаме</span> в Telegram навсегда
+                Forget about <span class="text-blue-500">spam</span> in Telegram for good
             </h1>
             <p class="text-xl md:text-2xl text-slate-400 mb-12 leading-relaxed">
-                Наш ИИ-модератор охраняет ваши чаты и комментарии 24/7.
-                Он мгновенно распознает ботов, скам и навязчивую рекламу, пока вы заняты более важным.
+                Our AI moderator guards your chats and comments 24/7. It instantly detects bots, scams,
+                and intrusive ads while you focus on what matters.
             </p>
             <div class="flex flex-col md:flex-row gap-4 justify-center">
                 <a href="https://t.me/ai_spam_blocker_bot" class="btn-hero-primary"
-                    aria-label="Запустить AI Anti-Spam бота">
-                    Запустить бота
+                    aria-label="Launch AI Anti-Spam bot">
+                    Launch bot
                 </a>
-                <a href="https://t.me/ai_antispam/14" class="btn-hero-secondary"
-                    aria-label="Посмотреть инструкцию по настройке">
-                    Инструкция
+                <a href="https://t.me/ai_antispam/14" class="btn-hero-secondary" aria-label="View setup guide">
+                    Setup guide
                 </a>
             </div>
         </div>
@@ -84,53 +99,48 @@
     <section class="py-24 bg-slate-900">
         <div class="section-container">
             <div class="text-center mb-16">
-                <h2 class="text-3xl md:text-5xl font-bold mb-4">Сложные тактики спама</h2>
-                <p class="text-slate-400 text-lg">Современные боты больше не пишут «КУПИ» — они маскируются под живых
-                    людей
-                </p>
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">Advanced spam tactics</h2>
+                <p class="text-slate-400 text-lg">Modern bots no longer say "BUY" — they masquerade as real people</p>
             </div>
 
             <div class="grid md:grid-cols-2 gap-12">
                 <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
                     <div class="text-blue-500 text-4xl mb-6">🕵️‍♂️</div>
-                    <h3 class="text-2xl font-bold mb-4">«Троянский конь»</h3>
+                    <h3 class="text-2xl font-bold mb-4">"Trojan Horse"</h3>
                     <p class="text-slate-400 leading-relaxed">
-                        Бот пишет короткое, дружелюбное сообщение: «Привет! Как дела?». В самом тексте нет рекламы, но в
-                        <b>Био профиля</b> и <b>Историях (Stories)</b> висит ссылка на скам-канал. Обычные боты-фильтры
-                        пропускают такие сообщения, но наш ИИ проверяет профиль целиком.
+                        The bot sends a short, friendly message: "Hi! How are you?". No ads in the text, but the
+                        <b>profile Bio</b> and <b>Stories</b> link to a scam channel. Simple filters let these through —
+                        our AI checks the full profile.
                     </p>
                 </div>
 
                 <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
                     <div class="text-blue-500 text-4xl mb-6">🤖</div>
-                    <h3 class="text-2xl font-bold mb-4">AI-пересказ</h3>
+                    <h3 class="text-2xl font-bold mb-4">AI summarization</h3>
                     <p class="text-slate-400 leading-relaxed">
-                        Спамеры используют нейросети, чтобы генерировать «полезные» резюме ваших постов. Это выглядит
-                        как
-                        вежливое дополнение к теме, но цель — набить репутацию аккаунту или увести в личку тех, кто
-                        поставил
-                        реакцию. Мы распознаем характерные паттерны генерации текста и избыток эмодзи.
+                        Spammers use neural networks to generate "helpful" summaries of your posts. It looks like a
+                        polite addition to the topic, but the goal is to boost account reputation or lure reactors into
+                        DMs. We detect typical text-generation patterns and emoji overload.
                     </p>
                 </div>
 
                 <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
                     <div class="text-blue-500 text-4xl mb-6">🏗️</div>
-                    <h3 class="text-2xl font-bold mb-4">Нативная имитация</h3>
+                    <h3 class="text-2xl font-bold mb-4">Native imitation</h3>
                     <p class="text-slate-400 leading-relaxed">
-                        Группа ботов разыгрывает целый спектакль в комментариях. Один спрашивает совет по теме чата
-                        (например, про недвижимость), второй «случайно» рекомендует сервис или юриста. Это выглядит как
-                        живое обсуждение, но наш ИИ видит подозрительные связи между аккаунтами.
+                        A group of bots stages an entire show in the comments. One asks for advice on the chat topic
+                        (e.g., real estate), another "accidentally" recommends a service or lawyer. It looks like a
+                        real discussion, but our AI spots suspicious links between accounts.
                     </p>
                 </div>
 
                 <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
                     <div class="text-blue-500 text-4xl mb-6">🔗</div>
-                    <h3 class="text-2xl font-bold mb-4">Прокси-боты</h3>
+                    <h3 class="text-2xl font-bold mb-4">Proxy bots</h3>
                     <p class="text-slate-400 leading-relaxed">
-                        Вместо прямой ссылки на канал, спамеры рекомендуют «полезного бота-помощника». Это защищает их
-                        основной канал от мгновенного бана со стороны Telegram. Наш ИИ анализирует, на какие ресурсы
-                        ведут
-                        упоминания и ссылки в сообщениях.
+                        Instead of a direct channel link, spammers recommend a "helpful assistant bot". This protects
+                        their main channel from instant Telegram bans. Our AI analyzes what resources mentions and
+                        links in messages lead to.
                     </p>
                 </div>
             </div>
@@ -141,128 +151,123 @@
     <section class="py-24 bg-slate-800/50">
         <div class="section-container">
             <div class="text-center mb-16">
-                <h2 class="text-3xl md:text-5xl font-bold mb-4">Реальные кейсы блокировок</h2>
-                <p class="text-slate-400 text-lg">Посмотрите, как ИИ распознает сложные схемы спама</p>
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">Real blocking cases</h2>
+                <p class="text-slate-400 text-lg">See how the AI detects complex spam schemes</p>
             </div>
 
             <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <!-- Example 1: Direct Ad (Real DB) -->
                 <div class="flex flex-col gap-4">
                     <div class="tg-message">
                         <div class="tg-author">𝚗𝚎𝚐𝚎𝚜𝚎</div>
-                        <p class="tg-text">Интересный пост! Согласна что иногда люди просто не говорят о своих
-                            чувствах... можете попробовать побеседовать с ИИ-психологом @Marypsyupbot.</p>
+                        <p class="tg-text">Interesting post! I agree that sometimes people just don't talk about their
+                            feelings... you can try chatting with the AI psychologist @Marypsyupbot.</p>
                         <div class="tg-time">17:38</div>
                     </div>
                     <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Бот проверил: Реклама стороннего сервиса + Возраст аккаунта (0 мес)
+                        Bot checked: Third-party service ad + Account age (0 mo)
                     </div>
                     <div class="spam-blocked-card">
                         <div class="spam-blocked-header">
-                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                            <span>🚫 BLOCKED</span>
                         </div>
-                        <p class="spam-blocked-reason">Причина: Скрытая реклама бота, высокий риск мошенничества от
-                            нового аккаунта.</p>
+                        <p class="spam-blocked-reason">Reason: Hidden bot advertisement, high scam risk from new
+                            account.</p>
                     </div>
                 </div>
 
-                <!-- Example 2: Trojan Horse -->
                 <div class="flex flex-col gap-4">
                     <div class="tg-message">
-                        <div class="tg-author">Марина</div>
-                        <p class="tg-text">Привет всем! Как настроение сегодня? 🌸</p>
+                        <div class="tg-author">Marina</div>
+                        <p class="tg-text">Hi everyone! How are you feeling today? 🌸</p>
                         <div class="tg-time">16:15</div>
                     </div>
                     <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Бот проверил: Био профиля и ссылки в историях (Stories)
+                        Bot checked: Profile bio and links in Stories
                     </div>
                     <div class="spam-blocked-card">
                         <div class="spam-blocked-header">
-                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                            <span>🚫 BLOCKED</span>
                         </div>
-                        <p class="spam-blocked-reason">Причина: "Троянский конь". Безобидное сообщение при наличии
-                            рекламного оффера в био и историях.</p>
+                        <p class="spam-blocked-reason">Reason: "Trojan Horse". Harmless message with ad offer in bio and
+                            stories.</p>
                     </div>
                 </div>
 
-                <!-- Example 3: Subtle Real Estate -->
                 <div class="flex flex-col gap-4">
                     <div class="tg-message">
-                        <div class="tg-author">Юлия</div>
-                        <p class="tg-text">А что, коттеджи у аэропорта сейчас в тренде? Или я что-то пропустила? 🙃
-                            Видела вчера пару объявлений по очень странным ценам...</p>
+                        <div class="tg-author">Julia</div>
+                        <p class="tg-text">Are cottages near the airport trending now? Or did I miss something? 🙃
+                            Saw a couple of listings yesterday at really odd prices...</p>
                         <div class="tg-time">12:10</div>
                     </div>
                     <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Бот проверил: Релевантность теме чата и паттерны скрытой рекламы
+                        Bot checked: Relevance to chat topic and hidden ad patterns
                     </div>
                     <div class="spam-blocked-card">
                         <div class="spam-blocked-header">
-                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                            <span>🚫 BLOCKED</span>
                         </div>
-                        <p class="spam-blocked-reason">Причина: Скрытая реклама недвижимости через имитацию обсуждения
-                            (native ad imitation).</p>
+                        <p class="spam-blocked-reason">Reason: Hidden real estate ad via discussion imitation (native
+                            ad).</p>
                     </div>
                 </div>
 
-                <!-- Example 4: Job Scam (Real DB) -->
                 <div class="flex flex-col gap-4">
                     <div class="tg-message">
-                        <div class="tg-author">Вероника</div>
-                        <p class="tg-text">Сообщение для тех, кто хочет зарабатывать от 2500рублей/час! Ищем активных
-                            парней и девушек... пиши в личку!</p>
+                        <div class="tg-author">Veronica</div>
+                        <p class="tg-text">For those who want to earn from 2500/hour! Looking for active guys and
+                            girls...
+                            message me!</p>
                         <div class="tg-time">12:35</div>
                     </div>
                     <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Бот проверил: Ключевые фразы и анализ намерений (intent analysis)
+                        Bot checked: Key phrases and intent analysis
                     </div>
                     <div class="spam-blocked-card">
                         <div class="spam-blocked-header">
-                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                            <span>🚫 BLOCKED</span>
                         </div>
-                        <p class="spam-blocked-reason">Причина: Скам-вакансия. Попытка увода в личные сообщения с
-                            предложением сомнительного заработка.</p>
+                        <p class="spam-blocked-reason">Reason: Job scam. Attempt to funnel into DMs with questionable
+                            earning offer.</p>
                     </div>
                 </div>
 
-                <!-- Example 5: AI Robotic Summary -->
                 <div class="flex flex-col gap-4">
                     <div class="tg-message">
-                        <div class="tg-author">Елена</div>
-                        <p class="tg-text">Пост рассказывает о важности модерации 🛡️ и о том, как ИИ помогает в этом
-                            деле 🧠. Действительно, ручная работа занимает время ⏳. Очень полезно! 👍✨</p>
+                        <div class="tg-author">Elena</div>
+                        <p class="tg-text">The post discusses moderation importance 🛡️ and how AI helps 🧠. Indeed,
+                            manual
+                            work takes time ⏳. Very useful! 👍✨</p>
                         <div class="tg-time">09:15</div>
                     </div>
                     <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Бот проверил: Тон ИИ-генерации и аномальное использование эмоджи
+                        Bot checked: AI-generated tone and anomalous emoji use
                     </div>
                     <div class="spam-blocked-card">
                         <div class="spam-blocked-header">
-                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                            <span>🚫 BLOCKED</span>
                         </div>
-                        <p class="spam-blocked-reason">Причина: AI-сигнатура. Бесполезный роботизированный пересказ
-                            поста для накрутки активности.</p>
+                        <p class="spam-blocked-reason">Reason: AI signature. Useless robotic post summary for engagement
+                            farming.</p>
                     </div>
                 </div>
 
-                <!-- Example 6: Investment Bait (Real DB) -->
                 <div class="flex flex-col gap-4">
                     <div class="tg-message">
-                        <div class="tg-author">Алена</div>
-                        <p class="tg-text">Добрый вечер! Скажите пожалуйста, с кем здесь могу связаться по вопросу? У
-                            нас есть клиент, которому требуются средства на запуск бизнеса በ Турцию... есть квартира,
-                            очень хорошая. Вот под неё хотят денег.</p>
+                        <div class="tg-author">Alena</div>
+                        <p class="tg-text">Good evening! Who can I contact here? We have a client who needs funding for
+                            a business launch in Turkey... there's an apartment, very nice. They want money for it.</p>
                         <div class="tg-time">15:44</div>
                     </div>
                     <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Бот проверил: Связанные каналы, истории и возраст фото профиля (2 мес)
+                        Bot checked: Linked channels, stories, and profile photo age (2 mo)
                     </div>
                     <div class="spam-blocked-card">
                         <div class="spam-blocked-header">
-                            <span>🚫 ЗАБЛОКИРОВАНО</span>
+                            <span>🚫 BLOCKED</span>
                         </div>
-                        <p class="spam-blocked-reason">Причина: Скрытый запрос инвестиций. Типичный спам-шаблон «поиск
-                            партнера» от аккаунта без истории активности.</p>
+                        <p class="spam-blocked-reason">Reason: Hidden investment pitch. Classic "looking for partner"
+                            spam from account with no activity history.</p>
                     </div>
                 </div>
             </div>
@@ -272,40 +277,37 @@
     <!-- Features Section -->
     <section class="section-padding">
         <div class="section-container">
-            <h2 class="section-title">Почему доверяют нам</h2>
+            <h2 class="section-title">Why they trust us</h2>
             <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-12">
                 <div class="feature-item">
-                    <div class="feature-icon">🧘
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Ваше спокойствие</h3>
-                    <p class="text-slate-400">Бот работает 24/7 без выходных. Забудьте о бесконечной проверке чата — мы
-                        уведомим вас только о важном.</p>
+                    <div class="feature-icon">🧘</div>
+                    <h3 class="text-xl font-bold mb-3">Your peace of mind</h3>
+                    <p class="text-slate-400">The bot works 24/7. Forget endless chat checks — we only notify you when
+                        it matters.</p>
                 </div>
 
                 <div class="feature-item">
-                    <div class="feature-icon">🧠
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Глубокий анализ</h3>
-                    <p class="text-slate-400">Мы не просто ищем слова. ИИ понимает <b>контекст</b>, анализирует био,
-                        истории, связанные каналы и <b>паттерны использования эмоджи</b>, выявляя роботизированный
-                        контент.</p>
+                    <div class="feature-icon">🧠</div>
+                    <h3 class="text-xl font-bold mb-3">Deep analysis</h3>
+                    <p class="text-slate-400">We don't just search for words. The AI understands <b>context</b>,
+                        analyzes bio,
+                        stories, linked channels, and <b>emoji usage patterns</b> to detect robotic content.</p>
                 </div>
 
                 <div class="feature-item">
                     <div class="feature-icon">
                         <img src="assets/favicon.png" alt="Shield" class="w-8 h-8 rounded-full">
                     </div>
-                    <h3 class="text-xl font-bold mb-3">Умный бан</h3>
-                    <p class="text-slate-400">При высокой уверенности (≥90%) бот сразу удаляет спам. В пограничных
-                        случаях уведомляет вас и ждёт подтверждения кнопками «Удалить» или «Не спам».</p>
+                    <h3 class="text-xl font-bold mb-3">Smart ban</h3>
+                    <p class="text-slate-400">At high confidence (≥90%) the bot deletes spam immediately. In borderline
+                        cases it notifies you and waits for confirmation with "Delete" or "Not spam" buttons.</p>
                 </div>
 
                 <div class="feature-item">
-                    <div class="feature-icon">⚙️
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Гибкая настройка</h3>
-                    <p class="text-slate-400">Настраивайте уровни строгости, белые списки и правила под нужды именно
-                        вашего сообщества.</p>
+                    <div class="feature-icon">⚙️</div>
+                    <h3 class="text-xl font-bold mb-3">Flexible setup</h3>
+                    <p class="text-slate-400">Configure strictness levels, whitelists, and rules for your community's
+                        needs.</p>
                 </div>
             </div>
         </div>
@@ -317,11 +319,11 @@
             <div class="grid lg:grid-cols-2 gap-16 items-center">
                 <div>
                     <h2 class="text-3xl md:text-5xl font-bold mb-8 leading-tight">
-                        Бот, который <span class="text-blue-500">учится</span> у вас
+                        A bot that <span class="text-blue-500">learns</span> from you
                     </h2>
                     <p class="text-slate-400 text-lg mb-8 leading-relaxed">
-                        Наш ИИ не просто следует жестким правилам — он адаптируется под специфику вашего сообщества. Вы
-                        сами формируете его интеллект, просто общаясь с ним.
+                        Our AI doesn't just follow rigid rules — it adapts to your community. You shape its intelligence
+                        by simply chatting with it.
                     </p>
 
                     <ul class="space-y-6">
@@ -330,9 +332,9 @@
                                 class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold">
                                 1</div>
                             <div>
-                                <h4 class="font-bold mb-1">Пересылка примеров</h4>
-                                <p class="text-slate-400 text-sm">Просто перешлите боту сообщение и пометьте его как
-                                    «Спам» или «Не спам». Это мгновенно обучает модель.</p>
+                                <h4 class="font-bold mb-1">Forward examples</h4>
+                                <p class="text-slate-400 text-sm">Forward a message to the bot and label it "Spam" or
+                                    "Not spam". This instantly trains the model.</p>
                             </div>
                         </li>
                         <li class="flex gap-4">
@@ -340,9 +342,9 @@
                                 class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold">
                                 2</div>
                             <div>
-                                <h4 class="font-bold mb-1">Персональная база знаний</h4>
-                                <p class="text-slate-400 text-sm">Для каждой группы создается своя база исключений и
-                                    характерных видов спама, актуальных именно для вас.</p>
+                                <h4 class="font-bold mb-1">Personal knowledge base</h4>
+                                <p class="text-slate-400 text-sm">Each group gets its own base of exceptions and spam
+                                    types relevant to you.</p>
                             </div>
                         </li>
                         <li class="flex gap-4">
@@ -350,11 +352,11 @@
                                 class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold">
                                 3</div>
                             <div>
-                                <h4 class="font-bold mb-1">Обратная связь</h4>
-                                <p class="text-slate-400 text-sm">Если бот ошибся, кнопка «Не спам» не только разбанит
-                                    пользователя, но и поможет ИИ не совершать таких ошибок в будущем. В спорных
-                                    случаях бот не удаляет сообщение сам, а присылает уведомление с кнопками
-                                    «Удалить» и «Не спам».</p>
+                                <h4 class="font-bold mb-1">Feedback</h4>
+                                <p class="text-slate-400 text-sm">If the bot made a mistake, the "Not spam" button
+                                    unbans the user and helps the AI avoid such errors in the future. In borderline
+                                    cases the bot doesn't delete automatically — it sends a notification with "Delete"
+                                    and "Not spam" buttons.</p>
                             </div>
                         </li>
                     </ul>
@@ -368,25 +370,24 @@
                             </div>
                             <div>
                                 <div class="font-bold">AI Anti-Spam Bot</div>
-                                <div class="text-xs text-blue-500">обучение на лету</div>
+                                <div class="text-xs text-blue-500">live learning</div>
                             </div>
                         </div>
 
                         <div class="space-y-4 mb-6">
                             <div
                                 class="bg-slate-800 rounded-2xl p-4 ml-8 text-sm italic text-slate-400 border-l-2 border-blue-500">
-                                Сообщение переслано от Пользователя:<br>
-                                "Посмотрите мой новый проект по крипте..."
+                                Message forwarded from User:<br>
+                                "Check out my new crypto project..."
                             </div>
                             <div class="bg-blue-600 text-white rounded-2xl p-3 inline-block text-sm font-bold">
-                                🚫 Пометить как спам
+                                🚫 Mark as spam
                             </div>
                         </div>
 
                         <div class="bg-slate-800/50 rounded-2xl p-4 text-sm">
-                            <div class="text-green-500 font-bold mb-2">✅ Пример сохранен!</div>
-                            <p class="text-slate-300">Теперь я буду блокировать подобные сообщения во всех ваших
-                                группах.</p>
+                            <div class="text-green-500 font-bold mb-2">✅ Example saved!</div>
+                            <p class="text-slate-300">I will now block similar messages across all your groups.</p>
                         </div>
                     </div>
                     <!-- Decorative element -->
@@ -400,78 +401,71 @@
     <!-- FAQ Section -->
     <section class="section-padding" id="faq">
         <div class="container mx-auto max-w-3xl">
-            <h2 class="section-title">Частые вопросы</h2>
+            <h2 class="section-title">FAQ</h2>
             <div class="space-y-4">
-                <!-- FAQ Item 1 -->
                 <div class="faq-item">
                     <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>Нужно ли давать боту права администратора?</span>
+                        <span>Does the bot need administrator rights?</span>
                         <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
                     <div class="faq-content">
-                        <p>Да, это необходимо для работы. Бот должен иметь права на удаление сообщений и блокировку
-                            пользователей (бан). Без этих прав он не сможет защищать чат от спамеров.</p>
+                        <p>Yes, it's required. The bot needs rights to delete messages and ban users. Without these it
+                            cannot protect the chat from spammers.</p>
                     </div>
                 </div>
 
-                <!-- FAQ Item 2 -->
                 <div class="faq-item">
                     <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>Читает ли бот личные переписки?</span>
+                        <span>Does the bot read private chats?</span>
                         <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
                     <div class="faq-content">
-                        <p>Нет. Бот работает только в групповых чатах, куда вы его добавили. Он обрабатывает сообщения
-                            исключительно для проверки на спам и не сохраняет историю вашей переписки.</p>
+                        <p>No. The bot only works in group chats where you added it. It processes messages solely for
+                            spam checking and does not store your chat history.</p>
                     </div>
                 </div>
 
-                <!-- FAQ Item 3 -->
                 <div class="faq-item">
                     <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>Что делать, если бот забанил по ошибке?</span>
+                        <span>What if the bot wrongly banned someone?</span>
                         <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
                     <div class="faq-content">
-                        <p>Ложные срабатывания крайне редки (менее 0.1%). Если это произошло, вы можете разбанить
-                            пользователя вручную через настройки группы. Мы также постоянно обучаем ИИ, чтобы исключить
-                            такие ситуации.</p>
+                        <p>False positives are rare (under 0.1%). If it happens, you can unban the user manually in
+                            group settings. We also continuously train the AI to prevent such cases.</p>
                     </div>
                 </div>
 
-                <!-- FAQ Item 4 -->
                 <div class="faq-item">
                     <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>Что происходит, когда ИИ не уверен на 100%?</span>
+                        <span>What happens when the AI isn't 100% sure?</span>
                         <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
                     <div class="faq-content">
-                        <p>В пограничных случаях (уверенность 50–90%) бот не удаляет сообщение автоматически. Вы
-                            получите уведомление с кнопками «Удалить» и «Не спам» — решение остаётся за вами. При
-                            высокой уверенности (≥90%) автоудаление работает по вашим настройкам.</p>
+                        <p>In borderline cases (50–90% confidence) the bot doesn't delete automatically. You get a
+                            notification with "Delete" and "Not spam" buttons — the decision is yours. At high
+                            confidence (≥90%) auto-delete follows your settings.</p>
                     </div>
                 </div>
 
-                <!-- FAQ Item 5 -->
                 <div class="faq-item">
                     <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>Сколько стоит использование?</span>
+                        <span>How much does it cost?</span>
                         <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
                     <div class="faq-content">
-                        <p>У бота есть бесплатный базовый тариф, которого достаточно для большинства небольших чатов.
-                            Для крупных сообществ с высокой активностью предусмотрены расширенные тарифы с
-                            дополнительными возможностями настройки.</p>
+                        <p>The bot has a free tier that's enough for most small chats. Extended plans with more features
+                            are available for large communities.</p>
                     </div>
                 </div>
             </div>
@@ -484,14 +478,14 @@
             <div class="cta-section">
                 <div class="cta-background"></div>
                 <div class="relative z-10">
-                    <h2 class="text-3xl md:text-5xl font-bold mb-6 text-white">Забудьте о спаме в Telegram</h2>
+                    <h2 class="text-3xl md:text-5xl font-bold mb-6 text-white">Forget about spam in Telegram</h2>
                     <p class="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
-                        Подключите защиту за 1 минуту и верните спокойствие в ваши группы и каналы.
-                        Без сложных настроек и регистрации.
+                        Enable protection in 1 minute and bring calm back to your groups and channels. No complex setup
+                        or registration.
                     </p>
                     <a href="https://t.me/ai_spam_blocker_bot"
                         class="bg-white text-blue-600 hover:bg-blue-50 font-bold text-xl px-10 py-5 rounded-2xl shadow-xl transition-all hover:scale-105 inline-block">
-                        Подключить защиту бесплатно
+                        Enable free protection
                     </a>
                 </div>
             </div>
@@ -501,40 +495,40 @@
     <!-- Latest Updates Section -->
     <section class="py-24 bg-slate-800/30">
         <div class="container mx-auto max-w-5xl px-4">
-            <h2 class="section-title">Новости и гайды</h2>
+            <h2 class="section-title">News and guides</h2>
             <div class="space-y-6">
                 <a href="https://t.me/ai_antispam/41" class="news-card">
-                    <div class="text-blue-500 font-bold text-sm mb-2">17 февраля 2026</div>
-                    <h3 class="text-xl font-bold mb-2">Вы контролируете пограничные случаи</h3>
-                    <p class="text-slate-400">Теперь при низкой уверенности ИИ (50–90%) бот не удаляет сообщение сам —
-                        вы получаете уведомление с кнопками «Удалить» и «Не спам». Меньше ложных срабатываний.</p>
+                    <div class="text-blue-500 font-bold text-sm mb-2">Feb 17, 2026</div>
+                    <h3 class="text-xl font-bold mb-2">You control borderline cases</h3>
+                    <p class="text-slate-400">Now at low AI confidence (50–90%) the bot doesn't delete by itself — you
+                        get a notification with "Delete" and "Not spam" buttons. Fewer false positives.</p>
                 </a>
 
                 <a href="https://t.me/ai_antispam/36" class="news-card">
-                    <div class="text-blue-500 font-bold text-sm mb-2">09 декабря 2025</div>
-                    <h3 class="text-xl font-bold mb-2">Проверка возраста аккаунта</h3>
-                    <p class="text-slate-400">Теперь бот умеет определять дату создания аккаунта. Свежие профили — один
-                        из главных признаков спам-ботов.</p>
+                    <div class="text-blue-500 font-bold text-sm mb-2">Dec 9, 2025</div>
+                    <h3 class="text-xl font-bold mb-2">Account age detection</h3>
+                    <p class="text-slate-400">The bot now detects account creation date. Fresh profiles are one of the
+                        main signs of spam bots.</p>
                 </a>
 
                 <a href="https://t.me/ai_antispam/17" class="news-card">
-                    <div class="text-blue-500 font-bold text-sm mb-2">06 ноября 2025</div>
-                    <h3 class="text-xl font-bold mb-2">Многоходовочки спамеров в комментариях</h3>
-                    <p class="text-slate-400">Разбираем новые тактики: как спам-боты маскируются под обычных
-                        пользователей и используют "зоны невидимости" для обычных ботов.</p>
+                    <div class="text-blue-500 font-bold text-sm mb-2">Nov 6, 2025</div>
+                    <h3 class="text-xl font-bold mb-2">Spammer tactics in comments</h3>
+                    <p class="text-slate-400">Breaking down new tactics: how spam bots disguise as regular users and use
+                        "blind zones" for simple bots.</p>
                 </a>
 
                 <a href="https://t.me/ai_antispam/14" class="news-card">
-                    <div class="text-blue-500 font-bold text-sm mb-2">13 мая 2025</div>
-                    <h3 class="text-xl font-bold mb-2">Как подключить бота за 2 минуты</h3>
-                    <p class="text-slate-400">Пошаговая инструкция по настройке модерации комментариев в каналах и
-                        защиты групп.</p>
+                    <div class="text-blue-500 font-bold text-sm mb-2">May 13, 2025</div>
+                    <h3 class="text-xl font-bold mb-2">How to connect the bot in 2 minutes</h3>
+                    <p class="text-slate-400">Step-by-step guide for channel comment moderation and group protection.
+                    </p>
                 </a>
 
                 <div class="text-center pt-8">
                     <a href="https://t.me/ai_antispam"
                         class="text-blue-400 hover:text-blue-300 font-bold border-b border-blue-400/30 pb-1">
-                        Все новости в канале проекта →
+                        All news in project channel →
                     </a>
                 </div>
             </div>
@@ -546,17 +540,17 @@
         <div class="section-container flex flex-col md:flex-row justify-between items-center gap-8">
             <div class="text-center md:text-left">
                 <div class="text-2xl font-bold mb-2">AI Telegram Anti-Spam</div>
-                <p class="text-slate-500 text-sm">© 2026 Все права защищены.</p>
+                <p class="text-slate-500 text-sm">© 2026 All rights reserved.</p>
             </div>
             <div class="flex flex-wrap justify-center gap-8 text-sm font-semibold items-center">
-                <a href="https://t.me/ai_antispam" class="footer-link">Новости</a>
-                <a href="https://t.me/ai_antispam/14" class="footer-link">Настройка</a>
-                <a href="https://t.me/ai_antispam/7" class="footer-link">О проекте</a>
+                <a href="https://t.me/ai_antispam" class="footer-link">News</a>
+                <a href="https://t.me/ai_antispam/14" class="footer-link">Setup</a>
+                <a href="https://t.me/ai_antispam/7" class="footer-link">About</a>
                 <span class="text-slate-500">|</span>
-                <a href="index.html" class="footer-link font-bold text-blue-400">RU</a>
-                <a href="index-en.html" class="footer-link">EN</a>
+                <a href="index-ru.html" class="footer-link" onclick="localStorage.setItem('lang','ru')">RU</a>
+                <a href="index.html" class="footer-link font-bold text-blue-400">EN</a>
                 <span class="text-slate-500">|</span>
-                <a href="https://t.me/ai_spam_blocker_bot" class="text-blue-500">Запустить бота</a>
+                <a href="https://t.me/ai_spam_blocker_bot" class="text-blue-500">Launch bot</a>
             </div>
         </div>
     </footer>
