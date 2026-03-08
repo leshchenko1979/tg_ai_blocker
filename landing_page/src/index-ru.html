@@ -166,27 +166,30 @@
                     профиль целиком.</p>
             </div>
 
-            <!-- Traditional vs our approach: side-by-side left to right -->
-            <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50 mb-16">
-                <h3 class="text-xl font-bold mb-6 text-center">Обычные боты vs наш ИИ-бот</h3>
-                <div class="mermaid">
-                    flowchart LR
-                    subgraph TraditionalBots[Обычные боты]
-                    T1[Только текст] --> T2[Фильтр по словам]
-                    T2 --> T3[Пропускают скрытую рекламу]
-                    end
-
-                    subgraph OurBot[Наш ИИ-бот для Telegram]
-                    O1[Сообщение] --> O2[Био профиля]
-                    O1 --> O3[Истории]
-                    O1 --> O4[Связанные каналы]
-                    O1 --> O5[Возраст аккаунта]
-                    O2 --> O6[Полный контекст]
-                    O3 --> O6
-                    O4 --> O6
-                    O5 --> O6
-                    O6 --> O7[Блокирует рекламу в профиле]
-                    end
+            <!-- Traditional vs our approach: two side-by-side diagrams -->
+            <div class="grid lg:grid-cols-2 gap-12 mb-16">
+                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
+                    <h3 class="text-xl font-bold mb-6 text-center">Обычные боты</h3>
+                    <div class="mermaid">
+                        flowchart LR
+                        T1[Только текст] --> T2[Фильтр по словам]
+                        T2 --> T3[Пропускают скрытую рекламу]
+                    </div>
+                </div>
+                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
+                    <h3 class="text-xl font-bold mb-6 text-center">Наш ИИ-бот для Telegram</h3>
+                    <div class="mermaid">
+                        flowchart LR
+                        O1[Сообщение] --> O2[Био профиля]
+                        O1 --> O3[Истории]
+                        O1 --> O4[Связанные каналы]
+                        O1 --> O5[Возраст аккаунта]
+                        O2 --> O6[Полный контекст]
+                        O3 --> O6
+                        O4 --> O6
+                        O5 --> O6
+                        O6 --> O7[Блокирует рекламу в профиле]
+                    </div>
                 </div>
             </div>
 
