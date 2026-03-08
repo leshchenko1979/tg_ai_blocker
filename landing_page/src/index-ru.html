@@ -82,7 +82,8 @@
                 ИИ-бот для <span class="text-blue-500">Telegram</span>, который ловит спам, который пропускают другие
             </h1>
             <p class="text-xl md:text-2xl text-slate-400 mb-12 leading-relaxed">
-                Подключение за 1 минуту в Telegram, модерация 24/7, 100 бесплатных проверок. Наш ИИ анализирует профиль,
+                Подключение за 1 минуту в Telegram, модерация 24/7, 100 бесплатных проверок. Наш ИИ анализирует
+                профиль,
                 био, истории и связанные каналы — не только текст.
             </p>
             <div class="flex flex-col md:flex-row gap-4 justify-center">
@@ -165,41 +166,42 @@
                     профиль целиком.</p>
             </div>
 
-            <div class="grid lg:grid-cols-2 gap-12 items-center mb-16">
-                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                    <h3 class="text-xl font-bold mb-6 text-center">Обычные боты vs наш ИИ-бот</h3>
-                    <div class="mermaid">
-                        flowchart LR
-                        subgraph TraditionalBots[Traditional bots]
-                        T1[Message text only] --> T2[Keyword filter]
-                        T2 --> T3[Miss Trojan Horse]
-                        end
+            <!-- Traditional vs our approach: side-by-side left to right -->
+            <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50 mb-16">
+                <h3 class="text-xl font-bold mb-6 text-center">Обычные боты vs наш ИИ-бот</h3>
+                <div class="mermaid">
+                    flowchart LR
+                    subgraph TraditionalBots[Обычные боты]
+                    T1[Только текст] --> T2[Фильтр по словам]
+                    T2 --> T3[Пропускают троянца]
+                    end
 
-                        subgraph OurBot[Our AI Telegram bot]
-                        O1[Message] --> O2[Profile bio]
-                        O1 --> O3[Stories]
-                        O1 --> O4[Linked channels]
-                        O1 --> O5[Account age]
-                        O2 --> O6[Full context]
-                        O3 --> O6
-                        O4 --> O6
-                        O5 --> O6
-                        O6 --> O7[Blocks Trojan Horse]
-                        end
-                    </div>
+                    subgraph OurBot[Наш ИИ-бот для Telegram]
+                    O1[Сообщение] --> O2[Био профиля]
+                    O1 --> O3[Истории]
+                    O1 --> O4[Связанные каналы]
+                    O1 --> O5[Возраст аккаунта]
+                    O2 --> O6[Полный контекст]
+                    O3 --> O6
+                    O4 --> O6
+                    O5 --> O6
+                    O6 --> O7[Блокирует троянца]
+                    end
                 </div>
-                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                    <h3 class="text-xl font-bold mb-6 text-center">Как работает проверка</h3>
-                    <div class="mermaid">
-                        flowchart TD
-                        Msg[New message] --> AI[AI analyzes text]
-                        AI --> Profile[Check profile and bio]
-                        Profile --> Stories[Check Stories and links]
-                        Stories --> Decision{Spam?}
-                        Decision -->|High confidence| Auto[Auto-delete]
-                        Decision -->|Borderline| Notify[Notify admin]
-                        Decision -->|No| Pass[Allow]
-                    </div>
+            </div>
+
+            <!-- Spam detection flow: separate full-width block -->
+            <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
+                <h3 class="text-xl font-bold mb-6 text-center">Как работает проверка</h3>
+                <div class="mermaid">
+                    flowchart TD
+                    Msg[Новое сообщение] --> AI[ИИ анализирует текст]
+                    AI --> Profile[Проверка профиля и био]
+                    Profile --> Stories[Проверка историй и ссылок]
+                    Stories --> Decision{Спам?}
+                    Decision -->|Высокая уверенность| Auto[Авто-удаление]
+                    Decision -->|Погранично| Notify[Уведомить админа]
+                    Decision -->|Нет| Pass[Разрешено]
                 </div>
             </div>
         </div>
@@ -479,17 +481,13 @@
                         </li>
                         <li class="flex items-start gap-3">
                             <span class="text-blue-500 font-bold">•</span>
-                            <span>Далее <b>1 звезда Telegram</b> за проверку (одобрение нового участника или
-                                комментатора)</span>
+                            <span>Далее <b>1 звезда Telegram</b> за каждую проверку нового пользователя —
+                                независимо от одобрения или блокировки</span>
                         </li>
                         <li class="flex items-start gap-3">
                             <span class="text-green-500 font-bold text-xl">✓</span>
-                            <span><b>Анализ сообщений бесплатен</b> — списываются только проверки новых
-                                участников</span>
-                        </li>
-                        <li class="flex items-start gap-3">
-                            <span class="text-green-500 font-bold text-xl">✓</span>
-                            <span><b>Одобренные пользователи общаются бесплатно</b> — без постоянных списаний</span>
+                            <span><b>Одобренные пользователи общаются бесплатно</b> — без дополнительных
+                                списаний</span>
                         </li>
                     </ul>
                 </div>
@@ -600,11 +598,9 @@
                         </svg>
                     </button>
                     <div class="faq-content">
-                        <p>При старте вы получаете 100 бесплатных проверок новых участников и комментаторов. Далее — 1
-                            звезда
-                            Telegram за проверку. Анализ сообщений всегда бесплатен; одобренные пользователи общаются
-                            без
-                            дополнительных списаний.</p>
+                        <p>При старте — 100 бесплатных проверок новых участников и комментаторов. Далее 1 звезда за
+                            каждую проверку нового пользователя — независимо от одобрения или блокировки. Одобренные
+                            пользователи общаются бесплатно.</p>
                     </div>
                 </div>
             </div>

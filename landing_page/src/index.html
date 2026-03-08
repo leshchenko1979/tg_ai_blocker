@@ -159,41 +159,42 @@
                     profile.</p>
             </div>
 
-            <div class="grid lg:grid-cols-2 gap-12 items-center mb-16">
-                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                    <h3 class="text-xl font-bold mb-6 text-center">Traditional bots vs our AI bot</h3>
-                    <div class="mermaid">
-                        flowchart LR
-                        subgraph TraditionalBots[Traditional bots]
-                        T1[Message text only] --> T2[Keyword filter]
-                        T2 --> T3[Miss Trojan Horse]
-                        end
+            <!-- Traditional vs our approach: side-by-side left to right -->
+            <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50 mb-16">
+                <h3 class="text-xl font-bold mb-6 text-center">Traditional bots vs our AI bot</h3>
+                <div class="mermaid">
+                    flowchart LR
+                    subgraph TraditionalBots[Traditional bots]
+                    T1[Message text only] --> T2[Keyword filter]
+                    T2 --> T3[Miss Trojan Horse]
+                    end
 
-                        subgraph OurBot[Our AI Telegram bot]
-                        O1[Message] --> O2[Profile bio]
-                        O1 --> O3[Stories]
-                        O1 --> O4[Linked channels]
-                        O1 --> O5[Account age]
-                        O2 --> O6[Full context]
-                        O3 --> O6
-                        O4 --> O6
-                        O5 --> O6
-                        O6 --> O7[Blocks Trojan Horse]
-                        end
-                    </div>
+                    subgraph OurBot[Our AI Telegram bot]
+                    O1[Message] --> O2[Profile bio]
+                    O1 --> O3[Stories]
+                    O1 --> O4[Linked channels]
+                    O1 --> O5[Account age]
+                    O2 --> O6[Full context]
+                    O3 --> O6
+                    O4 --> O6
+                    O5 --> O6
+                    O6 --> O7[Blocks Trojan Horse]
+                    end
                 </div>
-                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                    <h3 class="text-xl font-bold mb-6 text-center">Spam detection flow</h3>
-                    <div class="mermaid">
-                        flowchart TD
-                        Msg[New message] --> AI[AI analyzes text]
-                        AI --> Profile[Check profile and bio]
-                        Profile --> Stories[Check Stories and links]
-                        Stories --> Decision{Spam?}
-                        Decision -->|High confidence| Auto[Auto-delete]
-                        Decision -->|Borderline| Notify[Notify admin]
-                        Decision -->|No| Pass[Allow]
-                    </div>
+            </div>
+
+            <!-- Spam detection flow: separate full-width block -->
+            <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
+                <h3 class="text-xl font-bold mb-6 text-center">Spam detection flow</h3>
+                <div class="mermaid">
+                    flowchart TD
+                    Msg[New message] --> AI[AI analyzes text]
+                    AI --> Profile[Check profile and bio]
+                    Profile --> Stories[Check Stories and links]
+                    Stories --> Decision{Spam?}
+                    Decision -->|High confidence| Auto[Auto-delete]
+                    Decision -->|Borderline| Notify[Notify admin]
+                    Decision -->|No| Pass[Allow]
                 </div>
             </div>
         </div>
@@ -463,15 +464,12 @@
                         </li>
                         <li class="flex items-start gap-3">
                             <span class="text-blue-500 font-bold">•</span>
-                            <span>Then <b>1 Telegram Star</b> per check (new member / new commenter approval)</span>
+                            <span>Then <b>1 Telegram Star</b> per check of a new user — whether we approve or block
+                                them</span>
                         </li>
                         <li class="flex items-start gap-3">
                             <span class="text-green-500 font-bold text-xl">✓</span>
-                            <span><b>Message analysis is free</b> — we charge only for approving new participants</span>
-                        </li>
-                        <li class="flex items-start gap-3">
-                            <span class="text-green-500 font-bold text-xl">✓</span>
-                            <span><b>Approved users chat for free</b> — no ongoing cost once they are in</span>
+                            <span><b>Approved users chat for free</b> — no additional charges once they are in</span>
                         </li>
                     </ul>
                 </div>
@@ -575,8 +573,8 @@
                     </button>
                     <div class="faq-content">
                         <p>You get 100 free checks for new members and commenters when you start. After that, 1 Telegram
-                            Star
-                            per check. Message analysis is always free; approved users chat without any ongoing cost.
+                            Star per check of a new user — regardless of approval or block. Approved users chat for
+                            free.
                         </p>
                     </div>
                 </div>
