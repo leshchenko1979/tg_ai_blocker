@@ -59,6 +59,9 @@ if (fs.existsSync(srcAssetsDir)) {
   fs.copySync(srcAssetsDir, distAssetsDir);
 }
 
+// Copy sitemap.xml
+fs.copyFileSync(path.join(__dirname, 'src', 'sitemap.xml'), path.join(__dirname, 'dist', 'sitemap.xml'));
+
 // Create _headers file for GitHub Pages cache control
 const headersContent = `/*
   Cache-Control: no-cache, no-store, must-revalidate
