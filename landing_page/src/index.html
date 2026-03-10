@@ -1,23 +1,11 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Telegram Anti-Spam - Smart Chat Protection from Spam</title>
-    <meta name="description"
-        content="Stop manually removing spam in Telegram. Our AI analyzes context and user profiles 24/7, keeping your chats clean.">
-    <link rel="stylesheet" href="output.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" as="style"
-        onload="this.onload=null;this.rel='stylesheet'">
-    <noscript>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
-    </noscript>
-    <link rel="dns-prefetch" href="//t.me">
-    <link rel="icon" type="image/png" href="assets/favicon.png">
-
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Telegram Anti-Spam — Smart Protection for Groups &amp; Channels</title>
+<meta name="description" content="Stop manually removing spam in Telegram. Our AI checks bio, Stories, linked channels and account age — not just text. Protects groups and channel comments 24/7.">
+<link rel="icon" type="image/png" href="assets/favicon.png">
     <script>
         (function () {
             var saved = localStorage.getItem('lang');
@@ -45,680 +33,1142 @@
     </noscript>
     <!-- /Yandex.Metrika counter -->
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Onest:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #0f0f18;
+    --card: #13131e;
+    --card2: #1a1a28;
+    --border: rgba(255,255,255,0.07);
+    --accent: #4f6ef7;
+    --accent2: #7b5ea7;
+    --danger: #e63946;
+    --green: #2dc653;
+    --text: #e8e8f0;
+    --muted: #8888a8;
+    --white: #ffffff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Onest', sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ─── NOISE TEXTURE ─── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.4;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    backdrop-filter: blur(20px);
+    background: rgba(10,10,15,0.8);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--white);
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .nav-logo-dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2s ease infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.8); }
+  }
+  .nav-cta {
+    background: var(--accent);
+    color: white;
+    padding: 10px 22px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .nav-cta:hover { background: #6b83f9; transform: translateY(-1px); }
+
+  /* ─── HERO ─── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 120px 40px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-glow {
+    position: absolute;
+    width: 700px; height: 700px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(79,110,247,0.12) 0%, transparent 70%);
+    top: -100px; right: -200px;
+    pointer-events: none;
+  }
+  .hero-glow2 {
+    position: absolute;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(230,57,70,0.07) 0%, transparent 70%);
+    bottom: 0; left: -100px;
+    pointer-events: none;
+  }
+  .hero-inner { max-width: 780px; position: relative; z-index: 2; }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(230,57,70,0.1);
+    border: 1px solid rgba(230,57,70,0.25);
+    color: #ff6b78;
+    padding: 6px 16px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+    animation: fadeUp 0.6s ease both;
+  }
+  .hero-badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: var(--danger);
+    border-radius: 50%;
+    animation: pulse 1.5s ease infinite;
+  }
+
+  h1 {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 900;
+    font-size: clamp(36px, 6vw, 72px);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    color: var(--white);
+    margin-bottom: 28px;
+    animation: fadeUp 0.6s 0.1s ease both;
+  }
+  h1 em {
+    font-style: normal;
+    background: linear-gradient(135deg, #ff6b78, #e63946);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  h1 span {
+    background: linear-gradient(135deg, var(--accent), #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-sub {
+    font-size: 19px;
+    color: var(--muted);
+    max-width: 560px;
+    margin-bottom: 44px;
+    line-height: 1.7;
+    font-weight: 300;
+    animation: fadeUp 0.6s 0.2s ease both;
+  }
+  .hero-sub strong { color: var(--text); font-weight: 500; }
+
+  .hero-cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    animation: fadeUp 0.6s 0.3s ease both;
+  }
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--accent);
+    color: white;
+    padding: 16px 32px;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow: 0 0 40px rgba(79,110,247,0.3);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 60px rgba(79,110,247,0.5); }
+  .btn-primary svg { width: 20px; height: 20px; }
+
+  .hero-hint {
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .hero-hint::before { content: '✓'; color: var(--green); font-weight: 700; }
+
+  .hero-stats {
+    display: flex;
+    gap: 48px;
+    margin-top: 72px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+    animation: fadeUp 0.6s 0.4s ease both;
+  }
+  .stat-num {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--white);
+  }
+  .stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── SECTIONS ─── */
+  section { padding: 100px 40px; max-width: 1100px; margin: 0 auto; }
+  .section-tag {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+  h2 {
+    font-family: 'Unbounded', sans-serif;
+    font-weight: 700;
+    font-size: clamp(26px, 4vw, 44px);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--white);
+    margin-bottom: 16px;
+  }
+  .section-sub {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 560px;
+    margin-bottom: 56px;
+    font-weight: 300;
+  }
+
+  /* ─── PAIN SECTION ─── */
+  .pain-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+  }
+  .pain-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+  .pain-card:hover { border-color: rgba(255,255,255,0.15); }
+  .pain-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--danger), transparent);
+    opacity: 0.6;
+  }
+  .pain-emoji { font-size: 28px; margin-bottom: 16px; display: block; }
+  .pain-card h3 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
+  }
+  .pain-card p { font-size: 14px; color: var(--muted); line-height: 1.7; }
+  .pain-card .missed {
+    margin-top: 16px;
+    padding: 10px 14px;
+    background: rgba(230,57,70,0.08);
+    border: 1px solid rgba(230,57,70,0.2);
+    border-radius: 8px;
+    font-size: 12px;
+    color: #ff6b78;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ─── BLOCKING EXAMPLES ─── */
+  .examples-section { background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); max-width: 100%; padding: 100px 40px; }
+  .examples-inner { max-width: 1100px; margin: 0 auto; }
+  .examples-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .msg-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    transition: transform 0.2s;
+  }
+  .msg-card:hover { transform: translateY(-3px); }
+  .msg-bubble {
+    background: var(--card2);
+    border-radius: 14px 14px 14px 4px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+    position: relative;
+    border: 1px solid var(--border);
+  }
+  .msg-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: #7b9ef0;
+    margin-bottom: 6px;
+  }
+  .msg-time {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+    margin-top: 8px;
+  }
+  .check-line {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .check-line strong { color: var(--text); }
+  .blocked-badge {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(230,57,70,0.08);
+    border: 1px solid rgba(230,57,70,0.2);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .blocked-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .blocked-title { font-size: 12px; font-weight: 700; color: var(--danger); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+  .blocked-reason { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  /* ─── CTA BANNER ─── */
+  .cta-banner {
+    background: linear-gradient(135deg, rgba(79,110,247,0.15), rgba(123,94,167,0.15));
+    border: 1px solid rgba(79,110,247,0.25);
+    border-radius: 28px;
+    padding: 56px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    margin: 0 40px 100px;
+  }
+  .cta-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(79,110,247,0.15) 0%, transparent 60%);
+  }
+  .cta-banner h2 { margin-bottom: 12px; }
+  .cta-banner p { color: var(--muted); font-size: 17px; margin-bottom: 36px; font-weight: 300; }
+  .cta-banner .btn-primary { margin: 0 auto; display: inline-flex; }
+
+  /* ─── WHY SECTION ─── */
+  .why-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: start;
+  }
+  @media (max-width: 768px) {
+    .why-layout { grid-template-columns: 1fr; }
+    .hero-stats { flex-wrap: wrap; gap: 24px; }
+    nav { padding: 16px 20px; }
+    .hero { padding: 100px 20px 60px; }
+    section, .examples-section { padding: 60px 20px; }
+    .cta-banner { margin: 0 20px 60px; padding: 36px 24px; }
+  }
+  .why-text p {
+    font-size: 16px;
+    color: var(--muted);
+    line-height: 1.8;
+    margin-bottom: 20px;
+    font-weight: 300;
+  }
+  .why-text p strong { color: var(--text); font-weight: 500; }
+  .why-visual {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+  }
+  .why-vis-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .why-vis-header span { font-weight: 600; color: var(--text); }
+  .check-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    transition: background 0.2s;
+  }
+  .check-row:hover { background: rgba(255,255,255,0.02); }
+  .check-row:last-child { border-bottom: none; }
+  .check-label { color: var(--muted); }
+  .check-no { color: rgba(230,57,70,0.6); font-size: 16px; }
+  .check-yes { color: var(--green); font-size: 16px; }
+
+  /* ─── HOW IT WORKS ─── */
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+  .tech-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    position: relative;
+  }
+  .tech-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+  .tech-num {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    margin-bottom: 16px;
+  }
+  .tech-card h3 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
+  }
+  .tech-card p { font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .tech-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .tag {
+    background: rgba(79,110,247,0.1);
+    border: 1px solid rgba(79,110,247,0.2);
+    color: #7b9ef0;
+    padding: 4px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  /* ─── FLOW ─── */
+  .flow {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0;
+    overflow: hidden;
+  }
+  .flow-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 16px 24px;
+    flex: 1;
+    min-width: 120px;
+  }
+  .flow-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+  .flow-step-label { font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .flow-step-label strong { display: block; color: var(--text); font-weight: 500; font-size: 13px; margin-bottom: 2px; }
+  .flow-arrow {
+    color: var(--border);
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .bg-blue { background: rgba(79,110,247,0.15); }
+  .bg-purple { background: rgba(123,94,167,0.15); }
+  .bg-red { background: rgba(230,57,70,0.12); }
+  .bg-orange { background: rgba(249,115,22,0.12); }
+  .bg-green { background: rgba(45,198,83,0.12); }
+
+  /* ─── PRICING ─── */
+  .pricing-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 44px;
+    max-width: 600px;
+    position: relative;
+    overflow: hidden;
+  }
+  .pricing-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 0% 0%, rgba(79,110,247,0.08) 0%, transparent 50%);
+  }
+  .price-main {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .price-num {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--white);
+  }
+  .price-per { font-size: 15px; color: var(--muted); font-weight: 300; }
+  .price-list { list-style: none; }
+  .price-list li {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    color: var(--muted);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    line-height: 1.5;
+  }
+  .price-list li:last-child { border: none; }
+  .price-list li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; }
+  .price-list li strong { color: var(--text); }
+
+  /* ─── FAQ ─── */
+  .faq-list { display: flex; flex-direction: column; gap: 12px; }
+  .faq-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .faq-q {
+    padding: 22px 28px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    user-select: none;
+    transition: background 0.2s;
+  }
+  .faq-q:hover { background: var(--card2); }
+  .faq-q::after {
+    content: '+';
+    font-size: 20px;
+    color: var(--muted);
+    flex-shrink: 0;
+    transition: transform 0.3s;
+  }
+  .faq-item.open .faq-q::after { transform: rotate(45deg); }
+  .faq-a {
+    display: none;
+    padding: 0 28px 22px;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.8;
+    font-weight: 300;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .faq-a strong { color: var(--text); font-weight: 500; }
+  .faq-item.open .faq-a { display: block; }
+
+  /* ─── FOOTER ─── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  footer .nav-logo { font-size: 13px; }
+  .footer-links { display: flex; gap: 24px; }
+  .footer-links a { font-size: 13px; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+  .footer-links a:hover { color: var(--text); }
+  .footer-copy { font-size: 12px; color: rgba(136,136,168,0.5); }
+
+  /* ─── DIVIDER ─── */
+  .full-divider { height: 1px; background: var(--border); margin: 0; }
+</style>
 </head>
-
 <body>
-    <a href="#main-content" class="skip-link">Skip to main content</a>
-    <!-- Header -->
-    <header class="fixed top-0 w-full bg-slate-900/90 backdrop-blur-md border-b border-slate-700 z-50">
-        <div class="container flex justify-between items-center py-4 px-4 mx-auto max-w-6xl">
-            <div class="text-2xl font-bold flex items-center gap-2">
-                <img src="assets/favicon.png" alt="AI Telegram Anti-Spam Logo"
-                    class="w-8 h-8 inline-block rounded-full"> AI <span class="text-blue-500">Telegram</span> Anti-Spam
-            </div>
-            <nav class="hidden md:flex items-center gap-8">
-                <a href="https://t.me/ai_antispam" class="nav-link">Channel</a>
-                <a href="index-ru.html" class="nav-link" aria-label="Russian"
-                    onclick="localStorage.setItem('lang','ru')">RU</a>
-                <a href="https://t.me/ai_spam_blocker_bot" class="nav-link-primary">
-                    Add to Telegram
-                </a>
-            </nav>
-            <a href="https://t.me/ai_spam_blocker_bot" class="nav-link-mobile" aria-label="Add bot to Telegram">
-                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1 .53-1.42.52-.47-.01-1.37-.26-2.03-.48-.82-.27-1.47-.42-1.42-.88.03-.24.35-.49.96-.75 3.78-1.65 6.31-2.74 7.58-3.27 3.61-1.5 4.35-1.76 4.84-1.77.11 0 .35.03.51.16.13.11.17.26.19.37.02.12.02.24.01.37z" />
-                </svg>
-            </a>
+
+<!-- ═══════════════════════════════════════════
+     NAV
+════════════════════════════════════════════ -->
+<nav>
+  <div class="nav-logo">
+    <img src="data:image/png;base64,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" style="width:28px;height:28px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(79,110,247,0.6));" alt="logo">
+    AI Anti-Spam
+  </div>
+  <a href="https://t.me/ai_spam_blocker_bot" class="nav-cta">Enable protection →</a>
+</nav>
+
+
+<!-- ═══════════════════════════════════════════
+     HERO — PAIN LANGUAGE
+════════════════════════════════════════════ -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-glow2"></div>
+  <div class="hero-inner">
+
+    <div class="hero-badge">The real problem for Telegram admins</div>
+
+    <h1>Your channel and group<br>are losing people.<br><em>Because of spam.</em></h1>
+
+    <p class="hero-sub">
+      While you're busy — spammers write "Hey! How are you?" in your channel comments or group chat and quietly advertise casinos in their profile. <strong>Readers see the garbage and leave.</strong> Our AI removes them before their message is even read.
+    </p>
+
+    <div class="hero-cta">
+      <a href="https://t.me/ai_spam_blocker_bot" class="btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        Enable free protection
+      </a>
+      <span class="hero-hint">100 free checks, 1-minute setup</span>
+    </div>
+
+    <div class="hero-stats">
+      <div>
+        <div class="stat-num">24/7</div>
+        <div class="stat-label">Works without you</div>
+      </div>
+      <div>
+        <div class="stat-num">60 сек</div>
+        <div class="stat-label">Setup from scratch</div>
+      </div>
+      <div>
+        <div class="stat-num">≥90%</div>
+        <div class="stat-label">Auto-delete confidence</div>
+      </div>
+      <div>
+        <div class="stat-num">0</div>
+        <div class="stat-label">Captchas for real users</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 2 — WHAT HAPPENS IN YOUR CHAT
+════════════════════════════════════════════ -->
+<div class="full-divider"></div>
+<section>
+  <div class="section-tag">Modern spam</div>
+  <h2>Spammers no longer say "BUY".<br>They've learned to blend in.</h2>
+  <p class="section-sub">
+    Here's what's really happening in Telegram groups and channel comments in 2025 — and what ordinary filters miss.
+  </p>
+
+  <div class="pain-grid">
+    <div class="pain-card">
+      <span class="pain-emoji">🙂</span>
+      <h3>Hidden ads in profile</h3>
+      <p>Someone writes "Hey! How are you?" — harmless text. But their bio and Stories link to a scam channel or casino. Simple filters only see the message text.</p>
+      <div class="missed">🚫 Standard bots miss this</div>
+    </div>
+
+    <div class="pain-card">
+      <span class="pain-emoji">🤖</span>
+      <h3>AI summaries of your posts</h3>
+      <p>A bot writes a nice "helpful" recap of your post with loads of emoji. The goal is to build reputation and lure reactors into DMs. Looks exactly like a real user.</p>
+      <div class="missed">🚫 Standard bots miss this</div>
+    </div>
+
+    <div class="pain-card">
+      <span class="pain-emoji">🎭</span>
+      <h3>Native ad performances</h3>
+      <p>A group of 3 bots stages a conversation: one asks for advice, another "accidentally" recommends a service. Looks like a real discussion. Our AI spots suspicious links between accounts.</p>
+      <div class="missed">🚫 Standard bots miss this</div>
+    </div>
+
+    <div class="pain-card">
+      <span class="pain-emoji">🔗</span>
+      <h3>Bots instead of channels</h3>
+      <p>The spammer doesn't link directly to a channel — they recommend a "useful assistant bot". This shields the main channel from bans. Our AI analyzes where all mentioned resources lead.</p>
+      <div class="missed">🚫 Standard bots miss this</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 3 — REAL BLOCKING EXAMPLES
+════════════════════════════════════════════ -->
+<div class="full-divider"></div>
+<div class="examples-section">
+  <div class="examples-inner">
+    <div class="section-tag">Real blocking cases</div>
+    <h2>What the bot caught this week</h2>
+    <p class="section-sub">Every one of these messages looked innocent — in a group or channel comments. None of them passed.</p>
+
+    <div class="examples-grid">
+
+      <div class="msg-card">
+        <div class="msg-bubble">
+          <div class="msg-name">𝚗𝚎𝚐𝚎𝚜𝚎</div>
+          Interesting post! I agree, sometimes people just don't talk about their feelings... you can try chatting with an AI psychologist @Marypsyupbot.
+          <div class="msg-time">17:38</div>
         </div>
-    </header>
-
-    <!-- Hero Section -->
-    <section id="main-content" class="pt-32 pb-20 px-4">
-        <div class="container mx-auto max-w-4xl text-center">
-            <h1 class="text-4xl md:text-7xl font-bold mb-8 tracking-tight">
-                AI <span class="text-blue-500">Telegram</span> bot that catches spam others miss
-            </h1>
-            <p class="text-xl md:text-2xl text-slate-400 mb-12 leading-relaxed">
-                1-minute setup in Telegram, 24/7 moderation, 100 free checks. Our AI checks bio, stories,
-                linked channels and profile age — not just text.
-            </p>
-            <div class="flex flex-col md:flex-row gap-4 justify-center">
-                <a href="https://t.me/ai_spam_blocker_bot" class="btn-hero-primary"
-                    aria-label="Launch AI Anti-Spam bot">
-                    Launch bot
-                </a>
-                <a href="https://t.me/ai_antispam/14" class="btn-hero-secondary" aria-label="View setup guide">
-                    Setup guide
-                </a>
-            </div>
+        <div class="check-line">Checked: <strong>third-party service ad + account age (0 mo.)</strong></div>
+        <div class="blocked-badge">
+          <div class="blocked-icon">🚫</div>
+          <div>
+            <div class="blocked-title">Blocked</div>
+            <div class="blocked-reason">Hidden bot advertisement + high scam risk from new account.</div>
+          </div>
         </div>
-    </section>
+      </div>
 
-    <!-- Tactics Section -->
-    <section class="py-24 bg-slate-900">
-        <div class="section-container">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl md:text-5xl font-bold mb-4">Advanced spam tactics</h2>
-                <p class="text-slate-400 text-lg">Modern bots no longer say "BUY" — they masquerade as real people</p>
-            </div>
-
-            <div class="grid md:grid-cols-2 gap-12">
-                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                    <div class="text-blue-500 text-4xl mb-6">🕵️‍♂️</div>
-                    <h3 class="text-2xl font-bold mb-4">Hidden ads in profile</h3>
-                    <p class="text-slate-400 leading-relaxed">
-                        Someone sends a short, friendly message: "Hi! How are you?". No ads in the text, but the
-                        <b>profile Bio</b> and <b>Stories</b> link to a scam channel. Simple filters let these through —
-                        our AI checks the full profile.
-                    </p>
-                </div>
-
-                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                    <div class="text-blue-500 text-4xl mb-6">🤖</div>
-                    <h3 class="text-2xl font-bold mb-4">AI summarization</h3>
-                    <p class="text-slate-400 leading-relaxed">
-                        Spammers use neural networks to generate "helpful" summaries of your posts. It looks like a
-                        polite addition to the topic, but the goal is to boost account reputation or lure reactors into
-                        DMs. We detect typical text-generation patterns and emoji overload.
-                    </p>
-                </div>
-
-                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                    <div class="text-blue-500 text-4xl mb-6">🏗️</div>
-                    <h3 class="text-2xl font-bold mb-4">Native imitation</h3>
-                    <p class="text-slate-400 leading-relaxed">
-                        A group of bots stages an entire show in the comments. One asks for advice on the chat topic
-                        (e.g., real estate), another "accidentally" recommends a service or lawyer. It looks like a
-                        real discussion, but our AI spots suspicious links between accounts.
-                    </p>
-                </div>
-
-                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                    <div class="text-blue-500 text-4xl mb-6">🔗</div>
-                    <h3 class="text-2xl font-bold mb-4">Proxy bots</h3>
-                    <p class="text-slate-400 leading-relaxed">
-                        Instead of a direct channel link, spammers recommend a "helpful assistant bot". This protects
-                        their main channel from instant Telegram bans. Our AI analyzes what resources the mentions and
-                        links in messages lead to.
-                    </p>
-                </div>
-            </div>
+      <div class="msg-card">
+        <div class="msg-bubble">
+          <div class="msg-name">Марина</div>
+          Hi everyone! How are you today? 🌸
+          <div class="msg-time">16:15</div>
         </div>
-    </section>
-
-    <!-- How we detect spam - Mermaid Infographics -->
-    <section class="py-24 bg-slate-800/50">
-        <div class="section-container">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl md:text-5xl font-bold mb-4">How we detect spam</h2>
-                <p class="text-slate-400 text-lg">Traditional bots check text only. Our AI Telegram bot analyzes the
-                    full
-                    profile.</p>
-            </div>
-
-            <!-- Traditional vs our approach: two side-by-side diagrams -->
-            <div class="grid lg:grid-cols-3 gap-12 mb-16" style="grid-template-columns: 1fr 2fr;">
-                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                    <h3 class="text-xl font-bold mb-6 text-center">Traditional bots</h3>
-                    <div class="mermaid">
-                        flowchart TD
-                        T1[Message text only] --> T2[Keyword filter]
-                        T2 --> T3[Miss hidden profile ads]
-                        style T1 fill:#475569,stroke:#64748b,color:#fff
-                        style T2 fill:#475569,stroke:#64748b,color:#fff
-                        style T3 fill:#dc2626,stroke:#b91c1c,color:#fff
-                    </div>
-                </div>
-                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                    <h3 class="text-xl font-bold mb-6 text-center">Our AI Telegram bot</h3>
-                    <div class="mermaid">
-                        flowchart TD
-                        O1[Message] --> O2[Profile bio]
-                        O1 --> O3[Stories]
-                        O1 --> O4[Linked channels]
-                        O1 --> O5[Account age]
-                        O2 --> O6[Full context]
-                        O3 --> O6
-                        O4 --> O6
-                        O5 --> O6
-                        O6 --> O7[Blocks profile ads]
-                        style O1 fill:#475569,stroke:#64748b,color:#fff
-                        style O2 fill:#2563eb,stroke:#1d4ed8,color:#fff
-                        style O3 fill:#2563eb,stroke:#1d4ed8,color:#fff
-                        style O4 fill:#2563eb,stroke:#1d4ed8,color:#fff
-                        style O5 fill:#2563eb,stroke:#1d4ed8,color:#fff
-                        style O6 fill:#374151,stroke:#4b5563,color:#fff
-                        style O7 fill:#16a34a,stroke:#15803d,color:#fff
-                    </div>
-                </div>
-            </div>
-
-            <!-- Spam detection flow: separate full-width block -->
-            <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                <h3 class="text-xl font-bold mb-6 text-center">Spam detection flow</h3>
-                <div class="mermaid">
-                    flowchart TD
-                    Msg[New message] --> AI[AI analyzes text]
-                    AI --> Profile[Check profile and bio]
-                    Profile --> Stories[Check Stories and links]
-                    Stories --> Decision{Spam?}
-                    Decision -->|High confidence| Auto[Auto-delete]
-                    Decision -->|Borderline| Notify[Notify admin]
-                    Decision -->|No| Pass[Allow]
-                    style Msg fill:#475569,stroke:#64748b,color:#fff
-                    style AI fill:#2563eb,stroke:#1d4ed8,color:#fff
-                    style Profile fill:#2563eb,stroke:#1d4ed8,color:#fff
-                    style Stories fill:#2563eb,stroke:#1d4ed8,color:#fff
-                    style Decision fill:#374151,stroke:#4b5563,color:#fff
-                    style Auto fill:#dc2626,stroke:#b91c1c,color:#fff
-                    style Notify fill:#d97706,stroke:#b45309,color:#fff
-                    style Pass fill:#16a34a,stroke:#15803d,color:#fff
-                </div>
-            </div>
+        <div class="check-line">Checked: <strong>profile bio and Stories links</strong></div>
+        <div class="blocked-badge">
+          <div class="blocked-icon">🚫</div>
+          <div>
+            <div class="blocked-title">Blocked</div>
+            <div class="blocked-reason">Harmless text, but bio and Stories link to a scam channel.</div>
+          </div>
         </div>
-    </section>
+      </div>
 
-    <!-- Live Examples Section -->
-    <section class="py-24 bg-slate-800/50">
-        <div class="section-container">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl md:text-5xl font-bold mb-4">Real blocking cases</h2>
-                <p class="text-slate-400 text-lg">See how the AI detects complex spam schemes</p>
-            </div>
-
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div class="flex flex-col gap-4">
-                    <div class="tg-message">
-                        <div class="tg-author">𝚗𝚎𝚐𝚎𝚜𝚎</div>
-                        <p class="tg-text">Interesting post! I agree that sometimes people just don't talk about their
-                            feelings... you can try chatting with the AI psychologist @Marypsyupbot.</p>
-                        <div class="tg-time">17:38</div>
-                    </div>
-                    <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Bot checked: Third-party service ad + Account age (0 mo)
-                    </div>
-                    <div class="spam-blocked-card">
-                        <div class="spam-blocked-header">
-                            <span>🚫 BLOCKED</span>
-                        </div>
-                        <p class="spam-blocked-reason">Reason: Hidden bot advertisement, high scam risk from new
-                            account.</p>
-                    </div>
-                </div>
-
-                <div class="flex flex-col gap-4">
-                    <div class="tg-message">
-                        <div class="tg-author">Marina</div>
-                        <p class="tg-text">Hi everyone! How are you feeling today? 🌸</p>
-                        <div class="tg-time">16:15</div>
-                    </div>
-                    <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Bot checked: Profile bio and links in Stories
-                    </div>
-                    <div class="spam-blocked-card">
-                        <div class="spam-blocked-header">
-                            <span>🚫 BLOCKED</span>
-                        </div>
-                        <p class="spam-blocked-reason">Reason: Hidden ad in profile. Harmless message, but bio and
-                            stories link to scam.</p>
-                    </div>
-                </div>
-
-                <div class="flex flex-col gap-4">
-                    <div class="tg-message">
-                        <div class="tg-author">Julia</div>
-                        <p class="tg-text">Are cottages near the airport trending now? Or did I miss something? 🙃
-                            Saw a couple of listings yesterday at really odd prices...</p>
-                        <div class="tg-time">12:10</div>
-                    </div>
-                    <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Bot checked: Relevance to chat topic and hidden ad patterns
-                    </div>
-                    <div class="spam-blocked-card">
-                        <div class="spam-blocked-header">
-                            <span>🚫 BLOCKED</span>
-                        </div>
-                        <p class="spam-blocked-reason">Reason: Hidden real estate ad via discussion imitation (native
-                            ad).</p>
-                    </div>
-                </div>
-
-                <div class="flex flex-col gap-4">
-                    <div class="tg-message">
-                        <div class="tg-author">Veronica</div>
-                        <p class="tg-text">For those who want to earn from 2500/hour! Looking for active guys and
-                            girls...
-                            message me!</p>
-                        <div class="tg-time">12:35</div>
-                    </div>
-                    <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Bot checked: Key phrases and intent analysis
-                    </div>
-                    <div class="spam-blocked-card">
-                        <div class="spam-blocked-header">
-                            <span>🚫 BLOCKED</span>
-                        </div>
-                        <p class="spam-blocked-reason">Reason: Job scam. Attempt to funnel into DMs with questionable
-                            earning offer.</p>
-                    </div>
-                </div>
-
-                <div class="flex flex-col gap-4">
-                    <div class="tg-message">
-                        <div class="tg-author">Elena</div>
-                        <p class="tg-text">The post discusses moderation importance 🛡️ and how AI helps 🧠. Indeed,
-                            manual
-                            work takes time ⏳. Very useful! 👍✨</p>
-                        <div class="tg-time">09:15</div>
-                    </div>
-                    <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Bot checked: AI-generated tone and anomalous emoji use
-                    </div>
-                    <div class="spam-blocked-card">
-                        <div class="spam-blocked-header">
-                            <span>🚫 BLOCKED</span>
-                        </div>
-                        <p class="spam-blocked-reason">Reason: AI signature. Useless robotic post summary for engagement
-                            farming.</p>
-                    </div>
-                </div>
-
-                <div class="flex flex-col gap-4">
-                    <div class="tg-message">
-                        <div class="tg-author">Alena</div>
-                        <p class="tg-text">Good evening! Who can I contact here? We have a client who needs funding for
-                            a business launch in Turkey... there's an apartment, very nice. They want money for it.</p>
-                        <div class="tg-time">15:44</div>
-                    </div>
-                    <div class="bg-slate-700/50 rounded-xl p-4 text-xs italic text-slate-400">
-                        Bot checked: Linked channels, stories, and profile photo age (2 mo)
-                    </div>
-                    <div class="spam-blocked-card">
-                        <div class="spam-blocked-header">
-                            <span>🚫 BLOCKED</span>
-                        </div>
-                        <p class="spam-blocked-reason">Reason: Hidden investment pitch. Classic "looking for partner"
-                            spam from account with no activity history.</p>
-                    </div>
-                </div>
-            </div>
+      <div class="msg-card">
+        <div class="msg-bubble">
+          <div class="msg-name">Елена</div>
+          Post discusses importance of moderation 🛡️ and how AI helps 🧠. Manual work takes time ⏳. Very useful! 👍✨
+          <div class="msg-time">09:15</div>
         </div>
-    </section>
-
-    <!-- Features Section -->
-    <section class="section-padding">
-        <div class="section-container">
-            <h2 class="section-title">Why they trust us</h2>
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
-                <div class="feature-item">
-                    <div class="feature-icon">🧘</div>
-                    <h3 class="text-xl font-bold mb-3">Your peace of mind</h3>
-                    <p class="text-slate-400">The bot works 24/7. Forget endless chat checks — we only notify you when
-                        it matters.</p>
-                </div>
-
-                <div class="feature-item">
-                    <div class="feature-icon">🧠</div>
-                    <h3 class="text-xl font-bold mb-3">Deep analysis</h3>
-                    <p class="text-slate-400">We don't just search for words. The AI checks <b>bio</b>, <b>stories</b>,
-                        <b>linked channels</b>, <b>profile age</b>, and emoji patterns to detect robotic content.
-                    </p>
-                </div>
-
-                <div class="feature-item">
-                    <div class="feature-icon">
-                        <img src="assets/favicon.png" alt="Shield" class="w-8 h-8 rounded-full">
-                    </div>
-                    <h3 class="text-xl font-bold mb-3">Smart ban</h3>
-                    <p class="text-slate-400">At high confidence (≥90%) the bot deletes spam immediately. In borderline
-                        cases it notifies you and waits for confirmation with "Delete" or "Not spam" buttons.</p>
-                </div>
-
-                <div class="feature-item">
-                    <div class="feature-icon">⚙️</div>
-                    <h3 class="text-xl font-bold mb-3">Flexible setup</h3>
-                    <p class="text-slate-400">Configure strictness levels, whitelists, and rules for your community's
-                        needs.</p>
-                </div>
-
-                <div class="feature-item">
-                    <div class="feature-icon">✨</div>
-                    <h3 class="text-xl font-bold mb-3">No captcha or puzzles</h3>
-                    <p class="text-slate-400">New members join without verification steps. No "prove you're human" — the
-                        bot analyzes messages in the background without distracting anyone.</p>
-                </div>
-
-                <div class="feature-item">
-                    <div class="feature-icon">👥</div>
-                    <h3 class="text-xl font-bold mb-3">Zero load on members</h3>
-                    <p class="text-slate-400">Moderation runs invisibly. Regular users don't see checks, solve puzzles,
-                        or
-                        wait for approval — the chat just stays clean.</p>
-                </div>
-            </div>
+        <div class="check-line">Checked: <strong>AI-generated tone + abnormal emoji count</strong></div>
+        <div class="blocked-badge">
+          <div class="blocked-icon">🚫</div>
+          <div>
+            <div class="blocked-title">Blocked</div>
+            <div class="blocked-reason">AI signature. Pointless post recap for engagement farming.</div>
+          </div>
         </div>
-    </section>
+      </div>
 
-    <!-- Learning Section -->
-    <section class="py-24 bg-slate-800/30">
-        <div class="section-container">
-            <div class="grid lg:grid-cols-2 gap-16 items-center">
-                <div>
-                    <h2 class="text-3xl md:text-5xl font-bold mb-8 leading-tight">
-                        A bot that <span class="text-blue-500">learns</span> from you
-                    </h2>
-                    <p class="text-slate-400 text-lg mb-8 leading-relaxed">
-                        Our AI doesn't just follow rigid rules — it adapts to your community. You shape its intelligence
-                        by simply chatting with it.
-                    </p>
-
-                    <ul class="space-y-6">
-                        <li class="flex gap-4">
-                            <div
-                                class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold">
-                                1</div>
-                            <div>
-                                <h4 class="font-bold mb-1">Forward examples</h4>
-                                <p class="text-slate-400 text-sm">Forward a message to the bot and label it "Spam" or
-                                    "Not spam". This instantly trains the model.</p>
-                            </div>
-                        </li>
-                        <li class="flex gap-4">
-                            <div
-                                class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold">
-                                2</div>
-                            <div>
-                                <h4 class="font-bold mb-1">Personal knowledge base</h4>
-                                <p class="text-slate-400 text-sm">Each group gets its own base of exceptions and spam
-                                    types relevant to you.</p>
-                            </div>
-                        </li>
-                        <li class="flex gap-4">
-                            <div
-                                class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center font-bold">
-                                3</div>
-                            <div>
-                                <h4 class="font-bold mb-1">Feedback</h4>
-                                <p class="text-slate-400 text-sm">If the bot made a mistake, the "Not spam" button
-                                    unbans the user and helps the AI avoid such errors in the future. In borderline
-                                    cases the bot doesn't delete automatically — it sends a notification with "Delete"
-                                    and "Not spam" buttons.</p>
-                            </div>
-                        </li>
-                    </ul>
-                </div>
-
-                <div class="relative">
-                    <div class="bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-700/50">
-                        <div class="flex items-center gap-3 mb-6 border-b border-slate-800 pb-4">
-                            <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-xl">
-                                <img src="assets/favicon.png" alt="AI Anti-Spam Bot" class="w-6 h-6 rounded-full">
-                            </div>
-                            <div>
-                                <div class="font-bold">AI Anti-Spam Bot</div>
-                                <div class="text-xs text-blue-500">live learning</div>
-                            </div>
-                        </div>
-
-                        <div class="space-y-4 mb-6">
-                            <div
-                                class="bg-slate-800 rounded-2xl p-4 ml-8 text-sm italic text-slate-400 border-l-2 border-blue-500">
-                                Message forwarded from User:<br>
-                                "Check out my new crypto project..."
-                            </div>
-                            <div class="bg-blue-600 text-white rounded-2xl p-3 inline-block text-sm font-bold">
-                                🚫 Mark as spam
-                            </div>
-                        </div>
-
-                        <div class="bg-slate-800/50 rounded-2xl p-4 text-sm">
-                            <div class="text-green-500 font-bold mb-2">✅ Example saved!</div>
-                            <p class="text-slate-300">I will now block similar messages across all your groups.</p>
-                        </div>
-                    </div>
-                    <!-- Decorative element -->
-                    <div class="absolute -top-4 -right-4 w-24 h-24 bg-blue-500/10 rounded-full blur-3xl"></div>
-                    <div class="absolute -bottom-4 -left-4 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl"></div>
-                </div>
-            </div>
+      <div class="msg-card">
+        <div class="msg-bubble">
+          <div class="msg-name">Алёна</div>
+          Good evening! Anyone here? We have a client who needs funding for a business launch in Turkey... there's an apartment, very nice.
+          <div class="msg-time">15:44</div>
         </div>
-    </section>
-
-    <!-- Pricing Section -->
-    <section class="section-padding bg-slate-900">
-        <div class="section-container">
-            <h2 class="section-title">Pricing</h2>
-            <div class="max-w-2xl mx-auto">
-                <div class="bg-slate-800/40 p-8 rounded-3xl border border-slate-700/50">
-                    <ul class="space-y-4 text-slate-300">
-                        <li class="flex items-start gap-3">
-                            <span class="text-green-500 font-bold text-xl">✓</span>
-                            <span><b>100 free checks</b> when you start — for new group members and commenters</span>
-                        </li>
-                        <li class="flex items-start gap-3">
-                            <span class="text-blue-500 font-bold">•</span>
-                            <span>Then <b>1 Telegram Star</b> per check of a new user — whether we approve or block
-                                them</span>
-                        </li>
-                        <li class="flex items-start gap-3">
-                            <span class="text-green-500 font-bold text-xl">✓</span>
-                            <span><b>Approved users chat for free</b> — no additional charges once they are in</span>
-                        </li>
-                    </ul>
-                </div>
-            </div>
+        <div class="check-line">Checked: <strong>linked channels, Stories, profile photo age (2 mo.)</strong></div>
+        <div class="blocked-badge">
+          <div class="blocked-icon">🚫</div>
+          <div>
+            <div class="blocked-title">Blocked</div>
+            <div class="blocked-reason">Hidden investment pitch from account with no activity history.</div>
+          </div>
         </div>
-    </section>
+      </div>
 
-    <!-- FAQ Section -->
-    <section class="section-padding" id="faq">
-        <div class="container mx-auto max-w-3xl">
-            <h2 class="section-title">FAQ</h2>
-            <div class="space-y-4">
-                <div class="faq-item">
-                    <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>Does the bot need administrator rights?</span>
-                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-                    <div class="faq-content">
-                        <p>Yes, it's required. The bot needs rights to delete messages and ban users. Without these it
-                            cannot protect the chat from spammers.</p>
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>Does the bot read private chats?</span>
-                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-                    <div class="faq-content">
-                        <p>No. The bot only works in group chats where you added it. It processes messages solely for
-                            spam checking and does not store your chat history.</p>
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>What if the bot wrongly banned someone?</span>
-                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-                    <div class="faq-content">
-                        <p>False positives are minimal. In borderline cases (50–90% confidence) the bot asks you first —
-                            it never auto-bans without human review. If a mistake happens, unban the user in group
-                            settings
-                            and use "Not spam" so the AI learns.</p>
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>What happens when the AI isn't 100% sure?</span>
-                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-                    <div class="faq-content">
-                        <p>In borderline cases (50–90% confidence) the bot doesn't delete automatically. You get a
-                            notification with "Delete" and "Not spam" buttons — the decision is yours. At high
-                            confidence (≥90%) auto-delete follows your settings.</p>
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>Will the bot bother regular users?</span>
-                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-                    <div class="faq-content">
-                        <p>No. Only new members need approval when they first post. Once approved, users chat freely
-                            with no
-                            interruption. Message analysis for existing participants is always free.</p>
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>Can I train the bot for my community?</span>
-                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-                    <div class="faq-content">
-                        <p>Yes. Forward any message to the bot in a private chat and label it "Spam" or "Not spam". Each
-                            group gets its own personal knowledge base of exceptions and spam types relevant to you.</p>
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <button class="faq-button" onclick="toggleFaq(this)">
-                        <span>How much does it cost?</span>
-                        <svg class="faq-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-                    <div class="faq-content">
-                        <p>You get 100 free checks for new members and commenters when you start. After that, 1 Telegram
-                            Star per check of a new user — regardless of approval or block. Approved users chat for
-                            free.
-                        </p>
-                    </div>
-                </div>
-            </div>
+      <div class="msg-card">
+        <div class="msg-bubble">
+          <div class="msg-name">Юля</div>
+          Are cottages near the airport trending now? Or did I miss something? 🙃 Saw a couple of listings yesterday at really odd prices...
+          <div class="msg-time">12:10</div>
         </div>
-    </section>
-
-    <!-- Final CTA Section -->
-    <section class="py-24 px-4">
-        <div class="container mx-auto max-w-5xl">
-            <div class="cta-section">
-                <div class="cta-background"></div>
-                <div class="relative z-10">
-                    <h2 class="text-3xl md:text-5xl font-bold mb-6 text-white">Forget about spam in Telegram</h2>
-                    <p class="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
-                        Enable protection in 1 minute and bring calm back to your groups and channels. No complex setup
-                        or registration.
-                    </p>
-                    <a href="https://t.me/ai_spam_blocker_bot"
-                        class="bg-white text-blue-600 hover:bg-blue-50 font-bold text-xl px-10 py-5 rounded-2xl shadow-xl transition-all hover:scale-105 inline-block">
-                        Enable free protection
-                    </a>
-                </div>
-            </div>
+        <div class="check-line">Checked: <strong>relevance to chat topic + hidden ad patterns</strong></div>
+        <div class="blocked-badge">
+          <div class="blocked-icon">🚫</div>
+          <div>
+            <div class="blocked-title">Blocked</div>
+            <div class="blocked-reason">Native real estate ad disguised as a real discussion.</div>
+          </div>
         </div>
-    </section>
+      </div>
 
-    <!-- Latest Updates Section -->
-    <section class="py-24 bg-slate-800/30">
-        <div class="container mx-auto max-w-5xl px-4">
-            <h2 class="section-title">News and guides</h2>
-            <div class="space-y-6">
-                <a href="https://t.me/ai_antispam/41" class="news-card">
-                    <div class="text-blue-500 font-bold text-sm mb-2">Feb 17, 2026</div>
-                    <h3 class="text-xl font-bold mb-2">You control borderline cases</h3>
-                    <p class="text-slate-400">Now at low AI confidence (50–90%) the bot doesn't delete by itself — you
-                        get a notification with "Delete" and "Not spam" buttons. Fewer false positives.</p>
-                </a>
-
-                <a href="https://t.me/ai_antispam/36" class="news-card">
-                    <div class="text-blue-500 font-bold text-sm mb-2">Dec 9, 2025</div>
-                    <h3 class="text-xl font-bold mb-2">Account age detection</h3>
-                    <p class="text-slate-400">The bot now detects account creation date. Fresh profiles are one of the
-                        main signs of spam bots.</p>
-                </a>
-
-                <a href="https://t.me/ai_antispam/17" class="news-card">
-                    <div class="text-blue-500 font-bold text-sm mb-2">Nov 6, 2025</div>
-                    <h3 class="text-xl font-bold mb-2">Spammer tactics in comments</h3>
-                    <p class="text-slate-400">Breaking down new tactics: how spam bots disguise as regular users and use
-                        "blind zones" for simple bots.</p>
-                </a>
-
-                <a href="https://t.me/ai_antispam/14" class="news-card">
-                    <div class="text-blue-500 font-bold text-sm mb-2">May 13, 2025</div>
-                    <h3 class="text-xl font-bold mb-2">How to connect the bot in 2 minutes</h3>
-                    <p class="text-slate-400">Step-by-step guide for channel comment moderation and group protection.
-                    </p>
-                </a>
-
-                <div class="text-center pt-8">
-                    <a href="https://t.me/ai_antispam"
-                        class="text-blue-400 hover:text-blue-300 font-bold border-b border-blue-400/30 pb-1">
-                        All news in project channel →
-                    </a>
-                </div>
-            </div>
+      <div class="msg-card">
+        <div class="msg-bubble">
+          <div class="msg-name">Вероника</div>
+          Who wants to earn from $30/hour! Looking for active guys and girls... message me!
+          <div class="msg-time">12:35</div>
         </div>
-    </section>
-
-    <!-- Footer -->
-    <footer class="py-20 border-t border-slate-800">
-        <div class="section-container flex flex-col md:flex-row justify-between items-center gap-8">
-            <div class="text-center md:text-left">
-                <div class="text-2xl font-bold mb-2">AI Telegram Anti-Spam</div>
-                <p class="text-slate-500 text-sm">© 2026 All rights reserved.</p>
-            </div>
-            <div class="flex flex-wrap justify-center gap-8 text-sm font-semibold items-center">
-                <a href="https://t.me/ai_antispam" class="footer-link">News</a>
-                <a href="https://t.me/ai_antispam/14" class="footer-link">Setup</a>
-                <a href="https://t.me/ai_antispam/7" class="footer-link">About</a>
-                <span class="text-slate-500">|</span>
-                <a href="index-ru.html" class="footer-link" onclick="localStorage.setItem('lang','ru')">RU</a>
-                <a href="index.html" class="footer-link font-bold text-blue-400">EN</a>
-                <span class="text-slate-500">|</span>
-                <a href="https://t.me/ai_spam_blocker_bot" class="text-blue-500">Launch bot</a>
-            </div>
+        <div class="check-line">Checked: <strong>key phrases + intent analysis</strong></div>
+        <div class="blocked-badge">
+          <div class="blocked-icon">🚫</div>
+          <div>
+            <div class="blocked-title">Blocked</div>
+            <div class="blocked-reason">Job scam. Attempt to funnel into DMs with a questionable earning offer.</div>
+          </div>
         </div>
-    </footer>
+      </div>
 
-    <script>
-        function toggleFaq(button) {
-            const item = button.parentElement;
-            const isActive = item.classList.contains('active');
+    </div>
+  </div>
+</div>
 
-            // Close all items
-            document.querySelectorAll('.faq-item').forEach(el => {
-                el.classList.remove('active');
-            });
 
-            // If wasn't active, open it
-            if (!isActive) {
-                item.classList.add('active');
-            }
-        }
-    </script>
-    <script type="module">
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
-    </script>
+<!-- ═══════════════════════════════════════════
+     CTA #1 — after examples
+════════════════════════════════════════════ -->
+<div class="cta-banner">
+  <div style="position:relative;z-index:1">
+    <h2>Recognize this from your chat or channel?</h2>
+    <p>Add the bot in 60 seconds — first 100 checks free, no registration.</p>
+    <a href="https://t.me/ai_spam_blocker_bot" class="btn-primary">
+      Try for free →
+    </a>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 4 — WHY STANDARD MEASURES FAIL
+════════════════════════════════════════════ -->
+<div class="full-divider"></div>
+<section>
+  <div class="section-tag">Why standard measures fall short</div>
+  <h2>Telegram won't protect your group.<br>That's on you.</h2>
+
+  <div class="why-layout">
+    <div class="why-text">
+      <p>
+        Telegram only removes spammers from its <strong>global blacklist</strong> — accounts already caught and recorded. But a fresh account with casino ads in its bio is perfectly clean to Telegram.
+      </p>
+      <p>
+        Entry captchas filter out dumb 2018-era bots. But a real person — or a smart bot — will pass any captcha, then quietly spam for months in your group chat or channel comments.
+      </p>
+      <p>
+        Keyword filters require constant manual updates. <strong>Spammers adapt in days.</strong> You won't keep up.
+      </p>
+      <p>
+        Our AI looks where nobody looked before: the <strong>full profile</strong> — bio, Stories, linked channels, account age. Works for both groups and channel comments. A different class of protection.
+      </p>
+    </div>
+
+    <div class="why-visual">
+      <div class="why-vis-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        What gets checked on every message
+      </div>
+      <div class="check-row">
+        <span class="check-label">Message text</span>
+        <span class="check-yes">✓</span>
+      </div>
+      <div class="check-row">
+        <span class="check-label">Profile bio</span>
+        <span class="check-yes">✓</span>
+      </div>
+      <div class="check-row">
+        <span class="check-label">Stories and their links</span>
+        <span class="check-yes">✓</span>
+      </div>
+      <div class="check-row">
+        <span class="check-label">Linked channels</span>
+        <span class="check-yes">✓</span>
+      </div>
+      <div class="check-row">
+        <span class="check-label">Account age</span>
+        <span class="check-yes">✓</span>
+      </div>
+      <div class="check-row">
+        <span class="check-label">AI-generation patterns</span>
+        <span class="check-yes">✓</span>
+      </div>
+      <div class="check-row">
+        <span class="check-label">Emoji anomalies</span>
+        <span class="check-yes">✓</span>
+      </div>
+      <div class="check-row" style="background:rgba(79,110,247,0.04)">
+        <span class="check-label" style="color:var(--text);font-weight:500">Result: full context</span>
+        <span style="font-size:11px;color:var(--accent);font-weight:600">ALL ABOVE</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 5 — HOW IT WORKS (for skeptics)
+════════════════════════════════════════════ -->
+<div class="full-divider"></div>
+<section>
+  <div class="section-tag">Technical — for those who want to understand</div>
+  <h2>How the analysis actually works</h2>
+  <p class="section-sub">Three layers of checks running in parallel for every new member.</p>
+
+  <div class="tech-grid">
+    <div class="tech-card">
+      <div class="tech-num">01 / TEXT</div>
+      <h3>Intent analysis, not keywords</h3>
+      <p>The AI doesn't look for stop-words — it understands context and intent. "Earn from home" and "I want to earn" are different with different intentions.</p>
+      <div class="tech-tags">
+        <span class="tag">LLM</span>
+        <span class="tag">intent analysis</span>
+      </div>
+    </div>
+
+    <div class="tech-card">
+      <div class="tech-num">02 / PROFILE</div>
+      <h3>Full account audit</h3>
+      <p>For every message from a new member, the bot checks their bio, Stories, linked channels, and account creation date — automatically.</p>
+      <div class="tech-tags">
+        <span class="tag">bio check</span>
+        <span class="tag">stories</span>
+        <span class="tag">account age</span>
+      </div>
+    </div>
+
+    <div class="tech-card">
+      <div class="tech-num">03 / CONFIDENCE</div>
+      <h3>Smart decisions without mistakes</h3>
+      <p>At ≥90% confidence — auto-delete. At 50–90% — the bot notifies you and waits for your call. Real users won't get caught in false bans.</p>
+      <div class="tech-tags">
+        <span class="tag">confidence score</span>
+        <span class="tag">human-in-loop</span>
+      </div>
+    </div>
+
+    <div class="tech-card">
+      <div class="tech-num">04 / LEARNING</div>
+      <h3>Learns your community</h3>
+      <p>Forward any message to the bot labeled "Spam" or "Not spam". Each group gets its own base — what's normal in one chat may be spam in another.</p>
+      <div class="tech-tags">
+        <span class="tag">per-group training</span>
+        <span class="tag">feedback loop</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flow -->
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-icon bg-blue">💬</div>
+      <div class="flow-step-label"><strong>Message</strong>new member writes in chat</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-icon bg-purple">🧠</div>
+      <div class="flow-step-label"><strong>AI analysis</strong>text + profile + history</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-icon bg-orange">⚖️</div>
+      <div class="flow-step-label"><strong>Score</strong>0–100% spam probability</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-icon bg-red">🚫</div>
+      <div class="flow-step-label"><strong>≥90%</strong>auto-delete</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-icon bg-green">✅</div>
+      <div class="flow-step-label"><strong>&lt;50%</strong>pass through silently</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     PRICING
+════════════════════════════════════════════ -->
+<div class="full-divider"></div>
+<section>
+  <div class="section-tag">Pricing</div>
+  <h2>Simple and fair</h2>
+  <p class="section-sub">Pay only for real work done. Approved members are never charged again.</p>
+
+  <div class="pricing-card">
+    <div style="position:relative;z-index:1">
+      <div class="price-main">
+        <div class="price-num">1 ⭐</div>
+        <div class="price-per">Telegram Star per new member check</div>
+      </div>
+      <ul class="price-list">
+        <li><strong>100 free checks</strong> when you start — for new members and commenters</li>
+        <li>Approved members <strong>chat for free</strong> — no repeat charges</li>
+        <li>Same rate whether the person is blocked or approved</li>
+        <li>Small groups with few new members <strong>can run essentially free</strong> on the gifted checks for a long time</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     FAQ
+════════════════════════════════════════════ -->
+<div class="full-divider"></div>
+<section>
+  <div class="section-tag">FAQ</div>
+  <h2>Frequently asked questions</h2>
+
+  <div class="faq-list">
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggle(this)">Why do I need this if Telegram already removes spam?</div>
+      <div class="faq-a">Telegram only blocks accounts from a global blacklist — those already caught before. <strong>A fresh account with casino ads in its bio looks perfectly clean to Telegram.</strong> That's exactly why modern spam works so well — it uses fresh accounts in both groups and channel comments.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggle(this)">How is this different from an entry captcha?</div>
+      <div class="faq-a">Captchas only filter dumb bots. <strong>A real person or a smart bot will pass any captcha</strong> — then spam for months. We don't block entry: we analyze the profile silently after the first message. Real users never notice anything.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggle(this)">Will the bot ban regular users by mistake?</div>
+      <div class="faq-a">No. At 50–90% confidence the bot <strong>doesn't auto-delete</strong> — it sends you a notification with "Delete" and "Not spam" buttons. Only at ≥90% does auto-delete kick in. False positives are rare — and when they happen, the "Not spam" button trains the AI not to repeat the mistake.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggle(this)">Is it hard to set up?</div>
+      <div class="faq-a">No. <strong>Add the bot to your group or channel's comment chat, grant admin rights</strong> — done. Takes 60 seconds. No registration, no forms. A step-by-step guide is in our channel if anything's unclear.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggle(this)">Does the bot read all messages in the chat?</div>
+      <div class="faq-a">The bot processes messages solely for spam checking. <strong>Chat history is not stored.</strong> The bot has no access to private chats — it only works in groups and channels where you've added it.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggle(this)">Can I train the bot for my community's specifics?</div>
+      <div class="faq-a">Yes. Forward any message to the bot in a private chat and write "Spam" or "Not spam". <strong>Each group gets its own knowledge base</strong> — the bot learns what's normal for your community and makes fewer mistakes.</div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     FINAL CTA
+════════════════════════════════════════════ -->
+<div class="cta-banner" style="margin-bottom:0;border-radius:0;border-left:none;border-right:none;border-bottom:none;padding:80px 40px">
+  <div style="position:relative;z-index:1">
+    <div class="section-tag" style="text-align:center;margin-bottom:20px">Get started now</div>
+    <h2>Forget about spam in Telegram</h2>
+    <p>Protect your group or channel comments in 1 minute.<br>First 100 checks free. No registration, no credit card.</p>
+    <a href="https://t.me/ai_spam_blocker_bot" class="btn-primary">
+      Launch the bot →
+    </a>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     FOOTER
+════════════════════════════════════════════ -->
+<div class="full-divider"></div>
+<footer>
+  <div class="nav-logo">
+    <img src="data:image/png;base64,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" style="width:28px;height:28px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(79,110,247,0.6));" alt="logo">
+    AI Anti-Spam
+  </div>
+  <div class="footer-links">
+    <a href="https://t.me/ai_antispam">News</a>
+    <a href="https://t.me/ai_antispam/14">Setup</a>
+    <a href="https://t.me/ai_spam_blocker_bot">Launch bot</a>
+  </div>
+  <div class="footer-copy">© 2026 ai-antispam.ru</div>
+</footer>
+
+<script>
+  function toggle(el) {
+    const item = el.closest('.faq-item');
+    item.classList.toggle('open');
+  }
+</script>
+
 </body>
-
 </html>
