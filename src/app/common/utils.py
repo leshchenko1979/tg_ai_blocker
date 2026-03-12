@@ -1,6 +1,7 @@
 import html
 import logging
 import re
+from functools import cache
 from typing import Any, Dict, Optional
 
 import yaml
@@ -48,6 +49,7 @@ retry_on_network_error = retry(
 )
 
 
+@cache
 def load_config() -> Dict[str, Any]:
     """
     Загрузка конфигурации
