@@ -27,7 +27,7 @@ async def test_handle_spam_ignore_callback_answer_error():
     with (
         patch("src.app.handlers.callback_handlers.bot") as mock_bot,
         patch(
-            "src.app.handlers.callback_handlers.confirm_pending_spam_example",
+            "src.app.handlers.callback_handlers.confirm_pending_example_as_not_spam",
             new_callable=AsyncMock,
         ) as mock_confirm,
         patch(
@@ -52,7 +52,7 @@ async def test_handle_spam_ignore_callback_answer_error():
 @pytest.mark.asyncio
 async def test_handle_spam_ignore_callback_confirm_raises():
     """
-    Test that if confirm_pending_spam_example raises, handler returns error.
+    Test that if confirm_pending_example_as_not_spam raises, handler returns error.
     """
     callback = AsyncMock(spec=CallbackQuery)
     callback.data = "mark_as_not_spam:1"
@@ -60,7 +60,7 @@ async def test_handle_spam_ignore_callback_confirm_raises():
     callback.message = AsyncMock(spec=Message)
 
     with patch(
-        "src.app.handlers.callback_handlers.confirm_pending_spam_example",
+        "src.app.handlers.callback_handlers.confirm_pending_example_as_not_spam",
         new_callable=AsyncMock,
         side_effect=Exception("Network error"),
     ):
@@ -73,7 +73,7 @@ async def test_handle_spam_ignore_callback_confirm_raises():
 async def test_handle_spam_confirm_callback_deletes_and_bans():
     """
     When admin in notify mode clicks "Удалить", both the message is deleted
-    and the spammer is banned.
+    and the spammer is banned. Also confirms the pending spam example as spam.
     """
     callback = AsyncMock(spec=CallbackQuery)
     callback.data = "delete_spam_message:12345:67890:111"
@@ -85,6 +85,10 @@ async def test_handle_spam_confirm_callback_deletes_and_bans():
     with (
         patch("src.app.handlers.callback_handlers.bot") as mock_bot,
         patch(
+            "src.app.handlers.callback_handlers.get_admin",
+            new_callable=AsyncMock,
+        ) as mock_get_admin,
+        patch(
             "src.app.handlers.callback_handlers.get_group",
             new_callable=AsyncMock,
         ) as mock_get_group,
@@ -92,13 +96,19 @@ async def test_handle_spam_confirm_callback_deletes_and_bans():
             "src.app.handlers.callback_handlers.ban_user_for_spam",
             new_callable=AsyncMock,
         ) as mock_ban,
+        patch(
+            "src.app.handlers.callback_handlers.confirm_pending_example_as_spam",
+            new_callable=AsyncMock,
+        ) as mock_confirm_spam,
     ):
         mock_bot.edit_message_reply_markup = AsyncMock()
         mock_bot.delete_message = AsyncMock()
+        mock_get_admin.return_value = None
         mock_get_group.return_value = None  # Group not in DB - admin_ids=None
 
         result = await handle_spam_confirm_callback(callback)
 
         assert result == "callback_spam_message_deleted"
+        mock_confirm_spam.assert_called_once_with(67890, 111, 999)
         mock_bot.delete_message.assert_called_once_with(67890, 111)
         mock_ban.assert_called_once_with(67890, 12345, None, group_title=None)

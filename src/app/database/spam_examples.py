@@ -9,6 +9,7 @@ from .postgres_connection import get_pool
 logger = logging.getLogger(__name__)
 
 PENDING_SCORE = -100
+SPAM_CONFIRMED_SCORE = 100
 
 
 @logfire.no_auto_trace
@@ -32,12 +33,12 @@ async def insert_pending_spam_example(
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            # TTL cleanup: delete stale pending rows (use '1 day' for SQLite compat in tests)
+            # TTL cleanup: delete stale pending rows (use '3 days' for SQLite compat in tests)
             await conn.execute(
                 """
                 DELETE FROM spam_examples
                 WHERE confirmed = false
-                AND created_at < NOW() - INTERVAL '1 day'
+                AND created_at < NOW() - INTERVAL '3 days'
                 """
             )
 
@@ -68,7 +69,7 @@ async def insert_pending_spam_example(
 
 @logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
-async def confirm_pending_spam_example(
+async def confirm_pending_example_as_not_spam(
     pending_id: int, admin_id: int
 ) -> Optional[Dict[str, Any]]:
     """
@@ -94,6 +95,31 @@ async def confirm_pending_spam_example(
             "message_id": row["message_id"],
             "effective_user_id": row["effective_user_id"],
         }
+
+
+@logfire.no_auto_trace
+@logfire.instrument(extract_args=True)
+async def confirm_pending_example_as_spam(
+    chat_id: int, message_id: int, admin_id: int
+) -> bool:
+    """
+    Mark pending row as confirmed spam (score=100, admin_id). Returns True if
+    updated, False if no matching pending row.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """
+            UPDATE spam_examples
+            SET confirmed = true, admin_id = $1, score = $2
+            WHERE chat_id = $3 AND message_id = $4 AND confirmed = false
+            """,
+            admin_id,
+            SPAM_CONFIRMED_SCORE,
+            chat_id,
+            message_id,
+        )
+        return result != "UPDATE 0"
 
 
 async def get_spam_examples(
@@ -203,21 +229,3 @@ async def add_spam_example(
             except Exception as e:
                 logger.error(f"Error adding spam example: {e}")
                 return False
-
-
-async def remove_spam_example(text: str) -> bool:
-    """Remove a spam example from PostgreSQL by its text (confirmed only)"""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        try:
-            result = await conn.execute(
-                """
-                DELETE FROM spam_examples
-                WHERE text = $1 AND admin_id IS NULL AND (confirmed IS NOT DISTINCT FROM true)
-            """,
-                text,
-            )
-            return result != "DELETE 0"
-        except Exception as e:
-            logger.error(f"Error removing spam example: {e}")
-            return False

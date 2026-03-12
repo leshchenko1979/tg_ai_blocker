@@ -2,10 +2,10 @@ import pytest
 
 from app.database import (
     add_spam_example,
-    confirm_pending_spam_example,
+    confirm_pending_example_as_not_spam,
+    confirm_pending_example_as_spam,
     get_spam_examples,
     insert_pending_spam_example,
-    remove_spam_example,
 )
 
 
@@ -213,41 +213,6 @@ async def test_add_spam_example_duplicate(patched_db_conn, clean_db):
 
 
 @pytest.mark.asyncio
-async def test_remove_spam_example(patched_db_conn, clean_db):
-    """Test removing a spam example"""
-    async with clean_db.acquire() as conn:
-        example_data = {
-            "text": "Buy cheap products!",
-            "score": 90,
-        }
-
-        # Add example
-        await add_spam_example(
-            text=example_data["text"],
-            score=example_data["score"],
-        )
-
-        # Remove example
-        result = await remove_spam_example(example_data["text"])
-
-        # Verify
-        assert result is True
-        examples = await get_spam_examples()
-        assert len(examples) == 0
-
-
-@pytest.mark.asyncio
-async def test_remove_spam_example_not_found(patched_db_conn, clean_db):
-    """Test removing a non-existent spam example"""
-    async with clean_db.acquire() as conn:
-        # Try to remove non-existent example
-        result = await remove_spam_example("nonexistent")
-
-        # Verify
-        assert result is False
-
-
-@pytest.mark.asyncio
 async def test_add_spam_example_with_context_fields(patched_db_conn, clean_db):
     """Test adding and retrieving spam examples with context fields"""
     async with clean_db.acquire() as conn:
@@ -392,7 +357,7 @@ async def test_insert_pending_spam_example(patched_db_conn, clean_db):
 
 
 @pytest.mark.asyncio
-async def test_confirm_pending_spam_example(patched_db_conn, clean_db):
+async def test_confirm_pending_example_as_not_spam(patched_db_conn, clean_db):
     """Test confirming a pending spam example"""
     async with clean_db.acquire() as conn:
         admin_id = 12345
@@ -409,7 +374,7 @@ async def test_confirm_pending_spam_example(patched_db_conn, clean_db):
             chat_id=200, message_id=60, effective_user_id=888, text="Safe message"
         )
 
-        row = await confirm_pending_spam_example(pending_id, admin_id)
+        row = await confirm_pending_example_as_not_spam(pending_id, admin_id)
 
         assert row is not None
         assert row["chat_id"] == 200
@@ -423,9 +388,9 @@ async def test_confirm_pending_spam_example(patched_db_conn, clean_db):
 
 
 @pytest.mark.asyncio
-async def test_confirm_pending_spam_example_not_found(patched_db_conn, clean_db):
+async def test_confirm_pending_example_as_not_spam_not_found(patched_db_conn, clean_db):
     """Test confirm returns None when pending record not found"""
-    row = await confirm_pending_spam_example(99999, 12345)
+    row = await confirm_pending_example_as_not_spam(99999, 12345)
     assert row is None
 
 
@@ -454,3 +419,53 @@ async def test_get_spam_examples_excludes_pending(patched_db_conn, clean_db):
         examples = await get_spam_examples()
         assert len(examples) == 1
         assert examples[0]["text"] == "Confirmed spam"
+
+
+@pytest.mark.asyncio
+async def test_confirm_pending_example_as_spam(patched_db_conn, clean_db):
+    """Test confirming a pending spam example as spam via Delete callback"""
+    async with clean_db.acquire() as conn:
+        admin_id = 55555
+        await conn.execute(
+            """
+            INSERT INTO administrators (admin_id, username, credits)
+            VALUES ($1, 'delete_admin', 100)
+            ON CONFLICT DO NOTHING
+        """,
+            admin_id,
+        )
+
+        pending_id = await insert_pending_spam_example(
+            chat_id=-1001503592176,
+            message_id=16614,
+            effective_user_id=1136677897,
+            text="500 FS in Sweet Bonanza",
+        )
+
+        result = await confirm_pending_example_as_spam(
+            chat_id=-1001503592176, message_id=16614, admin_id=admin_id
+        )
+
+        assert result is True
+
+        row = await conn.fetchrow(
+            "SELECT id, confirmed, admin_id, score FROM spam_examples WHERE id = $1",
+            pending_id,
+        )
+        assert row["confirmed"]  # SQLite returns 1 for True
+        assert row["admin_id"] == admin_id
+        assert row["score"] == 100
+
+        examples = await get_spam_examples([admin_id])
+        assert len(examples) == 1
+        assert examples[0]["text"] == "500 FS in Sweet Bonanza"
+        assert examples[0]["score"] == 100
+
+
+@pytest.mark.asyncio
+async def test_confirm_pending_example_as_spam_not_found(patched_db_conn, clean_db):
+    """Returns False when no pending row matches chat_id/message_id."""
+    result = await confirm_pending_example_as_spam(
+        chat_id=999999, message_id=999999, admin_id=12345
+    )
+    assert result is False

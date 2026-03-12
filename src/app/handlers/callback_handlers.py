@@ -8,7 +8,10 @@ from ..common.bot import bot
 from ..common.utils import get_add_to_group_url, retry_on_network_error
 from ..database import get_admin, get_group, update_admin_language
 from ..database.group_operations import add_member
-from ..database.spam_examples import confirm_pending_spam_example
+from ..database.spam_examples import (
+    confirm_pending_example_as_not_spam,
+    confirm_pending_example_as_spam,
+)
 from ..i18n import resolve_lang, t
 from .dp import dp
 from .handle_spam import ban_user_for_spam
@@ -168,7 +171,7 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         except ValueError:
             return "callback_invalid_data_format"
 
-        row = await confirm_pending_spam_example(pending_id, admin_id)
+        row = await confirm_pending_example_as_not_spam(pending_id, admin_id)
 
         message = callback.message
         if not isinstance(message, types.Message):
@@ -240,15 +243,8 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
 @dp.callback_query(F.data.startswith("delete_spam_message:"))
 async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
     """
-    Обработчик подтверждения спама (кнопка «Удалить» в режиме уведомлений).
-    Удаляет оригинальное спам-сообщение из группы, банит спамера и убирает
-    клавиатуру с сообщения-уведомления.
-
-    Args:
-        callback (CallbackQuery): Callback запрос от Telegram
-
-    Returns:
-        str: Статус обработки callback
+    Handle "Delete" button in notify mode: delete original message, ban spammer,
+    remove notification keyboard. Marks pending spam example as confirmed.
     """
     if not callback.data or not callback.from_user:
         return "callback_invalid_data"
@@ -262,21 +258,16 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
         except Exception:
             pass
 
-        # Разбираем данные из callback
-        # chat_id и message_id относятся к оригинальному сообщению в группе
-        _, author_id_str, original_chat_id, original_message_id = callback.data.split(
-            ":"
-        )
-        effective_user_id = int(author_id_str)
-        chat_id = int(original_chat_id)
+        _, effective_user_id_str, chat_id_str, message_id_str = callback.data.split(":")
+        effective_user_id = int(effective_user_id_str)
+        chat_id = int(chat_id_str)
+        message_id = int(message_id_str)
 
-        # Проверяем, что callback относится к сообщению-уведомлению
         if not callback.message:
             logger.warning("No notification message in callback")
             await callback.answer(t(lang, "callback.invalid_callback"), show_alert=True)
             return "callback_invalid_message"
 
-        # Удаляем клавиатуру с сообщения-уведомления
         try:
             await bot.edit_message_reply_markup(
                 chat_id=callback.message.chat.id,
@@ -286,12 +277,11 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
         except Exception as e:
             logger.warning(f"Failed to remove keyboard from notification: {e}")
 
-        # Удаляем оригинальное спам-сообщение из группы
         try:
 
             @retry_on_network_error
             async def delete_original_message():
-                return await bot.delete_message(chat_id, int(original_message_id))
+                return await bot.delete_message(chat_id, message_id)
 
             await delete_original_message()
         except Exception as e:
@@ -301,7 +291,10 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
             await callback.answer(t(lang, "callback.delete_failed"), show_alert=True)
             return "callback_error_deleting_original"
 
-        # Баним спамера после подтверждения админом (режим уведомлений)
+        await confirm_pending_example_as_spam(
+            chat_id, message_id, callback.from_user.id
+        )
+
         group = await get_group(chat_id)
         admin_ids = group.admin_ids if group else None
         await ban_user_for_spam(chat_id, effective_user_id, admin_ids, group_title=None)
