@@ -269,7 +269,7 @@ async def add_message_lookup_cache_migration(conn: Any) -> List[str]:
                 reply_to_text TEXT,
                 stories_context TEXT,
                 account_age_context TEXT,
-                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 UNIQUE(chat_id, message_id)
             )
             """
@@ -288,6 +288,103 @@ async def add_message_lookup_cache_migration(conn: Any) -> List[str]:
 
     print(
         f"message_lookup_cache migration completed successfully. {len(operations)} operations performed."
+    )
+    return operations
+
+
+async def add_timestamptz_migration(conn: Any) -> List[str]:
+    """
+    Convert all TIMESTAMP columns to TIMESTAMPTZ.
+    Existing values are interpreted as UTC. Enables timezone-aware datetime from Python/asyncpg.
+    """
+    operations = []
+    print("Starting TIMESTAMPTZ migration...")
+
+    async with conn.transaction():
+        await conn.execute("SET timezone = 'UTC'")
+
+        # administrators
+        await conn.execute(
+            """
+            ALTER TABLE administrators
+            ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC',
+            ALTER COLUMN last_active TYPE timestamptz USING last_active AT TIME ZONE 'UTC',
+            ALTER COLUMN credits_depleted_at TYPE timestamptz USING credits_depleted_at AT TIME ZONE 'UTC',
+            ALTER COLUMN low_balance_warned_at TYPE timestamptz USING low_balance_warned_at AT TIME ZONE 'UTC'
+            """
+        )
+        operations.append(
+            "administrators: created_at, last_active, credits_depleted_at, low_balance_warned_at"
+        )
+        print("✓ administrators")
+
+        # groups
+        await conn.execute(
+            """
+            ALTER TABLE groups
+            ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC',
+            ALTER COLUMN last_active TYPE timestamptz USING last_active AT TIME ZONE 'UTC'
+            """
+        )
+        operations.append("groups: created_at, last_active")
+        print("✓ groups")
+
+        # approved_members
+        await conn.execute(
+            """
+            ALTER TABLE approved_members
+            ALTER COLUMN approved_at TYPE timestamptz USING approved_at AT TIME ZONE 'UTC'
+            """
+        )
+        operations.append("approved_members: approved_at")
+        print("✓ approved_members")
+
+        # message_history
+        await conn.execute(
+            """
+            ALTER TABLE message_history
+            ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC'
+            """
+        )
+        operations.append("message_history: created_at")
+        print("✓ message_history")
+
+        # spam_examples
+        await conn.execute(
+            """
+            ALTER TABLE spam_examples
+            ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC'
+            """
+        )
+        operations.append("spam_examples: created_at")
+        print("✓ spam_examples")
+
+        # transactions
+        await conn.execute(
+            """
+            ALTER TABLE transactions
+            ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC'
+            """
+        )
+        operations.append("transactions: created_at")
+        print("✓ transactions")
+
+        # message_lookup_cache (table may not exist if --add-message-lookup-cache not run yet)
+        exists = await conn.fetchval(
+            "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'message_lookup_cache'"
+        )
+        if exists:
+            await conn.execute(
+                """
+                ALTER TABLE message_lookup_cache
+                ALTER COLUMN created_at TYPE timestamptz USING created_at AT TIME ZONE 'UTC'
+                """
+            )
+            operations.append("message_lookup_cache: created_at")
+            print("✓ message_lookup_cache")
+
+    print(
+        f"TIMESTAMPTZ migration completed successfully. {len(operations)} table groups updated."
     )
     return operations
 
@@ -395,6 +492,18 @@ async def run_is_active_column_migration():
         await add_is_active_column_migration(conn)
 
 
+async def run_timestamptz_migration():
+    """Run the TIMESTAMPTZ migration manually."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    print("Getting database pool...")
+    pool = await get_pool()
+    print("Running timestamptz migration...")
+    async with pool.acquire() as conn:
+        print("Acquired connection from pool")
+        await add_timestamptz_migration(conn)
+
+
 async def run_pending_spam_example_migration():
     """Run the pending spam example columns migration manually."""
     print("Creating database if it doesn't exist...")
@@ -421,6 +530,8 @@ async def main():
             await run_pending_spam_example_migration()
         elif sys.argv[1] == "--add-language-code":
             await run_language_code_migration()
+        elif sys.argv[1] == "--add-timestamptz":
+            await run_timestamptz_migration()
         else:
             raise ValueError(f"Unknown migration flag {sys.argv[1]!r}")
     else:

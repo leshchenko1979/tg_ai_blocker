@@ -1,7 +1,7 @@
 """Handlers for bot status updates in chats."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 import logfire
@@ -538,7 +538,7 @@ async def _deactivate_admin_after_block(admin_id: int) -> None:
             # Calculate total time user was with bot in days
             admin = await get_admin(admin_id)
             if admin:
-                total_days = (datetime.now() - admin.created_at).days
+                total_days = (datetime.now(timezone.utc) - admin.created_at).days
 
                 # Set the total time on the root span for trace-level visibility
                 get_root_span().set_attribute("total_user_days", total_days)

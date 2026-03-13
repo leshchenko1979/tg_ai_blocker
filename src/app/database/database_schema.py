@@ -55,10 +55,10 @@ async def create_schema(conn: asyncpg.Connection):
                 delete_spam BOOLEAN DEFAULT false,
                 is_active BOOLEAN DEFAULT true,
                 language_code VARCHAR(10),
-                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                last_active TIMESTAMP NOT NULL DEFAULT NOW(),
-                credits_depleted_at TIMESTAMP,
-                low_balance_warned_at TIMESTAMP
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                last_active TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                credits_depleted_at TIMESTAMPTZ,
+                low_balance_warned_at TIMESTAMPTZ
             );
 
             -- Groups table
@@ -66,8 +66,8 @@ async def create_schema(conn: asyncpg.Connection):
                 group_id BIGINT PRIMARY KEY,
                 title VARCHAR(255),
                 moderation_enabled BOOLEAN DEFAULT true,
-                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                last_active TIMESTAMP NOT NULL DEFAULT NOW()
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                last_active TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
 
             -- Group administrators mapping
@@ -81,7 +81,7 @@ async def create_schema(conn: asyncpg.Connection):
             CREATE TABLE IF NOT EXISTS approved_members (
                 group_id BIGINT REFERENCES groups(group_id) ON DELETE CASCADE,
                 member_id BIGINT NOT NULL,
-                approved_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                approved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 PRIMARY KEY (group_id, member_id)
             );
 
@@ -91,7 +91,7 @@ async def create_schema(conn: asyncpg.Connection):
                 admin_id BIGINT REFERENCES administrators(admin_id) ON DELETE CASCADE,
                 role VARCHAR(50) NOT NULL,
                 content TEXT NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
 
             -- Spam examples
@@ -110,7 +110,7 @@ async def create_schema(conn: asyncpg.Connection):
                 chat_id BIGINT,
                 message_id INTEGER,
                 effective_user_id BIGINT,
-                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
 
             -- Transaction history
@@ -120,7 +120,7 @@ async def create_schema(conn: asyncpg.Connection):
                 amount INTEGER NOT NULL,
                 type VARCHAR(50) NOT NULL,
                 description TEXT,
-                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
 
             -- Message lookup cache for forwarded message resolution (TTL 7 days)
@@ -133,7 +133,7 @@ async def create_schema(conn: asyncpg.Connection):
                 reply_to_text TEXT,
                 stories_context TEXT,
                 account_age_context TEXT,
-                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 UNIQUE(chat_id, message_id)
             );
         """
