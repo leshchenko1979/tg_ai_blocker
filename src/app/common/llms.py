@@ -38,22 +38,9 @@ MODELS = [
     #    "qwen/qwen3-next-80b-a3b-instruct:free", "Payment required"
 ]
 
-# Historical models (removed for various reasons):
-# - Context window too small: google/gemma-3-12b-it:free
-# - API errors (404/removed by provider): google/gemma-3-27b-it:free, minimax/minimax-m2:free, qwen/qwen3-30b-a3b:free
-# - Poor performance/false positives: nvidia/nemotron-nano-9b-v2:free, arcee-ai/trinity-mini:free
-# - Low success rate (0-40%): deepseek/deepseek-chat-v3.1:free, openai/gpt-oss-120b:free, moonshotai/kimi-k2:free,
-#   tencent/hunyuan-a13b-instruct:free, deepseek/deepseek-r1-0528:free, cognitivecomputations/dolphin-mistral-24b-venice-edition:free
-# - Rate limiting issues: openai/gpt-oss-20b:free
-# - Trial/free period ended: xiaomi/mimo-v2-flash:free, kwaipilot/kat-coder-pro:free (Jan 12, 2026)
-# - Mixed results (37-77% success): qwen/qwen3-14b:free, qwen/qwen3-coder:free, qwen/qwen3-235b-a22b:free,
-#   deepseek/deepseek-chat-v3-0324:free, google/gemini-2.0-flash-exp:free, tngtech/deepseek-r1t2-chimera:free,
-#   mistralai/devstral-2512:free, z-ai/glm-4.5-air:free, mistralai/mistral-small-3.2-24b-instruct:free
-
-
 # Current model for round-robin (initialized randomly)
 _current_model = random.choice(MODELS)
-logger.debug("🎯 INITIAL MODEL SET: %s", _current_model)
+logger.debug("Initial model set: %s", _current_model)
 
 
 class LLMException(Exception):

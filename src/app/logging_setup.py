@@ -75,7 +75,13 @@ def setup_logging():
         logging.getLogger("app").setLevel(logging.DEBUG)
 
         logfire.install_auto_tracing(
-            modules=["app.database", "app.handlers", "app.spam", "app.billing"],
+            modules=[
+                "app.database",
+                "app.handlers",
+                "app.spam",
+                "app.billing",
+                "app.background_jobs",
+            ],
             min_duration=0.01,
             check_imported_modules="ignore",
         )

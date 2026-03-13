@@ -33,15 +33,6 @@ async def insert_pending_spam_example(
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            # TTL cleanup: delete stale pending rows (use '3 days' for SQLite compat in tests)
-            await conn.execute(
-                """
-                DELETE FROM spam_examples
-                WHERE confirmed = false
-                AND created_at < NOW() - INTERVAL '3 days'
-                """
-            )
-
             row = await conn.fetchrow(
                 """
                 INSERT INTO spam_examples (
@@ -67,15 +58,33 @@ async def insert_pending_spam_example(
             return row["id"]
 
 
+async def cleanup_pending_spam_examples(days: int = 3) -> int:
+    """
+    Remove stale pending spam examples (confirmed=false, older than days).
+    Returns deleted count.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """
+            DELETE FROM spam_examples
+            WHERE confirmed = false
+            AND created_at < NOW() - INTERVAL '1 day' * $1
+            """,
+            days,
+        )
+    count = int(result.split()[-1]) if result else 0
+    if count > 0:
+        logger.info(f"Cleaned up {count} stale pending spam examples")
+    return count
+
+
 @logfire.no_auto_trace
 @logfire.instrument(extract_args=True)
 async def confirm_pending_example_as_not_spam(
     pending_id: int, admin_id: int
 ) -> Optional[Dict[str, Any]]:
-    """
-    Confirm a pending spam example. Returns chat_id, message_id, effective_user_id
-    if row found and was pending; None otherwise.
-    """
+    """Mark pending example as not spam. Returns chat_id, message_id, effective_user_id or None."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -125,11 +134,10 @@ async def confirm_pending_example_as_spam(
 async def get_spam_examples(
     admin_ids: Optional[List[int]] = None,
 ) -> List[Dict[str, Any]]:
-    """Get spam examples from PostgreSQL, including user-specific examples if admin_ids is provided"""
+    """Get spam examples from PostgreSQL. With admin_ids, includes user-specific examples."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         if admin_ids:
-            # Get both common and user-specific examples for multiple admins
             rows = await conn.fetch(
                 """
                 SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context
@@ -140,7 +148,6 @@ async def get_spam_examples(
                 admin_ids,
             )
         else:
-            # Get only common examples
             rows = await conn.fetch(
                 """
                 SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context
@@ -183,9 +190,7 @@ async def add_spam_example(
     async with pool.acquire() as conn:
         async with conn.transaction():
             try:
-                # Очистка текста от служебных обёрток
                 cleaned_text = clean_alert_text(text)
-                # Remove existing example with same text and name if exists (confirmed only)
                 await conn.execute(
                     """
                     DELETE FROM spam_examples
@@ -198,7 +203,6 @@ async def add_spam_example(
                     admin_id,
                 )
 
-                # Add new example
                 await conn.execute(
                     """
                     INSERT INTO spam_examples (

@@ -1,25 +1,4 @@
-"""
-LLM client for spam classification with retry logic and error handling.
-
-This module provides the low-level interface to Cloudflare AI Gateway for spam classification,
-handling HTTP requests, retries, rate limiting, and response parsing.
-
-Key Features:
-- Automatic retry logic for transient errors (rate limits, location restrictions)
-- Proper handling of different error types (upstream vs gateway errors)
-- Response parsing supporting both JSON and legacy text formats
-- Comprehensive logging and metrics collection
-
-Main Functions:
-- call_llm_with_spam_classification(): Call LLM with retry logic for spam classification
-- parse_classification_response(): Parse LLM responses into (score, reason) tuples
-
-Error Handling:
-- RateLimitExceeded: Handled with appropriate wait times
-- LocationNotSupported: Treated as transient error with retry
-- Other exceptions: Logged and retried up to MAX_RETRIES times
-- ClassificationError: Raised when all retries are exhausted
-"""
+"""LLM client for spam classification: retries, rate limits, JSON/legacy response parsing."""
 
 import asyncio
 import json
@@ -85,42 +64,17 @@ attempts_histogram = logfire.metric_histogram("attempts")
 
 
 class ClassificationError(Exception):
-    """
-    Base exception for spam classification failures.
-
-    Raised when the LLM classification process fails after all retry attempts.
-    This includes network errors, parsing failures, and other unrecoverable issues.
-    """
-
-    pass
+    """Spam classification failed after all retries."""
 
 
 class ExtractionFailedError(ClassificationError):
-    """
-    Exception raised when LLM response parsing fails.
-
-    This occurs when the response cannot be parsed in either JSON format
-    or the legacy text format, indicating malformed or unexpected response structure.
-    """
-
-    pass
+    """LLM response could not be parsed (JSON or legacy format)."""
 
 
 async def call_llm_with_spam_classification(
     messages: List[Dict[str, str]],
 ) -> Tuple[int, int, str]:
-    """
-    Call LLM with retry logic for transient errors.
-
-    Args:
-        messages: Messages array for LLM API
-
-    Returns:
-        Tuple[int, int, str]: (score, confidence, reason) where score is -100 to 100, confidence is 0-100, reason is explanation
-
-    Raises:
-        ClassificationError: If all retries fail
-    """
+    """Call LLM with retry logic. Returns (score, confidence, reason)."""
 
     last_response = None
     last_error = None
@@ -180,12 +134,7 @@ async def call_llm_with_spam_classification(
 
 
 async def _handle_rate_limit_error(error: RateLimitExceeded) -> None:
-    """
-    Handle rate limit errors with appropriate wait times.
-
-    For upstream provider errors, retry immediately.
-    For Cloudflare AI Gateway errors, wait until the reset time.
-    """
+    """Wait for rate limit reset or return immediately for upstream errors."""
     if error.is_upstream_error:
         # For upstream provider errors, continue immediately
         logger.info("Upstream provider rate limit hit, retrying immediately")
@@ -207,15 +156,7 @@ async def _handle_rate_limit_error(error: RateLimitExceeded) -> None:
 
 
 def _parse_json_response(response: str) -> Optional[Tuple[int, int, str]]:
-    """
-    Try to parse response as JSON format.
-
-    Args:
-        response: Raw response string from the LLM
-
-    Returns:
-        Optional[Tuple[int, int, str]]: (score, confidence, reason) if parsing succeeds, None otherwise
-    """
+    """Parse response as JSON. Returns (score, confidence, reason) or None."""
     try:
         data = json.loads(response)
         if not isinstance(data, dict):
@@ -232,15 +173,7 @@ def _parse_json_response(response: str) -> Optional[Tuple[int, int, str]]:
 
 
 def _parse_legacy_response(response: str) -> Optional[Tuple[int, int, str]]:
-    """
-    Try to parse response as legacy text format.
-
-    Args:
-        response: Raw response string from the LLM
-
-    Returns:
-        Optional[Tuple[int, int, str]]: (score, confidence, reason) if parsing succeeds, None otherwise
-    """
+    """Parse legacy text format. Returns (score, confidence, reason) or None."""
     # Extract content from tags
     match = LEGACY_RESPONSE_PATTERN.search(response)
     if match:
@@ -273,20 +206,7 @@ def _parse_legacy_response(response: str) -> Optional[Tuple[int, int, str]]:
 
 
 def parse_classification_response(response: str) -> Tuple[int, int, str]:
-    """
-    Parse the LLM response to extract spam score, confidence, and reasoning.
-
-    Supports both JSON format responses and legacy text format for backward compatibility.
-
-    Args:
-        response: Raw response string from the LLM
-
-    Returns:
-        Tuple[int, int, str]: (score, confidence, reason) where score is -100 to 100, confidence is 0-100, reason is explanation text
-
-    Raises:
-        ExtractionFailedError: If response cannot be parsed in any supported format
-    """
+    """Parse LLM response (JSON or legacy). Returns (score, confidence, reason)."""
     # First try to parse as JSON
     json_result = _parse_json_response(response)
     if json_result is not None:

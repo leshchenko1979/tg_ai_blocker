@@ -8,7 +8,7 @@ from src.app.handlers.private_handlers import extract_original_message_info
 
 
 class TestExtractOriginalMessageInfo:
-    """Test the extract_original_message_info function with Logfire lookup integration."""
+    """Test the extract_original_message_info function with message_lookup_cache integration."""
 
     @pytest.fixture
     def mock_callback_message(self):
@@ -47,10 +47,10 @@ class TestExtractOriginalMessageInfo:
             yield mock_bot
 
     @pytest.mark.asyncio
-    async def test_logfire_lookup_success(
+    async def test_message_lookup_success(
         self, mock_callback_message, mock_bot_get_chat
     ):
-        """Test successful Logfire lookup when forward metadata lacks group info."""
+        """Test successful message_lookup_cache lookup when forward metadata lacks group info."""
         admin_id = 99999
 
         # Mock admin groups
@@ -59,18 +59,25 @@ class TestExtractOriginalMessageInfo:
         ) as mock_get_groups:
             mock_get_groups.return_value = [{"id": 1001}, {"id": 1002}, {"id": 1003}]
 
-            # Mock successful Logfire lookup
+            # Mock successful DB lookup
             with patch(
-                "src.app.handlers.private_handlers.find_original_message",
+                "src.app.handlers.private_handlers.find_message_by_text_and_user",
                 new_callable=AsyncMock,
             ) as mock_lookup:
-                mock_lookup.return_value = {"message_id": 555, "chat_id": 1001}
+                mock_lookup.return_value = {
+                    "chat_id": 1001,
+                    "message_id": 555,
+                    "user_id": 12345,
+                    "reply_to_text": None,
+                    "stories_context": None,
+                    "account_age_context": None,
+                }
 
                 result = await extract_original_message_info(
                     mock_callback_message, admin_id
                 )
 
-                # Verify the result includes Logfire data
+                # Verify the result includes lookup data
                 assert result["group_chat_id"] == 1001
                 assert result["group_message_id"] == 555
                 assert result["user_id"] == 12345
@@ -79,17 +86,16 @@ class TestExtractOriginalMessageInfo:
                 assert result["bio"] == "Spammer bio"
                 assert result["text"] == "Test spam message"
 
-                # Verify Logfire lookup was called with correct parameters
-                mock_lookup.assert_called_once_with(
-                    user_id=12345,
-                    message_text="Test spam message",
-                    forward_date=mock_callback_message.reply_to_message.forward_date,
-                    admin_chat_ids=[1001, 1002, 1003],
-                )
+                # Verify lookup was called with correct parameters
+                mock_lookup.assert_called_once()
+                call_kwargs = mock_lookup.call_args[1]
+                assert call_kwargs["message_text"] == "Test spam message"
+                assert call_kwargs["admin_chat_ids"] == [1001, 1002, 1003]
+                assert call_kwargs["user_id"] == 12345
 
     @pytest.mark.asyncio
-    async def test_logfire_lookup_miss(self, mock_callback_message, mock_bot_get_chat):
-        """Test Logfire lookup when no matching message is found."""
+    async def test_message_lookup_miss(self, mock_callback_message, mock_bot_get_chat):
+        """Test message lookup when no matching message is found in cache."""
         admin_id = 99999
 
         # Mock admin groups
@@ -98,9 +104,9 @@ class TestExtractOriginalMessageInfo:
         ) as mock_get_groups:
             mock_get_groups.return_value = [{"id": 1001}, {"id": 1002}]
 
-            # Mock Logfire lookup returning None
+            # Mock DB lookup returning None
             with patch(
-                "src.app.handlers.private_handlers.find_original_message",
+                "src.app.handlers.private_handlers.find_message_by_text_and_user",
                 new_callable=AsyncMock,
             ) as mock_lookup:
                 mock_lookup.return_value = None
@@ -127,9 +133,9 @@ class TestExtractOriginalMessageInfo:
         ) as mock_get_groups:
             mock_get_groups.return_value = []
 
-            # Logfire lookup should not be called
+            # Message lookup should not be called
             with patch(
-                "src.app.handlers.private_handlers.find_original_message",
+                "src.app.handlers.private_handlers.find_message_by_text_and_user",
                 new_callable=AsyncMock,
             ) as mock_lookup:
                 result = await extract_original_message_info(
@@ -145,7 +151,7 @@ class TestExtractOriginalMessageInfo:
 
     @pytest.mark.asyncio
     async def test_channel_forward_metadata_available(self, mock_bot_get_chat):
-        """Test that Logfire lookup is not called when forward metadata provides group info."""
+        """Test that message lookup is not called when forward metadata provides group info."""
         admin_id = 99999
 
         # Create mock with channel forward metadata
@@ -167,12 +173,12 @@ class TestExtractOriginalMessageInfo:
 
         callback_message.reply_to_message = forwarded_message
 
-        # Logfire lookup should not be called since we have metadata
+        # Message lookup should not be called since we have metadata
         with patch(
             "src.app.handlers.private_handlers.get_admin_groups", new_callable=AsyncMock
         ) as mock_get_groups:
             with patch(
-                "src.app.handlers.private_handlers.find_original_message",
+                "src.app.handlers.private_handlers.find_message_by_text_and_user",
                 new_callable=AsyncMock,
             ) as mock_lookup:
                 result = await extract_original_message_info(callback_message, admin_id)
@@ -182,16 +188,16 @@ class TestExtractOriginalMessageInfo:
                 assert result["group_message_id"] == 777
                 assert result["name"] == "Spam Channel"
 
-                # Verify Logfire lookup was not called
+                # Verify message lookup was not called
                 mock_lookup.assert_not_called()
                 mock_get_groups.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_logfire_lookup_hidden_user(self, mock_bot_get_chat):
-        """Test Logfire lookup succeeds even when user_id is None (hidden user forward)."""
+    async def test_message_lookup_hidden_user(self, mock_bot_get_chat):
+        """Test message lookup succeeds and can recover user_id when forward has hidden user."""
         admin_id = 99999
 
-        # Create mock with hidden user forward (no user_id available)
+        # Create mock with hidden user forward (no user_id available from forward)
         callback_message = MagicMock(spec=types.Message)
         forwarded_message = MagicMock(spec=types.Message)
         forwarded_message.text = "Hidden user message"
@@ -212,29 +218,31 @@ class TestExtractOriginalMessageInfo:
         ) as mock_get_groups:
             mock_get_groups.return_value = [{"id": 1001}, {"id": 1002}]
 
-            # Mock successful Logfire lookup
+            # Mock successful DB lookup (recover user_id from cache)
             with patch(
-                "src.app.handlers.private_handlers.find_original_message",
+                "src.app.handlers.private_handlers.find_message_by_text_and_user",
                 new_callable=AsyncMock,
             ) as mock_lookup:
-                mock_lookup.return_value = {"message_id": 888, "chat_id": 1001}
+                mock_lookup.return_value = {
+                    "chat_id": 1001,
+                    "message_id": 888,
+                    "user_id": 67890,
+                    "reply_to_text": None,
+                    "stories_context": None,
+                    "account_age_context": None,
+                }
 
                 result = await extract_original_message_info(callback_message, admin_id)
 
-                # Verify the result includes Logfire data
+                # Verify the result includes lookup data and recovered user_id
                 assert result["group_chat_id"] == 1001
                 assert result["group_message_id"] == 888
-                assert result["user_id"] is None  # No user_id for hidden user
-                assert result["name"] is None  # No name for hidden user
+                assert result["user_id"] == 67890
                 assert result["text"] == "Hidden user message"
 
-                # Verify Logfire lookup was called with user_id=None
-                mock_lookup.assert_called_once_with(
-                    user_id=None,
-                    message_text="Hidden user message",
-                    forward_date=forwarded_message.forward_date,
-                    admin_chat_ids=[1001, 1002],
-                )
+                # Verify lookup was called with user_id=None
+                mock_lookup.assert_called_once()
+                assert mock_lookup.call_args[1]["user_id"] is None
 
     @pytest.mark.asyncio
     async def test_no_user_id_in_forward(self):

@@ -1,12 +1,4 @@
-"""
-Spam classification coordinator.
-
-This module provides the main API for spam classification, coordinating
-between prompt building, LLM interaction, and response processing.
-
-Key Functions:
-- is_spam(): Main entry point for spam classification orchestration
-"""
+"""Spam classification: prompt building, LLM calls, response parsing."""
 
 import logging
 from typing import List, Optional, Tuple
@@ -29,47 +21,18 @@ async def is_spam(
     admin_ids: Optional[List[int]] = None,
     context: Optional[SpamClassificationContext] = None,
 ) -> Tuple[int, int, str]:
-    """
-    Classify a message as spam or legitimate using LLM analysis.
-
-    This is the main entry point for spam classification that orchestrates
-    the entire process from prompt building through LLM interaction to response parsing.
-
-    NOTE: The frunction is decorated with logfire.no_auto_trace and logfire.instrument
-    so that logfire keeps the context collected for this message. Without these decorators,
-    logfire_lookup.py:find_spam_classification_context() will not work. Also, changing
-    the function's name from is_spam to something else will break find_spam_classification_context.
-
-    Args:
-        comment: The message content to classify
-        admin_ids: Optional list of admin IDs for personalized spam examples
-        context: Optional contextual information for classification
-
-    Returns:
-        Tuple[int, int, str]:
-            - int: Spam score (positive = spam 0-100, negative = legitimate -100-0)
-            - int: Confidence level (0-100)
-            - str: Explanation of the classification decision
-
-    Raises:
-        ClassificationError: If classification fails after all retries
-    """
-    # Use empty context if none provided
+    """Classify message as spam or legitimate. Returns (score, confidence, reason)."""
     classification_context = context or SpamClassificationContext()
 
-    # Resolve lang from first admin for LLM explanation language
     lang = "en"
     if admin_ids:
         admin = await get_admin(admin_ids[0])
         if admin and admin.language_code:
             lang = normalize_lang(admin.language_code)
 
-    # Prepare the classification request (prompt building and message formatting)
     messages = await _prepare_classification_request(
         comment, admin_ids, classification_context, lang
     )
-
-    # Call LLM with retry logic (handles all LLM interaction, retries, and response parsing)
     return await call_llm_with_spam_classification(messages)
 
 
@@ -79,54 +42,13 @@ async def _prepare_classification_request(
     context: SpamClassificationContext,
     lang: str = "en",
 ) -> List[dict]:
-    """
-    Prepare the messages for LLM classification request.
-
-    Args:
-        comment: The message content to classify
-        admin_ids: Optional list of admin IDs for personalized spam examples
-        context: Contextual information for classification
-        lang: Language for LLM explanation (ru/en)
-
-    Returns:
-        List[dict]: Messages array ready for LLM API
-    """
-    # Build the system prompt
     system_prompt = await build_system_prompt(
         admin_ids=admin_ids,
         context=context,
         lang=lang,
     )
-
-    # Create messages for LLM
-    messages = _create_classification_messages(comment, system_prompt, context)
-
-    return messages
-
-
-def _create_classification_messages(
-    comment: str,
-    system_prompt: str,
-    context: SpamClassificationContext,
-) -> List[dict]:
-    """
-    Create the messages array for LLM classification request.
-
-    Formats the user message by combining the message text with contextual information
-    and creates the complete message structure for the LLM API.
-
-    Args:
-        comment: The message content to classify
-        system_prompt: The system prompt with instructions and examples
-        context: Full context for classification including user info and settings
-
-    Returns:
-        List[dict]: Message dictionaries ready for LLM API,
-        containing system and user messages
-    """
     user_request = format_spam_request(comment, context)
     user_message = f"{user_request}\nAnalyze this message and respond with JSON spam classification."
-
     return [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_message},

@@ -2,6 +2,7 @@ import asyncio
 import logging
 import pathlib
 from collections.abc import Coroutine
+from datetime import timedelta
 from typing import Any, Dict, List, cast
 
 from aiogram import F, types
@@ -11,13 +12,10 @@ from aiogram.filters import or_f
 from ..common.bot import bot
 from ..spam.user_profile import collect_user_context
 from ..common.llms import get_llm_response_with_fallback
-from ..common.logfire_lookup import (
-    find_original_message,
-    find_spam_classification_context,
-)
 from ..common.utils import sanitize_llm_html
 from ..database import (
     add_spam_example,
+    find_message_by_text_and_user,
     get_admin,
     get_message_history,
     get_spam_examples,
@@ -28,6 +26,7 @@ from ..database import (
 )
 from ..database.group_operations import get_admin_groups
 from ..i18n import normalize_lang, t
+from ..types import ContextStatus
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -44,9 +43,7 @@ class OriginalMessageExtractionError(Exception):
     ~F.forward_origin,
 )
 async def handle_private_message(message: types.Message) -> str:
-    """
-    Отвечает пользователю от имени бота, используя LLM модели и контекст из истории сообщений
-    """
+    """Reply to user in private chat using LLM and message history context."""
     if not message.from_user:
         return "private_no_user_info"
 
@@ -67,9 +64,7 @@ async def handle_private_message(message: types.Message) -> str:
         # Get conversation history
         message_history = await get_message_history(admin_id)
 
-        # Read PRD for system context
         prd_text = pathlib.Path("PRD.md").read_text()
-        # Get spam examples from Redis
         spam_examples = await get_spam_examples()
 
         # Format spam examples for prompt
@@ -189,9 +184,7 @@ async def handle_private_message(message: types.Message) -> str:
 
 @dp.message(F.chat.type == "private", or_f(F.forward_from, F.forward_origin))
 async def handle_forwarded_message(message: types.Message) -> str:
-    """
-    Handle forwarded messages in private chats.
-    """
+    """Prompt admin to confirm spam/not_spam for forwarded message."""
     if not message.from_user:
         return "private_forward_no_user_info"
 
@@ -226,9 +219,7 @@ async def handle_forwarded_message(message: types.Message) -> str:
 
 @dp.callback_query(F.data.startswith("spam_example:"))
 async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
-    """
-    Process the user's response to the spam example prompt.
-    """
+    """Handle spam/not_spam button press for forwarded message."""
     if not callback.from_user or not callback.data or not callback.message:
         return "spam_example_invalid_callback"
 
@@ -304,7 +295,6 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
             else:
                 logger.warning("User ID not found in info, skipping removal from group")
 
-            # Добавляем удаление сообщения из группы, если есть информация о нем
             if info.get("group_chat_id") and info.get("group_message_id"):
                 logger.info(
                     f"Adding message deletion task: chat_id={info['group_chat_id']}, message_id={info['group_message_id']}",
@@ -362,13 +352,7 @@ async def extract_original_message_info(
     callback_message: types.Message,
     admin_id: int,
 ) -> Dict[str, Any]:
-    """
-    Извлекает информацию об исходном сообщении из пересланного сообщения
-
-    Args:
-        callback_message: The callback message containing the forwarded message
-        admin_id: The admin who forwarded the message
-    """
+    """Extract original message info from forwarded message for spam example creation."""
     if not callback_message.reply_to_message:
         raise OriginalMessageExtractionError("No reply_to_message found")
 
@@ -392,7 +376,6 @@ async def extract_original_message_info(
     origin = original_message.forward_origin
 
     if original_message.forward_from:
-        # Если есть прямая информация о пользователе
         user = original_message.forward_from
         info["name"] = user.full_name
         info["user_id"] = user.id
@@ -424,19 +407,22 @@ async def extract_original_message_info(
             },
         )
 
-    # If we don't have group chat/message IDs from forward metadata, try Logfire lookup
+    # If we don't have group chat/message IDs from forward metadata, try PostgreSQL lookup
     if not info["group_chat_id"] or not info["group_message_id"]:
-        # Get admin's managed groups and extract IDs
         admin_groups = await get_admin_groups(admin_id)
         admin_group_ids = [group["id"] for group in admin_groups]
 
         if admin_group_ids:
-            # Try to find the original message in Logfire (user_id is optional now)
-            lookup_result = await find_original_message(
-                user_id=info["user_id"],  # Can be None for hidden users
+            forward_date = original_message.forward_date or original_message.date
+            from_date = forward_date - timedelta(days=3)
+            to_date = forward_date + timedelta(days=1)
+
+            lookup_result = await find_message_by_text_and_user(
                 message_text=info["text"],
-                forward_date=original_message.forward_date or original_message.date,
                 admin_chat_ids=admin_group_ids,
+                from_date=from_date,
+                to_date=to_date,
+                user_id=info["user_id"],
             )
 
             if lookup_result:
@@ -445,76 +431,61 @@ async def extract_original_message_info(
                 if not info["user_id"] and lookup_result.get("user_id"):
                     info["user_id"] = lookup_result["user_id"]
                     logger.info(
-                        f"Recovered user_id {info['user_id']} from Logfire",
-                        extra={"logfire_lookup": "user_recovered"},
+                        f"Recovered user_id {info['user_id']} from message_lookup_cache",
+                        extra={"message_lookup": "user_recovered"},
                     )
+                info["reply_context"] = lookup_result.get("reply_to_text")
+                info["stories_context"] = lookup_result.get("stories_context")
+                info["account_age_context"] = lookup_result.get("account_age_context")
+
+                # On-demand context when cache has none (e.g. approved user message)
+                if info["user_id"] and (
+                    not info.get("stories_context")
+                    or not info.get("account_age_context")
+                ):
+                    try:
+                        user_context = await collect_user_context(
+                            info["user_id"], username=info.get("username")
+                        )
+                        if user_context.account_age and not info.get(
+                            "account_age_context"
+                        ):
+                            if (
+                                user_context.account_age.status == ContextStatus.FOUND
+                                and user_context.account_age.content
+                            ):
+                                info["account_age_context"] = (
+                                    user_context.account_age.content.to_prompt_fragment()
+                                )
+                            elif user_context.account_age.status == ContextStatus.EMPTY:
+                                info["account_age_context"] = "[EMPTY]"
+                    except Exception as e:
+                        logger.debug(
+                            "On-demand context collection failed",
+                            extra={"user_id": info["user_id"], "error": str(e)},
+                        )
 
                 logger.info(
-                    "Logfire lookup succeeded",
+                    "Message lookup succeeded",
                     extra={
-                        "logfire_lookup": "success",
+                        "message_lookup": "success",
                         "candidate_chats": len(admin_group_ids),
                         "user_id_provided": info["user_id"] is not None,
                     },
                 )
-
-                # Try to find spam classification context for this message
-                if info["group_message_id"] and info["group_chat_id"]:
-                    context_result = await find_spam_classification_context(
-                        message_id=info["group_message_id"],
-                        chat_id=info["group_chat_id"],
-                        user_id=info["user_id"],
-                        forward_date=original_message.forward_date
-                        or original_message.date,
-                    )
-
-                    if context_result:
-                        for key in (
-                            "stories_context",
-                            "reply_context",
-                            "account_age_context",
-                        ):
-                            val = context_result.get(key)
-                            info[key] = (
-                                ("[EMPTY]" if val is None else val)
-                                if val is not None
-                                else None
-                            )
-
-                        logger.info(
-                            "Context extraction succeeded",
-                            extra={
-                                "context_extraction": "success",
-                                "stories_found": info["stories_context"] != "[EMPTY]"
-                                and info["stories_context"] is not None,
-                                "reply_found": info["reply_context"] != "[EMPTY]"
-                                and info["reply_context"] is not None,
-                                "age_found": info["account_age_context"] != "[EMPTY]"
-                                and info["account_age_context"] is not None,
-                            },
-                        )
-                    else:
-                        # No context found in traces - leave as None (unknown state)
-                        info["stories_context"] = None
-                        info["reply_context"] = None
-                        info["account_age_context"] = None
-                        logger.info(
-                            "No context found in Logfire traces",
-                            extra={"context_extraction": "miss"},
-                        )
             else:
-                logger.warning(
-                    "Logfire lookup failed to find message",
+                logger.info(
+                    "No matching message found in message_lookup_cache",
                     extra={
-                        "logfire_lookup": "miss",
+                        "message_lookup": "miss",
                         "candidate_chats": len(admin_group_ids),
                         "user_id_provided": info["user_id"] is not None,
                     },
                 )
         else:
             logger.info(
-                "Admin has no managed groups, skipping Logfire lookup",
-                extra={"logfire_lookup": "skip", "candidate_chats": 0},
+                "Admin has no managed groups, skipping message lookup",
+                extra={"message_lookup": "skip", "candidate_chats": 0},
             )
 
     return info

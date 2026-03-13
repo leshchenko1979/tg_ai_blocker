@@ -1,10 +1,5 @@
 # autoflake: skip_file
 
-# Initialize environment variables
-# import dotenv
-
-# dotenv.load_dotenv()
-
 # Initialize logging
 import logging
 
@@ -17,7 +12,7 @@ logger = logging.getLogger(__name__)
 import asyncio
 import time
 from asyncio import TimeoutError
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 import logfire
 from aiogram.dispatcher.event.bases import UNHANDLED
@@ -26,7 +21,7 @@ from aiohttp import web
 # Import all handlers to register them with the dispatcher
 from .handlers import *
 
-from .billing.low_balance_jobs import low_balance_loop
+from .background_jobs import scheduled_jobs_loop
 from .bot_commands import setup_bot_commands
 from .common.bot import bot
 from .common.trace_context import set_root_span
@@ -142,12 +137,10 @@ def extract_chat_or_user(json: dict) -> str:
 app.add_routes(routes)
 
 
-async def _on_startup_register_logging(app: web.Application) -> None:
+async def _on_startup_setup_bot(app: web.Application) -> None:
+    """Register logging loop, bot command menus, and webhook."""
     register_telegram_logging_loop(asyncio.get_running_loop())
-
-
-async def _on_startup_setup_webhook(app: web.Application) -> None:
-    """Set up Telegram webhook on startup"""
+    await setup_bot_commands(bot)
     try:
         webhook_url = "https://tg-ai-blocker.l1979.ru/process-tg-updates"
         logger.info(f"Setting webhook URL to: {webhook_url}")
@@ -158,19 +151,14 @@ async def _on_startup_setup_webhook(app: web.Application) -> None:
         raise
 
 
-async def _on_startup_setup_commands(app: web.Application) -> None:
-    """Register bot command menus (EN and RU) on startup."""
-    await setup_bot_commands(bot)
+_scheduled_jobs_task: Optional[asyncio.Task] = None
 
 
-_low_balance_task: Optional[asyncio.Task] = None
-
-
-async def _on_startup_low_balance_loop(app: web.Application) -> None:
-    """Start the low balance warning background loop."""
-    global _low_balance_task
-    _low_balance_task = asyncio.create_task(low_balance_loop())
-    logger.info("Low balance loop started")
+async def _on_startup_scheduled_jobs(app: web.Application) -> None:
+    """Start the unified scheduled jobs loop (low balance + cache cleanups)."""
+    global _scheduled_jobs_task
+    _scheduled_jobs_task = asyncio.create_task(scheduled_jobs_loop())
+    logger.info("Scheduled jobs loop started")
 
 
 async def _on_startup_log_server_started(app: web.Application) -> None:
@@ -181,11 +169,11 @@ async def _shutdown(app: web.Application) -> None:
     """Gracefully shutdown all resources."""
     logger.warning("Starting graceful shutdown...")
 
-    global _low_balance_task
-    if _low_balance_task and not _low_balance_task.done():
-        _low_balance_task.cancel()
+    global _scheduled_jobs_task
+    if _scheduled_jobs_task and not _scheduled_jobs_task.done():
+        _scheduled_jobs_task.cancel()
         try:
-            await _low_balance_task
+            await _scheduled_jobs_task
         except asyncio.CancelledError:
             pass
 
@@ -202,37 +190,18 @@ async def _shutdown(app: web.Application) -> None:
             logger.warning(f"Error stopping TelegramLogHandler: {e}", exc_info=True)
 
 
-app.on_startup.append(_on_startup_register_logging)
-app.on_startup.append(_on_startup_setup_webhook)
-app.on_startup.append(_on_startup_setup_commands)
-app.on_startup.append(_on_startup_low_balance_loop)
+app.on_startup.append(_on_startup_setup_bot)
+app.on_startup.append(_on_startup_scheduled_jobs)
 app.on_startup.append(_on_startup_log_server_started)
 app.on_shutdown.append(_shutdown)
-
-
-def extract_ids_from_update(json: dict) -> Tuple[Optional[int], Optional[int]]:
-    """Extract chat_id and admin_id from update"""
-    chat_id = None
-    admin_id = None
-    for key in json:
-        if isinstance(json[key], dict):
-            if "chat" in json[key]:
-                chat_id = json[key]["chat"]["id"]
-            if "from" in json[key]:
-                admin_id = json[key]["from"]["id"]
-            if chat_id and admin_id:
-                break
-    return chat_id, admin_id
 
 
 async def handle_timeout(
     span: logfire.LogfireSpan, json: dict, elapsed: float
 ) -> web.Response:
-    """Handle timeout error"""
+    """Handle timeout error."""
     logger.warning(f"Webhook processing timed out after {elapsed:.2f} seconds")
     span.tags = ["webhook_timeout"]
-
-    chat_id, admin_id = extract_ids_from_update(json)
 
     return web.json_response(
         {"error": "Processing timed out", "retry": True},

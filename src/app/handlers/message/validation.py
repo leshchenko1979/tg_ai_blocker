@@ -1,9 +1,4 @@
-"""
-Message validation and filtering logic.
-
-This module contains functions for validating messages, checking user permissions,
-and determining whether messages should be processed for moderation.
-"""
+"""Message validation and early-exit checks for moderation pipeline."""
 
 import logging
 from typing import Optional, Tuple

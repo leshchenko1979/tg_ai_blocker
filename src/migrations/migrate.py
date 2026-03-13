@@ -250,6 +250,48 @@ async def add_language_code_migration(conn: Any) -> List[str]:
     return operations
 
 
+async def add_message_lookup_cache_migration(conn: Any) -> List[str]:
+    """
+    Create message_lookup_cache table for PostgreSQL message lookup (replaces Logfire).
+    """
+    operations = []
+    print("Starting message_lookup_cache migration...")
+
+    async with conn.transaction():
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS message_lookup_cache (
+                id SERIAL PRIMARY KEY,
+                chat_id BIGINT NOT NULL,
+                message_id BIGINT NOT NULL,
+                effective_user_id BIGINT NOT NULL,
+                message_text TEXT NOT NULL,
+                reply_to_text TEXT,
+                stories_context TEXT,
+                account_age_context TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE(chat_id, message_id)
+            )
+            """
+        )
+        operations.append("Created message_lookup_cache table")
+        print("✓ Created message_lookup_cache table")
+
+        await conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_message_lookup_text_user_created
+                ON message_lookup_cache(message_text, effective_user_id, created_at)
+            """
+        )
+        operations.append("Created idx_message_lookup_text_user_created")
+        print("✓ Created idx_message_lookup_text_user_created")
+
+    print(
+        f"message_lookup_cache migration completed successfully. {len(operations)} operations performed."
+    )
+    return operations
+
+
 async def add_is_active_column_migration(conn: Any) -> List[str]:
     """
     Ensure administrators table has the is_active column.
@@ -329,6 +371,18 @@ async def run_language_code_migration():
         await add_language_code_migration(conn)
 
 
+async def run_message_lookup_cache_migration():
+    """Run the message_lookup_cache migration manually."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    print("Getting database pool...")
+    pool = await get_pool()
+    print("Running message_lookup_cache migration...")
+    async with pool.acquire() as conn:
+        print("Acquired connection from pool")
+        await add_message_lookup_cache_migration(conn)
+
+
 async def run_is_active_column_migration():
     """Run the is_active column migration manually."""
     print("Creating database if it doesn't exist...")
@@ -361,6 +415,8 @@ async def main():
             await run_low_balance_columns_migration()
         elif sys.argv[1] == "--add-is-active-column":
             await run_is_active_column_migration()
+        elif sys.argv[1] == "--add-message-lookup-cache":
+            await run_message_lookup_cache_migration()
         elif sys.argv[1] == "--add-pending-spam-columns":
             await run_pending_spam_example_migration()
         elif sys.argv[1] == "--add-language-code":

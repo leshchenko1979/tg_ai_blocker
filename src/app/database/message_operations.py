@@ -1,14 +1,13 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 from .postgres_connection import get_pool
 
 logger = logging.getLogger(__name__)
 
-# Constants
-MESSAGE_HISTORY_SIZE = 30  # Number of messages to keep in history
-MESSAGE_TTL = 60 * 60 * 24  # 24 hours in seconds
+MESSAGE_HISTORY_SIZE = 30
+MESSAGE_TTL = 60 * 60 * 24  # 24 hours
 
 
 async def save_message(admin_id: int, role: str, content: str) -> None:
@@ -16,7 +15,6 @@ async def save_message(admin_id: int, role: str, content: str) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            # Insert new message
             await conn.execute(
                 """
                 INSERT INTO message_history (admin_id, role, content, created_at)
@@ -27,7 +25,6 @@ async def save_message(admin_id: int, role: str, content: str) -> None:
                 content,
             )
 
-            # Get count of messages for this admin
             count = await conn.fetchval(
                 """
                 SELECT COUNT(*) FROM message_history
@@ -36,7 +33,6 @@ async def save_message(admin_id: int, role: str, content: str) -> None:
                 admin_id,
             )
 
-            # Remove oldest messages if exceeding limit
             if count > MESSAGE_HISTORY_SIZE:
                 await conn.execute(
                     """
@@ -52,16 +48,20 @@ async def save_message(admin_id: int, role: str, content: str) -> None:
                     count - MESSAGE_HISTORY_SIZE,
                 )
 
-            # Remove messages older than TTL
-            expire_time = datetime.now() - timedelta(seconds=MESSAGE_TTL)
-            await conn.execute(
-                """
-                DELETE FROM message_history
-                WHERE admin_id = $1 AND created_at < $2
-            """,
-                admin_id,
-                expire_time,
-            )
+
+async def cleanup_old_message_history() -> int:
+    """Remove message_history rows older than MESSAGE_TTL. Returns deleted count."""
+    expire_time = datetime.now(timezone.utc) - timedelta(seconds=MESSAGE_TTL)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM message_history WHERE created_at < $1",
+            expire_time,
+        )
+    count = int(result.split()[-1]) if result else 0
+    if count > 0:
+        logger.info(f"Cleaned up {count} old message_history entries")
+    return count
 
 
 async def get_message_history(admin_id: int) -> List[dict]:

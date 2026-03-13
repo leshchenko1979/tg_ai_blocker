@@ -1,12 +1,4 @@
-"""
-Модуль для обработки спам-сообщений в группах Telegram.
-
-Содержит функции для:
-- Обработки обнаруженных спам-сообщений
-- Уведомления администраторов о спаме
-- Автоматического удаления спама
-- Блокировки спамеров
-"""
+"""Spam message handling: notifications, deletion, banning."""
 
 import html
 import logging
@@ -44,27 +36,15 @@ async def handle_spam(
     message_context_result: Optional["MessageContextResult"] = None,
     skip_auto_delete: bool = False,
 ) -> str:
-    """
-    Обработка спам-сообщений.
-
-    Args:
-        message: Спам-сообщение
-        admin_ids: IDs администраторов
-        reason: Причина классификации как спам
-        message_context_result: Контекст сообщения (для "Не спам" flow)
-        skip_auto_delete: Если True, не удалять/банить автоматически (низкая уверенность).
-                          Админы всегда получают кнопки «Удалить» и «Не спам».
-    """
+    """Handle detected spam: notify admins, optionally delete and ban."""
     try:
         if not message.from_user:
             logger.warning("Message without user info, skipping spam handling")
             return "spam_no_user_info"
 
-        # Проверяем настройки автоудаления у админов
         all_admins_delete = await check_admin_delete_preferences(admin_ids)
         effective_all_admins_delete = all_admins_delete and not skip_auto_delete
 
-        # Уведомление администраторов...
         notification_sent = await notify_admins(
             message,
             effective_all_admins_delete,
@@ -73,7 +53,6 @@ async def handle_spam(
             message_context_result,
         )
 
-        # Отправка MCP уведомлений спамеру/админам канала спамера при обнаружении канала
         if message_context_result and message_context_result.linked_channel_found:
             await notify_spam_contacts_via_mcp(message, reason, message_context_result)
 
@@ -98,15 +77,7 @@ async def handle_spam(
 
 
 async def check_admin_delete_preferences(admin_ids: list[int]) -> bool:
-    """
-    Проверяет настройки автоудаления спама у администраторов.
-
-    Args:
-        admin_ids: Список ID администраторов группы
-
-    Returns:
-        bool: True если все админы включили автоудаление, False иначе
-    """
+    """Return True if all admins have delete_spam enabled."""
     if not admin_ids:
         return False
 
@@ -125,18 +96,7 @@ def create_admin_notification_keyboard(
     *,
     lang: str = "en",
 ) -> InlineKeyboardMarkup:
-    """
-    Создает клавиатуру для уведомления администратора.
-
-    Args:
-        message: Спам-сообщение
-        all_admins_delete: Флаг автоудаления спама
-        pending_id: ID pending spam_example row for "Не спам" button (required for callback)
-        lang: Language for button labels
-
-    Returns:
-        InlineKeyboardMarkup: Клавиатура с кнопками действий
-    """
+    """Build keyboard with Delete/Not spam buttons for admin notification."""
     effective_user_id = determine_effective_user_id(message)
     if effective_user_id is None or pending_id is None:
         return InlineKeyboardMarkup(inline_keyboard=[[]])
@@ -172,18 +132,7 @@ def format_missing_permission_message(
     *,
     lang: str = "en",
 ) -> str:
-    """
-    Форматирует сообщение о отсутствии прав доступа.
-
-    Args:
-        chat_title: Название группы
-        permission_name: Localized permission display name
-        chat_username: Опциональный username группы (без @)
-        lang: Language for message
-
-    Returns:
-        str: Отформатированное сообщение для администраторов
-    """
+    """Format message about missing bot permissions for admins."""
     perm_key = (
         "spam.permission_delete_action"
         if ("delete" in permission_name.lower() or "удал" in permission_name.lower())
@@ -214,22 +163,7 @@ async def handle_permission_error(
     *,
     lang: str = "en",
 ) -> bool:
-    """
-    Обрабатывает ошибки связанные с отсутствием прав доступа.
-
-    Args:
-        error: Исключение, которое произошло
-        chat_id: ID чата
-        admin_ids: Список ID администраторов для уведомления
-        group_title: Название группы
-        permission_name: Localized permission display name
-        action_description: Описание действия для логов
-        group_username: Опциональный username группы (без @)
-        lang: Language for notification messages
-
-    Returns:
-        bool: True если это была ошибка прав доступа, False иначе
-    """
+    """Detect permission error, notify admins, return True if it was a permission error."""
     if not isinstance(error, TelegramBadRequest):
         return False
 
@@ -285,18 +219,7 @@ def format_admin_notification_message(
     *,
     lang: str = "en",
 ) -> str:
-    """
-    Форматирует текст уведомления для администратора.
-
-    Args:
-        context: Контекст сообщения (группа, нарушитель, содержание)
-        all_admins_delete: Флаг автоудаления спама
-        reason: Причина классификации как спам
-        lang: Language for message
-
-    Returns:
-        str: Отформатированный текст уведомления
-    """
+    """Format spam notification text for admins."""
     if context.effective_user_id is None:
         return t(lang, "spam.error_no_user")
 
@@ -347,19 +270,7 @@ async def notify_admins(
     reason: str | None = None,
     message_context_result: Optional["MessageContextResult"] = None,
 ) -> bool:
-    """
-    Отправляет уведомления администраторам о спам-сообщении.
-
-    Args:
-        message: Спам-сообщение
-        all_admins_delete: Флаг автоудаления спама
-        admin_ids: IDs of admins to notify
-        reason: Причина классификации как спам
-        message_context_result: Collected context for payload (used for "Не спам" flow)
-
-    Returns:
-        bool: True если хотя бы одно уведомление отправлено успешно
-    """
+    """Notify admins about spam. Returns True if at least one notification succeeded."""
     if not message.from_user:
         return False
 
@@ -436,12 +347,7 @@ async def notify_admins(
 async def handle_spam_message_deletion(
     message: types.Message, admin_ids: list[int]
 ) -> None:
-    """
-    Удаляет спам-сообщение.
-
-    Args:
-        message: Сообщение для удаления
-    """
+    """Delete the spam message; notify admins on permission failure."""
     if not message.from_user:
         return
 
@@ -490,14 +396,7 @@ async def ban_user_for_spam(
     admin_ids: list[int] | None = None,
     group_title: str | None = None,
 ) -> None:
-    """
-    Банит пользователя в группе и удаляет из approved_members.
-    Args:
-        chat_id: ID чата
-        user_id: ID пользователя
-        admin_ids: Список ID администраторов для уведомления об ошибках
-        group_title: Название группы (для уведомлений)
-    """
+    """Ban user/channel in chat and remove from approved_members."""
     try:
 
         @retry_on_network_error
@@ -552,18 +451,7 @@ def build_spam_block_notification_message(
     *,
     lang: str = "en",
 ) -> str:
-    """
-    Build notification message for spam blocking.
-    Sent to spammers/channel admins via MCP. Uses lang for localization.
-
-    Args:
-        context: Notification context (entity, content, etc.)
-        reason: Reason for blocking
-        lang: Language (default en for external recipients)
-
-    Returns:
-        Formatted notification message
-    """
+    """Build notification message for MCP spam notifications to spammers/channel admins."""
     from ..common.utils import load_config
 
     config = load_config()
@@ -651,14 +539,7 @@ async def notify_spam_contacts_via_mcp(
     reason: str | None = None,
     message_context_result: Optional["MessageContextResult"] = None,
 ) -> None:
-    """
-    Send MCP notifications to spammers and spamming channel admins when spam is blocked.
-
-    Args:
-        message: The spam message
-        reason: Reason for blocking
-        analysis_result: Message analysis result containing channel user information
-    """
+    """Send MCP promotional notifications to spammers and spamming channel admins."""
     channel_users = (
         message_context_result.channel_users if message_context_result else None
     )

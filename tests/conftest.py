@@ -348,6 +348,21 @@ async def create_sqlite_schema(conn):
         );
     """)
 
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS message_lookup_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER NOT NULL,
+            message_id INTEGER NOT NULL,
+            effective_user_id INTEGER NOT NULL,
+            message_text TEXT NOT NULL,
+            reply_to_text TEXT,
+            stories_context TEXT,
+            account_age_context TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(chat_id, message_id)
+        );
+    """)
+
 
 async def truncate_sqlite_tables(conn):
     """Truncate all tables in SQLite"""
@@ -356,6 +371,7 @@ async def truncate_sqlite_tables(conn):
 
     # Delete in reverse dependency order (child tables first)
     tables = [
+        "message_lookup_cache",
         "transactions",
         "spam_examples",
         "message_history",

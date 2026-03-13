@@ -122,6 +122,20 @@ async def create_schema(conn: asyncpg.Connection):
                 description TEXT,
                 created_at TIMESTAMP NOT NULL DEFAULT NOW()
             );
+
+            -- Message lookup cache for forwarded message resolution (TTL 7 days)
+            CREATE TABLE IF NOT EXISTS message_lookup_cache (
+                id SERIAL PRIMARY KEY,
+                chat_id BIGINT NOT NULL,
+                message_id BIGINT NOT NULL,
+                effective_user_id BIGINT NOT NULL,
+                message_text TEXT NOT NULL,
+                reply_to_text TEXT,
+                stories_context TEXT,
+                account_age_context TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE(chat_id, message_id)
+            );
         """
         )
     except Exception as e:

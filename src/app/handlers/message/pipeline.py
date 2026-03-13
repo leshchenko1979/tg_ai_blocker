@@ -1,9 +1,4 @@
-"""
-Message processing pipeline.
-
-This module contains the core message moderation pipeline that orchestrates
-the entire message processing flow from validation to spam analysis to result processing.
-"""
+"""Message moderation pipeline: validation, spam analysis, result processing."""
 
 import logging
 
@@ -11,7 +6,12 @@ from aiogram import types
 
 from ...common.trace_context import get_root_span
 
-from ...database import APPROVE_PRICE, DELETE_PRICE, add_member
+from ...database import (
+    APPROVE_PRICE,
+    DELETE_PRICE,
+    add_member,
+    save_message_lookup_entry,
+)
 from ..handle_spam import handle_spam
 from ..try_deduct_credits import try_deduct_credits
 from ...common.utils import determine_effective_user_id, load_config
@@ -21,27 +21,34 @@ from .validation import (
 )
 from ...spam.message_context import collect_message_context
 from ...spam.spam_classifier import is_spam
-from ...types import MessageContextResult
+from ...types import ContextStatus, MessageContextResult
 
 logger = logging.getLogger(__name__)
 
 
+def _context_to_lookup_strings(message_context_result: "MessageContextResult") -> tuple:
+    """Extract stories and account_age context as strings for message_lookup_cache."""
+    ctx = message_context_result.context
+    stories_context = None
+    account_age_context = None
+    if ctx.stories:
+        if ctx.stories.status == ContextStatus.FOUND and ctx.stories.content:
+            stories_context = ctx.stories.content
+        elif ctx.stories.status == ContextStatus.EMPTY:
+            stories_context = "[EMPTY]"
+    if ctx.account_age:
+        if ctx.account_age.status == ContextStatus.FOUND and ctx.account_age.content:
+            account_age_context = ctx.account_age.content.to_prompt_fragment()
+        elif ctx.account_age.status == ContextStatus.EMPTY:
+            account_age_context = "[EMPTY]"
+    return stories_context, account_age_context
+
+
 async def handle_moderated_message(message: types.Message) -> str:
     """
-    Handle all messages in moderated groups.
+    Process message through spam pipeline: validate, classify, act.
 
-    Processes incoming messages through spam detection pipeline:
-    1. Determine effective user ID (handles channel messages)
-    2. Validate group exists and moderation is enabled
-    3. Check if message should be skipped (admins, service messages, etc.)
-    4. Analyze message content for spam using LLM
-    5. Process moderation result (delete spam or approve user)
-
-    Args:
-        message: The incoming Telegram message to moderate
-
-    Returns:
-        Result identifier string for logging/tracking
+    Returns result identifier for logging (e.g. message_user_approved, spam_auto_deleted).
     """
     try:
         # Determine effective user ID for moderation
@@ -56,9 +63,28 @@ async def handle_moderated_message(message: types.Message) -> str:
             chat_id, user_id
         )
         if exit_reason or group is None:
+            if exit_reason == "message_known_member_skipped":
+                try:
+                    msg_text = message.text or message.caption or "[MEDIA_MESSAGE]"
+                    reply_text = None
+                    if message.reply_to_message:
+                        reply_text = (
+                            message.reply_to_message.text
+                            or message.reply_to_message.caption
+                            or "[MEDIA_MESSAGE]"
+                        )
+                    await save_message_lookup_entry(
+                        chat_id=chat_id,
+                        message_id=message.message_id,
+                        effective_user_id=user_id,
+                        message_text=msg_text,
+                        reply_to_text=reply_text,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to save message lookup for approved user: {e}"
+                    )
             return exit_reason
-
-        # At this point group is guaranteed to be not None
 
         # Check if message should be skipped
         logger.debug(
@@ -99,6 +125,25 @@ async def handle_moderated_message(message: types.Message) -> str:
         target_span.set_attribute("llm_reason", reason)
         target_span.set_attribute("context", message_context_result.context)  # type: ignore[arg-type]
 
+        # Save full context to lookup cache for forwarded-message recovery
+        try:
+            stories_ctx, account_ctx = _context_to_lookup_strings(
+                message_context_result
+            )
+            reply_ctx = message_context_result.context.reply
+            msg_text = message.text or message.caption or "[MEDIA_MESSAGE]"
+            await save_message_lookup_entry(
+                chat_id=message.chat.id,
+                message_id=message.message_id,
+                effective_user_id=user_id,
+                message_text=msg_text,
+                reply_to_text=reply_ctx,
+                stories_context=stories_ctx,
+                account_age_context=account_ctx,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to save message lookup after is_spam: {e}")
+
         # Process spam or approve user
         return await process_spam_or_approve(
             message,
@@ -120,17 +165,7 @@ async def process_spam_or_approve(
     reason: str,
     message_context_result: "MessageContextResult",
 ) -> str:
-    """
-    Process spam analysis result - delete spam or approve user.
-
-    Args:
-        spam_score: The spam score from classification
-        message: The original message
-        admin_ids: List of admin IDs for the group
-
-    Returns:
-        Result identifier string
-    """
+    """Apply spam result: delete/notify or approve user. Returns result identifier."""
     chat_id = message.chat.id
     user_id = determine_effective_user_id(message)
     if user_id is None:

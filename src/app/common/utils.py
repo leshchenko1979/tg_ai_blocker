@@ -51,9 +51,7 @@ retry_on_network_error = retry(
 
 @cache
 def load_config() -> Dict[str, Any]:
-    """
-    Загрузка конфигурации
-    """
+    """Load config from config.yaml."""
     with open("config.yaml", "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
     logger.debug("Configuration loaded successfully")
@@ -64,16 +62,7 @@ config = load_config()
 
 
 def remove_lines_to_fit_len(text: str, max_len: int) -> str:
-    """
-    Удаляет строки из входного текста, чтобы уместиться в максимальную длину
-
-    Args:
-        text (str): Входной текст
-        max_len (int): Максимальная длина текста
-
-    Returns:
-        str: Обработанный текст
-    """
+    """Trim text to max_len by collapsing middle lines."""
     splitted = text.split("\n")
 
     while len(text) > max_len - len("...\n") and len(splitted) > 2:
@@ -191,7 +180,7 @@ def sanitize_llm_html(text: str) -> str:
 
 
 def clean_alert_text(text: str | None) -> str | None:
-    """Очищает текст от обёртки тревоги/уведомления, если она присутствует."""
+    """Strip alert/notification wrapper from text if present."""
     if not text:
         return text
     # Проверяем наличие служебных маркеров
@@ -317,16 +306,7 @@ def get_webhook_timeout():
 
 
 def get_dotted_path(json: dict, path: str, raise_on_missing: bool = False):
-    """
-    Получает значение из JSON по заданному пути.
-
-    Можно указывать *, чтобы произвести поиск по всем элементам словаря.
-
-    Например, для json = {"message": {"chat": {"title": "title", "username": "username"}}}
-    get_dotted_path(json, "message.chat.title") вернет "title"
-    get_dotted_path(json, "*.*.title") вернет "title"
-    get_dotted_path(json, "non-existent.path") поднимет исключение KeyError
-    """
+    """Get value from nested dict by dotted path. Use * to search all keys."""
     current_path = path
     current_json = json
     while True:
