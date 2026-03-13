@@ -58,7 +58,9 @@ async def create_schema(conn: asyncpg.Connection):
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 last_active TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 credits_depleted_at TIMESTAMPTZ,
-                low_balance_warned_at TIMESTAMPTZ
+                low_balance_warned_at TIMESTAMPTZ,
+                depletion_day_1_warned_at TIMESTAMPTZ,
+                depletion_day_6_warned_at TIMESTAMPTZ
             );
 
             -- Groups table

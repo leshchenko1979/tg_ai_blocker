@@ -27,6 +27,8 @@ from ..database import (
     get_admins_for_depletion_timeline,
     get_admins_for_low_balance_warnings,
     get_paying_admins,
+    mark_depletion_day_1_warned,
+    mark_depletion_day_6_warned,
     mark_low_balance_warned,
 )
 
@@ -129,8 +131,12 @@ async def check_depletion_timeline() -> None:
             await clear_depletion_flags(admin_id)
             continue
 
-        # Day 1: warn about leaving in 7 days
-        if warn_day_after and 1 <= days < 2:
+        # Day 1: warn about leaving in 7 days (once per depletion cycle)
+        if (
+            warn_day_after
+            and 1 <= days < 2
+            and row.get("depletion_day_1_warned_at") is None
+        ):
             lang = (
                 normalize_lang(admin.language_code)
                 if admin and admin.language_code
@@ -148,19 +154,25 @@ async def check_depletion_timeline() -> None:
             else:
                 deadline_str = t(lang, "low_balance.in_7_days")
             text = t(lang, "low_balance.depleted", deadline=deadline_str)
-            await _send_admin_message(admin_id, text)
-            logger.info(f"Sent day-1 depletion warning to admin {admin_id}")
+            if await _send_admin_message(admin_id, text):
+                await mark_depletion_day_1_warned(admin_id)
+                logger.info(f"Sent day-1 depletion warning to admin {admin_id}")
 
-        # Day 6: final warning
-        elif warn_day_before and grace_days - 1 <= days < grace_days:
+        # Day 6: final warning (once per depletion cycle)
+        elif (
+            warn_day_before
+            and grace_days - 1 <= days < grace_days
+            and row.get("depletion_day_6_warned_at") is None
+        ):
             lang = (
                 normalize_lang(admin.language_code)
                 if admin and admin.language_code
                 else "en"
             )
             text = t(lang, "low_balance.tomorrow")
-            await _send_admin_message(admin_id, text)
-            logger.info(f"Sent day-6 depletion warning to admin {admin_id}")
+            if await _send_admin_message(admin_id, text):
+                await mark_depletion_day_6_warned(admin_id)
+                logger.info(f"Sent day-6 depletion warning to admin {admin_id}")
 
 
 async def leave_sole_payer_groups(admin_id: int) -> None:

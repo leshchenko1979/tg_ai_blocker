@@ -325,6 +325,34 @@ async def mark_low_balance_warned(admin_id: int) -> None:
         )
 
 
+async def mark_depletion_day_1_warned(admin_id: int) -> None:
+    """Record that the day-1 depletion warning was sent."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE administrators
+            SET depletion_day_1_warned_at = NOW(), last_active = NOW()
+            WHERE admin_id = $1
+            """,
+            admin_id,
+        )
+
+
+async def mark_depletion_day_6_warned(admin_id: int) -> None:
+    """Record that the day-6 depletion warning was sent."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE administrators
+            SET depletion_day_6_warned_at = NOW(), last_active = NOW()
+            WHERE admin_id = $1
+            """,
+            admin_id,
+        )
+
+
 async def get_admins_for_low_balance_warnings(
     threshold: int,
 ) -> List[Dict[str, Any]]:
@@ -367,13 +395,16 @@ async def get_admins_for_low_balance_warnings(
 
 
 async def clear_depletion_flags(admin_id: int) -> None:
-    """Clear credits_depleted_at after day-7 processing so admin is not re-processed daily."""
+    """Clear credits_depleted_at and depletion warning flags after day-7 processing."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE administrators
-            SET credits_depleted_at = NULL, last_active = NOW()
+            SET credits_depleted_at = NULL,
+                depletion_day_1_warned_at = NULL,
+                depletion_day_6_warned_at = NULL,
+                last_active = NOW()
             WHERE admin_id = $1
             """,
             admin_id,
@@ -386,13 +417,19 @@ async def get_admins_for_depletion_timeline() -> List[Dict[str, Any]]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT admin_id, credits_depleted_at
+            SELECT admin_id, credits_depleted_at,
+                   depletion_day_1_warned_at, depletion_day_6_warned_at
             FROM administrators
             WHERE is_active = TRUE AND credits_depleted_at IS NOT NULL
             """,
         )
     return [
-        {"admin_id": row["admin_id"], "credits_depleted_at": row["credits_depleted_at"]}
+        {
+            "admin_id": row["admin_id"],
+            "credits_depleted_at": row["credits_depleted_at"],
+            "depletion_day_1_warned_at": row.get("depletion_day_1_warned_at"),
+            "depletion_day_6_warned_at": row.get("depletion_day_6_warned_at"),
+        }
         for row in rows
     ]
 

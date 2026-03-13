@@ -8,7 +8,7 @@ messages to add spam examples. Replaces Logfire-based lookup.
 
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Optional, Sequence
 
 from .postgres_connection import get_pool
@@ -136,15 +136,14 @@ async def find_message_by_text_and_user(
 
 async def cleanup_old_lookup_entries(days: int = DEFAULT_LOOKUP_TTL_DAYS) -> int:
     """Remove entries older than specified days. Returns deleted count."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     pool = await get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
             """
             DELETE FROM message_lookup_cache
-            WHERE created_at < $1
+            WHERE created_at < NOW() - INTERVAL '1 day' * $1
             """,
-            cutoff,
+            days,
         )
     count = int(result.split()[-1]) if result else 0
     if count > 0:

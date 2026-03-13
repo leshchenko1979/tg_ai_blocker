@@ -432,6 +432,39 @@ async def add_is_active_column_migration(conn: Any) -> List[str]:
     return operations
 
 
+async def add_depletion_warning_flags_migration(conn: Any) -> List[str]:
+    """
+    Add depletion_day_1_warned_at and depletion_day_6_warned_at to avoid sending
+    duplicate day-1/day-6 warnings on each deploy or job run.
+    """
+    operations = []
+    print("Starting depletion warning flags migration...")
+
+    async with conn.transaction():
+        await conn.execute(
+            """
+            ALTER TABLE administrators
+            ADD COLUMN IF NOT EXISTS depletion_day_1_warned_at TIMESTAMPTZ
+            """
+        )
+        operations.append("Added depletion_day_1_warned_at column")
+        print("✓ Added depletion_day_1_warned_at column")
+
+        await conn.execute(
+            """
+            ALTER TABLE administrators
+            ADD COLUMN IF NOT EXISTS depletion_day_6_warned_at TIMESTAMPTZ
+            """
+        )
+        operations.append("Added depletion_day_6_warned_at column")
+        print("✓ Added depletion_day_6_warned_at column")
+
+    print(
+        f"Depletion warning flags migration completed successfully. {len(operations)} operations performed."
+    )
+    return operations
+
+
 async def run_context_columns_migration():
     """Run the context columns migration manually."""
     print("Creating database if it doesn't exist...")
@@ -504,6 +537,18 @@ async def run_timestamptz_migration():
         await add_timestamptz_migration(conn)
 
 
+async def run_depletion_warning_flags_migration():
+    """Run the depletion warning flags migration manually."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    print("Getting database pool...")
+    pool = await get_pool()
+    print("Running depletion warning flags migration...")
+    async with pool.acquire() as conn:
+        print("Acquired connection from pool")
+        await add_depletion_warning_flags_migration(conn)
+
+
 async def run_pending_spam_example_migration():
     """Run the pending spam example columns migration manually."""
     print("Creating database if it doesn't exist...")
@@ -532,6 +577,8 @@ async def main():
             await run_language_code_migration()
         elif sys.argv[1] == "--add-timestamptz":
             await run_timestamptz_migration()
+        elif sys.argv[1] == "--add-depletion-warning-flags":
+            await run_depletion_warning_flags_migration()
         else:
             raise ValueError(f"Unknown migration flag {sys.argv[1]!r}")
     else:

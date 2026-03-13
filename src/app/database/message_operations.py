@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import List
 
 from .postgres_connection import get_pool
@@ -50,13 +49,11 @@ async def save_message(admin_id: int, role: str, content: str) -> None:
 
 
 async def cleanup_old_message_history() -> int:
-    """Remove message_history rows older than MESSAGE_TTL. Returns deleted count."""
-    expire_time = datetime.now(timezone.utc) - timedelta(seconds=MESSAGE_TTL)
+    """Remove message_history rows older than MESSAGE_TTL (24h). Returns deleted count."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "DELETE FROM message_history WHERE created_at < $1",
-            expire_time,
+            "DELETE FROM message_history WHERE created_at < NOW() - INTERVAL '1 day'",
         )
     count = int(result.split()[-1]) if result else 0
     if count > 0:

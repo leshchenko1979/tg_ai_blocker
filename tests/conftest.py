@@ -270,7 +270,9 @@ async def create_sqlite_schema(conn):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             credits_depleted_at TIMESTAMP,
-            low_balance_warned_at TIMESTAMP
+            low_balance_warned_at TIMESTAMP,
+            depletion_day_1_warned_at TIMESTAMP,
+            depletion_day_6_warned_at TIMESTAMP
         );
     """)
 
