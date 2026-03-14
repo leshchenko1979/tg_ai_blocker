@@ -10,6 +10,7 @@ pricing:
 billing:
   low_balance_threshold: 50   # Stars below which "week ahead" warning applies
   depletion_grace_days: 7     # Days from depletion to leaving groups
+  no_rights_grace_days: 7     # Days before leaving groups where bot has no required rights
   warn_day_after: true        # Day 1: "bot leaves groups in 7 days"
   warn_day_before: true       # Day 6: "bot leaves tomorrow"
 

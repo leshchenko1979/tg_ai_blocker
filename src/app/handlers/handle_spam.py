@@ -22,7 +22,10 @@ from ..common.utils import (
 )
 from ..database import get_admin, get_admins_map
 from ..i18n import t
-from ..database.group_operations import remove_member_from_group
+from ..database.group_operations import (
+    remove_member_from_group,
+    set_no_rights_detected_at,
+)
 from ..database.spam_examples import insert_pending_spam_example
 from ..types import MessageContextResult, MessageNotificationContext
 
@@ -182,6 +185,7 @@ async def handle_permission_error(
             f"Cannot {action_description} in chat {chat_id}: {error}",
             exc_info=True,
         )
+        await set_no_rights_detected_at(chat_id)
         if admin_ids:
             try:
                 display_title = group_title or str(chat_id)

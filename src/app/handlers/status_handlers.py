@@ -19,6 +19,10 @@ from ..common.utils import (
     retry_on_network_error,
 )
 from ..database import deactivate_admin, get_admin, get_group, update_group_admins
+from ..database.group_operations import (
+    clear_no_rights_detected_at,
+    set_no_rights_detected_at,
+)
 from ..i18n import normalize_lang, t
 from .dp import dp
 from .message.channel_management import notify_channel_admins_and_leave
@@ -120,6 +124,7 @@ async def _handle_permission_update(
 
         # Если после обновления прав все еще не хватает необходимых прав
         if not has_all_rights:
+            await set_no_rights_detected_at(chat_id)
             # Получаем список админов группы
             admins = await bot.get_chat_administrators(chat_id)
             admin_ids = [admin.user.id for admin in admins if not admin.user.is_bot]
@@ -132,6 +137,7 @@ async def _handle_permission_update(
                 is_already_admin=True,
             )
         else:
+            await clear_no_rights_detected_at(chat_id)
             # Send promo message when we get all required rights
             await _send_promo_message(
                 chat_id,
@@ -189,6 +195,7 @@ async def _handle_bot_added(
     )
 
     if not has_admin_rights:
+        await set_no_rights_detected_at(chat_id)
         await _notify_admins_about_rights(
             chat_id,
             chat_title,

@@ -7,7 +7,8 @@
 - Spam classifier (LLM + Context + Stories + Account Age + Discussion Context with relevance evaluation)
 - **AI & Emoji Detection**: ✅ **Complete** - Expanded prompt guidance to detect robotic AI tone, generic summaries, and unusual emoji usage. Filters low-value content regardless of conversion tactic (stories/linked channels).
 - Billing via Telegram Stars
-- **Admin Low-Balance Warnings**: ✅ **Complete** - Week-ahead, day-1/6/7 depletion timeline, leave sole-payer groups on deadline. Asyncio daily loop in `src/app/billing/`. Config: `billing.low_balance_threshold`, `depletion_grace_days`.
+- **Admin Low-Balance Warnings**: ✅ **Complete** - Week-ahead, day-1/6/7 depletion timeline, leave sole-payer groups on deadline. Asyncio daily loop in `src/app/background_jobs/`. Config: `billing.low_balance_threshold`, `depletion_grace_days`.
+- **No-Rights Grace Period**: ✅ **Complete** - When bot has no required rights (delete_messages, restrict_members), records `no_rights_detected_at`, notifies admins, leaves after configurable grace period (default 7 days). Daily job `leave_no_rights_groups` in `src/app/background_jobs/no_rights.py`. Migration `--add-no-rights-column`.
 - **Prompt Optimization & Cleanup**: ✅ **Complete** - Refined system prompt with guidance for User Name analysis, Knowledge Sharing bait, and Value-Add philosophy. Audited and cleaned few-shot examples database, stripping AI-generated reasons and notification wrappers.
 - **Prompt Consistency Fixes**: ✅ **Complete** - Removed unused spam score scale, fixed intensity→intensive typo, removed `<ответ>` XML wrapper from examples, normalized blank line formatting, unified empty section phrasing (ACCOUNT AGE: photo_age=unknown).
 - PostgreSQL data layer
@@ -16,6 +17,7 @@
 - **Robust Permission Handling**:
   - Message deletion permission checks.
   - **User ban permission checks** (New: notifies admins if ban fails).
+  - **No-Rights Grace Period**: ✅ **Complete** - When bot detects no required rights (delete/ban), records timestamp, notifies admins, and leaves after grace period (default 7 days) via daily job. Migration `--add-no-rights-column`.
 - **Low-Confidence Spam Admin Confirmation**: ✅ **Complete** — When LLM classifies as spam but score < 90%, admins receive notification with "Удалить"/"Не спам" buttons; no auto-delete/ban. High-confidence (≥90%) keeps prior behavior. Config: `spam.high_confidence_threshold`. Unit tests added.
 - Admin Notifications:
   - Private chat priority

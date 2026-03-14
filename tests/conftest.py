@@ -93,6 +93,13 @@ class SQLiteConnectionAdapter:
             query,
             flags=re.IGNORECASE,
         )
+        # Handle make_interval(days => $N) for column + interval <= NOW/CURRENT_TIMESTAMP
+        query = re.sub(
+            r"(\w+)\s*\+\s*make_interval\s*\(\s*days\s*=>\s*\$\d+\s*\)\s*<=\s*(?:NOW\s*\(\s*\)|CURRENT_TIMESTAMP)",
+            r"datetime(\1, '+' || ? || ' days') <= CURRENT_TIMESTAMP",
+            query,
+            flags=re.IGNORECASE,
+        )
         # PostgreSQL false/true -> SQLite 0/1 for boolean comparison
         query = re.sub(r"\bfalse\b", "0", query, flags=re.IGNORECASE)
         query = re.sub(r"\btrue\b", "1", query, flags=re.IGNORECASE)
@@ -282,7 +289,8 @@ async def create_sqlite_schema(conn):
             title TEXT,
             moderation_enabled BOOLEAN DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            no_rights_detected_at TIMESTAMP
         );
     """)
 

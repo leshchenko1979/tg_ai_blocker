@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.billing.low_balance_jobs import (
+from app.background_jobs.low_balance import (
     check_depletion_timeline,
     check_week_ahead_warnings,
     leave_sole_payer_groups,
@@ -17,16 +17,17 @@ from app.billing.low_balance_jobs import (
 async def test_check_week_ahead_warnings_sends_and_marks():
     """Week-ahead warning is sent and low_balance_warned_at is set."""
     with (
-        patch("app.billing.low_balance_jobs.load_config") as mock_load,
+        patch("app.background_jobs.low_balance.load_config") as mock_load,
         patch(
-            "app.billing.low_balance_jobs.get_admins_for_low_balance_warnings"
+            "app.background_jobs.low_balance.get_admins_for_low_balance_warnings"
         ) as mock_get,
-        patch("app.billing.low_balance_jobs.get_admin") as mock_get_admin,
+        patch("app.background_jobs.low_balance.get_admin") as mock_get_admin,
         patch(
-            "app.billing.low_balance_jobs._send_admin_message", new_callable=AsyncMock
+            "app.background_jobs.low_balance._send_admin_message",
+            new_callable=AsyncMock,
         ) as mock_send,
         patch(
-            "app.billing.low_balance_jobs.mark_low_balance_warned",
+            "app.background_jobs.low_balance.mark_low_balance_warned",
             new_callable=AsyncMock,
         ) as mock_mark,
     ):
@@ -52,16 +53,17 @@ async def test_check_week_ahead_warnings_sends_and_marks():
 async def test_check_week_ahead_skips_inactive_admin():
     """Inactive admins are skipped."""
     with (
-        patch("app.billing.low_balance_jobs.load_config") as mock_load,
+        patch("app.background_jobs.low_balance.load_config") as mock_load,
         patch(
-            "app.billing.low_balance_jobs.get_admins_for_low_balance_warnings"
+            "app.background_jobs.low_balance.get_admins_for_low_balance_warnings"
         ) as mock_get,
-        patch("app.billing.low_balance_jobs.get_admin") as mock_get_admin,
+        patch("app.background_jobs.low_balance.get_admin") as mock_get_admin,
         patch(
-            "app.billing.low_balance_jobs._send_admin_message", new_callable=AsyncMock
+            "app.background_jobs.low_balance._send_admin_message",
+            new_callable=AsyncMock,
         ) as mock_send,
         patch(
-            "app.billing.low_balance_jobs.mark_low_balance_warned",
+            "app.background_jobs.low_balance.mark_low_balance_warned",
             new_callable=AsyncMock,
         ) as mock_mark,
     ):
@@ -85,17 +87,18 @@ async def test_check_depletion_timeline_day7_leaves_groups():
     """Day 7: leave_sole_payer_groups and clear_depletion_flags called."""
     depleted_at = datetime.now(timezone.utc) - timedelta(days=8)
     with (
-        patch("app.billing.low_balance_jobs.load_config") as mock_load,
+        patch("app.background_jobs.low_balance.load_config") as mock_load,
         patch(
-            "app.billing.low_balance_jobs.get_admins_for_depletion_timeline"
+            "app.background_jobs.low_balance.get_admins_for_depletion_timeline"
         ) as mock_get,
-        patch("app.billing.low_balance_jobs.get_admin") as mock_get_admin,
+        patch("app.background_jobs.low_balance.get_admin") as mock_get_admin,
         patch(
-            "app.billing.low_balance_jobs.leave_sole_payer_groups",
+            "app.background_jobs.low_balance.leave_sole_payer_groups",
             new_callable=AsyncMock,
         ) as mock_leave,
         patch(
-            "app.billing.low_balance_jobs.clear_depletion_flags", new_callable=AsyncMock
+            "app.background_jobs.low_balance.clear_depletion_flags",
+            new_callable=AsyncMock,
         ) as mock_clear,
     ):
         mock_load.return_value = {
@@ -123,22 +126,24 @@ async def test_leave_sole_payer_groups_leaves_and_notifies():
     """Leaves groups with no paying admins and notifies admin."""
     with (
         patch(
-            "app.billing.low_balance_jobs.get_admin_group_ids", new_callable=AsyncMock
+            "app.background_jobs.low_balance.get_admin_group_ids",
+            new_callable=AsyncMock,
         ) as mock_get_groups,
         patch(
-            "app.billing.low_balance_jobs.get_paying_admins", new_callable=AsyncMock
+            "app.background_jobs.low_balance.get_paying_admins", new_callable=AsyncMock
         ) as mock_paying,
-        patch("app.billing.low_balance_jobs.load_config") as mock_load,
+        patch("app.background_jobs.low_balance.load_config") as mock_load,
         patch(
-            "app.billing.low_balance_jobs.get_admin", new_callable=AsyncMock
+            "app.background_jobs.low_balance.get_admin", new_callable=AsyncMock
         ) as mock_get_admin,
-        patch("app.billing.low_balance_jobs.bot") as mock_bot,
+        patch("app.background_jobs.low_balance.bot") as mock_bot,
         patch(
-            "app.billing.low_balance_jobs.perform_complete_group_cleanup",
+            "app.background_jobs.low_balance.perform_complete_group_cleanup",
             new_callable=AsyncMock,
         ) as mock_cleanup,
         patch(
-            "app.billing.low_balance_jobs._send_admin_message", new_callable=AsyncMock
+            "app.background_jobs.low_balance._send_admin_message",
+            new_callable=AsyncMock,
         ) as mock_send,
     ):
         mock_get_groups.return_value = [100, 200]
@@ -172,11 +177,11 @@ async def test_run_low_balance_checks_calls_both():
     """run_low_balance_checks runs both week-ahead and timeline."""
     with (
         patch(
-            "app.billing.low_balance_jobs.check_week_ahead_warnings",
+            "app.background_jobs.low_balance.check_week_ahead_warnings",
             new_callable=AsyncMock,
         ) as mock_week,
         patch(
-            "app.billing.low_balance_jobs.check_depletion_timeline",
+            "app.background_jobs.low_balance.check_depletion_timeline",
             new_callable=AsyncMock,
         ) as mock_timeline,
     ):

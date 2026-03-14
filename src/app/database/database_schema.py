@@ -69,7 +69,8 @@ async def create_schema(conn: asyncpg.Connection):
                 title VARCHAR(255),
                 moderation_enabled BOOLEAN DEFAULT true,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                last_active TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                last_active TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                no_rights_detected_at TIMESTAMPTZ
             );
 
             -- Group administrators mapping

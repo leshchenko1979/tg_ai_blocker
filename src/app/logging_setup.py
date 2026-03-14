@@ -79,7 +79,6 @@ def setup_logging():
                 "app.database",
                 "app.handlers",
                 "app.spam",
-                "app.billing",
                 "app.background_jobs",
             ],
             min_duration=0.01,

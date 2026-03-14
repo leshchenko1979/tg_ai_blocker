@@ -318,6 +318,9 @@ low_balance:
   tomorrow: "⚠️ <b>Bot leaves groups tomorrow</b>\n\nNo payment received. Top up via /buy to keep protection."
   left_groups: "⚠️ <b>Bot left groups</b>\n\nNo payment received. Groups:\n• {groups}\n\nYour training examples are preserved. Top up via /buy and add the bot again.\n\nBuy: {ref_link}\nAdd to group: <a href=\"{add_to_group_url}\">Add to group</a> — you'll pick the group from a list."
 
+no_rights:
+  left_groups: "⚠️ <b>Bot left groups</b>\n\nI had no permission to delete messages or ban users. Groups:\n• {groups}\n\nGrant me admin rights and add again to restore protection.\n\nAdd to group: <a href=\"{add_to_group_url}\">Add to group</a> — you'll pick the group, and permissions will be set automatically."
+
 lang:
   changed_ru: "✅ Язык изменён на Русский."
   changed_en: "✅ Language set to English."

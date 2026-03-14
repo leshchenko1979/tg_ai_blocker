@@ -465,6 +465,30 @@ async def add_depletion_warning_flags_migration(conn: Any) -> List[str]:
     return operations
 
 
+async def add_no_rights_column_migration(conn: Any) -> List[str]:
+    """
+    Add no_rights_detected_at to groups. Used for grace period before leaving
+    groups where bot has no required rights.
+    """
+    operations = []
+    print("Starting no_rights column migration...")
+
+    async with conn.transaction():
+        await conn.execute(
+            """
+            ALTER TABLE groups
+            ADD COLUMN IF NOT EXISTS no_rights_detected_at TIMESTAMPTZ
+            """
+        )
+        operations.append("Added no_rights_detected_at column")
+        print("✓ Added no_rights_detected_at column")
+
+    print(
+        f"No rights column migration completed successfully. {len(operations)} operations performed."
+    )
+    return operations
+
+
 async def run_context_columns_migration():
     """Run the context columns migration manually."""
     print("Creating database if it doesn't exist...")
@@ -549,6 +573,18 @@ async def run_depletion_warning_flags_migration():
         await add_depletion_warning_flags_migration(conn)
 
 
+async def run_no_rights_column_migration():
+    """Run the no_rights_detected_at column migration manually."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    print("Getting database pool...")
+    pool = await get_pool()
+    print("Running no_rights column migration...")
+    async with pool.acquire() as conn:
+        print("Acquired connection from pool")
+        await add_no_rights_column_migration(conn)
+
+
 async def run_pending_spam_example_migration():
     """Run the pending spam example columns migration manually."""
     print("Creating database if it doesn't exist...")
@@ -579,6 +615,8 @@ async def main():
             await run_timestamptz_migration()
         elif sys.argv[1] == "--add-depletion-warning-flags":
             await run_depletion_warning_flags_migration()
+        elif sys.argv[1] == "--add-no-rights-column":
+            await run_no_rights_column_migration()
         else:
             raise ValueError(f"Unknown migration flag {sys.argv[1]!r}")
     else:

@@ -188,6 +188,50 @@ async def cleanup_group_data(group_id: int) -> None:
     logger.info(f"Successfully cleaned up database records for group {group_id}")
 
 
+async def set_no_rights_detected_at(group_id: int) -> None:
+    """Set no_rights_detected_at = NOW() only if currently NULL (first detection)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE groups
+            SET no_rights_detected_at = NOW()
+            WHERE group_id = $1 AND no_rights_detected_at IS NULL
+            """,
+            group_id,
+        )
+
+
+async def clear_no_rights_detected_at(group_id: int) -> None:
+    """Clear no_rights_detected_at when rights are restored."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE groups
+            SET no_rights_detected_at = NULL
+            WHERE group_id = $1
+            """,
+            group_id,
+        )
+
+
+async def get_groups_with_no_rights_past_grace(grace_days: int) -> List[int]:
+    """Return group IDs where no_rights_detected_at is set and past grace period."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT group_id
+            FROM groups
+            WHERE no_rights_detected_at IS NOT NULL
+              AND no_rights_detected_at + make_interval(days => $1) <= NOW()
+            """,
+            grace_days,
+        )
+        return [row["group_id"] for row in rows]
+
+
 async def get_admin_group_ids(admin_id: int) -> List[int]:
     """Get list of group IDs where admin is a member (DB only, no Telegram API)."""
     pool = await get_pool()

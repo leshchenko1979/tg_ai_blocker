@@ -11,7 +11,8 @@ Runs daily. Replaces the former low_balance_loop with a single loop that:
 import asyncio
 import logging
 
-from ..billing.low_balance_jobs import run_low_balance_checks
+from .low_balance import run_low_balance_checks
+from .no_rights import leave_no_rights_groups
 from ..database.message_lookup import cleanup_old_lookup_entries
 from ..database.message_operations import cleanup_old_message_history
 from ..database.spam_examples import cleanup_pending_spam_examples
@@ -27,6 +28,11 @@ async def run_scheduled_jobs() -> None:
         await run_low_balance_checks()
     except Exception as e:
         logger.error(f"Low balance checks failed: {e}", exc_info=True)
+
+    try:
+        await leave_no_rights_groups()
+    except Exception as e:
+        logger.error(f"No-rights group leave failed: {e}", exc_info=True)
 
     try:
         await cleanup_old_lookup_entries(days=7)

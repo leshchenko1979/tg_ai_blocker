@@ -3,13 +3,16 @@ import pytest
 from app.database import (
     Administrator,
     add_member,
+    clear_no_rights_detected_at,
     deduct_credits_from_admins,
     get_admin_group_ids,
+    get_groups_with_no_rights_past_grace,
     get_paying_admins,
     is_member_in_group,
     is_moderation_enabled,
     remove_member_from_group,
     set_group_moderation,
+    set_no_rights_detected_at,
 )
 
 
@@ -205,3 +208,118 @@ async def test_get_admin_group_ids(patched_db_conn, clean_db):
 
     ids = await get_admin_group_ids(99)
     assert set(ids) == {1, 2}
+
+
+@pytest.mark.asyncio
+async def test_set_no_rights_detected_at(patched_db_conn, clean_db):
+    """set_no_rights_detected_at sets timestamp only when NULL."""
+    async with clean_db.acquire() as conn:
+        await conn.execute("INSERT INTO groups (group_id) VALUES (100)")
+    await set_no_rights_detected_at(100)
+    async with clean_db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT no_rights_detected_at FROM groups WHERE group_id = 100"
+        )
+        assert row["no_rights_detected_at"] is not None
+    await set_no_rights_detected_at(100)
+    async with clean_db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT no_rights_detected_at FROM groups WHERE group_id = 100"
+        )
+        first = row["no_rights_detected_at"]
+    await set_no_rights_detected_at(100)
+    async with clean_db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT no_rights_detected_at FROM groups WHERE group_id = 100"
+        )
+        assert row["no_rights_detected_at"] == first
+
+
+@pytest.mark.asyncio
+async def test_clear_no_rights_detected_at(patched_db_conn, clean_db):
+    """clear_no_rights_detected_at clears the timestamp."""
+    async with clean_db.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO groups (group_id, no_rights_detected_at) VALUES (100, CURRENT_TIMESTAMP)"
+        )
+    await clear_no_rights_detected_at(100)
+    async with clean_db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT no_rights_detected_at FROM groups WHERE group_id = 100"
+        )
+        assert row["no_rights_detected_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_groups_with_no_rights_past_grace(patched_db_conn, clean_db):
+    """get_groups_with_no_rights_past_grace returns groups past grace period."""
+    async with clean_db.acquire() as conn:
+        await conn.execute("INSERT INTO groups (group_id) VALUES (1), (2), (3)")
+        await conn.execute(
+            "UPDATE groups SET no_rights_detected_at = datetime('now', '-8 days') WHERE group_id = 1"
+        )
+        await conn.execute(
+            "UPDATE groups SET no_rights_detected_at = datetime('now', '-3 days') WHERE group_id = 2"
+        )
+        await conn.execute(
+            "UPDATE groups SET no_rights_detected_at = datetime('now', '-10 days') WHERE group_id = 3"
+        )
+    result = await get_groups_with_no_rights_past_grace(7)
+    assert set(result) == {1, 3}
+
+
+@pytest.mark.asyncio
+async def test_set_no_rights_detected_at(patched_db_conn, clean_db):
+    """set_no_rights_detected_at sets timestamp only when NULL."""
+    async with clean_db.acquire() as conn:
+        await conn.execute("INSERT INTO groups (group_id) VALUES (100)")
+
+    await set_no_rights_detected_at(100)
+
+    async with clean_db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT no_rights_detected_at FROM groups WHERE group_id = 100"
+        )
+        assert row is not None
+        assert row["no_rights_detected_at"] is not None
+
+    # Second call should not update (only when NULL)
+    await set_no_rights_detected_at(100)
+    async with clean_db.acquire() as conn:
+        row2 = await conn.fetchrow(
+            "SELECT no_rights_detected_at FROM groups WHERE group_id = 100"
+        )
+        assert row2["no_rights_detected_at"] == row["no_rights_detected_at"]
+
+
+@pytest.mark.asyncio
+async def test_clear_no_rights_detected_at(patched_db_conn, clean_db):
+    """clear_no_rights_detected_at sets timestamp to NULL."""
+    async with clean_db.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO groups (group_id, no_rights_detected_at) VALUES (101, CURRENT_TIMESTAMP)"
+        )
+
+    await clear_no_rights_detected_at(101)
+
+    async with clean_db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT no_rights_detected_at FROM groups WHERE group_id = 101"
+        )
+        assert row is not None
+        assert row["no_rights_detected_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_groups_with_no_rights_past_grace(patched_db_conn, clean_db):
+    """get_groups_with_no_rights_past_grace returns groups past grace period."""
+    async with clean_db.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO groups (group_id, no_rights_detected_at) VALUES (201, datetime('now', '-8 days')), (202, datetime('now', '-3 days')), (203, NULL)"
+        )
+
+    result = await get_groups_with_no_rights_past_grace(7)
+
+    assert 201 in result
+    assert 202 not in result
+    assert 203 not in result
