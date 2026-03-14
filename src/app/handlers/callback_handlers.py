@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from aiogram import F, types
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from ..common.bot import bot
@@ -284,6 +285,19 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
                 return await bot.delete_message(chat_id, message_id)
 
             await delete_original_message()
+        except TelegramBadRequest as e:
+            if "message to delete not found" in e.message:
+                logger.info(
+                    f"Message to delete not found (likely already deleted): {chat_id}:{message_id}"
+                )
+            else:
+                logger.warning(
+                    f"Failed to delete original spam message: {e}", exc_info=True
+                )
+                await callback.answer(
+                    t(lang, "callback.delete_failed"), show_alert=True
+                )
+                return "callback_error_deleting_original"
         except Exception as e:
             logger.warning(
                 f"Failed to delete original spam message: {e}", exc_info=True

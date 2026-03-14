@@ -17,8 +17,8 @@
 - **Recent Implementation**:
   - **LLM Model Evaluation**: ✅ **Complete** - Comprehensive evaluation infrastructure with balanced test cases and JSON result storage.
   - **Memory Bank Documentation**: ✅ **Complete** - Updated systemPatterns.md to document Cloudflare AI Gateway usage.
-  - **Logfire Trace Analysis**: ✅ **Complete** - Identified and fixed authentication issues in deployed code.
-  - **Logfire Instrumentation Cleanup**: ✅ **Complete** - Implemented approved Logfire pattern: auto-tracing for modules with `@logfire.no_auto_trace` decorators on manually instrumented functions to prevent span duplication.
+- **Logfire Trace Analysis**: ✅ **Complete** - Identified and fixed `TelegramBadRequest: message to delete not found` in `handle_spam_confirm_callback`. Flow now continues with ban/confirmation even if message was already deleted.
+- **Logfire Instrumentation Cleanup**: ✅ **Complete** - Implemented approved Logfire pattern: auto-tracing for modules with `@logfire.no_auto_trace` decorators on manually instrumented functions to prevent span duplication.
   - **Logfire Context Lookup Fix**: ✅ **Complete** - Fixed `find_spam_classification_context` two-step trace lookup. Reply, stories, and account_age context are now correctly extracted from Logfire when adding spam examples from forwarded messages. Unit tests in `tests/common/test_logfire_lookup.py`.
 - **Immediate Next Steps**:
   - Run migration `--add-low-balance-columns` before deploy.
