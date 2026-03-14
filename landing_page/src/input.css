@@ -1,40 +1,79 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
+@source "./**/*.html";
+@source "./**/*.js";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-primary: #2481cc;
+  --color-secondary: #1c2b38;
+  --color-accent: #ffffff;
+
+  --font-sans: Inter, system-ui, sans-serif;
+}
+
+/* CSS variables for inline style references (restored from pre-migration <style> block) */
+:root {
+  --bg: #0a0a0f;
+  --bg2: #0f0f18;
+  --card: #13131e;
+  --card2: #1a1a28;
+  --border: rgba(255, 255, 255, 0.07);
+  --accent: #4f6ef7;
+  --accent2: #7b5ea7;
+  --danger: #e63946;
+  --green: #2dc653;
+  --text: #e8e8f0;
+  --muted: #8888a8;
+  --white: #ffffff;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
 @layer base {
-  body {
-    @apply bg-slate-900 text-white font-sans leading-relaxed;
+
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
   }
 }
 
-@layer components {
-  .btn-primary {
-    @apply bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200;
-  }
+@utility btn-primary {
+  @apply bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200;
+}
 
-  .btn-secondary {
-    @apply bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200;
-  }
+@utility btn-secondary {
+  @apply bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200;
+}
 
-  .section-padding {
-    @apply py-16 px-4;
-  }
+@utility section-padding {
+  @apply py-16 px-4;
+  @apply py-24 px-4;
+}
 
-  .container {
-    @apply max-w-6xl mx-auto;
-  }
+@utility container {
+  @apply max-w-6xl mx-auto;
+}
 
-  .tg-message {
-    position: relative;
-    background: #2b3948;
-    border-radius: 12px;
-    padding: 12px;
-    max-width: 90%;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
+@utility tg-message {
+  position: relative;
+  background: #2b3948;
+  border-radius: 12px;
+  padding: 12px;
+  max-width: 90%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 
-  .tg-message::before {
+  &::before {
     content: '';
     position: absolute;
     left: -8px;
@@ -44,132 +83,459 @@
     background: #2b3948;
     clip-path: polygon(100% 0, 0 100%, 100% 100%);
   }
+}
 
+@utility btn-hero-primary {
   /* Hero buttons */
-  .btn-hero-primary {
-    @apply bg-blue-600 hover:bg-blue-500 text-white font-bold text-xl px-10 py-5 rounded-2xl shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-1 active:translate-y-0;
-  }
+  @apply bg-blue-600 hover:bg-blue-500 text-white font-bold text-xl px-10 py-5 rounded-2xl shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-1 active:translate-y-0;
+}
 
-  .btn-hero-secondary {
-    @apply bg-slate-800 hover:bg-slate-700 text-white font-bold text-xl px-10 py-5 rounded-2xl transition-all;
-  }
+@utility btn-hero-secondary {
+  @apply bg-slate-800 hover:bg-slate-700 text-white font-bold text-xl px-10 py-5 rounded-2xl transition-all;
+}
 
+@utility section-container {
   /* Section containers */
-  .section-container {
-    @apply container mx-auto max-w-6xl px-4;
-  }
+  @apply container mx-auto max-w-6xl px-4;
+}
 
-  .section-title {
-    @apply text-3xl md:text-5xl font-bold text-center mb-16;
-  }
+@utility section-title {
+  @apply text-3xl md:text-5xl font-bold text-center mb-16;
+}
 
-  .section-padding {
-    @apply py-24 px-4;
-  }
-
+@utility feature-icon {
   /* Feature icons */
-  .feature-icon {
-    @apply w-20 h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center mb-6 text-3xl;
-  }
+  @apply w-20 h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center mb-6 text-3xl;
+}
 
-  .feature-item {
-    @apply flex flex-col items-center text-center;
-  }
+@utility feature-item {
+  @apply flex flex-col items-center text-center;
+}
 
+@utility spam-blocked-card {
   /* Spam examples */
-  .spam-blocked-card {
-    @apply bg-red-500/10 border border-red-500/20 rounded-xl p-4;
-  }
+  @apply bg-red-500/10 border border-red-500/20 rounded-xl p-4;
+}
 
-  .spam-blocked-header {
-    @apply flex items-center gap-2 text-red-500 font-bold text-sm mb-1;
-  }
+@utility spam-blocked-header {
+  @apply flex items-center gap-2 text-red-500 font-bold text-sm mb-1;
+}
 
-  .spam-blocked-reason {
-    @apply text-xs text-red-200/70;
-  }
+@utility spam-blocked-reason {
+  @apply text-xs text-red-200/70;
+}
 
+@utility news-card {
   /* News cards */
-  .news-card {
-    @apply block bg-slate-800 hover:bg-slate-700 p-6 rounded-2xl border border-slate-700 transition-all hover:border-blue-500/50;
-  }
+  @apply block bg-slate-800 hover:bg-slate-700 p-6 rounded-2xl border border-slate-700 transition-all hover:border-blue-500/50;
+}
 
+@utility nav-link {
   /* Navigation links */
-  .nav-link {
-    @apply hover:text-blue-400 transition-colors;
-  }
+  @apply hover:text-blue-400 transition-colors;
+}
 
-  .nav-link-primary {
-    @apply bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-6 rounded-full transition-all hover:scale-105 active:scale-95;
-  }
+@utility nav-link-primary {
+  @apply bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-6 rounded-full transition-all hover:scale-105 active:scale-95;
+}
 
-  .nav-link-mobile {
-    @apply md:hidden bg-blue-600 p-2 rounded-full;
-  }
+@utility nav-link-mobile {
+  @apply md:hidden bg-blue-600 p-2 rounded-full;
+}
 
+@utility tg-author {
   /* Telegram message elements */
-  .tg-author {
-    @apply text-blue-400 font-bold text-sm mb-1;
-  }
+  @apply text-blue-400 font-bold text-sm mb-1;
+}
 
-  .tg-text {
-    @apply text-[15px];
-  }
+@utility tg-text {
+  @apply text-[15px];
+}
 
-  .tg-time {
-    @apply text-right text-[11px] text-slate-500 mt-1;
-  }
+@utility tg-time {
+  @apply text-right text-[11px] text-slate-500 mt-1;
+}
 
+@utility footer-link {
   /* Footer links */
-  .footer-link {
-    @apply hover:text-blue-400 transition-colors;
-  }
+  @apply hover:text-blue-400 transition-colors;
+}
 
+@utility skip-link {
   /* Accessibility */
-  .skip-link {
-    @apply absolute left-[-999px] bg-blue-600 text-white px-4 py-2 rounded z-50 focus:left-4 transition-all;
-  }
+  @apply absolute left-[-999px] bg-blue-600 text-white px-4 py-2 rounded-sm z-50 focus:left-4 transition-all;
+}
 
+@utility faq-item {
   /* FAQ Accordion */
-  .faq-item {
-    @apply border border-slate-700 rounded-2xl bg-slate-800/50 overflow-hidden transition-all duration-300;
-  }
+  @apply border border-slate-700 rounded-2xl bg-slate-800/50 overflow-hidden transition-all duration-300;
 
-  .faq-button {
-    @apply w-full flex justify-between items-center p-6 text-left font-bold text-lg hover:bg-slate-700/50 transition-colors;
-  }
-
-  .faq-content {
-    @apply px-6 text-slate-400 overflow-hidden max-h-0 transition-all duration-300 ease-in-out;
-  }
-
-  .faq-item.active .faq-content {
+  &.active .faq-content {
     @apply py-6 border-t border-slate-700/50 max-h-96;
   }
 
-  .faq-icon {
-    @apply w-6 h-6 transition-transform duration-300;
-  }
-
-  .faq-item.active .faq-icon {
+  &.active .faq-icon {
     @apply rotate-180;
   }
+}
 
-  /* Mermaid diagrams - center rendered SVG */
-  .mermaid {
-    @apply flex justify-center;
+@utility faq-button {
+  @apply w-full flex justify-between items-center p-6 text-left font-bold text-lg hover:bg-slate-700/50 transition-colors;
+}
+
+@utility faq-content {
+  @apply px-6 text-slate-400 overflow-hidden max-h-0 transition-all duration-300 ease-in-out;
+
+  .faq-item.active & {
+    @apply py-6 border-t border-slate-700/50 max-h-96;
+  }
+}
+
+@utility active {
+  &.faq-item .faq-content {
+    @apply py-6 border-t border-slate-700/50 max-h-96;
   }
 
-  .mermaid svg {
+  &.faq-item .faq-icon {
+    @apply rotate-180;
+  }
+}
+
+@utility faq-icon {
+  @apply w-6 h-6 transition-transform duration-300;
+
+  .faq-item.active & {
+    @apply rotate-180;
+  }
+}
+
+@utility mermaid {
+  /* Mermaid diagrams - center rendered SVG */
+  @apply flex justify-center;
+
+  & svg {
     @apply mx-auto;
   }
+}
 
+@utility cta-section {
   /* Final CTA */
-  .cta-section {
-    @apply relative overflow-hidden bg-blue-600 rounded-3xl p-8 md:p-16 text-center shadow-2xl shadow-blue-500/20 mx-4;
+  @apply relative overflow-hidden bg-blue-600 rounded-3xl p-8 md:p-16 text-center shadow-2xl shadow-blue-500/20 mx-4;
+}
+
+@utility cta-background {
+  @apply absolute inset-0 opacity-10 bg-linear-to-br from-white to-transparent;
+}
+
+@utility nav-logo {
+  @apply flex items-center gap-2 text-lg font-bold;
+}
+
+@utility nav-cta {
+  @apply bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-6 rounded-full transition-colors;
+}
+
+@utility hero {
+  @apply relative min-h-[80vh] flex items-center justify-center px-4 py-20 overflow-hidden;
+}
+
+@utility hero-glow {
+  @apply absolute inset-0 pointer-events-none opacity-30;
+  background: radial-gradient(circle at 50% 50%,
+      rgba(59, 130, 246, 0.2) 0%,
+      transparent 70%);
+}
+
+@utility hero-glow2 {
+  @apply absolute inset-0 pointer-events-none opacity-30;
+  @apply bg-linear-to-br from-blue-600/10 to-transparent;
+}
+
+@utility hero-inner {
+  @apply relative z-10 max-w-4xl mx-auto text-center;
+}
+
+@utility hero-badge {
+  @apply inline-block px-4 py-2 rounded-full bg-slate-800 text-slate-300 text-sm mb-6;
+}
+
+@utility hero-sub {
+  @apply text-lg text-slate-400 max-w-2xl mx-auto mb-8;
+}
+
+@utility hero-cta {
+  @apply flex flex-col items-center gap-2 mb-12;
+}
+
+@utility hero-hint {
+  @apply text-sm text-slate-500;
+}
+
+@utility hero-stats {
+  @apply grid grid-cols-2 md:grid-cols-4 gap-6 mt-12;
+}
+
+@utility stat-num {
+  @apply text-2xl md:text-3xl font-bold text-blue-400;
+}
+
+@utility stat-label {
+  @apply text-sm text-slate-500;
+}
+
+@utility full-divider {
+  @apply h-px bg-slate-700/50 max-w-6xl mx-auto my-16;
+}
+
+@utility section-tag {
+  @apply text-blue-400 font-semibold text-sm uppercase tracking-wider mb-4;
+}
+
+@utility section-sub {
+  @apply text-slate-400 text-lg max-w-2xl mx-auto mb-12;
+}
+
+@utility pain-grid {
+  @apply grid md:grid-cols-2 lg:grid-cols-4 gap-6 mt-12;
+}
+
+@utility pain-card {
+  @apply p-6 rounded-2xl bg-slate-800/50 border border-slate-700;
+
+  & h3 {
+    @apply font-bold text-lg mb-2;
   }
 
-  .cta-background {
-    @apply absolute inset-0 opacity-10 bg-gradient-to-br from-white to-transparent;
+  & p {
+    @apply text-slate-400 text-sm mb-4;
+  }
+}
+
+@utility pain-emoji {
+  @apply text-3xl block mb-4;
+}
+
+@utility missed {
+  @apply text-xs text-red-400/80 font-medium;
+}
+
+@utility examples-section {
+  @apply py-16;
+}
+
+@utility examples-inner {
+  @apply max-w-6xl mx-auto px-4;
+}
+
+@utility examples-grid {
+  @apply grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12;
+}
+
+@utility msg-card {
+  @apply p-4 rounded-xl bg-slate-800/50 border border-slate-700;
+}
+
+@utility msg-bubble {
+  @apply bg-slate-700/50 rounded-lg p-4 mb-3;
+}
+
+@utility msg-name {
+  @apply text-blue-400 font-bold text-sm mb-1;
+}
+
+@utility msg-time {
+  @apply text-right text-xs text-slate-500 mt-1;
+}
+
+@utility check-line {
+  @apply text-xs text-slate-500 mb-2;
+}
+
+@utility blocked-badge {
+  @apply flex gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20;
+}
+
+@utility blocked-icon {
+  @apply text-lg shrink-0;
+}
+
+@utility blocked-title {
+  @apply font-bold text-red-400 text-sm;
+}
+
+@utility blocked-reason {
+  @apply text-xs text-red-300/80 mt-1;
+}
+
+@utility cta-banner {
+  @apply relative py-16 px-6 text-center bg-blue-600/20 rounded-2xl mx-4 mb-16;
+
+  & h2 {
+    @apply text-xl md:text-2xl font-bold mb-4;
+  }
+
+  & p {
+    @apply text-slate-300 mb-6;
+  }
+}
+
+@utility why-layout {
+  @apply grid md:grid-cols-2 gap-12 mt-12 items-start;
+}
+
+@utility why-text {
+  & p {
+    @apply text-slate-400 mb-4;
+  }
+}
+
+@utility why-visual {
+  @apply bg-slate-800/50 rounded-2xl p-6 border border-slate-700;
+}
+
+@utility why-vis-header {
+  @apply flex items-center gap-2 font-bold mb-4 text-slate-300;
+}
+
+@utility check-row {
+  @apply flex justify-between py-2 border-b border-slate-700/50 last:border-0;
+}
+
+@utility check-label {
+  @apply text-slate-400;
+}
+
+@utility check-yes {
+  @apply text-green-400 font-bold;
+}
+
+/* Technical section */
+@utility tech-grid {
+  @apply grid md:grid-cols-2 lg:grid-cols-4 gap-6 mt-12;
+}
+
+@utility tech-card {
+  @apply p-6 rounded-2xl bg-slate-800/50 border border-slate-700;
+
+  & h3 {
+    @apply font-bold text-lg mb-2;
+  }
+
+  & p {
+    @apply text-slate-400 text-sm mb-4;
+  }
+}
+
+@utility tech-num {
+  @apply text-blue-400 font-bold text-sm mb-2;
+}
+
+@utility tech-tags {
+  @apply flex flex-wrap gap-2 mt-4;
+}
+
+@utility tag {
+  @apply px-2 py-1 rounded text-xs bg-slate-700/50 text-slate-400;
+}
+
+/* Flow diagram */
+@utility flow {
+  @apply flex flex-wrap items-center justify-center gap-4 mt-12;
+}
+
+@utility flow-step {
+  @apply flex flex-col items-center;
+}
+
+@utility flow-icon {
+  @apply w-12 h-12 rounded-full flex items-center justify-center text-xl mb-2;
+}
+
+@utility flow-icon-blue {
+  @apply bg-blue-600/20 text-blue-400;
+}
+
+@utility flow-icon-purple {
+  @apply bg-purple-600/20 text-purple-400;
+}
+
+@utility flow-icon-orange {
+  @apply bg-orange-600/20 text-orange-400;
+}
+
+@utility flow-icon-red {
+  @apply bg-red-600/20 text-red-400;
+}
+
+@utility flow-icon-green {
+  @apply bg-green-600/20 text-green-400;
+}
+
+@utility flow-arrow {
+  @apply text-slate-500 text-xl;
+}
+
+@utility flow-step-label {
+  @apply text-sm text-slate-400 text-center;
+}
+
+/* Pricing */
+@utility pricing-card {
+  @apply relative overflow-hidden bg-slate-800/50 rounded-2xl p-8 border border-slate-700;
+}
+
+@utility price-main {
+  @apply mb-6;
+}
+
+@utility price-num {
+  @apply text-2xl font-bold text-blue-400 mb-1;
+}
+
+@utility price-per {
+  @apply text-slate-400 text-sm;
+}
+
+@utility price-list {
+  @apply list-disc list-inside space-y-2 text-slate-400 text-sm;
+}
+
+/* News */
+@utility news-date {
+  @apply text-xs text-slate-500 mb-2;
+}
+
+/* FAQ (alternate structure with faq-q/faq-a) */
+@utility faq-list {
+  @apply space-y-4;
+}
+
+@utility faq-q {
+  @apply font-bold text-lg cursor-pointer p-4 rounded-t-2xl bg-slate-800/50 hover:bg-slate-700/50 transition-colors;
+}
+
+@utility faq-a {
+  @apply px-4 pb-4 text-slate-400 border-b border-slate-700/50;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-900 text-white font-sans leading-relaxed;
+  }
+}
+
+@layer components {
+
+  /* Layout components used by HTML */
+  nav {
+    @apply flex items-center justify-between px-4 py-4 max-w-6xl mx-auto;
+  }
+
+  section {
+    @apply max-w-6xl mx-auto px-4 py-16;
+  }
+
+  section h2 {
+    @apply text-2xl md:text-4xl font-bold text-center mb-6;
   }
 }

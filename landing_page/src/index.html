@@ -954,6 +954,61 @@
       display: block;
     }
 
+    /* ─── NEWS SECTION ─── */
+    .news-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+
+    .section-title {
+      margin-bottom: 32px;
+    }
+
+    .news-list {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .news-card {
+      display: block;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .news-card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .news-date {
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .news-card h3 {
+      font-family: 'Unbounded', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 12px;
+      letter-spacing: -0.01em;
+    }
+
+    .news-card p {
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
     /* ─── FOOTER ─── */
     footer {
       border-top: 1px solid var(--border);
@@ -1436,46 +1491,43 @@
      NEWS SECTION
 ════════════════════════════════════════════ -->
   <div class="full-divider"></div>
-  <section class="py-24">
-    <div class="container mx-auto max-w-5xl px-4">
-      <h2 class="section-title">News and guides</h2>
-      <div class="space-y-6">
-        <a href="https://vc.ru/telegram/2794831-kak-spam-v-telegram-maskiruetsya-pod-cheloveka" class="news-card">
-          <div class="text-blue-500 font-bold text-sm mb-2">March 14, 2026</div>
-          <h3 class="text-xl font-bold mb-2">How Telegram spam learned to pretend to be human: 5 levels of camouflage
-          </h3>
-          <p class="text-slate-400">Deep dive into spam evolution from simple links to complex multi-layer Pig
-            Butchering funnels. Article on vc.ru.</p>
-        </a>
+  <section>
+    <h2 class="section-title">News and guides</h2>
+    <div class="news-list">
+      <a href="https://vc.ru/telegram/2794831-kak-spam-v-telegram-maskiruetsya-pod-cheloveka" class="news-card">
+        <div class="news-date">March 14, 2026</div>
+        <h3>How Telegram spam learned to pretend to be human: 5 levels of camouflage</h3>
+        <p>Deep dive into spam evolution from simple links to complex multi-layer Pig
+          Butchering funnels. Article on vc.ru.</p>
+      </a>
 
-        <a href="https://t.me/ai_antispam/41" class="news-card">
-          <div class="text-blue-500 font-bold text-sm mb-2">Feb 17, 2026</div>
-          <h3 class="text-xl font-bold mb-2">You control borderline cases</h3>
-          <p class="text-slate-400">Now at low AI confidence (50–90%) the bot doesn't delete by itself — you
-            get a notification with "Delete" and "Not spam" buttons. Fewer false positives.</p>
-        </a>
+      <a href="https://t.me/ai_antispam/41" class="news-card">
+        <div class="news-date">Feb 17, 2026</div>
+        <h3>You control borderline cases</h3>
+        <p>Now at low AI confidence (50–90%) the bot doesn't delete by itself — you
+          get a notification with "Delete" and "Not spam" buttons. Fewer false positives.</p>
+      </a>
 
-        <a href="https://t.me/ai_antispam/36" class="news-card">
-          <div class="text-blue-500 font-bold text-sm mb-2">Dec 9, 2025</div>
-          <h3 class="text-xl font-bold mb-2">Account age detection</h3>
-          <p class="text-slate-400">The bot now detects account creation date. Fresh profiles are one of the
-            main signs of spam bots.</p>
-        </a>
+      <a href="https://t.me/ai_antispam/36" class="news-card">
+        <div class="news-date">Dec 9, 2025</div>
+        <h3>Account age detection</h3>
+        <p>The bot now detects account creation date. Fresh profiles are one of the
+          main signs of spam bots.</p>
+      </a>
 
-        <a href="https://t.me/ai_antispam/17" class="news-card">
-          <div class="text-blue-500 font-bold text-sm mb-2">Nov 6, 2025</div>
-          <h3 class="text-xl font-bold mb-2">Spammer tactics in comments</h3>
-          <p class="text-slate-400">Breaking down new tactics: how spam bots disguise as regular users and use
-            "blind zones" for simple bots.</p>
-        </a>
+      <a href="https://t.me/ai_antispam/17" class="news-card">
+        <div class="news-date">Nov 6, 2025</div>
+        <h3>Spammer tactics in comments</h3>
+        <p>Breaking down new tactics: how spam bots disguise as regular users and use
+          "blind zones" for simple bots.</p>
+      </a>
 
-        <a href="https://t.me/ai_antispam/14" class="news-card">
-          <div class="text-blue-500 font-bold text-sm mb-2">May 13, 2025</div>
-          <h3 class="text-xl font-bold mb-2">How to connect the bot in 2 minutes</h3>
-          <p class="text-slate-400">Step-by-step guide for channel comment moderation and group protection.
-          </p>
-        </a>
-      </div>
+      <a href="https://t.me/ai_antispam/14" class="news-card">
+        <div class="news-date">May 13, 2025</div>
+        <h3>How to connect the bot in 2 minutes</h3>
+        <p>Step-by-step guide for channel comment moderation and group protection.</p>
+      </a>
+    </div>
     </div>
   </section>
 
@@ -1494,7 +1546,8 @@
         <div class="faq-q" onclick="toggle(this)">Why do I need this if Telegram already removes spam?</div>
         <div class="faq-a">Telegram only blocks accounts from a global blacklist — those already caught before.
           <strong>A fresh account with casino ads in its bio looks perfectly clean to Telegram.</strong> That's exactly
-          why modern spam works so well — it uses fresh accounts in both groups and channel comments.</div>
+          why modern spam works so well — it uses fresh accounts in both groups and channel comments.
+        </div>
       </div>
 
       <div class="faq-item">
@@ -1529,7 +1582,8 @@
         <div class="faq-q" onclick="toggle(this)">Can I train the bot for my community's specifics?</div>
         <div class="faq-a">Yes. Forward any message to the bot in a private chat and write "Spam" or "Not spam".
           <strong>Each group gets its own knowledge base</strong> — the bot learns what's normal for your community and
-          makes fewer mistakes.</div>
+          makes fewer mistakes.
+        </div>
       </div>
 
     </div>

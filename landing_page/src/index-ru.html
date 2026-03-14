@@ -954,6 +954,61 @@
       display: block;
     }
 
+    /* ─── NEWS SECTION ─── */
+    .news-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+
+    .section-title {
+      margin-bottom: 32px;
+    }
+
+    .news-list {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .news-card {
+      display: block;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .news-card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .news-date {
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .news-card h3 {
+      font-family: 'Unbounded', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 12px;
+      letter-spacing: -0.01em;
+    }
+
+    .news-card p {
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
     /* ─── FOOTER ─── */
     footer {
       border-top: 1px solid var(--border);
@@ -1446,46 +1501,44 @@
      NEWS SECTION
 ════════════════════════════════════════════ -->
   <div class="full-divider"></div>
-  <section class="py-24">
-    <div class="container mx-auto max-w-5xl px-4">
-      <h2 class="section-title">Новости и гайды</h2>
-      <div class="space-y-6">
-        <a href="https://vc.ru/telegram/2794831-kak-spam-v-telegram-maskiruetsya-pod-cheloveka" class="news-card">
-          <div class="text-blue-500 font-bold text-sm mb-2">14 марта 2026</div>
-          <h3 class="text-xl font-bold mb-2">Как спам в Telegram научился притворяться человеком: 5 уровней маскировки
-          </h3>
-          <p class="text-slate-400">Разбираем эволюцию спама от простых ссылок до сложных схем «откорма и забоя» (Pig
-            Butchering). Статья на vc.ru.</p>
-        </a>
+  <section>
+    <h2 class="section-title">Новости и гайды</h2>
+    <div class="news-list">
+      <a href="https://vc.ru/telegram/2794831-kak-spam-v-telegram-maskiruetsya-pod-cheloveka" class="news-card">
+        <div class="news-date">14 марта 2026</div>
+        <h3>Как спам в Telegram научился притворяться человеком: 5 уровней маскировки</h3>
+        <p>Разбираем эволюцию спама от простых ссылок до сложных схем «откорма и забоя» (Pig
+          Butchering). Статья на vc.ru.</p>
+      </a>
 
-        <a href="https://t.me/ai_antispam/41" class="news-card">
-          <div class="text-blue-500 font-bold text-sm mb-2">17 февраля 2026</div>
-          <h3 class="text-xl font-bold mb-2">Вы контролируете пограничные случаи</h3>
-          <p class="text-slate-400">Теперь при низкой уверенности ИИ (50–90%) бот не удаляет сообщение сам —
-            вы получаете уведомление с кнопками «Удалить» и «Не спам». Меньше ложных срабатываний.</p>
-        </a>
+      <a href="https://t.me/ai_antispam/41" class="news-card">
+        <div class="news-date">17 февраля 2026</div>
+        <h3>Вы контролируете пограничные случаи</h3>
+        <p>Теперь при низкой уверенности ИИ (50–90%) бот не удаляет сообщение сам —
+          вы получаете уведомление с кнопками «Удалить» и «Не спам». Меньше ложных срабатываний.</p>
+      </a>
 
-        <a href="https://t.me/ai_antispam/36" class="news-card">
-          <div class="text-blue-500 font-bold text-sm mb-2">09 декабря 2025</div>
-          <h3 class="text-xl font-bold mb-2">Проверка возраста аккаунта</h3>
-          <p class="text-slate-400">Теперь бот умеет определять дату создания аккаунта. Свежие профили — один
-            из главных признаков спам-ботов.</p>
-        </a>
+      <a href="https://t.me/ai_antispam/36" class="news-card">
+        <div class="news-date">09 декабря 2025</div>
+        <h3>Проверка возраста аккаунта</h3>
+        <p>Теперь бот умеет определять дату создания аккаунта. Свежие профили — один
+          из главных признаков спам-ботов.</p>
+      </a>
 
-        <a href="https://t.me/ai_antispam/17" class="news-card">
-          <div class="text-blue-500 font-bold text-sm mb-2">06 ноября 2025</div>
-          <h3 class="text-xl font-bold mb-2">Многоходовочки спамеров в комментариях</h3>
-          <p class="text-slate-400">Разбираем новые тактики: как спам-боты маскируются под обычных
-            пользователей и используют "зоны невидимости" для обычных ботов.</p>
-        </a>
+      <a href="https://t.me/ai_antispam/17" class="news-card">
+        <div class="news-date">06 ноября 2025</div>
+        <h3>Многоходовочки спамеров в комментариях</h3>
+        <p>Разбираем новые тактики: как спам-боты маскируются под обычных
+          пользователей и используют "зоны невидимости" для обычных ботов.</p>
+      </a>
 
-        <a href="https://t.me/ai_antispam/14" class="news-card">
-          <div class="text-blue-500 font-bold text-sm mb-2">13 мая 2025</div>
-          <h3 class="text-xl font-bold mb-2">Как подключить бота за 2 минуты</h3>
-          <p class="text-slate-400">Пошаговая инструкция по настройке модерации комментариев в каналах и
-            защиты групп.</p>
-        </a>
-      </div>
+      <a href="https://t.me/ai_antispam/14" class="news-card">
+        <div class="news-date">13 мая 2025</div>
+        <h3>Как подключить бота за 2 минуты</h3>
+        <p>Пошаговая инструкция по настройке модерации комментариев в каналах и
+          защиты групп.</p>
+      </a>
+    </div>
     </div>
   </section>
 
