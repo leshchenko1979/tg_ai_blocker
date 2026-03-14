@@ -43,6 +43,20 @@ The project defines spam not just as unsolicited advertising, but as **any conte
 *   **Method**: Including professional titles or credentials directly in the Telegram display name (e.g., "Ivan | Real Estate Broker", "Dr. Alex | Crypto Advisor").
 *   **Goal**: To build immediate, false authority for their comments, making bait links in bio or stories more believable.
 
+### 8. The Proxy (Gasket) Infrastructure
+*   **Method**: Spammer account -> Channel-proxy (one post/button) -> Main scam channel.
+*   **Goal**: To break the direct link between the spammer and the main resource. If the spammer is banned, Telegram's automated systems won't automatically ban the main channel because it wasn't mentioned in the initial message.
+*   **Indicators**: Links in bio or message leading to very young channels with only 1-2 posts and high subscriber counts or buttons leading elsewhere.
+
+### 9. Knowledge Sharing to Pig Butchering/Extortion
+*   **Trigger**: Harmless offer of "free" materials (books, courses, archives).
+*   **Phase 1 (The Hook)**: "Write to my work account/assistant."
+    *   **Reason**: Avoid ban on the spamming account; avoid Telegram's "first message" detection (bypassed when user writes first).
+*   **Phase 2 (Relationship)**: Sending the actual promised file + small talk.
+*   **Phase 3 (Investment)**: Intro to a "nephew/advisor" who helps earn on crypto. High urgency ("only 2 slots left").
+*   **Phase 4 (The Drain)**: Small "earn" wins (allowed 1-2 times) -> Malicious link/transaction drains the whole wallet.
+*   **Phase 5 (Extortion)**: Revealing the scam -> Demanding more money to "unlock" the wallet -> Threats about "illegal financing" (e.g., AFU) and reporting to FSB/police.
+
 ## Mostly Used Spam Tactics
 
 Based on current trends, the most frequent tactics are:
@@ -52,16 +66,11 @@ Based on current trends, the most frequent tactics are:
 4.  **Knowledge Sharing Bait**: Offering free PDFs or courses to start a private conversation.
 5.  **Native Ad Imitation**: Starting a conversation about a specific niche (real estate, crypto) to eventually drop a "recommendation".
 
-## Recent Examples from Database
+## Confirmed Spam Examples from Database
 
-| Date | Name | Score | Tactics |
-| :--- | :--- | :--- | :--- |
-| 2026-02-05 | 𝚗𝚎𝚐𝚎𝚜𝚎 | -100 | Ad for @Marypsyupbot bot, new account (0mo) |
-| 2026-01-29 | Кирилл | -100 | Technical help request (potential hook), no channel/stories |
-| 2026-01-24 | Vladimir U | -100 | General investment "help" offer, responding vaguely to post |
-| 2026-01-22 | Алена | -100 | Turkey business/real estate investment request, new-ish photo (2mo) |
-| 2026-01-22 | (: | -100 | Single command `/give` |
-| 2025-01-15 | Liliya Vlasova | -100 | Irrelevant generic compliment, unknown account age |
+Полный выгруз 127 подтверждённых примеров спама (score=100, confirmed=true) с контекстом — в файле **memory-bank/confirmedSpamExamples.md**.
+
+Источник: PostgreSQL `spam_examples` (2026-03-14). Каждый пример содержит: text, name, bio, linked_channel_fragment, stories_context, reply_context, account_age_context.
 
 ## Key Indicators for Detection
 *   **Account Age**: New accounts are significantly more likely to be spam.

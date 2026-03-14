@@ -7,7 +7,8 @@
   - **Spam Tactics File**: Created a dedicated `memory-bank/spamTactics.md` to track evolving spam patterns and examples.
   - **Spam Tactics Rule**: Implemented `.cursor/rules/spam-tactics.mdc` to ensure the memory bank is updated when new spam is discovered.
 - **Recent Implementation**:
-  - **Spam Tactics Memory Bank**: ✅ **Complete** - Initialized `spamTactics.md` with data from `@ai_antispam` and database.
+  - **VC.ru Article & Tactics Expansion**: ✅ **Published & Announced** - Restructured `memory-bank/vc_ru_article.md` and published on vc.ru: [vc.ru/telegram/2794831-kak-spam-v-telegram-maskiruetsya-pod-cheloveka](https://vc.ru/telegram/2794831-kak-spam-v-telegram-maskiruetsya-pod-cheloveka). Broadcasted announcement to 270 bot admins. Restored "News and Guides" section on landing page with the article link.
+  - **Spam Tactics Memory Bank**: ✅ **Complete** - Initialized `spamTactics.md` with data from `@ai_antispam` and database, including the detailed Knowledge Sharing to Extortion funnel and Coordinated Group tactics.
   - **Spam Tactics Cursor Rule**: ✅ **Complete** - Added `.cursor/rules/spam-tactics.mdc` for persistent maintenance.
   - **Spam Classifier Migration**: ✅ **Complete** - Updated spam classification to use Cloudflare instead of OpenRouter.
   - **Private Chat Migration**: ✅ **Complete** - Updated private message handling to use Cloudflare for admin interactions.
@@ -17,10 +18,11 @@
 - **Recent Implementation**:
   - **LLM Model Evaluation**: ✅ **Complete** - Comprehensive evaluation infrastructure with balanced test cases and JSON result storage.
   - **Memory Bank Documentation**: ✅ **Complete** - Updated systemPatterns.md to document Cloudflare AI Gateway usage.
-- **Logfire Trace Analysis**: ✅ **Complete** - Identified and fixed `TelegramBadRequest: message to delete not found` in `handle_spam_confirm_callback`. Flow now continues with ban/confirmation even if message was already deleted.
-- **Logfire Instrumentation Cleanup**: ✅ **Complete** - Implemented approved Logfire pattern: auto-tracing for modules with `@logfire.no_auto_trace` decorators on manually instrumented functions to prevent span duplication.
+  - **Logfire Trace Analysis**: ✅ **Complete** - Identified and fixed `TelegramBadRequest: message to delete not found` in `handle_spam_confirm_callback`. Flow now continues with ban/confirmation even if message was already deleted.
+  - **Logfire Instrumentation Cleanup**: ✅ **Complete** - Implemented approved Logfire pattern: auto-tracing for modules with `@logfire.no_auto_trace` decorators on manually instrumented functions to prevent span duplication.
   - **Logfire Context Lookup Fix**: ✅ **Complete** - Fixed `find_spam_classification_context` two-step trace lookup. Reply, stories, and account_age context are now correctly extracted from Logfire when adding spam examples from forwarded messages. Unit tests in `tests/common/test_logfire_lookup.py`.
 - **Immediate Next Steps**:
+  - Publish the restructured VC.ru article.
   - Run migration `--add-low-balance-columns` before deploy.
   - Publish promotional channel post (draft in docs/channel_post_low_confidence_spam.md).
   - Update landing news card link after channel post is published.

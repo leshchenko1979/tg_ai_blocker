@@ -1,1174 +1,1584 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Telegram Anti-Spam — Smart Protection for Groups &amp; Channels</title>
-<meta name="description" content="Stop manually removing spam in Telegram. Our AI checks bio, Stories, linked channels and account age — not just text. Protects groups and channel comments 24/7.">
-<link rel="icon" type="image/png" href="assets/favicon.png">
-    <script>
-        (function () {
-            var saved = localStorage.getItem('lang');
-            var prefersRu = function () {
-                var lang = (navigator.language || (navigator.languages && navigator.languages[0]) || 'en').split('-')[0].toLowerCase();
-                return ['ru', 'uk', 'be'].indexOf(lang) >= 0;
-            };
-            if (saved === 'ru' || (!saved && prefersRu())) { location.replace('index-ru.html'); }
-        })();
-    </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Telegram Anti-Spam — Smart Protection for Groups &amp; Channels</title>
+  <meta name="description"
+    content="Stop manually removing spam in Telegram. Our AI checks bio, Stories, linked channels and account age — not just text. Protects groups and channel comments 24/7.">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <script>
+    (function () {
+      var saved = localStorage.getItem('lang');
+      var prefersRu = function () {
+        var lang = (navigator.language || (navigator.languages && navigator.languages[0]) || 'en').split('-')[0].toLowerCase();
+        return ['ru', 'uk', 'be'].indexOf(lang) >= 0;
+      };
+      if (saved === 'ru' || (!saved && prefersRu())) { location.replace('index-ru.html'); }
+    })();
+  </script>
 
-    <!-- Yandex.Metrika counter -->
-    <script type="text/javascript">
-        (function (m, e, t, r, i, k, a) {
-            m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments) };
-            m[i].l = 1 * new Date();
-            for (var j = 0; j < document.scripts.length; j++) { if (document.scripts[j].src === r) { return; } }
-            k = e.createElement(t), a = e.getElementsByTagName(t)[0], k.async = 1, k.src = r, a.parentNode.insertBefore(k, a)
-        })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=106226164', 'ym');
+  <!-- Yandex.Metrika counter -->
+  <script type="text/javascript">
+    (function (m, e, t, r, i, k, a) {
+      m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments) };
+      m[i].l = 1 * new Date();
+      for (var j = 0; j < document.scripts.length; j++) { if (document.scripts[j].src === r) { return; } }
+      k = e.createElement(t), a = e.getElementsByTagName(t)[0], k.async = 1, k.src = r, a.parentNode.insertBefore(k, a)
+    })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=106226164', 'ym');
 
-        ym(106226164, 'init', { ssr: true, webvisor: true, clickmap: true, ecommerce: "dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce: true, trackLinks: true });
-    </script>
-    <noscript>
-        <div><img src="https://mc.yandex.ru/watch/106226164" style="position:absolute; left:-9999px;" alt="" /></div>
-    </noscript>
-    <!-- /Yandex.Metrika counter -->
+    ym(106226164, 'init', { ssr: true, webvisor: true, clickmap: true, ecommerce: "dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce: true, trackLinks: true });
+  </script>
+  <noscript>
+    <div><img src="https://mc.yandex.ru/watch/106226164" style="position:absolute; left:-9999px;" alt="" /></div>
+  </noscript>
+  <!-- /Yandex.Metrika counter -->
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Onest:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #0a0a0f;
-    --bg2: #0f0f18;
-    --card: #13131e;
-    --card2: #1a1a28;
-    --border: rgba(255,255,255,0.07);
-    --accent: #4f6ef7;
-    --accent2: #7b5ea7;
-    --danger: #e63946;
-    --green: #2dc653;
-    --text: #e8e8f0;
-    --muted: #8888a8;
-    --white: #ffffff;
-  }
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Onest:wght@300;400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --bg2: #0f0f18;
+      --card: #13131e;
+      --card2: #1a1a28;
+      --border: rgba(255, 255, 255, 0.07);
+      --accent: #4f6ef7;
+      --accent2: #7b5ea7;
+      --danger: #e63946;
+      --green: #2dc653;
+      --text: #e8e8f0;
+      --muted: #8888a8;
+      --white: #ffffff;
+    }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-  html { scroll-behavior: smooth; }
+    html {
+      scroll-behavior: smooth;
+    }
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Onest', sans-serif;
-    font-weight: 400;
-    line-height: 1.6;
-    overflow-x: hidden;
-  }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Onest', sans-serif;
+      font-weight: 400;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
 
-  /* ─── NOISE TEXTURE ─── */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 1000;
-    opacity: 0.4;
-  }
+    /* ─── NOISE TEXTURE ─── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.4;
+    }
 
-  /* ─── NAV ─── */
-  nav {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 100;
-    padding: 20px 40px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    backdrop-filter: blur(20px);
-    background: rgba(10,10,15,0.8);
-    border-bottom: 1px solid var(--border);
-  }
-  .nav-logo {
-    font-family: 'Unbounded', sans-serif;
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--white);
-    letter-spacing: -0.02em;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .nav-logo-dot {
-    width: 8px; height: 8px;
-    background: var(--accent);
-    border-radius: 50%;
-    box-shadow: 0 0 12px var(--accent);
-    animation: pulse 2s ease infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.6; transform: scale(0.8); }
-  }
-  .nav-cta {
-    background: var(--accent);
-    color: white;
-    padding: 10px 22px;
-    border-radius: 100px;
-    font-size: 13px;
-    font-weight: 500;
-    text-decoration: none;
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-  .nav-cta:hover { background: #6b83f9; transform: translateY(-1px); }
+    /* ─── NAV ─── */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(20px);
+      background: rgba(10, 10, 15, 0.8);
+      border-bottom: 1px solid var(--border);
+    }
 
-  /* ─── HERO ─── */
-  .hero {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 120px 40px 80px;
-    position: relative;
-    overflow: hidden;
-  }
-  .hero-glow {
-    position: absolute;
-    width: 700px; height: 700px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(79,110,247,0.12) 0%, transparent 70%);
-    top: -100px; right: -200px;
-    pointer-events: none;
-  }
-  .hero-glow2 {
-    position: absolute;
-    width: 500px; height: 500px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(230,57,70,0.07) 0%, transparent 70%);
-    bottom: 0; left: -100px;
-    pointer-events: none;
-  }
-  .hero-inner { max-width: 780px; position: relative; z-index: 2; }
+    .nav-logo {
+      font-family: 'Unbounded', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--white);
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
 
-  .hero-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(230,57,70,0.1);
-    border: 1px solid rgba(230,57,70,0.25);
-    color: #ff6b78;
-    padding: 6px 16px;
-    border-radius: 100px;
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    margin-bottom: 32px;
-    animation: fadeUp 0.6s ease both;
-  }
-  .hero-badge::before {
-    content: '';
-    width: 6px; height: 6px;
-    background: var(--danger);
-    border-radius: 50%;
-    animation: pulse 1.5s ease infinite;
-  }
+    .nav-logo-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 12px var(--accent);
+      animation: pulse 2s ease infinite;
+    }
 
-  h1 {
-    font-family: 'Unbounded', sans-serif;
-    font-weight: 900;
-    font-size: clamp(36px, 6vw, 72px);
-    line-height: 1.05;
-    letter-spacing: -0.03em;
-    color: var(--white);
-    margin-bottom: 28px;
-    animation: fadeUp 0.6s 0.1s ease both;
-  }
-  h1 em {
-    font-style: normal;
-    background: linear-gradient(135deg, #ff6b78, #e63946);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  h1 span {
-    background: linear-gradient(135deg, var(--accent), #a78bfa);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
+    @keyframes pulse {
 
-  .hero-sub {
-    font-size: 19px;
-    color: var(--muted);
-    max-width: 560px;
-    margin-bottom: 44px;
-    line-height: 1.7;
-    font-weight: 300;
-    animation: fadeUp 0.6s 0.2s ease both;
-  }
-  .hero-sub strong { color: var(--text); font-weight: 500; }
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
 
-  .hero-cta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    align-items: center;
-    animation: fadeUp 0.6s 0.3s ease both;
-  }
-  .btn-primary {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    background: var(--accent);
-    color: white;
-    padding: 16px 32px;
-    border-radius: 14px;
-    font-size: 16px;
-    font-weight: 500;
-    text-decoration: none;
-    transition: all 0.2s;
-    box-shadow: 0 0 40px rgba(79,110,247,0.3);
-  }
-  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 60px rgba(79,110,247,0.5); }
-  .btn-primary svg { width: 20px; height: 20px; }
+      50% {
+        opacity: 0.6;
+        transform: scale(0.8);
+      }
+    }
 
-  .hero-hint {
-    font-size: 13px;
-    color: var(--muted);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .hero-hint::before { content: '✓'; color: var(--green); font-weight: 700; }
+    .nav-cta {
+      background: var(--accent);
+      color: white;
+      padding: 10px 22px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
 
-  .hero-stats {
-    display: flex;
-    gap: 48px;
-    margin-top: 72px;
-    padding-top: 40px;
-    border-top: 1px solid var(--border);
-    animation: fadeUp 0.6s 0.4s ease both;
-  }
-  .stat-num {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--white);
-  }
-  .stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .nav-cta:hover {
+      background: #6b83f9;
+      transform: translateY(-1px);
+    }
 
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(24px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+    /* ─── HERO ─── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 120px 40px 80px;
+      position: relative;
+      overflow: hidden;
+    }
 
-  /* ─── SECTIONS ─── */
-  section { padding: 100px 40px; max-width: 1100px; margin: 0 auto; }
-  .section-tag {
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 16px;
-  }
-  h2 {
-    font-family: 'Unbounded', sans-serif;
-    font-weight: 700;
-    font-size: clamp(26px, 4vw, 44px);
-    line-height: 1.15;
-    letter-spacing: -0.02em;
-    color: var(--white);
-    margin-bottom: 16px;
-  }
-  .section-sub {
-    font-size: 17px;
-    color: var(--muted);
-    max-width: 560px;
-    margin-bottom: 56px;
-    font-weight: 300;
-  }
+    .hero-glow {
+      position: absolute;
+      width: 700px;
+      height: 700px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(79, 110, 247, 0.12) 0%, transparent 70%);
+      top: -100px;
+      right: -200px;
+      pointer-events: none;
+    }
 
-  /* ─── PAIN SECTION ─── */
-  .pain-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 16px;
-  }
-  .pain-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 32px;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.3s;
-  }
-  .pain-card:hover { border-color: rgba(255,255,255,0.15); }
-  .pain-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--danger), transparent);
-    opacity: 0.6;
-  }
-  .pain-emoji { font-size: 28px; margin-bottom: 16px; display: block; }
-  .pain-card h3 {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--white);
-    margin-bottom: 10px;
-    letter-spacing: -0.01em;
-  }
-  .pain-card p { font-size: 14px; color: var(--muted); line-height: 1.7; }
-  .pain-card .missed {
-    margin-top: 16px;
-    padding: 10px 14px;
-    background: rgba(230,57,70,0.08);
-    border: 1px solid rgba(230,57,70,0.2);
-    border-radius: 8px;
-    font-size: 12px;
-    color: #ff6b78;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
+    .hero-glow2 {
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(230, 57, 70, 0.07) 0%, transparent 70%);
+      bottom: 0;
+      left: -100px;
+      pointer-events: none;
+    }
 
-  /* ─── BLOCKING EXAMPLES ─── */
-  .examples-section { background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); max-width: 100%; padding: 100px 40px; }
-  .examples-inner { max-width: 1100px; margin: 0 auto; }
-  .examples-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 16px;
-  }
-  .msg-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 24px;
-    transition: transform 0.2s;
-  }
-  .msg-card:hover { transform: translateY(-3px); }
-  .msg-bubble {
-    background: var(--card2);
-    border-radius: 14px 14px 14px 4px;
-    padding: 14px 16px;
-    margin-bottom: 16px;
-    font-size: 14px;
-    color: var(--text);
-    line-height: 1.6;
-    position: relative;
-    border: 1px solid var(--border);
-  }
-  .msg-name {
-    font-weight: 600;
-    font-size: 13px;
-    color: #7b9ef0;
-    margin-bottom: 6px;
-  }
-  .msg-time {
-    font-size: 11px;
-    color: var(--muted);
-    text-align: right;
-    margin-top: 8px;
-  }
-  .check-line {
-    font-size: 11px;
-    color: var(--muted);
-    margin-bottom: 10px;
-    padding: 8px 12px;
-    background: rgba(255,255,255,0.02);
-    border-radius: 8px;
-    border: 1px solid var(--border);
-  }
-  .check-line strong { color: var(--text); }
-  .blocked-badge {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    background: rgba(230,57,70,0.08);
-    border: 1px solid rgba(230,57,70,0.2);
-    border-radius: 12px;
-    padding: 12px 14px;
-  }
-  .blocked-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-  .blocked-title { font-size: 12px; font-weight: 700; color: var(--danger); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
-  .blocked-reason { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .hero-inner {
+      max-width: 780px;
+      position: relative;
+      z-index: 2;
+    }
 
-  /* ─── CTA BANNER ─── */
-  .cta-banner {
-    background: linear-gradient(135deg, rgba(79,110,247,0.15), rgba(123,94,167,0.15));
-    border: 1px solid rgba(79,110,247,0.25);
-    border-radius: 28px;
-    padding: 56px;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-    margin: 0 40px 100px;
-  }
-  .cta-banner::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse at 50% 0%, rgba(79,110,247,0.15) 0%, transparent 60%);
-  }
-  .cta-banner h2 { margin-bottom: 12px; }
-  .cta-banner p { color: var(--muted); font-size: 17px; margin-bottom: 36px; font-weight: 300; }
-  .cta-banner .btn-primary { margin: 0 auto; display: inline-flex; }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(230, 57, 70, 0.1);
+      border: 1px solid rgba(230, 57, 70, 0.25);
+      color: #ff6b78;
+      padding: 6px 16px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+      animation: fadeUp 0.6s ease both;
+    }
 
-  /* ─── WHY SECTION ─── */
-  .why-layout {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 48px;
-    align-items: start;
-  }
-  @media (max-width: 768px) {
-    .why-layout { grid-template-columns: 1fr; }
-    .hero-stats { flex-wrap: wrap; gap: 24px; }
-    nav { padding: 16px 20px; }
-    .hero { padding: 100px 20px 60px; }
-    section, .examples-section { padding: 60px 20px; }
-    .cta-banner { margin: 0 20px 60px; padding: 36px 24px; }
-  }
-  .why-text p {
-    font-size: 16px;
-    color: var(--muted);
-    line-height: 1.8;
-    margin-bottom: 20px;
-    font-weight: 300;
-  }
-  .why-text p strong { color: var(--text); font-weight: 500; }
-  .why-visual {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    overflow: hidden;
-  }
-  .why-vis-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border);
-    font-size: 12px;
-    color: var(--muted);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .why-vis-header span { font-weight: 600; color: var(--text); }
-  .check-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--border);
-    font-size: 13px;
-    transition: background 0.2s;
-  }
-  .check-row:hover { background: rgba(255,255,255,0.02); }
-  .check-row:last-child { border-bottom: none; }
-  .check-label { color: var(--muted); }
-  .check-no { color: rgba(230,57,70,0.6); font-size: 16px; }
-  .check-yes { color: var(--green); font-size: 16px; }
+    .hero-badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--danger);
+      border-radius: 50%;
+      animation: pulse 1.5s ease infinite;
+    }
 
-  /* ─── HOW IT WORKS ─── */
-  .tech-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
-    margin-bottom: 48px;
-  }
-  .tech-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 28px;
-    position: relative;
-  }
-  .tech-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--accent), transparent);
-  }
-  .tech-num {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--accent);
-    letter-spacing: 0.1em;
-    margin-bottom: 16px;
-  }
-  .tech-card h3 {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--white);
-    margin-bottom: 10px;
-    letter-spacing: -0.01em;
-  }
-  .tech-card p { font-size: 13px; color: var(--muted); line-height: 1.7; }
-  .tech-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 14px;
-  }
-  .tag {
-    background: rgba(79,110,247,0.1);
-    border: 1px solid rgba(79,110,247,0.2);
-    color: #7b9ef0;
-    padding: 4px 10px;
-    border-radius: 100px;
-    font-size: 11px;
-    font-weight: 500;
-  }
+    h1 {
+      font-family: 'Unbounded', sans-serif;
+      font-weight: 900;
+      font-size: clamp(36px, 6vw, 72px);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      color: var(--white);
+      margin-bottom: 28px;
+      animation: fadeUp 0.6s 0.1s ease both;
+    }
 
-  /* ─── FLOW ─── */
-  .flow {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 32px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0;
-    overflow: hidden;
-  }
-  .flow-step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding: 16px 24px;
-    flex: 1;
-    min-width: 120px;
-  }
-  .flow-icon {
-    width: 44px; height: 44px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    margin-bottom: 10px;
-  }
-  .flow-step-label { font-size: 12px; color: var(--muted); line-height: 1.4; }
-  .flow-step-label strong { display: block; color: var(--text); font-weight: 500; font-size: 13px; margin-bottom: 2px; }
-  .flow-arrow {
-    color: var(--border);
-    font-size: 20px;
-    flex-shrink: 0;
-  }
-  .bg-blue { background: rgba(79,110,247,0.15); }
-  .bg-purple { background: rgba(123,94,167,0.15); }
-  .bg-red { background: rgba(230,57,70,0.12); }
-  .bg-orange { background: rgba(249,115,22,0.12); }
-  .bg-green { background: rgba(45,198,83,0.12); }
+    h1 em {
+      font-style: normal;
+      background: linear-gradient(135deg, #ff6b78, #e63946);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
 
-  /* ─── PRICING ─── */
-  .pricing-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 24px;
-    padding: 44px;
-    max-width: 600px;
-    position: relative;
-    overflow: hidden;
-  }
-  .pricing-card::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse at 0% 0%, rgba(79,110,247,0.08) 0%, transparent 50%);
-  }
-  .price-main {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin-bottom: 28px;
-  }
-  .price-num {
-    font-family: 'Unbounded', sans-serif;
-    font-size: 48px;
-    font-weight: 900;
-    color: var(--white);
-  }
-  .price-per { font-size: 15px; color: var(--muted); font-weight: 300; }
-  .price-list { list-style: none; }
-  .price-list li {
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 14px;
-    color: var(--muted);
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    line-height: 1.5;
-  }
-  .price-list li:last-child { border: none; }
-  .price-list li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; }
-  .price-list li strong { color: var(--text); }
+    h1 span {
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
 
-  /* ─── FAQ ─── */
-  .faq-list { display: flex; flex-direction: column; gap: 12px; }
-  .faq-item {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    overflow: hidden;
-  }
-  .faq-q {
-    padding: 22px 28px;
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--text);
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    user-select: none;
-    transition: background 0.2s;
-  }
-  .faq-q:hover { background: var(--card2); }
-  .faq-q::after {
-    content: '+';
-    font-size: 20px;
-    color: var(--muted);
-    flex-shrink: 0;
-    transition: transform 0.3s;
-  }
-  .faq-item.open .faq-q::after { transform: rotate(45deg); }
-  .faq-a {
-    display: none;
-    padding: 0 28px 22px;
-    font-size: 14px;
-    color: var(--muted);
-    line-height: 1.8;
-    font-weight: 300;
-    border-top: 1px solid var(--border);
-    padding-top: 16px;
-  }
-  .faq-a strong { color: var(--text); font-weight: 500; }
-  .faq-item.open .faq-a { display: block; }
+    .hero-sub {
+      font-size: 19px;
+      color: var(--muted);
+      max-width: 560px;
+      margin-bottom: 44px;
+      line-height: 1.7;
+      font-weight: 300;
+      animation: fadeUp 0.6s 0.2s ease both;
+    }
 
-  /* ─── FOOTER ─── */
-  footer {
-    border-top: 1px solid var(--border);
-    padding: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 20px;
-    max-width: 1100px;
-    margin: 0 auto;
-  }
-  footer .nav-logo { font-size: 13px; }
-  .footer-links { display: flex; gap: 24px; }
-  .footer-links a { font-size: 13px; color: var(--muted); text-decoration: none; transition: color 0.2s; }
-  .footer-links a:hover { color: var(--text); }
-  .footer-copy { font-size: 12px; color: rgba(136,136,168,0.5); }
+    .hero-sub strong {
+      color: var(--text);
+      font-weight: 500;
+    }
 
-  /* ─── DIVIDER ─── */
-  .full-divider { height: 1px; background: var(--border); margin: 0; }
-</style>
+    .hero-cta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      animation: fadeUp 0.6s 0.3s ease both;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--accent);
+      color: white;
+      padding: 16px 32px;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+      box-shadow: 0 0 40px rgba(79, 110, 247, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 60px rgba(79, 110, 247, 0.5);
+    }
+
+    .btn-primary svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .hero-hint {
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hero-hint::before {
+      content: '✓';
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 48px;
+      margin-top: 72px;
+      padding-top: 40px;
+      border-top: 1px solid var(--border);
+      animation: fadeUp 0.6s 0.4s ease both;
+    }
+
+    .stat-num {
+      font-family: 'Unbounded', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--white);
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(24px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ─── SECTIONS ─── */
+    section {
+      padding: 100px 40px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-tag {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      font-family: 'Unbounded', sans-serif;
+      font-weight: 700;
+      font-size: clamp(26px, 4vw, 44px);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      color: var(--white);
+      margin-bottom: 16px;
+    }
+
+    .section-sub {
+      font-size: 17px;
+      color: var(--muted);
+      max-width: 560px;
+      margin-bottom: 56px;
+      font-weight: 300;
+    }
+
+    /* ─── PAIN SECTION ─── */
+    .pain-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .pain-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+
+    .pain-card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .pain-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--danger), transparent);
+      opacity: 0.6;
+    }
+
+    .pain-emoji {
+      font-size: 28px;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .pain-card h3 {
+      font-family: 'Unbounded', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .pain-card p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .pain-card .missed {
+      margin-top: 16px;
+      padding: 10px 14px;
+      background: rgba(230, 57, 70, 0.08);
+      border: 1px solid rgba(230, 57, 70, 0.2);
+      border-radius: 8px;
+      font-size: 12px;
+      color: #ff6b78;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ─── BLOCKING EXAMPLES ─── */
+    .examples-section {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      max-width: 100%;
+      padding: 100px 40px;
+    }
+
+    .examples-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .examples-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .msg-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px;
+      transition: transform 0.2s;
+    }
+
+    .msg-card:hover {
+      transform: translateY(-3px);
+    }
+
+    .msg-bubble {
+      background: var(--card2);
+      border-radius: 14px 14px 14px 4px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.6;
+      position: relative;
+      border: 1px solid var(--border);
+    }
+
+    .msg-name {
+      font-weight: 600;
+      font-size: 13px;
+      color: #7b9ef0;
+      margin-bottom: 6px;
+    }
+
+    .msg-time {
+      font-size: 11px;
+      color: var(--muted);
+      text-align: right;
+      margin-top: 8px;
+    }
+
+    .check-line {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .check-line strong {
+      color: var(--text);
+    }
+
+    .blocked-badge {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: rgba(230, 57, 70, 0.08);
+      border: 1px solid rgba(230, 57, 70, 0.2);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+
+    .blocked-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .blocked-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--danger);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 3px;
+    }
+
+    .blocked-reason {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ─── CTA BANNER ─── */
+    .cta-banner {
+      background: linear-gradient(135deg, rgba(79, 110, 247, 0.15), rgba(123, 94, 167, 0.15));
+      border: 1px solid rgba(79, 110, 247, 0.25);
+      border-radius: 28px;
+      padding: 56px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      margin: 0 40px 100px;
+    }
+
+    .cta-banner::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(79, 110, 247, 0.15) 0%, transparent 60%);
+    }
+
+    .cta-banner h2 {
+      margin-bottom: 12px;
+    }
+
+    .cta-banner p {
+      color: var(--muted);
+      font-size: 17px;
+      margin-bottom: 36px;
+      font-weight: 300;
+    }
+
+    .cta-banner .btn-primary {
+      margin: 0 auto;
+      display: inline-flex;
+    }
+
+    /* ─── WHY SECTION ─── */
+    .why-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: start;
+    }
+
+    @media (max-width: 768px) {
+      .why-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-stats {
+        flex-wrap: wrap;
+        gap: 24px;
+      }
+
+      nav {
+        padding: 16px 20px;
+      }
+
+      .hero {
+        padding: 100px 20px 60px;
+      }
+
+      section,
+      .examples-section {
+        padding: 60px 20px;
+      }
+
+      .cta-banner {
+        margin: 0 20px 60px;
+        padding: 36px 24px;
+      }
+    }
+
+    .why-text p {
+      font-size: 16px;
+      color: var(--muted);
+      line-height: 1.8;
+      margin-bottom: 20px;
+      font-weight: 300;
+    }
+
+    .why-text p strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .why-visual {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    .why-vis-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .why-vis-header span {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    .check-row:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .check-row:last-child {
+      border-bottom: none;
+    }
+
+    .check-label {
+      color: var(--muted);
+    }
+
+    .check-no {
+      color: rgba(230, 57, 70, 0.6);
+      font-size: 16px;
+    }
+
+    .check-yes {
+      color: var(--green);
+      font-size: 16px;
+    }
+
+    /* ─── HOW IT WORKS ─── */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+
+    .tech-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      position: relative;
+    }
+
+    .tech-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), transparent);
+    }
+
+    .tech-num {
+      font-family: 'Unbounded', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      margin-bottom: 16px;
+    }
+
+    .tech-card h3 {
+      font-family: 'Unbounded', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .tech-card p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .tech-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .tag {
+      background: rgba(79, 110, 247, 0.1);
+      border: 1px solid rgba(79, 110, 247, 0.2);
+      color: #7b9ef0;
+      padding: 4px 10px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    /* ─── FLOW ─── */
+    .flow {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    .flow-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 16px 24px;
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .flow-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .flow-step-label {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .flow-step-label strong {
+      display: block;
+      color: var(--text);
+      font-weight: 500;
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+
+    .flow-arrow {
+      color: var(--border);
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .bg-blue {
+      background: rgba(79, 110, 247, 0.15);
+    }
+
+    .bg-purple {
+      background: rgba(123, 94, 167, 0.15);
+    }
+
+    .bg-red {
+      background: rgba(230, 57, 70, 0.12);
+    }
+
+    .bg-orange {
+      background: rgba(249, 115, 22, 0.12);
+    }
+
+    .bg-green {
+      background: rgba(45, 198, 83, 0.12);
+    }
+
+    /* ─── PRICING ─── */
+    .pricing-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 44px;
+      max-width: 600px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pricing-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 0% 0%, rgba(79, 110, 247, 0.08) 0%, transparent 50%);
+    }
+
+    .price-main {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+
+    .price-num {
+      font-family: 'Unbounded', sans-serif;
+      font-size: 48px;
+      font-weight: 900;
+      color: var(--white);
+    }
+
+    .price-per {
+      font-size: 15px;
+      color: var(--muted);
+      font-weight: 300;
+    }
+
+    .price-list {
+      list-style: none;
+    }
+
+    .price-list li {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--muted);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.5;
+    }
+
+    .price-list li:last-child {
+      border: none;
+    }
+
+    .price-list li::before {
+      content: '✓';
+      color: var(--green);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .price-list li strong {
+      color: var(--text);
+    }
+
+    /* ─── FAQ ─── */
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .faq-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .faq-q {
+      padding: 22px 28px;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      user-select: none;
+      transition: background 0.2s;
+    }
+
+    .faq-q:hover {
+      background: var(--card2);
+    }
+
+    .faq-q::after {
+      content: '+';
+      font-size: 20px;
+      color: var(--muted);
+      flex-shrink: 0;
+      transition: transform 0.3s;
+    }
+
+    .faq-item.open .faq-q::after {
+      transform: rotate(45deg);
+    }
+
+    .faq-a {
+      display: none;
+      padding: 0 28px 22px;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.8;
+      font-weight: 300;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+
+    .faq-a strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .faq-item.open .faq-a {
+      display: block;
+    }
+
+    /* ─── FOOTER ─── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    footer .nav-logo {
+      font-size: 13px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-links a {
+      font-size: 13px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--text);
+    }
+
+    .footer-copy {
+      font-size: 12px;
+      color: rgba(136, 136, 168, 0.5);
+    }
+
+    /* ─── DIVIDER ─── */
+    .full-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 0;
+    }
+  </style>
 </head>
+
 <body>
 
-<!-- ═══════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════
      NAV
 ════════════════════════════════════════════ -->
-<nav>
-  <div class="nav-logo">
-    <img src="data:image/png;base64,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" style="width:28px;height:28px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(79,110,247,0.6));" alt="logo">
-    AI Anti-Spam
-  </div>
-  <a href="https://t.me/ai_spam_blocker_bot" class="nav-cta">Enable protection →</a>
-</nav>
+  <nav>
+    <div class="nav-logo">
+      <img
+        src="data:image/png;base64,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"
+        style="width:28px;height:28px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(79,110,247,0.6));" alt="logo">
+      AI Anti-Spam
+    </div>
+    <a href="https://t.me/ai_spam_blocker_bot" class="nav-cta">Enable protection →</a>
+  </nav>
 
 
-<!-- ═══════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════
      HERO — PAIN LANGUAGE
 ════════════════════════════════════════════ -->
-<section class="hero">
-  <div class="hero-glow"></div>
-  <div class="hero-glow2"></div>
-  <div class="hero-inner">
+  <section class="hero">
+    <div class="hero-glow"></div>
+    <div class="hero-glow2"></div>
+    <div class="hero-inner">
 
-    <div class="hero-badge">The real problem for Telegram admins</div>
+      <div class="hero-badge">The real problem for Telegram admins</div>
 
-    <h1>Your channel and group<br>are losing people.<br><em>Because of spam.</em></h1>
+      <h1>Your channel and group<br>are losing people.<br><em>Because of spam.</em></h1>
 
-    <p class="hero-sub">
-      While you're busy — spammers write "Hey! How are you?" in your channel comments or group chat and quietly advertise casinos in their profile. <strong>Readers see the garbage and leave.</strong> Our AI removes them before their message is even read.
-    </p>
+      <p class="hero-sub">
+        While you're busy — spammers write "Hey! How are you?" in your channel comments or group chat and quietly
+        advertise casinos in their profile. <strong>Readers see the garbage and leave.</strong> Our AI removes them
+        before their message is even read.
+      </p>
 
-    <div class="hero-cta">
-      <a href="https://t.me/ai_spam_blocker_bot" class="btn-primary">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
-        Enable free protection
-      </a>
-      <span class="hero-hint">100 free checks, 1-minute setup</span>
+      <div class="hero-cta">
+        <a href="https://t.me/ai_spam_blocker_bot" class="btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+          Enable free protection
+        </a>
+        <span class="hero-hint">100 free checks, 1-minute setup</span>
+      </div>
+
+      <div class="hero-stats">
+        <div>
+          <div class="stat-num">24/7</div>
+          <div class="stat-label">Works without you</div>
+        </div>
+        <div>
+          <div class="stat-num">60 сек</div>
+          <div class="stat-label">Setup from scratch</div>
+        </div>
+        <div>
+          <div class="stat-num">≥90%</div>
+          <div class="stat-label">Auto-delete confidence</div>
+        </div>
+        <div>
+          <div class="stat-num">0</div>
+          <div class="stat-label">Captchas for real users</div>
+        </div>
+      </div>
+
     </div>
-
-    <div class="hero-stats">
-      <div>
-        <div class="stat-num">24/7</div>
-        <div class="stat-label">Works without you</div>
-      </div>
-      <div>
-        <div class="stat-num">60 сек</div>
-        <div class="stat-label">Setup from scratch</div>
-      </div>
-      <div>
-        <div class="stat-num">≥90%</div>
-        <div class="stat-label">Auto-delete confidence</div>
-      </div>
-      <div>
-        <div class="stat-num">0</div>
-        <div class="stat-label">Captchas for real users</div>
-      </div>
-    </div>
-
-  </div>
-</section>
+  </section>
 
 
-<!-- ═══════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════
      SECTION 2 — WHAT HAPPENS IN YOUR CHAT
 ════════════════════════════════════════════ -->
-<div class="full-divider"></div>
-<section>
-  <div class="section-tag">Modern spam</div>
-  <h2>Spammers no longer say "BUY".<br>They've learned to blend in.</h2>
-  <p class="section-sub">
-    Here's what's really happening in Telegram groups and channel comments in 2025 — and what ordinary filters miss.
-  </p>
+  <div class="full-divider"></div>
+  <section>
+    <div class="section-tag">Modern spam</div>
+    <h2>Spammers no longer say "BUY".<br>They've learned to blend in.</h2>
+    <p class="section-sub">
+      Here's what's really happening in Telegram groups and channel comments in 2025 — and what ordinary filters miss.
+    </p>
 
-  <div class="pain-grid">
-    <div class="pain-card">
-      <span class="pain-emoji">🙂</span>
-      <h3>Hidden ads in profile</h3>
-      <p>Someone writes "Hey! How are you?" — harmless text. But their bio and Stories link to a scam channel or casino. Simple filters only see the message text.</p>
-      <div class="missed">🚫 Standard bots miss this</div>
+    <div class="pain-grid">
+      <div class="pain-card">
+        <span class="pain-emoji">🙂</span>
+        <h3>Hidden ads in profile</h3>
+        <p>Someone writes "Hey! How are you?" — harmless text. But their bio and Stories link to a scam channel or
+          casino. Simple filters only see the message text.</p>
+        <div class="missed">🚫 Standard bots miss this</div>
+      </div>
+
+      <div class="pain-card">
+        <span class="pain-emoji">🤖</span>
+        <h3>AI summaries of your posts</h3>
+        <p>A bot writes a nice "helpful" recap of your post with loads of emoji. The goal is to build reputation and
+          lure reactors into DMs. Looks exactly like a real user.</p>
+        <div class="missed">🚫 Standard bots miss this</div>
+      </div>
+
+      <div class="pain-card">
+        <span class="pain-emoji">🎭</span>
+        <h3>Native ad performances</h3>
+        <p>A group of 3 bots stages a conversation: one asks for advice, another "accidentally" recommends a service.
+          Looks like a real discussion. Our AI spots suspicious links between accounts.</p>
+        <div class="missed">🚫 Standard bots miss this</div>
+      </div>
+
+      <div class="pain-card">
+        <span class="pain-emoji">🔗</span>
+        <h3>Bots instead of channels</h3>
+        <p>The spammer doesn't link directly to a channel — they recommend a "useful assistant bot". This shields the
+          main channel from bans. Our AI analyzes where all mentioned resources lead.</p>
+        <div class="missed">🚫 Standard bots miss this</div>
+      </div>
     </div>
-
-    <div class="pain-card">
-      <span class="pain-emoji">🤖</span>
-      <h3>AI summaries of your posts</h3>
-      <p>A bot writes a nice "helpful" recap of your post with loads of emoji. The goal is to build reputation and lure reactors into DMs. Looks exactly like a real user.</p>
-      <div class="missed">🚫 Standard bots miss this</div>
-    </div>
-
-    <div class="pain-card">
-      <span class="pain-emoji">🎭</span>
-      <h3>Native ad performances</h3>
-      <p>A group of 3 bots stages a conversation: one asks for advice, another "accidentally" recommends a service. Looks like a real discussion. Our AI spots suspicious links between accounts.</p>
-      <div class="missed">🚫 Standard bots miss this</div>
-    </div>
-
-    <div class="pain-card">
-      <span class="pain-emoji">🔗</span>
-      <h3>Bots instead of channels</h3>
-      <p>The spammer doesn't link directly to a channel — they recommend a "useful assistant bot". This shields the main channel from bans. Our AI analyzes where all mentioned resources lead.</p>
-      <div class="missed">🚫 Standard bots miss this</div>
-    </div>
-  </div>
-</section>
+  </section>
 
 
-<!-- ═══════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════
      SECTION 3 — REAL BLOCKING EXAMPLES
 ════════════════════════════════════════════ -->
-<div class="full-divider"></div>
-<div class="examples-section">
-  <div class="examples-inner">
-    <div class="section-tag">Real blocking cases</div>
-    <h2>What the bot caught this week</h2>
-    <p class="section-sub">Every one of these messages looked innocent — in a group or channel comments. None of them passed.</p>
+  <div class="full-divider"></div>
+  <div class="examples-section">
+    <div class="examples-inner">
+      <div class="section-tag">Real blocking cases</div>
+      <h2>What the bot caught this week</h2>
+      <p class="section-sub">Every one of these messages looked innocent — in a group or channel comments. None of them
+        passed.</p>
 
-    <div class="examples-grid">
+      <div class="examples-grid">
 
-      <div class="msg-card">
-        <div class="msg-bubble">
-          <div class="msg-name">𝚗𝚎𝚐𝚎𝚜𝚎</div>
-          Interesting post! I agree, sometimes people just don't talk about their feelings... you can try chatting with an AI psychologist @Marypsyupbot.
-          <div class="msg-time">17:38</div>
-        </div>
-        <div class="check-line">Checked: <strong>third-party service ad + account age (0 mo.)</strong></div>
-        <div class="blocked-badge">
-          <div class="blocked-icon">🚫</div>
-          <div>
-            <div class="blocked-title">Blocked</div>
-            <div class="blocked-reason">Hidden bot advertisement + high scam risk from new account.</div>
+        <div class="msg-card">
+          <div class="msg-bubble">
+            <div class="msg-name">𝚗𝚎𝚐𝚎𝚜𝚎</div>
+            Interesting post! I agree, sometimes people just don't talk about their feelings... you can try chatting
+            with an AI psychologist @Marypsyupbot.
+            <div class="msg-time">17:38</div>
+          </div>
+          <div class="check-line">Checked: <strong>third-party service ad + account age (0 mo.)</strong></div>
+          <div class="blocked-badge">
+            <div class="blocked-icon">🚫</div>
+            <div>
+              <div class="blocked-title">Blocked</div>
+              <div class="blocked-reason">Hidden bot advertisement + high scam risk from new account.</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="msg-card">
-        <div class="msg-bubble">
-          <div class="msg-name">Марина</div>
-          Hi everyone! How are you today? 🌸
-          <div class="msg-time">16:15</div>
-        </div>
-        <div class="check-line">Checked: <strong>profile bio and Stories links</strong></div>
-        <div class="blocked-badge">
-          <div class="blocked-icon">🚫</div>
-          <div>
-            <div class="blocked-title">Blocked</div>
-            <div class="blocked-reason">Harmless text, but bio and Stories link to a scam channel.</div>
+        <div class="msg-card">
+          <div class="msg-bubble">
+            <div class="msg-name">Марина</div>
+            Hi everyone! How are you today? 🌸
+            <div class="msg-time">16:15</div>
+          </div>
+          <div class="check-line">Checked: <strong>profile bio and Stories links</strong></div>
+          <div class="blocked-badge">
+            <div class="blocked-icon">🚫</div>
+            <div>
+              <div class="blocked-title">Blocked</div>
+              <div class="blocked-reason">Harmless text, but bio and Stories link to a scam channel.</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="msg-card">
-        <div class="msg-bubble">
-          <div class="msg-name">Елена</div>
-          Post discusses importance of moderation 🛡️ and how AI helps 🧠. Manual work takes time ⏳. Very useful! 👍✨
-          <div class="msg-time">09:15</div>
-        </div>
-        <div class="check-line">Checked: <strong>AI-generated tone + abnormal emoji count</strong></div>
-        <div class="blocked-badge">
-          <div class="blocked-icon">🚫</div>
-          <div>
-            <div class="blocked-title">Blocked</div>
-            <div class="blocked-reason">AI signature. Pointless post recap for engagement farming.</div>
+        <div class="msg-card">
+          <div class="msg-bubble">
+            <div class="msg-name">Елена</div>
+            Post discusses importance of moderation 🛡️ and how AI helps 🧠. Manual work takes time ⏳. Very useful! 👍✨
+            <div class="msg-time">09:15</div>
+          </div>
+          <div class="check-line">Checked: <strong>AI-generated tone + abnormal emoji count</strong></div>
+          <div class="blocked-badge">
+            <div class="blocked-icon">🚫</div>
+            <div>
+              <div class="blocked-title">Blocked</div>
+              <div class="blocked-reason">AI signature. Pointless post recap for engagement farming.</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="msg-card">
-        <div class="msg-bubble">
-          <div class="msg-name">Алёна</div>
-          Good evening! Anyone here? We have a client who needs funding for a business launch in Turkey... there's an apartment, very nice.
-          <div class="msg-time">15:44</div>
-        </div>
-        <div class="check-line">Checked: <strong>linked channels, Stories, profile photo age (2 mo.)</strong></div>
-        <div class="blocked-badge">
-          <div class="blocked-icon">🚫</div>
-          <div>
-            <div class="blocked-title">Blocked</div>
-            <div class="blocked-reason">Hidden investment pitch from account with no activity history.</div>
+        <div class="msg-card">
+          <div class="msg-bubble">
+            <div class="msg-name">Алёна</div>
+            Good evening! Anyone here? We have a client who needs funding for a business launch in Turkey... there's an
+            apartment, very nice.
+            <div class="msg-time">15:44</div>
+          </div>
+          <div class="check-line">Checked: <strong>linked channels, Stories, profile photo age (2 mo.)</strong></div>
+          <div class="blocked-badge">
+            <div class="blocked-icon">🚫</div>
+            <div>
+              <div class="blocked-title">Blocked</div>
+              <div class="blocked-reason">Hidden investment pitch from account with no activity history.</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="msg-card">
-        <div class="msg-bubble">
-          <div class="msg-name">Юля</div>
-          Are cottages near the airport trending now? Or did I miss something? 🙃 Saw a couple of listings yesterday at really odd prices...
-          <div class="msg-time">12:10</div>
-        </div>
-        <div class="check-line">Checked: <strong>relevance to chat topic + hidden ad patterns</strong></div>
-        <div class="blocked-badge">
-          <div class="blocked-icon">🚫</div>
-          <div>
-            <div class="blocked-title">Blocked</div>
-            <div class="blocked-reason">Native real estate ad disguised as a real discussion.</div>
+        <div class="msg-card">
+          <div class="msg-bubble">
+            <div class="msg-name">Юля</div>
+            Are cottages near the airport trending now? Or did I miss something? 🙃 Saw a couple of listings yesterday
+            at really odd prices...
+            <div class="msg-time">12:10</div>
+          </div>
+          <div class="check-line">Checked: <strong>relevance to chat topic + hidden ad patterns</strong></div>
+          <div class="blocked-badge">
+            <div class="blocked-icon">🚫</div>
+            <div>
+              <div class="blocked-title">Blocked</div>
+              <div class="blocked-reason">Native real estate ad disguised as a real discussion.</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="msg-card">
-        <div class="msg-bubble">
-          <div class="msg-name">Вероника</div>
-          Who wants to earn from $30/hour! Looking for active guys and girls... message me!
-          <div class="msg-time">12:35</div>
-        </div>
-        <div class="check-line">Checked: <strong>key phrases + intent analysis</strong></div>
-        <div class="blocked-badge">
-          <div class="blocked-icon">🚫</div>
-          <div>
-            <div class="blocked-title">Blocked</div>
-            <div class="blocked-reason">Job scam. Attempt to funnel into DMs with a questionable earning offer.</div>
+        <div class="msg-card">
+          <div class="msg-bubble">
+            <div class="msg-name">Вероника</div>
+            Who wants to earn from $30/hour! Looking for active guys and girls... message me!
+            <div class="msg-time">12:35</div>
+          </div>
+          <div class="check-line">Checked: <strong>key phrases + intent analysis</strong></div>
+          <div class="blocked-badge">
+            <div class="blocked-icon">🚫</div>
+            <div>
+              <div class="blocked-title">Blocked</div>
+              <div class="blocked-reason">Job scam. Attempt to funnel into DMs with a questionable earning offer.</div>
+            </div>
           </div>
         </div>
-      </div>
 
+      </div>
     </div>
   </div>
-</div>
 
 
-<!-- ═══════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════
      CTA #1 — after examples
 ════════════════════════════════════════════ -->
-<div class="cta-banner">
-  <div style="position:relative;z-index:1">
-    <h2>Recognize this from your chat or channel?</h2>
-    <p>Add the bot in 60 seconds — first 100 checks free, no registration.</p>
-    <a href="https://t.me/ai_spam_blocker_bot" class="btn-primary">
-      Try for free →
-    </a>
+  <div class="cta-banner">
+    <div style="position:relative;z-index:1">
+      <h2>Recognize this from your chat or channel?</h2>
+      <p>Add the bot in 60 seconds — first 100 checks free, no registration.</p>
+      <a href="https://t.me/ai_spam_blocker_bot" class="btn-primary">
+        Try for free →
+      </a>
+    </div>
   </div>
-</div>
 
 
-<!-- ═══════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════
      SECTION 4 — WHY STANDARD MEASURES FAIL
 ════════════════════════════════════════════ -->
-<div class="full-divider"></div>
-<section>
-  <div class="section-tag">Why standard measures fall short</div>
-  <h2>Telegram won't protect your group.<br>That's on you.</h2>
+  <div class="full-divider"></div>
+  <section>
+    <div class="section-tag">Why standard measures fall short</div>
+    <h2>Telegram won't protect your group.<br>That's on you.</h2>
 
-  <div class="why-layout">
-    <div class="why-text">
-      <p>
-        Telegram only removes spammers from its <strong>global blacklist</strong> — accounts already caught and recorded. But a fresh account with casino ads in its bio is perfectly clean to Telegram.
-      </p>
-      <p>
-        Entry captchas filter out dumb 2018-era bots. But a real person — or a smart bot — will pass any captcha, then quietly spam for months in your group chat or channel comments.
-      </p>
-      <p>
-        Keyword filters require constant manual updates. <strong>Spammers adapt in days.</strong> You won't keep up.
-      </p>
-      <p>
-        Our AI looks where nobody looked before: the <strong>full profile</strong> — bio, Stories, linked channels, account age. Works for both groups and channel comments. A different class of protection.
-      </p>
+    <div class="why-layout">
+      <div class="why-text">
+        <p>
+          Telegram only removes spammers from its <strong>global blacklist</strong> — accounts already caught and
+          recorded. But a fresh account with casino ads in its bio is perfectly clean to Telegram.
+        </p>
+        <p>
+          Entry captchas filter out dumb 2018-era bots. But a real person — or a smart bot — will pass any captcha, then
+          quietly spam for months in your group chat or channel comments.
+        </p>
+        <p>
+          Keyword filters require constant manual updates. <strong>Spammers adapt in days.</strong> You won't keep up.
+        </p>
+        <p>
+          Our AI looks where nobody looked before: the <strong>full profile</strong> — bio, Stories, linked channels,
+          account age. Works for both groups and channel comments. A different class of protection.
+        </p>
+      </div>
+
+      <div class="why-visual">
+        <div class="why-vis-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          What gets checked on every message
+        </div>
+        <div class="check-row">
+          <span class="check-label">Message text</span>
+          <span class="check-yes">✓</span>
+        </div>
+        <div class="check-row">
+          <span class="check-label">Profile bio</span>
+          <span class="check-yes">✓</span>
+        </div>
+        <div class="check-row">
+          <span class="check-label">Stories and their links</span>
+          <span class="check-yes">✓</span>
+        </div>
+        <div class="check-row">
+          <span class="check-label">Linked channels</span>
+          <span class="check-yes">✓</span>
+        </div>
+        <div class="check-row">
+          <span class="check-label">Account age</span>
+          <span class="check-yes">✓</span>
+        </div>
+        <div class="check-row">
+          <span class="check-label">AI-generation patterns</span>
+          <span class="check-yes">✓</span>
+        </div>
+        <div class="check-row">
+          <span class="check-label">Emoji anomalies</span>
+          <span class="check-yes">✓</span>
+        </div>
+        <div class="check-row" style="background:rgba(79,110,247,0.04)">
+          <span class="check-label" style="color:var(--text);font-weight:500">Result: full context</span>
+          <span style="font-size:11px;color:var(--accent);font-weight:600">ALL ABOVE</span>
+        </div>
+      </div>
     </div>
-
-    <div class="why-visual">
-      <div class="why-vis-header">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        What gets checked on every message
-      </div>
-      <div class="check-row">
-        <span class="check-label">Message text</span>
-        <span class="check-yes">✓</span>
-      </div>
-      <div class="check-row">
-        <span class="check-label">Profile bio</span>
-        <span class="check-yes">✓</span>
-      </div>
-      <div class="check-row">
-        <span class="check-label">Stories and their links</span>
-        <span class="check-yes">✓</span>
-      </div>
-      <div class="check-row">
-        <span class="check-label">Linked channels</span>
-        <span class="check-yes">✓</span>
-      </div>
-      <div class="check-row">
-        <span class="check-label">Account age</span>
-        <span class="check-yes">✓</span>
-      </div>
-      <div class="check-row">
-        <span class="check-label">AI-generation patterns</span>
-        <span class="check-yes">✓</span>
-      </div>
-      <div class="check-row">
-        <span class="check-label">Emoji anomalies</span>
-        <span class="check-yes">✓</span>
-      </div>
-      <div class="check-row" style="background:rgba(79,110,247,0.04)">
-        <span class="check-label" style="color:var(--text);font-weight:500">Result: full context</span>
-        <span style="font-size:11px;color:var(--accent);font-weight:600">ALL ABOVE</span>
-      </div>
-    </div>
-  </div>
-</section>
+  </section>
 
 
-<!-- ═══════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════
      SECTION 5 — HOW IT WORKS (for skeptics)
 ════════════════════════════════════════════ -->
-<div class="full-divider"></div>
-<section>
-  <div class="section-tag">Technical — for those who want to understand</div>
-  <h2>How the analysis actually works</h2>
-  <p class="section-sub">Three layers of checks running in parallel for every new member.</p>
+  <div class="full-divider"></div>
+  <section>
+    <div class="section-tag">Technical — for those who want to understand</div>
+    <h2>How the analysis actually works</h2>
+    <p class="section-sub">Three layers of checks running in parallel for every new member.</p>
 
-  <div class="tech-grid">
-    <div class="tech-card">
-      <div class="tech-num">01 / TEXT</div>
-      <h3>Intent analysis, not keywords</h3>
-      <p>The AI doesn't look for stop-words — it understands context and intent. "Earn from home" and "I want to earn" are different with different intentions.</p>
-      <div class="tech-tags">
-        <span class="tag">LLM</span>
-        <span class="tag">intent analysis</span>
+    <div class="tech-grid">
+      <div class="tech-card">
+        <div class="tech-num">01 / TEXT</div>
+        <h3>Intent analysis, not keywords</h3>
+        <p>The AI doesn't look for stop-words — it understands context and intent. "Earn from home" and "I want to earn"
+          are different with different intentions.</p>
+        <div class="tech-tags">
+          <span class="tag">LLM</span>
+          <span class="tag">intent analysis</span>
+        </div>
+      </div>
+
+      <div class="tech-card">
+        <div class="tech-num">02 / PROFILE</div>
+        <h3>Full account audit</h3>
+        <p>For every message from a new member, the bot checks their bio, Stories, linked channels, and account creation
+          date — automatically.</p>
+        <div class="tech-tags">
+          <span class="tag">bio check</span>
+          <span class="tag">stories</span>
+          <span class="tag">account age</span>
+        </div>
+      </div>
+
+      <div class="tech-card">
+        <div class="tech-num">03 / CONFIDENCE</div>
+        <h3>Smart decisions without mistakes</h3>
+        <p>At ≥90% confidence — auto-delete. At 50–90% — the bot notifies you and waits for your call. Real users won't
+          get caught in false bans.</p>
+        <div class="tech-tags">
+          <span class="tag">confidence score</span>
+          <span class="tag">human-in-loop</span>
+        </div>
+      </div>
+
+      <div class="tech-card">
+        <div class="tech-num">04 / LEARNING</div>
+        <h3>Learns your community</h3>
+        <p>Forward any message to the bot labeled "Spam" or "Not spam". Each group gets its own base — what's normal in
+          one chat may be spam in another.</p>
+        <div class="tech-tags">
+          <span class="tag">per-group training</span>
+          <span class="tag">feedback loop</span>
+        </div>
       </div>
     </div>
 
-    <div class="tech-card">
-      <div class="tech-num">02 / PROFILE</div>
-      <h3>Full account audit</h3>
-      <p>For every message from a new member, the bot checks their bio, Stories, linked channels, and account creation date — automatically.</p>
-      <div class="tech-tags">
-        <span class="tag">bio check</span>
-        <span class="tag">stories</span>
-        <span class="tag">account age</span>
+    <!-- Flow -->
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-icon bg-blue">💬</div>
+        <div class="flow-step-label"><strong>Message</strong>new member writes in chat</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-icon bg-purple">🧠</div>
+        <div class="flow-step-label"><strong>AI analysis</strong>text + profile + history</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-icon bg-orange">⚖️</div>
+        <div class="flow-step-label"><strong>Score</strong>0–100% spam probability</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-icon bg-red">🚫</div>
+        <div class="flow-step-label"><strong>≥90%</strong>auto-delete</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-icon bg-green">✅</div>
+        <div class="flow-step-label"><strong>&lt;50%</strong>pass through silently</div>
       </div>
     </div>
-
-    <div class="tech-card">
-      <div class="tech-num">03 / CONFIDENCE</div>
-      <h3>Smart decisions without mistakes</h3>
-      <p>At ≥90% confidence — auto-delete. At 50–90% — the bot notifies you and waits for your call. Real users won't get caught in false bans.</p>
-      <div class="tech-tags">
-        <span class="tag">confidence score</span>
-        <span class="tag">human-in-loop</span>
-      </div>
-    </div>
-
-    <div class="tech-card">
-      <div class="tech-num">04 / LEARNING</div>
-      <h3>Learns your community</h3>
-      <p>Forward any message to the bot labeled "Spam" or "Not spam". Each group gets its own base — what's normal in one chat may be spam in another.</p>
-      <div class="tech-tags">
-        <span class="tag">per-group training</span>
-        <span class="tag">feedback loop</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Flow -->
-  <div class="flow">
-    <div class="flow-step">
-      <div class="flow-icon bg-blue">💬</div>
-      <div class="flow-step-label"><strong>Message</strong>new member writes in chat</div>
-    </div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-step">
-      <div class="flow-icon bg-purple">🧠</div>
-      <div class="flow-step-label"><strong>AI analysis</strong>text + profile + history</div>
-    </div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-step">
-      <div class="flow-icon bg-orange">⚖️</div>
-      <div class="flow-step-label"><strong>Score</strong>0–100% spam probability</div>
-    </div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-step">
-      <div class="flow-icon bg-red">🚫</div>
-      <div class="flow-step-label"><strong>≥90%</strong>auto-delete</div>
-    </div>
-    <div class="flow-arrow">→</div>
-    <div class="flow-step">
-      <div class="flow-icon bg-green">✅</div>
-      <div class="flow-step-label"><strong>&lt;50%</strong>pass through silently</div>
-    </div>
-  </div>
-</section>
+  </section>
 
 
-<!-- ═══════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════
      PRICING
 ════════════════════════════════════════════ -->
-<div class="full-divider"></div>
-<section>
-  <div class="section-tag">Pricing</div>
-  <h2>Simple and fair</h2>
-  <p class="section-sub">Pay only for real work done. Approved members are never charged again.</p>
+  <div class="full-divider"></div>
+  <section>
+    <div class="section-tag">Pricing</div>
+    <h2>Simple and fair</h2>
+    <p class="section-sub">Pay only for real work done. Approved members are never charged again.</p>
 
-  <div class="pricing-card">
-    <div style="position:relative;z-index:1">
-      <div class="price-main">
-        <div class="price-num">1 ⭐</div>
-        <div class="price-per">Telegram Star per new member check</div>
+    <div class="pricing-card">
+      <div style="position:relative;z-index:1">
+        <div class="price-main">
+          <div class="price-num">1 ⭐</div>
+          <div class="price-per">Telegram Star per new member check</div>
+        </div>
+        <ul class="price-list">
+          <li><strong>100 free checks</strong> when you start — for new members and commenters</li>
+          <li>Approved members <strong>chat for free</strong> — no repeat charges</li>
+          <li>Same rate whether the person is blocked or approved</li>
+          <li>Small groups with few new members <strong>can run essentially free</strong> on the gifted checks for a
+            long time</li>
+        </ul>
       </div>
-      <ul class="price-list">
-        <li><strong>100 free checks</strong> when you start — for new members and commenters</li>
-        <li>Approved members <strong>chat for free</strong> — no repeat charges</li>
-        <li>Same rate whether the person is blocked or approved</li>
-        <li>Small groups with few new members <strong>can run essentially free</strong> on the gifted checks for a long time</li>
-      </ul>
     </div>
-  </div>
-</section>
+  </section>
 
 
-<!-- ═══════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════
+     NEWS SECTION
+════════════════════════════════════════════ -->
+  <div class="full-divider"></div>
+  <section class="py-24">
+    <div class="container mx-auto max-w-5xl px-4">
+      <h2 class="section-title">News and guides</h2>
+      <div class="space-y-6">
+        <a href="https://vc.ru/telegram/2794831-kak-spam-v-telegram-maskiruetsya-pod-cheloveka" class="news-card">
+          <div class="text-blue-500 font-bold text-sm mb-2">March 14, 2026</div>
+          <h3 class="text-xl font-bold mb-2">How Telegram spam learned to pretend to be human: 5 levels of camouflage
+          </h3>
+          <p class="text-slate-400">Deep dive into spam evolution from simple links to complex multi-layer Pig
+            Butchering funnels. Article on vc.ru.</p>
+        </a>
+
+        <a href="https://t.me/ai_antispam/41" class="news-card">
+          <div class="text-blue-500 font-bold text-sm mb-2">Feb 17, 2026</div>
+          <h3 class="text-xl font-bold mb-2">You control borderline cases</h3>
+          <p class="text-slate-400">Now at low AI confidence (50–90%) the bot doesn't delete by itself — you
+            get a notification with "Delete" and "Not spam" buttons. Fewer false positives.</p>
+        </a>
+
+        <a href="https://t.me/ai_antispam/36" class="news-card">
+          <div class="text-blue-500 font-bold text-sm mb-2">Dec 9, 2025</div>
+          <h3 class="text-xl font-bold mb-2">Account age detection</h3>
+          <p class="text-slate-400">The bot now detects account creation date. Fresh profiles are one of the
+            main signs of spam bots.</p>
+        </a>
+
+        <a href="https://t.me/ai_antispam/17" class="news-card">
+          <div class="text-blue-500 font-bold text-sm mb-2">Nov 6, 2025</div>
+          <h3 class="text-xl font-bold mb-2">Spammer tactics in comments</h3>
+          <p class="text-slate-400">Breaking down new tactics: how spam bots disguise as regular users and use
+            "blind zones" for simple bots.</p>
+        </a>
+
+        <a href="https://t.me/ai_antispam/14" class="news-card">
+          <div class="text-blue-500 font-bold text-sm mb-2">May 13, 2025</div>
+          <h3 class="text-xl font-bold mb-2">How to connect the bot in 2 minutes</h3>
+          <p class="text-slate-400">Step-by-step guide for channel comment moderation and group protection.
+          </p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════
      FAQ
 ════════════════════════════════════════════ -->
-<div class="full-divider"></div>
-<section>
-  <div class="section-tag">FAQ</div>
-  <h2>Frequently asked questions</h2>
+  <div class="full-divider"></div>
+  <section>
+    <div class="section-tag">FAQ</div>
+    <h2>Frequently asked questions</h2>
 
-  <div class="faq-list">
+    <div class="faq-list">
 
-    <div class="faq-item">
-      <div class="faq-q" onclick="toggle(this)">Why do I need this if Telegram already removes spam?</div>
-      <div class="faq-a">Telegram only blocks accounts from a global blacklist — those already caught before. <strong>A fresh account with casino ads in its bio looks perfectly clean to Telegram.</strong> That's exactly why modern spam works so well — it uses fresh accounts in both groups and channel comments.</div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggle(this)">Why do I need this if Telegram already removes spam?</div>
+        <div class="faq-a">Telegram only blocks accounts from a global blacklist — those already caught before.
+          <strong>A fresh account with casino ads in its bio looks perfectly clean to Telegram.</strong> That's exactly
+          why modern spam works so well — it uses fresh accounts in both groups and channel comments.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggle(this)">How is this different from an entry captcha?</div>
+        <div class="faq-a">Captchas only filter dumb bots. <strong>A real person or a smart bot will pass any
+            captcha</strong> — then spam for months. We don't block entry: we analyze the profile silently after the
+          first message. Real users never notice anything.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggle(this)">Will the bot ban regular users by mistake?</div>
+        <div class="faq-a">No. At 50–90% confidence the bot <strong>doesn't auto-delete</strong> — it sends you a
+          notification with "Delete" and "Not spam" buttons. Only at ≥90% does auto-delete kick in. False positives are
+          rare — and when they happen, the "Not spam" button trains the AI not to repeat the mistake.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggle(this)">Is it hard to set up?</div>
+        <div class="faq-a">No. <strong>Add the bot to your group or channel's comment chat, grant admin rights</strong>
+          — done. Takes 60 seconds. No registration, no forms. A step-by-step guide is in our channel if anything's
+          unclear.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggle(this)">Does the bot read all messages in the chat?</div>
+        <div class="faq-a">The bot processes messages solely for spam checking. <strong>Chat history is not
+            stored.</strong> The bot has no access to private chats — it only works in groups and channels where you've
+          added it.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggle(this)">Can I train the bot for my community's specifics?</div>
+        <div class="faq-a">Yes. Forward any message to the bot in a private chat and write "Spam" or "Not spam".
+          <strong>Each group gets its own knowledge base</strong> — the bot learns what's normal for your community and
+          makes fewer mistakes.</div>
+      </div>
+
     </div>
-
-    <div class="faq-item">
-      <div class="faq-q" onclick="toggle(this)">How is this different from an entry captcha?</div>
-      <div class="faq-a">Captchas only filter dumb bots. <strong>A real person or a smart bot will pass any captcha</strong> — then spam for months. We don't block entry: we analyze the profile silently after the first message. Real users never notice anything.</div>
-    </div>
-
-    <div class="faq-item">
-      <div class="faq-q" onclick="toggle(this)">Will the bot ban regular users by mistake?</div>
-      <div class="faq-a">No. At 50–90% confidence the bot <strong>doesn't auto-delete</strong> — it sends you a notification with "Delete" and "Not spam" buttons. Only at ≥90% does auto-delete kick in. False positives are rare — and when they happen, the "Not spam" button trains the AI not to repeat the mistake.</div>
-    </div>
-
-    <div class="faq-item">
-      <div class="faq-q" onclick="toggle(this)">Is it hard to set up?</div>
-      <div class="faq-a">No. <strong>Add the bot to your group or channel's comment chat, grant admin rights</strong> — done. Takes 60 seconds. No registration, no forms. A step-by-step guide is in our channel if anything's unclear.</div>
-    </div>
-
-    <div class="faq-item">
-      <div class="faq-q" onclick="toggle(this)">Does the bot read all messages in the chat?</div>
-      <div class="faq-a">The bot processes messages solely for spam checking. <strong>Chat history is not stored.</strong> The bot has no access to private chats — it only works in groups and channels where you've added it.</div>
-    </div>
-
-    <div class="faq-item">
-      <div class="faq-q" onclick="toggle(this)">Can I train the bot for my community's specifics?</div>
-      <div class="faq-a">Yes. Forward any message to the bot in a private chat and write "Spam" or "Not spam". <strong>Each group gets its own knowledge base</strong> — the bot learns what's normal for your community and makes fewer mistakes.</div>
-    </div>
-
-  </div>
-</section>
+  </section>
 
 
-<!-- ═══════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════
      FINAL CTA
 ════════════════════════════════════════════ -->
-<div class="cta-banner" style="margin-bottom:0;border-radius:0;border-left:none;border-right:none;border-bottom:none;padding:80px 40px">
-  <div style="position:relative;z-index:1">
-    <div class="section-tag" style="text-align:center;margin-bottom:20px">Get started now</div>
-    <h2>Forget about spam in Telegram</h2>
-    <p>Protect your group or channel comments in 1 minute.<br>First 100 checks free. No registration, no credit card.</p>
-    <a href="https://t.me/ai_spam_blocker_bot" class="btn-primary">
-      Launch the bot →
-    </a>
+  <div class="cta-banner"
+    style="margin-bottom:0;border-radius:0;border-left:none;border-right:none;border-bottom:none;padding:80px 40px">
+    <div style="position:relative;z-index:1">
+      <div class="section-tag" style="text-align:center;margin-bottom:20px">Get started now</div>
+      <h2>Forget about spam in Telegram</h2>
+      <p>Protect your group or channel comments in 1 minute.<br>First 100 checks free. No registration, no credit card.
+      </p>
+      <a href="https://t.me/ai_spam_blocker_bot" class="btn-primary">
+        Launch the bot →
+      </a>
+    </div>
   </div>
-</div>
 
 
-<!-- ═══════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════
      FOOTER
 ════════════════════════════════════════════ -->
-<div class="full-divider"></div>
-<footer>
-  <div class="nav-logo">
-    <img src="data:image/png;base64,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" style="width:28px;height:28px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(79,110,247,0.6));" alt="logo">
-    AI Anti-Spam
-  </div>
-  <div class="footer-links">
-    <a href="https://t.me/ai_antispam">News</a>
-    <a href="https://t.me/ai_antispam/14">Setup</a>
-    <a href="https://t.me/ai_spam_blocker_bot">Launch bot</a>
-  </div>
-  <div class="footer-copy">© 2026 ai-antispam.ru</div>
-</footer>
+  <div class="full-divider"></div>
+  <footer>
+    <div class="nav-logo">
+      <img
+        src="data:image/png;base64,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"
+        style="width:28px;height:28px;object-fit:contain;filter:drop-shadow(0 0 8px rgba(79,110,247,0.6));" alt="logo">
+      AI Anti-Spam
+    </div>
+    <div class="footer-links">
+      <a href="https://t.me/ai_antispam">News</a>
+      <a href="https://t.me/ai_antispam/14">Setup</a>
+      <a href="https://t.me/ai_spam_blocker_bot">Launch bot</a>
+    </div>
+    <div class="footer-copy">© 2026 ai-antispam.ru</div>
+  </footer>
 
-<script>
-  function toggle(el) {
-    const item = el.closest('.faq-item');
-    item.classList.toggle('open');
-  }
-</script>
+  <script>
+    function toggle(el) {
+      const item = el.closest('.faq-item');
+      item.classList.toggle('open');
+    }
+  </script>
 
 </body>
+
 </html>
