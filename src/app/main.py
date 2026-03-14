@@ -209,26 +209,36 @@ async def handle_timeout(
     )
 
 
+def _temporary_error_to_response(
+    e: Union[RateLimitExceeded, LocationNotSupported],
+    remaining: float,
+) -> tuple[dict, int]:
+    """Build JSON body and status for temporary errors (rate limit, location not supported)."""
+    if isinstance(e, RateLimitExceeded):
+        if e.is_upstream_error:
+            return {"error": "Upstream provider rate limit exceeded"}, 503
+        return {
+            "error": "OpenRouter rate limit exceeded",
+            "retry_after": e.reset_time,
+        }, 503
+    return {"error": "Location not supported", "provider": e.provider}, 503
+
+
 async def handle_temporary_error(
     span: logfire.LogfireSpan,
     e: Union[RateLimitExceeded, LocationNotSupported],
     elapsed: float,
     remaining: float,
 ) -> web.Response:
-    """Handle rate limit or location not supported error"""
-    error_type = (
-        "rate_limit" if isinstance(e, RateLimitExceeded) else "location_not_supported"
-    )
+    """Handle rate limit or location not supported error."""
+    is_rate_limit = isinstance(e, RateLimitExceeded)
+    error_type = "rate_limit" if is_rate_limit else "location_not_supported"
     span.tags = [error_type]
 
-    if remaining < 5:  # If less than 5 seconds remaining
-        error_type_msg = (
-            "Rate limit"
-            if isinstance(e, RateLimitExceeded)
-            else "Location not supported"
-        )
+    error_msg = "Rate limit" if is_rate_limit else "Location not supported"
+    if remaining < 5:
         logger.warning(
-            f"{error_type_msg} hit but no time for retries",
+            f"{error_msg} hit but no time for retries",
             extra={
                 "elapsed": elapsed,
                 "remaining": remaining,
@@ -237,45 +247,26 @@ async def handle_temporary_error(
             },
         )
         return web.json_response(
-            {
-                "message": f"{error_type_msg} hit but no time for retries",
-                "elapsed": elapsed,
-            }
+            {"message": f"{error_msg} hit but no time for retries", "elapsed": elapsed}
         )
 
-    # We have time for retries, return 503
-    if isinstance(e, RateLimitExceeded):
-        # Если это ошибка от upstream-провайдера, возвращаем 503 без retry_after
-        if e.is_upstream_error:
-            logger.info(
-                "Upstream provider rate limit exceeded, immediate retry",
-                extra={"remaining": remaining},
-            )
-            return web.json_response(
-                {"error": "Upstream provider rate limit exceeded"},
-                status=503,
-            )
-        # Если это ошибка от OpenRouter, возвращаем 503 с retry_after
-        else:
-            logger.info(
-                f"OpenRouter rate limit exceeded, {remaining:.2f} seconds remaining for retries",
-                extra={"reset_time": e.reset_time},
-            )
-            return web.json_response(
-                {
-                    "error": "OpenRouter rate limit exceeded",
-                    "retry_after": e.reset_time,
-                },
-                status=503,
-            )
-    else:  # LocationNotSupported
+    if isinstance(e, RateLimitExceeded) and e.is_upstream_error:
+        logger.info(
+            "Upstream provider rate limit exceeded, immediate retry",
+            extra={"remaining": remaining},
+        )
+    elif isinstance(e, RateLimitExceeded):
+        logger.info(
+            f"OpenRouter rate limit exceeded, {remaining:.2f} seconds remaining for retries",
+            extra={"reset_time": e.reset_time},
+        )
+    else:
         logger.info(
             f"Location not supported for provider {e.provider}, {remaining:.2f} seconds remaining for retries"
         )
-        return web.json_response(
-            {"error": "Location not supported", "provider": e.provider},
-            status=503,
-        )
+
+    body, status = _temporary_error_to_response(e, remaining)
+    return web.json_response(body, status=status)
 
 
 async def handle_unhandled_exception(

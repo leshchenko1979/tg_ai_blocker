@@ -23,7 +23,7 @@ async def test_check_week_ahead_warnings_sends_and_marks():
         ) as mock_get,
         patch("app.background_jobs.low_balance.get_admin") as mock_get_admin,
         patch(
-            "app.background_jobs.low_balance._send_admin_message",
+            "app.background_jobs.low_balance.send_admin_dm",
             new_callable=AsyncMock,
         ) as mock_send,
         patch(
@@ -59,7 +59,7 @@ async def test_check_week_ahead_skips_inactive_admin():
         ) as mock_get,
         patch("app.background_jobs.low_balance.get_admin") as mock_get_admin,
         patch(
-            "app.background_jobs.low_balance._send_admin_message",
+            "app.background_jobs.low_balance.send_admin_dm",
             new_callable=AsyncMock,
         ) as mock_send,
         patch(
@@ -142,7 +142,7 @@ async def test_leave_sole_payer_groups_leaves_and_notifies():
             new_callable=AsyncMock,
         ) as mock_cleanup,
         patch(
-            "app.background_jobs.low_balance._send_admin_message",
+            "app.background_jobs.low_balance.send_admin_dm",
             new_callable=AsyncMock,
         ) as mock_send,
     ):

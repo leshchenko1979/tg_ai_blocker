@@ -15,46 +15,40 @@ from ..common.utils import (
     format_chat_or_channel_display,
     get_add_to_group_url,
     load_config,
-    retry_on_network_error,
+    send_admin_dm,
 )
+from ..i18n import resolve_lang, t
 from ..database import get_admin, get_group
 from ..database.group_operations import (
     clear_no_rights_detected_at,
     get_groups_with_no_rights_past_grace,
 )
-from ..i18n import normalize_lang, t
 
 logger = logging.getLogger(__name__)
 
 
-def _get_no_rights_grace_days() -> int:
-    """Load no_rights_grace_days from config. Default 7."""
-    config = load_config()
-    billing = config.get("billing", {})
-    return billing.get("no_rights_grace_days", 7)
-
-
-async def _send_admin_message(admin_id: int, text: str) -> bool:
-    """Send a message to admin. Returns True if sent, False on failure."""
+async def _leave_group_and_record_for_notification(
+    group_id: int,
+    admin_to_left_groups: dict[int, list[tuple[int, str]]],
+) -> bool:
+    """Leave group and record admins for notification. Returns True if left successfully."""
+    group = await get_group(group_id)
     try:
-
-        @retry_on_network_error
-        async def _send():
-            return await bot.send_message(
-                admin_id,
-                text,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
-
-        await _send()
-        return True
-    except Exception as e:
-        logger.warning(
-            f"Failed to send no-rights message to admin {admin_id}: {e}",
-            exc_info=True,
+        chat = await bot.get_chat(group_id)
+        title = getattr(chat, "title", None) or str(group_id)
+        username = getattr(chat, "username", None)
+        display = format_chat_or_channel_display(
+            title, username, t("en", "common.group")
         )
-        return False
+    except Exception:
+        display = str(group_id)
+    success = await perform_complete_group_cleanup(group_id)
+    if success and group and group.admin_ids:
+        for admin_id in group.admin_ids:
+            if admin_id not in admin_to_left_groups:
+                admin_to_left_groups[admin_id] = []
+            admin_to_left_groups[admin_id].append((group_id, display))
+    return success
 
 
 async def leave_no_rights_groups() -> None:
@@ -62,7 +56,7 @@ async def leave_no_rights_groups() -> None:
     Leave groups where bot has no required rights past grace period.
     Re-verify via get_chat_member before leaving. Notify admins.
     """
-    grace_days = _get_no_rights_grace_days()
+    grace_days = load_config().get("billing", {}).get("no_rights_grace_days", 7)
     group_ids = await get_groups_with_no_rights_past_grace(grace_days)
 
     if not group_ids:
@@ -75,64 +69,31 @@ async def leave_no_rights_groups() -> None:
     admin_to_left_groups: dict[int, list[tuple[int, str]]] = {}
 
     for group_id in group_ids:
+        skip_leave = False
         try:
             member = await bot.get_chat_member(group_id, bot_user_id)
-
             if isinstance(member, ChatMemberAdministrator) and (
                 getattr(member, "can_delete_messages", False)
                 and getattr(member, "can_restrict_members", False)
             ):
                 await clear_no_rights_detected_at(group_id)
                 logger.info(f"Rights restored in group {group_id}, cleared flag")
-                continue
-
-            # No rights or not admin: leave
-            group = await get_group(group_id)
-            try:
-                chat = await bot.get_chat(group_id)
-                title = getattr(chat, "title", None) or str(group_id)
-                username = getattr(chat, "username", None)
-                display = format_chat_or_channel_display(
-                    title, username, t("en", "common.group")
-                )
-            except Exception:
-                display = str(group_id)
-
-            success = await perform_complete_group_cleanup(group_id)
-            if success:
-                logger.info(f"Left no-rights group {group_id}")
-                if group and group.admin_ids:
-                    for admin_id in group.admin_ids:
-                        if admin_id not in admin_to_left_groups:
-                            admin_to_left_groups[admin_id] = []
-                        admin_to_left_groups[admin_id].append((group_id, display))
-            else:
-                logger.warning(f"Failed to leave group {group_id}")
-
+                skip_leave = True
         except Exception as e:
             logger.warning(
-                f"Error checking/leaving group {group_id}: {e}",
+                f"Error checking rights in group {group_id}: {e}",
                 exc_info=True,
             )
-            group = await get_group(group_id)
-            display = str(group_id)
-            if group and group.admin_ids:
-                try:
-                    chat = await bot.get_chat(group_id)
-                    title = getattr(chat, "title", None) or str(group_id)
-                    username = getattr(chat, "username", None)
-                    display = format_chat_or_channel_display(
-                        title, username, t("en", "common.group")
-                    )
-                except Exception:
-                    pass
+
+        if not skip_leave:
             try:
-                success = await perform_complete_group_cleanup(group_id)
-                if success and group and group.admin_ids:
-                    for admin_id in group.admin_ids:
-                        if admin_id not in admin_to_left_groups:
-                            admin_to_left_groups[admin_id] = []
-                        admin_to_left_groups[admin_id].append((group_id, display))
+                success = await _leave_group_and_record_for_notification(
+                    group_id, admin_to_left_groups
+                )
+                if success:
+                    logger.info(f"Left no-rights group {group_id}")
+                else:
+                    logger.warning(f"Failed to leave group {group_id}")
             except Exception as cleanup_e:
                 logger.warning(f"Cleanup failed for {group_id}: {cleanup_e}")
 
@@ -142,11 +103,7 @@ async def leave_no_rights_groups() -> None:
         if admin and not admin.is_active:
             continue
 
-        lang = (
-            normalize_lang(admin.language_code)
-            if admin and admin.language_code
-            else "en"
-        )
+        lang = resolve_lang(None, admin)
         groups_display = "\n• ".join(display for _, display in groups_list)
         ref_link = f"https://t.me/{bot_info.username}?start={admin_id}"
 
@@ -157,7 +114,7 @@ async def leave_no_rights_groups() -> None:
             ref_link=ref_link,
             add_to_group_url=get_add_to_group_url(),
         )
-        await _send_admin_message(admin_id, text)
+        await send_admin_dm(admin_id, text, log_context="no-rights")
         logger.info(
             f"Notified admin {admin_id} about {len(groups_list)} no-rights leaves"
         )

@@ -49,6 +49,31 @@ retry_on_network_error = retry(
 )
 
 
+async def send_admin_dm(admin_id: int, text: str, log_context: str = "message") -> bool:
+    """Send HTML message to admin with retry. Returns True if sent, False on failure."""
+    from .bot import bot
+
+    try:
+
+        @retry_on_network_error
+        async def _send():
+            return await bot.send_message(
+                admin_id,
+                text,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+
+        await _send()
+        return True
+    except Exception as e:
+        logger.warning(
+            f"Failed to send {log_context} to admin {admin_id}: {e}",
+            exc_info=True,
+        )
+        return False
+
+
 @cache
 def load_config() -> Dict[str, Any]:
     """Load config from config.yaml."""

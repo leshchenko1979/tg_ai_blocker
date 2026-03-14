@@ -1,13 +1,12 @@
 """
 Low balance warning and group leave jobs.
 
-Scheduled daily via asyncio background loop. Handles:
+Scheduled daily via run_scheduled_jobs. Handles:
 - Week-ahead warning when credits < min(threshold, last_week_spend)
 - Day-1, day-6, day-7 depletion timeline warnings
 - Leaving sole-payer groups on deadline (no account deletion)
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -17,9 +16,9 @@ from ..common.utils import (
     format_chat_or_channel_display,
     get_add_to_group_url,
     load_config,
-    retry_on_network_error,
+    send_admin_dm,
 )
-from ..i18n import normalize_lang, t
+from ..i18n import resolve_lang, t
 from ..database import (
     clear_depletion_flags,
     get_admin,
@@ -32,9 +31,9 @@ from ..database import (
     mark_low_balance_warned,
 )
 
-logger = logging.getLogger(__name__)
+from .constants import SECONDS_PER_DAY
 
-SECONDS_PER_DAY = 86400
+logger = logging.getLogger(__name__)
 
 
 def _get_billing_config():
@@ -47,29 +46,6 @@ def _get_billing_config():
         "warn_day_after": billing.get("warn_day_after", True),
         "warn_day_before": billing.get("warn_day_before", True),
     }
-
-
-async def _send_admin_message(admin_id: int, text: str) -> bool:
-    """Send a message to admin. Returns True if sent, False on failure (e.g. bot blocked)."""
-    try:
-
-        @retry_on_network_error
-        async def _send():
-            return await bot.send_message(
-                admin_id,
-                text,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
-
-        await _send()
-        return True
-    except Exception as e:
-        logger.warning(
-            f"Failed to send low balance message to admin {admin_id}: {e}",
-            exc_info=True,
-        )
-        return False
 
 
 async def check_week_ahead_warnings() -> None:
@@ -85,14 +61,9 @@ async def check_week_ahead_warnings() -> None:
         admin = await get_admin(admin_id)
         if admin and not admin.is_active:
             continue
-        lang = (
-            normalize_lang(admin.language_code)
-            if admin and admin.language_code
-            else "en"
-        )
-
+        lang = resolve_lang(None, admin)
         text = t(lang, "low_balance.week_ahead", credits=credits)
-        if await _send_admin_message(admin_id, text):
+        if await send_admin_dm(admin_id, text, log_context="low balance"):
             await mark_low_balance_warned(admin_id)
             logger.info(f"Sent week-ahead warning to admin {admin_id}")
 
@@ -137,11 +108,7 @@ async def check_depletion_timeline() -> None:
             and 1 <= days < 2
             and row.get("depletion_day_1_warned_at") is None
         ):
-            lang = (
-                normalize_lang(admin.language_code)
-                if admin and admin.language_code
-                else "en"
-            )
+            lang = resolve_lang(None, admin)
             deadline = depleted_at
             if deadline:
                 deadline_dt = (
@@ -154,7 +121,7 @@ async def check_depletion_timeline() -> None:
             else:
                 deadline_str = t(lang, "low_balance.in_7_days")
             text = t(lang, "low_balance.depleted", deadline=deadline_str)
-            if await _send_admin_message(admin_id, text):
+            if await send_admin_dm(admin_id, text, log_context="low balance"):
                 await mark_depletion_day_1_warned(admin_id)
                 logger.info(f"Sent day-1 depletion warning to admin {admin_id}")
 
@@ -164,13 +131,9 @@ async def check_depletion_timeline() -> None:
             and grace_days - 1 <= days < grace_days
             and row.get("depletion_day_6_warned_at") is None
         ):
-            lang = (
-                normalize_lang(admin.language_code)
-                if admin and admin.language_code
-                else "en"
-            )
+            lang = resolve_lang(None, admin)
             text = t(lang, "low_balance.tomorrow")
-            if await _send_admin_message(admin_id, text):
+            if await send_admin_dm(admin_id, text, log_context="low balance"):
                 await mark_depletion_day_6_warned(admin_id)
                 logger.info(f"Sent day-6 depletion warning to admin {admin_id}")
 
@@ -181,10 +144,7 @@ async def leave_sole_payer_groups(admin_id: int) -> None:
     Notify admin. No account deletion — admin record and training data preserved.
     """
     admin = await get_admin(admin_id)
-    lang = (
-        normalize_lang(admin.language_code) if admin and admin.language_code else "en"
-    )
-
+    lang = resolve_lang(None, admin)
     group_ids = await get_admin_group_ids(admin_id)
     left_groups = []
     bot_info = await bot.me()
@@ -221,7 +181,7 @@ async def leave_sole_payer_groups(admin_id: int) -> None:
             ref_link=ref_link,
             add_to_group_url=get_add_to_group_url(),
         )
-        await _send_admin_message(admin_id, text)
+        await send_admin_dm(admin_id, text, log_context="low balance")
         logger.info(
             f"Notified admin {admin_id} about leaving {len(left_groups)} groups"
         )
@@ -234,16 +194,3 @@ async def run_low_balance_checks() -> None:
         await check_depletion_timeline()
     except Exception as e:
         logger.error(f"Low balance checks failed: {e}", exc_info=True)
-
-
-async def low_balance_loop() -> None:
-    """Background loop: run checks every 24 hours. Cancel on shutdown."""
-    while True:
-        try:
-            await run_low_balance_checks()
-        except asyncio.CancelledError:
-            logger.info("Low balance loop cancelled")
-            raise
-        except Exception as e:
-            logger.error(f"Low balance loop error: {e}", exc_info=True)
-        await asyncio.sleep(SECONDS_PER_DAY)

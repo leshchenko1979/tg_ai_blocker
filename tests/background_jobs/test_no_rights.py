@@ -65,7 +65,7 @@ async def test_leave_no_rights_groups_leaves_when_no_rights():
             new_callable=AsyncMock,
         ) as mock_cleanup,
         patch(
-            "app.background_jobs.no_rights._send_admin_message",
+            "app.background_jobs.no_rights.send_admin_dm",
             new_callable=AsyncMock,
         ) as mock_send,
     ):

@@ -48,12 +48,13 @@ async def save_message(admin_id: int, role: str, content: str) -> None:
                 )
 
 
-async def cleanup_old_message_history() -> int:
-    """Remove message_history rows older than MESSAGE_TTL (24h). Returns deleted count."""
+async def cleanup_old_message_history(days: int = 1) -> int:
+    """Remove message_history rows older than specified days. Returns deleted count."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "DELETE FROM message_history WHERE created_at < NOW() - INTERVAL '1 day'",
+            "DELETE FROM message_history WHERE created_at < NOW() - INTERVAL '1 day' * $1",
+            days,
         )
     count = int(result.split()[-1]) if result else 0
     if count > 0:
