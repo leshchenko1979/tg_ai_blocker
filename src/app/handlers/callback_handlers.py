@@ -270,15 +270,6 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
             return "callback_invalid_message"
 
         try:
-            await bot.edit_message_reply_markup(
-                chat_id=callback.message.chat.id,
-                message_id=callback.message.message_id,
-                reply_markup=None,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to remove keyboard from notification: {e}")
-
-        try:
 
             @retry_on_network_error
             async def delete_original_message():
@@ -312,6 +303,25 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
         group = await get_group(chat_id)
         admin_ids = group.admin_ids if group else None
         await ban_user_for_spam(chat_id, effective_user_id, admin_ids, group_title=None)
+
+        # Remove keyboard and append confirmation line (Callback Button UX Pattern)
+        msg = callback.message
+        if isinstance(msg, types.Message):
+            existing_text = msg.text or msg.caption or ""
+            updated_text = (
+                f"{existing_text}\n\n✅ <b>{t(lang, 'callback.spam_deleted')}</b>"
+            )
+            try:
+                await bot.edit_message_text(
+                    chat_id=msg.chat.id,
+                    message_id=msg.message_id,
+                    text=updated_text,
+                    parse_mode="HTML",
+                    reply_markup=None,
+                )
+            except TelegramBadRequest as e:
+                if "message to edit not found" not in e.message:
+                    logger.warning(f"Failed to edit notification message: {e}")
 
         return "callback_spam_message_deleted"
 

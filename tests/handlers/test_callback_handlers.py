@@ -74,6 +74,7 @@ async def test_handle_spam_confirm_callback_deletes_and_bans():
     """
     When admin in notify mode clicks "Удалить", both the message is deleted
     and the spammer is banned. Also confirms the pending spam example as spam.
+    Notification message is edited to remove keyboard and append confirmation line.
     """
     callback = AsyncMock(spec=CallbackQuery)
     callback.data = "delete_spam_message:12345:67890:111"
@@ -81,6 +82,7 @@ async def test_handle_spam_confirm_callback_deletes_and_bans():
     callback.message = AsyncMock(spec=Message)
     callback.message.chat = Chat(id=456, type="private")
     callback.message.message_id = 222
+    callback.message.text = "⚠️ INTRUSION! Violator: @spammer"
 
     with (
         patch("src.app.handlers.callback_handlers.bot") as mock_bot,
@@ -101,7 +103,7 @@ async def test_handle_spam_confirm_callback_deletes_and_bans():
             new_callable=AsyncMock,
         ) as mock_confirm_spam,
     ):
-        mock_bot.edit_message_reply_markup = AsyncMock()
+        mock_bot.edit_message_text = AsyncMock()
         mock_bot.delete_message = AsyncMock()
         mock_get_admin.return_value = None
         mock_get_group.return_value = None  # Group not in DB - admin_ids=None
@@ -112,3 +114,8 @@ async def test_handle_spam_confirm_callback_deletes_and_bans():
         mock_confirm_spam.assert_called_once_with(67890, 111, 999)
         mock_bot.delete_message.assert_called_once_with(67890, 111)
         mock_ban.assert_called_once_with(67890, 12345, None, group_title=None)
+        # Callback Button UX Pattern: keyboard removed, confirmation appended
+        mock_bot.edit_message_text.assert_called_once()
+        call_kwargs = mock_bot.edit_message_text.call_args.kwargs
+        assert call_kwargs["reply_markup"] is None
+        assert "✅" in call_kwargs["text"] and "Spam deleted" in call_kwargs["text"]

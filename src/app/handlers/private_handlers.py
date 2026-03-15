@@ -286,6 +286,7 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                 message_id=callback.message.message_id,
                 text=t(lang, "private.example_added", type=edit_type),
                 parse_mode="HTML",
+                reply_markup=None,
             ),
         ]
 

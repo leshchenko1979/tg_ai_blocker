@@ -21,6 +21,7 @@
   - **Logfire Trace Analysis**: ✅ **Complete** - Identified and fixed `TelegramBadRequest: message to delete not found` in `handle_spam_confirm_callback`. Flow now continues with ban/confirmation even if message was already deleted.
   - **Logfire Instrumentation Cleanup**: ✅ **Complete** - Implemented approved Logfire pattern: auto-tracing for modules with `@logfire.no_auto_trace` decorators on manually instrumented functions to prevent span duplication.
   - **Logfire Context Lookup Fix**: ✅ **Complete** - Fixed `find_spam_classification_context` two-step trace lookup. Reply, stories, and account_age context are now correctly extracted from Logfire when adding spam examples from forwarded messages. Unit tests in `tests/common/test_logfire_lookup.py`.
+- **Callback Button UX Pattern**: ✅ **Complete** - Consistent pattern for action-completion callbacks: remove inline keyboard and append confirmation line to message. Applied to `handle_spam_confirm_callback` (edit_message_text with confirmation), `process_spam_example_callback` (reply_markup=None). Exception: `buy_stars` leaves message as-is (invoice provides immediate feedback). Documented in systemPatterns.md.
 - **Immediate Next Steps**:
   - Publish the restructured VC.ru article.
   - Run migration `--add-low-balance-columns` before deploy.
