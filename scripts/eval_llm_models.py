@@ -70,7 +70,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Reduce spam classifier logging during evaluation
-spam_logger = logging.getLogger("src.app.common.spam_classifier")
+spam_logger = logging.getLogger("src.app.spam.spam_classifier")
 spam_logger.setLevel(logging.WARNING)
 
 
@@ -389,8 +389,10 @@ async def test_model(
     original_models = llms_module.MODELS
     llms_module.MODELS = [model_name]  # Only test this model
 
-    def _handle_error(error_type: str, exception: Exception) -> None:
-        """Helper to handle API errors consistently."""
+    def _handle_error(
+        test_result: TestResult, error_type: str, exception: Exception
+    ) -> None:
+        """Record API error on test result and model result."""
         result.errors[error_type] += 1
         test_result.error = error_type
         logger.debug(
@@ -434,7 +436,7 @@ async def test_model(
 
                 # Call is_spam with consolidated context
                 start_time = time.time()
-                predicted_score, reason = await is_spam(
+                predicted_spam, confidence, reason = await is_spam(
                     comment=test_case.text,
                     context=context,
                 )
@@ -446,8 +448,8 @@ async def test_model(
                 result.total_response_time += response_time
                 result.successful_responses += 1
 
-                # Determine prediction (positive = spam, negative = legitimate)
-                predicted_spam = predicted_score > 0
+                # Store derived score for metrics (confidence if spam, -confidence if not)
+                predicted_score = confidence if predicted_spam else -confidence
                 actual_spam = test_case.is_spam_ground_truth
 
                 test_result.predicted_score = predicted_score
@@ -465,13 +467,13 @@ async def test_model(
                     result.false_negatives += 1
 
             except RateLimitExceeded as e:
-                _handle_error("rate_limit", e)
+                _handle_error(test_result, "rate_limit", e)
             except LocationNotSupported as e:
-                _handle_error("location_not_supported", e)
+                _handle_error(test_result, "location_not_supported", e)
             except InternalServerError as e:
-                _handle_error("internal_server_error", e)
+                _handle_error(test_result, "internal_server_error", e)
             except Exception as e:
-                _handle_error("other_error", e)
+                _handle_error(test_result, "other_error", e)
 
             # Store individual test result
             result.test_results.append(test_result)

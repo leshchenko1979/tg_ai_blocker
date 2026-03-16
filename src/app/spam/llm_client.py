@@ -59,7 +59,8 @@ RESPONSE_SPAM_NO = "нет"
 
 
 # Create metrics once at module level
-spam_score_gauge = logfire.metric_gauge("spam_score")
+# Signed confidence: positive = spam, negative = ham (metric name kept for dashboard compat)
+classification_confidence_gauge = logfire.metric_gauge("spam_score")
 attempts_histogram = logfire.metric_histogram("attempts")
 
 
@@ -73,8 +74,8 @@ class ExtractionFailedError(ClassificationError):
 
 async def call_llm_with_spam_classification(
     messages: List[Dict[str, str]],
-) -> Tuple[int, int, str]:
-    """Call LLM with retry logic. Returns (score, confidence, reason)."""
+) -> Tuple[bool, int, str]:
+    """Call LLM with retry logic. Returns (is_spam, confidence, reason)."""
 
     last_response = None
     last_error = None
@@ -90,10 +91,12 @@ async def call_llm_with_spam_classification(
                 )
                 last_response = response
                 logger.info(f"Spam classifier response: {response}")
-                score, confidence, reason = parse_classification_response(response)
-                spam_score_gauge.set(score)
+                is_spam, confidence, reason = parse_classification_response(response)
+                classification_confidence_gauge.set(
+                    confidence if is_spam else -confidence
+                )
                 attempts_histogram.record(attempt)
-                return score, confidence, reason
+                return is_spam, confidence, reason
 
             except (RateLimitExceeded, LocationNotSupported) as e:
                 error_type = (
@@ -155,8 +158,8 @@ async def _handle_rate_limit_error(error: RateLimitExceeded) -> None:
         await asyncio.sleep(wait_time)
 
 
-def _parse_json_response(response: str) -> Optional[Tuple[int, int, str]]:
-    """Parse response as JSON. Returns (score, confidence, reason) or None."""
+def _parse_json_response(response: str) -> Optional[Tuple[bool, int, str]]:
+    """Parse response as JSON. Returns (is_spam, confidence, reason) or None."""
     try:
         data = json.loads(response)
         if not isinstance(data, dict):
@@ -166,14 +169,13 @@ def _parse_json_response(response: str) -> Optional[Tuple[int, int, str]]:
         confidence = data.get("confidence", 0)
         reason = data.get("reason", "No reason provided")
 
-        score = confidence if is_spam else -confidence
-        return score, confidence, reason
+        return is_spam, confidence, reason
     except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         return None
 
 
-def _parse_legacy_response(response: str) -> Optional[Tuple[int, int, str]]:
-    """Parse legacy text format. Returns (score, confidence, reason) or None."""
+def _parse_legacy_response(response: str) -> Optional[Tuple[bool, int, str]]:
+    """Parse legacy text format. Returns (is_spam, confidence, reason) or None."""
     # Extract content from tags
     match = LEGACY_RESPONSE_PATTERN.search(response)
     if match:
@@ -194,19 +196,17 @@ def _parse_legacy_response(response: str) -> Optional[Tuple[int, int, str]]:
             return None
 
         if spam_indicator == RESPONSE_SPAM_YES:
-            score = confidence
-            reason = f"Классифицировано как спам с уверенностью {score}%"
-            return score, confidence, reason
+            reason = f"Классифицировано как спам с уверенностью {confidence}%"
+            return True, confidence, reason
         elif spam_indicator == RESPONSE_SPAM_NO:
-            score = -confidence
             reason = f"Классифицировано как не спам с уверенностью {confidence}%"
-            return score, confidence, reason
+            return False, confidence, reason
 
     return None
 
 
-def parse_classification_response(response: str) -> Tuple[int, int, str]:
-    """Parse LLM response (JSON or legacy). Returns (score, confidence, reason)."""
+def parse_classification_response(response: str) -> Tuple[bool, int, str]:
+    """Parse LLM response (JSON or legacy). Returns (is_spam, confidence, reason)."""
     # First try to parse as JSON
     json_result = _parse_json_response(response)
     if json_result is not None:

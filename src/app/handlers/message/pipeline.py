@@ -20,13 +20,15 @@ from .validation import (
     validate_group_and_check_early_exits,
 )
 from ...spam.message_context import collect_message_context
-from ...spam.spam_classifier import is_spam
+from ...spam.spam_classifier import is_spam as classify_spam
 from ...types import ContextStatus, MessageContextResult
 
 logger = logging.getLogger(__name__)
 
 
-def _context_to_lookup_strings(message_context_result: "MessageContextResult") -> tuple:
+def _context_to_lookup_strings(
+    message_context_result: "MessageContextResult",
+) -> tuple[str | None, str | None]:
     """Extract stories and account_age context as strings for message_lookup_cache."""
     ctx = message_context_result.context
     stories_context = None
@@ -102,25 +104,21 @@ async def handle_moderated_message(message: types.Message) -> str:
         try:
             if message_context_result.is_story:
                 # Stories are always considered spam
-                spam_score, confidence, reason = 100, 100, "Story forward"
+                is_spam, confidence, reason = True, 100, "Story forward"
             else:
                 # Perform LLM-based spam classification
-                spam_score, confidence, reason = await is_spam(
+                is_spam, confidence, reason = await classify_spam(
                     comment=message_context_result.message_text,
                     admin_ids=group.admin_ids,
                     context=message_context_result.context,
                 )
         except Exception as e:
-            logger.warning(f"Failed to get spam score: {e}")
-            return "message_spam_check_failed"
-
-        if spam_score is None:
-            logger.warning("Failed to get spam score")
+            logger.warning(f"Failed to get spam classification: {e}")
             return "message_spam_check_failed"
 
         # Set LLM response and context attributes on the root span for trace-level visibility
         target_span = get_root_span()
-        target_span.set_attribute("llm_score", spam_score)
+        target_span.set_attribute("llm_is_spam", is_spam)
         target_span.set_attribute("llm_confidence", confidence)
         target_span.set_attribute("llm_reason", reason)
         target_span.set_attribute("context", message_context_result.context)  # type: ignore[arg-type]
@@ -142,12 +140,13 @@ async def handle_moderated_message(message: types.Message) -> str:
                 account_age_context=account_ctx,
             )
         except Exception as e:
-            logger.warning(f"Failed to save message lookup after is_spam: {e}")
+            logger.warning(f"Failed to save message lookup after classification: {e}")
 
         # Process spam or approve user
         return await process_spam_or_approve(
             message,
-            spam_score,
+            is_spam,
+            confidence,
             group.admin_ids,
             reason,
             message_context_result,
@@ -160,7 +159,8 @@ async def handle_moderated_message(message: types.Message) -> str:
 
 async def process_spam_or_approve(
     message: types.Message,
-    spam_score: float,
+    is_spam: bool,
+    confidence: int,
     admin_ids: list[int],
     reason: str,
     message_context_result: "MessageContextResult",
@@ -171,9 +171,11 @@ async def process_spam_or_approve(
     if user_id is None:
         return "message_no_user_info"
 
-    if spam_score > 50:
-        threshold = load_config().get("spam", {}).get("high_confidence_threshold", 90)
-        skip_auto_delete = spam_score < threshold
+    threshold = load_config().get("spam", {}).get("high_confidence_threshold", 90)
+
+    if is_spam:
+        # Spam: high confidence -> auto-delete, low confidence -> notify only
+        skip_auto_delete = confidence < threshold
         if await try_deduct_credits(chat_id, DELETE_PRICE, "delete spam"):
             return await handle_spam(
                 message,
@@ -183,7 +185,24 @@ async def process_spam_or_approve(
                 skip_auto_delete=skip_auto_delete,
             )
 
+    elif confidence < threshold:
+        # Low-confidence not-spam: send for review, optimistic add
+        if await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
+            await add_member(chat_id, user_id)
+            result = await handle_spam(
+                message,
+                admin_ids,
+                reason,
+                message_context_result,
+                skip_auto_delete=True,
+                is_low_confidence_not_spam=True,
+                confidence=confidence,
+            )
+            return "message_low_confidence_review" if result else result
+
     elif await try_deduct_credits(chat_id, APPROVE_PRICE, "approve user"):
+        # High-confidence not-spam: auto-approve
         await add_member(chat_id, user_id)
         return "message_user_approved"
+
     return "message_insufficient_credits"

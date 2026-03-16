@@ -78,7 +78,8 @@ async def handle_private_message(message: types.Message) -> str:
             if example.get("linked_channel_fragment"):
                 example_str += f"\n<канал>{example['linked_channel_fragment']}</канал>"
             example_str += "\n</запрос>\n<ответ>\n"
-            example_str += f"{'да' if example['score'] > 50 else 'нет'} {abs(example['score'])}%\n</ответ>"
+            # DB convention: score > 0 = spam, score < 0 = legitimate
+            example_str += f"{'да' if example['score'] > 0 else 'нет'} {abs(example['score'])}%\n</ответ>"
             example_str += "\n</пример>"
             formatted_examples.append(example_str)
 
@@ -90,7 +91,7 @@ async def handle_private_message(message: types.Message) -> str:
 </функционал и стиль ответа>
 
 А вот примеры того, что ты считаешь спамом, а что нет
-(если spam_score > 50, то сообщение считается спамом):
+(is_spam=true — спам, is_spam=false — не спам):
 <примеры>
 {"\n".join(formatted_examples)}
 </примеры>

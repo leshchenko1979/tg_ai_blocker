@@ -20,9 +20,9 @@ async def is_spam(
     comment: str,
     admin_ids: Optional[List[int]] = None,
     context: Optional[SpamClassificationContext] = None,
-) -> Tuple[int, int, str]:
-    """Classify message as spam or legitimate. Returns (score, confidence, reason)."""
-    classification_context = context or SpamClassificationContext()
+) -> Tuple[bool, int, str]:
+    """Classify message as spam or legitimate. Returns (is_spam, confidence, reason)."""
+    ctx = context or SpamClassificationContext()
 
     lang = "en"
     if admin_ids:
@@ -30,9 +30,7 @@ async def is_spam(
         if admin and admin.language_code:
             lang = normalize_lang(admin.language_code)
 
-    messages = await _prepare_classification_request(
-        comment, admin_ids, classification_context, lang
-    )
+    messages = await _prepare_classification_request(comment, admin_ids, ctx, lang)
     return await call_llm_with_spam_classification(messages)
 
 

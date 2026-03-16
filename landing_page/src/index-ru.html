@@ -1420,7 +1420,8 @@
       <div class="tech-card">
         <div class="tech-num">03 / УВЕРЕННОСТЬ</div>
         <h3>Умные решения без ошибок</h3>
-        <p>При уверенности ≥90% — автоудаление. При 50–90% — бот уведомляет вас и ждёт вашего решения. Живые люди не
+        <p>При уверенности ≥90% — автоудаление. При уверенности &lt;90% — бот уведомляет вас и ждёт вашего решения.
+          Живые люди не
           пострадают от ошибочного бана.</p>
         <div class="tech-tags">
           <span class="tag">confidence score</span>
@@ -1454,7 +1455,7 @@
       <div class="flow-arrow">→</div>
       <div class="flow-step">
         <div class="flow-icon bg-orange">⚖️</div>
-        <div class="flow-step-label"><strong>Оценка</strong>0–100% вероятность спама</div>
+        <div class="flow-step-label"><strong>Классификация</strong>спам/не спам + уверенность 0–100%</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-step">
@@ -1464,7 +1465,7 @@
       <div class="flow-arrow">→</div>
       <div class="flow-step">
         <div class="flow-icon bg-green">✅</div>
-        <div class="flow-step-label"><strong>&lt;50%</strong>пропустить без уведомлений</div>
+        <div class="flow-step-label"><strong>Не спам</strong>пропуск</div>
       </div>
     </div>
   </section>
@@ -1514,7 +1515,7 @@
       <a href="https://t.me/ai_antispam/41" class="news-card">
         <div class="news-date">17 февраля 2026</div>
         <h3>Вы контролируете пограничные случаи</h3>
-        <p>Теперь при низкой уверенности ИИ (50–90%) бот не удаляет сообщение сам —
+        <p>Теперь при низкой уверенности ИИ (&lt;90%) бот не удаляет сообщение сам —
           вы получаете уведомление с кнопками «Удалить» и «Не спам». Меньше ложных срабатываний.</p>
       </a>
 
@@ -1570,7 +1571,8 @@
 
       <div class="faq-item">
         <div class="faq-q" onclick="toggle(this)">Бот не будет банить нормальных людей?</div>
-        <div class="faq-a">Нет. При уверенности 50–90% бот <strong>не удаляет автоматически</strong> — он присылает вам
+        <div class="faq-a">Нет. При уверенности ниже 90% бот <strong>не удаляет автоматически</strong> — он присылает
+          вам
           уведомление с кнопками «Удалить» и «Не спам». Только при уверенности ≥90% происходит автоудаление. Ложных
           срабатываний очень мало — а если они есть, кнопка «Не спам» обучает ИИ не повторять ошибку.</div>
       </div>

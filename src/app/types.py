@@ -252,18 +252,6 @@ class MessageContextResult:
     channel_users: Optional[list[dict]] = None
 
 
-@dataclass(slots=True)
-class SpamCheckResult:
-    """Data class for spam check results."""
-
-    chat_id: int
-    user_id: int
-    spam_score: float
-    message_text: str
-    bio: Optional[str]
-    reason: Optional[str] = None
-
-
 @dataclass
 class SpamClassificationContext:
     """Context information for spam classification."""

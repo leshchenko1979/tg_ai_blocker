@@ -1,6 +1,8 @@
 ## Active Context
 
 - **Current Focus**: Bot and landing i18n (RU/EN) complete. Run migration `--add-language-code` before deploy. Pending: run migration `--add-low-balance-columns`, promotional channel post (draft in docs/channel_post_low_confidence_spam.md).
+- **Spam/Ham Logic (is_spam + confidence)**: ✅ **Complete** — Removed `spam_score > 50` rule. Classifier now returns `(is_spam, confidence, reason)`; pipeline branches on `is_spam` directly. Spam with confidence <90% → notify only; not-spam with confidence <90% → review.
+- **Low-Confidence Review Flow**: ✅ **Complete** — Messages with confidence <90% (both spam and not-spam) now go to admin review. Not-spam with low confidence: optimistic add to approved_members, notify with "Low confidence — please review" title and confidence hint; admins confirm via "Удалить"/"Не спам". Returns `message_low_confidence_review`. Locale keys: `spam.review_low_confidence_title`, `spam.review_low_confidence_hint`.
 - **Spam Prompt Consistency**: ✅ **Complete** - Fixed system prompt inconsistencies: removed unused -100/+100 score scale, fixed typo (intensity→intensive), removed XML wrapper from examples, normalized blank line formatting, unified empty section phrasing (ACCOUNT AGE uses photo_age=unknown).
 - **Key Decisions**:
   - **Cloudflare Primary Provider**: All bot operations (spam classification, private chat) now use Cloudflare AI Gateway exclusively.

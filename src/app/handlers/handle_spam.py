@@ -21,7 +21,7 @@ from ..common.utils import (
     retry_on_network_error,
 )
 from ..database import get_admin, get_admins_map
-from ..i18n import t
+from ..i18n import normalize_lang, resolve_lang, t
 from ..database.group_operations import (
     remove_member_from_group,
     set_no_rights_detected_at,
@@ -32,12 +32,29 @@ from ..types import MessageContextResult, MessageNotificationContext
 logger = logging.getLogger(__name__)
 
 
+async def _get_notification_lang(
+    admin_ids: list[int],
+    fallback_user: Optional[types.User] = None,
+) -> str:
+    """Resolve language for spam notifications from admin preferences or user fallback."""
+    if not admin_ids:
+        return "en"
+    admin = await get_admin(admin_ids[0])
+    if admin and admin.language_code:
+        return normalize_lang(admin.language_code)
+    if fallback_user:
+        return resolve_lang(fallback_user, None)
+    return "en"
+
+
 async def handle_spam(
     message: types.Message,
     admin_ids: list[int],
     reason: str | None = None,
     message_context_result: Optional["MessageContextResult"] = None,
     skip_auto_delete: bool = False,
+    is_low_confidence_not_spam: bool = False,
+    confidence: int | None = None,
 ) -> str:
     """Handle detected spam: notify admins, optionally delete and ban."""
     try:
@@ -54,9 +71,15 @@ async def handle_spam(
             admin_ids,
             reason,
             message_context_result,
+            is_low_confidence_not_spam=is_low_confidence_not_spam,
+            confidence=confidence,
         )
 
-        if message_context_result and message_context_result.linked_channel_found:
+        if (
+            message_context_result
+            and message_context_result.linked_channel_found
+            and not is_low_confidence_not_spam
+        ):
             await notify_spam_contacts_via_mcp(message, reason, message_context_result)
 
         if effective_all_admins_delete:
@@ -222,6 +245,8 @@ def format_admin_notification_message(
     reason: str | None = None,
     *,
     lang: str = "en",
+    is_low_confidence_not_spam: bool = False,
+    confidence: Optional[int] = None,
 ) -> str:
     """Format spam notification text for admins."""
     if context.effective_user_id is None:
@@ -240,13 +265,26 @@ def format_admin_notification_message(
         else ""
     )
 
+    if is_low_confidence_not_spam:
+        title = t(lang, "spam.review_low_confidence_title")
+        hint = (
+            t(lang, "spam.review_low_confidence_hint", confidence=confidence or 0)
+            if confidence is not None
+            else ""
+        )
+    else:
+        title = t(lang, "spam.notify_title")
+        hint = ""
+
     admin_msg = (
-        t(lang, "spam.notify_title")
+        title
         + t(lang, "spam.group_label", display=group_display)
         + t(lang, "spam.violator_label", display=violator_display)
         + t(lang, "spam.content_label", content=context.content_text)
         + f"{reason_text}{context.forward_source}\n"
     )
+    if hint:
+        admin_msg += hint + "\n\n"
 
     if all_admins_delete:
         key = (
@@ -273,26 +311,23 @@ async def notify_admins(
     admin_ids: list[int],
     reason: str | None = None,
     message_context_result: Optional["MessageContextResult"] = None,
+    is_low_confidence_not_spam: bool = False,
+    confidence: Optional[int] = None,
 ) -> bool:
     """Notify admins about spam. Returns True if at least one notification succeeded."""
     if not message.from_user:
         return False
 
-    lang = "en"
-    if admin_ids:
-        first_admin = await get_admin(admin_ids[0])
-        if first_admin and first_admin.language_code:
-            from ..i18n import normalize_lang
-
-            lang = normalize_lang(first_admin.language_code)
-        else:
-            from ..i18n import resolve_lang
-
-            lang = resolve_lang(message.from_user, None)
+    lang = await _get_notification_lang(admin_ids, message.from_user)
 
     context = MessageNotificationContext.from_message(message)
     private_message = format_admin_notification_message(
-        context, all_admins_delete, reason, lang=lang
+        context,
+        all_admins_delete,
+        reason,
+        lang=lang,
+        is_low_confidence_not_spam=is_low_confidence_not_spam,
+        confidence=confidence,
     )
 
     pending_id = None
@@ -366,16 +401,7 @@ async def handle_spam_message_deletion(
             f"Deleted spam message {message.message_id} in chat {message.chat.id}"
         )
     except TelegramBadRequest as e:
-        lang = "en"
-        if admin_ids:
-            first_admin = await get_admin(admin_ids[0])
-            from ..i18n import normalize_lang
-
-            lang = (
-                normalize_lang(first_admin.language_code)
-                if first_admin and first_admin.language_code
-                else "en"
-            )
+        lang = await _get_notification_lang(admin_ids)
         perm_name = t(lang, "spam.permission_delete")
         if not await handle_permission_error(
             e,
@@ -413,16 +439,7 @@ async def ban_user_for_spam(
         await ban_spam_user()
         logger.info(f"Banned user {user_id} in chat {chat_id} for spam")
     except TelegramBadRequest as e:
-        lang = "en"
-        if admin_ids:
-            first_admin = await get_admin(admin_ids[0])
-            from ..i18n import normalize_lang
-
-            lang = (
-                normalize_lang(first_admin.language_code)
-                if first_admin and first_admin.language_code
-                else "en"
-            )
+        lang = await _get_notification_lang(admin_ids or [])
         perm_name = t(lang, "spam.permission_ban")
         if not await handle_permission_error(
             e,

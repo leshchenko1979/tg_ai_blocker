@@ -301,26 +301,25 @@ async def test_spam_classifier():
         )
 
         # Call the spam classifier
-        score, reason = await is_spam(
+        is_spam_result, confidence, reason = await is_spam(
             comment=test_message,
             context=context,
         )
 
         print("?? Classification Results:")
-        print(f"   Score: {score}")
-        print(f"   Is Spam: {'YES' if score > 0 else 'NO'}")
-        print(f"   Confidence: {abs(score)}%")
+        print(f"   Is Spam: {'YES' if is_spam_result else 'NO'}")
+        print(f"   Confidence: {confidence}%")
         print(f"   Reason: {reason}")
 
         print("\n?? Interpretation:")
-        if score > 50:
+        if is_spam_result and confidence >= 90:
             print("   ?? HIGH SPAM - Message should be blocked/deleted")
-        elif score > 0:
+        elif is_spam_result:
             print("   ??  MODERATE SPAM - Message flagged for review")
-        elif score == 0:
-            print("   ?? NEUTRAL - Unclear classification")
+        elif confidence >= 90:
+            print("   ? NOT SPAM - Message should be allowed (high confidence)")
         else:
-            print("   ? NOT SPAM - Message should be allowed")
+            print("   ? NOT SPAM - Message should be allowed (low confidence, review)")
 
     except Exception as e:
         print(f"? Spam classifier failed: {e}")

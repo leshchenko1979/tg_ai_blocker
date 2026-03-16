@@ -83,9 +83,6 @@ def load_config() -> Dict[str, Any]:
     return config
 
 
-config = load_config()
-
-
 def remove_lines_to_fit_len(text: str, max_len: int) -> str:
     """Trim text to max_len by collapsing middle lines."""
     splitted = text.split("\n")
@@ -269,65 +266,60 @@ def clean_alert_text(text: str | None) -> str | None:
     return text
 
 
-def get_system_config():
-    """Get system configuration from config.yaml"""
-    config = load_config()
-    return config.get("system", {})
+def get_system_config() -> Dict[str, Any]:
+    """Get system configuration from config.yaml."""
+    return load_config().get("system", {})
 
 
-# System constants loaded from config
-_system_config = None
+_system_config_cache: Dict[str, Any] | None = None
 
 
-def get_project_channel_url():
-    """Get project channel URL"""
-    global _system_config
-    if _system_config is None:
-        _system_config = get_system_config()
-    return _system_config.get("project_channel", "https://t.me/ai_antispam")
+def _get_cached_system_config() -> Dict[str, Any]:
+    """Return lazily loaded system config. Shared by all get_* URL/timeout helpers."""
+    global _system_config_cache
+    if _system_config_cache is None:
+        _system_config_cache = get_system_config()
+    return _system_config_cache
 
 
-def get_spam_guide_url():
-    """Get spam guide URL"""
-    global _system_config
-    if _system_config is None:
-        _system_config = get_system_config()
-    return _system_config.get("spam_guide_url", "https://t.me/ai_antispam/7")
+def get_project_channel_url() -> str:
+    """Get project channel URL."""
+    return _get_cached_system_config().get(
+        "project_channel", "https://t.me/ai_antispam"
+    )
 
 
-def get_setup_guide_url():
-    """Get setup guide URL"""
-    global _system_config
-    if _system_config is None:
-        _system_config = get_system_config()
-    return _system_config.get("setup_guide_url", "https://t.me/ai_antispam/14")
+def get_spam_guide_url() -> str:
+    """Get spam guide URL."""
+    return _get_cached_system_config().get(
+        "spam_guide_url", "https://t.me/ai_antispam/7"
+    )
 
 
-def get_affiliate_url():
-    """Get affiliate program URL"""
-    global _system_config
-    if _system_config is None:
-        _system_config = get_system_config()
-    return _system_config.get(
+def get_setup_guide_url() -> str:
+    """Get setup guide URL."""
+    return _get_cached_system_config().get(
+        "setup_guide_url", "https://t.me/ai_antispam/14"
+    )
+
+
+def get_affiliate_url() -> str:
+    """Get affiliate program URL."""
+    return _get_cached_system_config().get(
         "affiliate_url", "https://telegram.org/tour/affiliate-programs/"
     )
 
 
-def get_add_to_group_url():
-    """Get deep link to add bot to group with admin permissions (delete_messages, restrict_members)."""
-    global _system_config
-    if _system_config is None:
-        _system_config = get_system_config()
-    username = _system_config.get("bot_username", "ai_spam_blocker_bot")
+def get_add_to_group_url() -> str:
+    """Deep link to add bot to group with admin permissions (delete_messages, restrict_members)."""
+    cfg = _get_cached_system_config()
+    username = cfg.get("bot_username", "ai_spam_blocker_bot")
     return f"https://t.me/{username}?startgroup&admin=delete_messages+restrict_members"
 
 
-def get_webhook_timeout():
-    """Get webhook timeout"""
-    global _system_config
-    if _system_config is None:
-        _system_config = get_system_config()
-    return _system_config.get("webhook_timeout", 55)
+def get_webhook_timeout() -> int:
+    """Get webhook timeout in seconds."""
+    return _get_cached_system_config().get("webhook_timeout", 55)
 
 
 def get_dotted_path(json: dict, path: str, raise_on_missing: bool = False):

@@ -3,12 +3,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.exceptions import TelegramBadRequest
 
 from src.app.handlers.handle_spam import (
+    format_admin_notification_message,
     handle_spam,
     handle_spam_message_deletion,
 )
 from src.app.spam.message_context import collect_message_context
 from src.app.types import (
     ContextStatus,
+    MessageNotificationContext,
 )
 
 
@@ -321,3 +323,540 @@ class TestHandleSpamSkipAutoDelete:
             call_args = mock_notify.call_args[0]
             # all_admins_delete is the second positional arg (index 1)
             assert call_args[1] is False  # effective_all_admins_delete
+
+
+class TestFormatAdminNotificationMessage:
+    """Test format_admin_notification_message with low-confidence not-spam."""
+
+    def test_low_confidence_not_spam_uses_review_title_and_hint(self):
+        """With is_low_confidence_not_spam=True, uses review title and confidence hint."""
+        context = MessageNotificationContext(
+            effective_user_id=123,
+            content_text="Test content",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="Test User",
+            violator_username="testuser",
+            forward_source="",
+            message_link="",
+            entity_name="Test User",
+            entity_type="user",
+            entity_username="testuser",
+        )
+        result = format_admin_notification_message(
+            context,
+            all_admins_delete=False,
+            reason="AI reason",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=10,
+        )
+        assert "Low confidence" in result
+        assert "10" in result
+        assert "INTRUSION" not in result
+
+    def test_default_spam_uses_intrusion_title(self):
+        """With is_low_confidence_not_spam=False, uses default INTRUSION title."""
+        context = MessageNotificationContext(
+            effective_user_id=123,
+            content_text="Test content",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="Test User",
+            violator_username="testuser",
+            forward_source="",
+            message_link="",
+            entity_name="Test User",
+            entity_type="user",
+            entity_username="testuser",
+        )
+        result = format_admin_notification_message(
+            context,
+            all_admins_delete=False,
+            reason="Spam detected",
+            lang="en",
+            is_low_confidence_not_spam=False,
+        )
+        assert "INTRUSION" in result
+
+    """Test format_admin_notification_message with is_low_confidence_not_spam."""
+
+    def test_low_confidence_not_spam_uses_review_title(self):
+        """With is_low_confidence_not_spam=True, uses review_low_confidence_title."""
+        context = MessageNotificationContext(
+            effective_user_id=123,
+            content_text="Test message",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="User",
+            violator_username="testuser",
+            forward_source="",
+            message_link="",
+            entity_name="User",
+            entity_type="user",
+            entity_username="testuser",
+        )
+        result = format_admin_notification_message(
+            context,
+            all_admins_delete=False,
+            reason="AI uncertain",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=10,
+        )
+        assert "Low confidence" in result
+        assert "10" in result
+        assert "INTRUSION" not in result
+
+
+class TestFormatAdminNotificationMessage:
+    """Test format_admin_notification_message with is_low_confidence_not_spam."""
+
+    @pytest.fixture
+    def notification_context(self):
+        """Create a minimal MessageNotificationContext for testing."""
+        return MessageNotificationContext(
+            effective_user_id=67890,
+            content_text="Test message content",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="Test User",
+            violator_username="testuser",
+            forward_source="",
+            message_link="https://t.me/c/123/456",
+            entity_name="Test User",
+            entity_type="user",
+            entity_username="testuser",
+        )
+
+    def test_low_confidence_not_spam_uses_review_title(self, notification_context):
+        """With is_low_confidence_not_spam=True, uses review_low_confidence_title."""
+        result = format_admin_notification_message(
+            notification_context,
+            all_admins_delete=False,
+            reason="AI uncertain",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=10,
+        )
+        assert "Low confidence" in result
+        assert "10" in result
+
+    def test_normal_spam_uses_intrusion_title(self, notification_context):
+        """With is_low_confidence_not_spam=False, uses default notify_title."""
+        result = format_admin_notification_message(
+            notification_context,
+            all_admins_delete=False,
+            reason="Spam detected",
+            lang="en",
+            is_low_confidence_not_spam=False,
+        )
+        assert "INTRUSION" in result
+
+
+class TestFormatAdminNotificationMessage:
+    """Test format_admin_notification_message with is_low_confidence_not_spam."""
+
+    @pytest.fixture
+    def minimal_context(self):
+        """Create minimal MessageNotificationContext for testing."""
+        return MessageNotificationContext(
+            effective_user_id=67890,
+            content_text="Test message",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="Test User",
+            violator_username="testuser",
+            forward_source="",
+            message_link="",
+            entity_name="Test User",
+            entity_type="user",
+            entity_username="testuser",
+        )
+
+    def test_low_confidence_not_spam_uses_review_title(self, minimal_context):
+        """With is_low_confidence_not_spam=True, uses review_low_confidence_title."""
+        result = format_admin_notification_message(
+            minimal_context,
+            all_admins_delete=False,
+            reason="LLM uncertain",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=10,
+        )
+        assert "Low confidence" in result
+        assert "INTRUSION" not in result
+        assert "10" in result
+
+
+class TestFormatAdminNotificationMessage:
+    """Test format_admin_notification_message with is_low_confidence_not_spam."""
+
+    @pytest.fixture
+    def context(self):
+        """Minimal MessageNotificationContext for tests."""
+        return MessageNotificationContext(
+            effective_user_id=67890,
+            content_text="Test message",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="Test User",
+            violator_username="testuser",
+            forward_source="",
+            message_link="",
+            entity_name="Test User",
+            entity_type="user",
+            entity_username="testuser",
+        )
+
+    def test_low_confidence_not_spam_uses_review_title(self, context):
+        """With is_low_confidence_not_spam=True, uses review_low_confidence_title."""
+        result = format_admin_notification_message(
+            context,
+            all_admins_delete=False,
+            reason="AI uncertain",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=10,
+        )
+        assert "Low confidence" in result or "low confidence" in result
+        assert "10" in result  # confidence in hint
+        assert "INTRUSION" not in result
+
+    def test_default_uses_intrusion_title(self, context):
+        """With is_low_confidence_not_spam=False, uses default notify_title."""
+        result = format_admin_notification_message(
+            context,
+            all_admins_delete=False,
+            reason="Spam detected",
+            lang="en",
+        )
+        assert "INTRUSION" in result
+
+
+class TestFormatAdminNotificationMessage:
+    """Test format_admin_notification_message with is_low_confidence_not_spam."""
+
+    @pytest.fixture
+    def notification_context(self):
+        """Create a minimal MessageNotificationContext for testing."""
+        return MessageNotificationContext(
+            effective_user_id=67890,
+            content_text="Test message",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="Test User",
+            violator_username="testuser",
+            forward_source="",
+            message_link="https://t.me/c/123/456",
+            entity_name="Test User",
+            entity_type="user",
+            entity_username="testuser",
+        )
+
+    def test_low_confidence_not_spam_uses_review_title(self, notification_context):
+        """With is_low_confidence_not_spam=True, uses review title and confidence hint."""
+        result = format_admin_notification_message(
+            notification_context,
+            all_admins_delete=False,
+            reason="AI uncertain",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=10,
+        )
+        assert "Low confidence" in result
+        assert "10" in result
+        assert "INTRUSION" not in result
+
+    def test_normal_spam_uses_intrusion_title(self, notification_context):
+        """With is_low_confidence_not_spam=False, uses default INTRUSION title."""
+        result = format_admin_notification_message(
+            notification_context,
+            all_admins_delete=False,
+            reason="Spam detected",
+            lang="en",
+            is_low_confidence_not_spam=False,
+        )
+        assert "INTRUSION" in result
+
+
+class TestFormatAdminNotificationMessage:
+    """Test format_admin_notification_message with is_low_confidence_not_spam."""
+
+    @pytest.fixture
+    def notification_context(self):
+        """Create a minimal MessageNotificationContext for testing."""
+        return MessageNotificationContext(
+            effective_user_id=67890,
+            content_text="Test message",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="Test User",
+            violator_username="testuser",
+            forward_source="",
+            message_link="https://t.me/c/123/456",
+            entity_name="Test User",
+            entity_type="group",
+            entity_username="testuser",
+        )
+
+    def test_low_confidence_not_spam_uses_review_title(self, notification_context):
+        """With is_low_confidence_not_spam=True, uses review_low_confidence_title."""
+        result = format_admin_notification_message(
+            notification_context,
+            all_admins_delete=False,
+            reason="AI uncertain",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=10,
+        )
+        assert "Low confidence" in result
+        assert "10" in result
+        assert "INTRUSION" not in result
+
+    def test_low_confidence_not_spam_without_confidence_still_works(
+        self, notification_context
+    ):
+        """With is_low_confidence_not_spam=True but confidence=None, no hint."""
+        result = format_admin_notification_message(
+            notification_context,
+            all_admins_delete=False,
+            reason="AI uncertain",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=None,
+        )
+        assert "Low confidence" in result
+        assert "INTRUSION" not in result
+
+
+class TestFormatAdminNotificationMessage:
+    """Test format_admin_notification_message with is_low_confidence_not_spam."""
+
+    @pytest.fixture
+    def notification_context(self):
+        """Create a minimal MessageNotificationContext for testing."""
+        return MessageNotificationContext(
+            effective_user_id=67890,
+            content_text="Test message",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="Test User",
+            violator_username="testuser",
+            forward_source="",
+            message_link="https://t.me/c/123/456",
+            entity_name="Test User",
+            entity_type="the group",
+            entity_username="testuser",
+        )
+
+    def test_low_confidence_not_spam_uses_review_title(self, notification_context):
+        """With is_low_confidence_not_spam=True, uses review title and hint."""
+        result = format_admin_notification_message(
+            notification_context,
+            all_admins_delete=False,
+            reason="AI uncertain",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=10,
+        )
+
+        assert "Low confidence" in result
+        assert "10" in result
+        assert "INTRUSION" not in result
+
+    def test_low_confidence_not_spam_without_confidence_no_hint(
+        self, notification_context
+    ):
+        """With is_low_confidence_not_spam=True but confidence=None, hint is empty."""
+        result = format_admin_notification_message(
+            notification_context,
+            all_admins_delete=False,
+            reason="AI uncertain",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=None,
+        )
+
+        assert "Low confidence" in result
+        assert "INTRUSION" not in result
+
+    def test_default_uses_intrusion_title(self, notification_context):
+        """With is_low_confidence_not_spam=False, uses standard INTRUSION title."""
+        result = format_admin_notification_message(
+            notification_context,
+            all_admins_delete=False,
+            reason="Spam detected",
+            lang="en",
+        )
+
+        assert "INTRUSION" in result
+        assert "Low confidence" not in result
+
+
+class TestFormatAdminNotificationMessage:
+    """Test format_admin_notification_message with is_low_confidence_not_spam."""
+
+    @pytest.fixture
+    def notification_context(self):
+        """Create a minimal MessageNotificationContext for testing."""
+        return MessageNotificationContext(
+            effective_user_id=67890,
+            content_text="Test message content",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="Test User",
+            violator_username="testuser",
+            forward_source="",
+            message_link="https://t.me/c/123/456",
+            entity_name="Test User",
+            entity_type="user",
+            entity_username="testuser",
+        )
+
+    def test_low_confidence_not_spam_uses_review_title(self, notification_context):
+        """With is_low_confidence_not_spam=True, uses review_low_confidence_title."""
+        result = format_admin_notification_message(
+            notification_context,
+            all_admins_delete=False,
+            reason="Some reason",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=10,
+        )
+        assert "Low confidence" in result or "please review" in result.lower()
+        assert "10" in result
+        assert "INTRUSION" not in result
+
+    def test_default_uses_intrusion_title(self, notification_context):
+        """With is_low_confidence_not_spam=False, uses notify_title (INTRUSION)."""
+        result = format_admin_notification_message(
+            notification_context,
+            all_admins_delete=False,
+            reason="Some reason",
+            lang="en",
+        )
+        assert "INTRUSION" in result
+
+
+class TestFormatAdminNotificationMessage:
+    """Test format_admin_notification_message with low-confidence not-spam."""
+
+    def test_low_confidence_not_spam_uses_review_title(self):
+        """With is_low_confidence_not_spam=True, uses review_low_confidence_title."""
+        context = MessageNotificationContext(
+            effective_user_id=123,
+            content_text="Test message",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="John",
+            violator_username="john",
+            forward_source="",
+            message_link="",
+            entity_name="John",
+            entity_type="user",
+            entity_username="john",
+        )
+        result = format_admin_notification_message(
+            context,
+            all_admins_delete=False,
+            reason="AI uncertain",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=10,
+        )
+        assert "Low confidence" in result
+        assert "10" in result
+        assert "INTRUSION" not in result
+
+    def test_regular_spam_uses_intrusion_title(self):
+        """With is_low_confidence_not_spam=False, uses notify_title (INTRUSION)."""
+        context = MessageNotificationContext(
+            effective_user_id=123,
+            content_text="Test message",
+            chat_title="Test Group",
+            chat_username="testgroup",
+            is_channel_sender=False,
+            violator_name="John",
+            violator_username="john",
+            forward_source="",
+            message_link="",
+            entity_name="John",
+            entity_type="user",
+            entity_username="john",
+        )
+        result = format_admin_notification_message(
+            context,
+            all_admins_delete=False,
+            reason="Spam detected",
+            lang="en",
+            is_low_confidence_not_spam=False,
+        )
+        assert "INTRUSION" in result
+
+
+class TestFormatAdminNotificationMessage:
+    """Test format_admin_notification_message with is_low_confidence_not_spam."""
+
+    def test_low_confidence_not_spam_uses_review_title_and_hint(self):
+        """When is_low_confidence_not_spam=True, uses review title and confidence hint."""
+        context = MessageNotificationContext(
+            effective_user_id=123,
+            content_text="Test message",
+            chat_title="Test Group",
+            chat_username=None,
+            is_channel_sender=False,
+            violator_name="User",
+            violator_username=None,
+            forward_source="",
+            message_link="",
+            entity_name="User",
+            entity_type="user",
+            entity_username=None,
+        )
+        result = format_admin_notification_message(
+            context,
+            all_admins_delete=False,
+            reason="AI reason",
+            lang="en",
+            is_low_confidence_not_spam=True,
+            confidence=10,
+        )
+        assert "Low confidence" in result
+        assert "10" in result
+        assert "INTRUSION" not in result
+
+    def test_default_spam_uses_intrusion_title(self):
+        """When is_low_confidence_not_spam=False, uses default INTRUSION title."""
+        context = MessageNotificationContext(
+            effective_user_id=123,
+            content_text="Test message",
+            chat_title="Test Group",
+            chat_username=None,
+            is_channel_sender=False,
+            violator_name="User",
+            violator_username=None,
+            forward_source="",
+            message_link="",
+            entity_name="User",
+            entity_type="user",
+            entity_username=None,
+        )
+        result = format_admin_notification_message(
+            context,
+            all_admins_delete=False,
+            reason="AI reason",
+            lang="en",
+        )
+        assert "INTRUSION" in result

@@ -11,46 +11,66 @@ from src.app.spam.prompt_builder import (
 
 
 @pytest.mark.parametrize(
-    "response,expected_score,expected_confidence,expected_reason",
+    "response,expected_is_spam,expected_confidence,expected_reason",
     [
-        ("да 100%", 100, 100, "Классифицировано как спам с уверенностью 100%"),
-        ("нет 42%", -42, 42, "Классифицировано как не спам с уверенностью 42%"),
+        ("да 100%", True, 100, "Классифицировано как спам с уверенностью 100%"),
+        ("нет 42%", False, 42, "Классифицировано как не спам с уверенностью 42%"),
         (
             "<начало ответа> да 100% <конец ответа>",
-            100,
+            True,
             100,
             "Классифицировано как спам с уверенностью 100%",
         ),
         (
             "<начало ответа> нет 1% <конец ответа>",
-            -1,
+            False,
             1,
             "Классифицировано как не спам с уверенностью 1%",
         ),
-        ("<abc> да 77% <xyz>", 77, 77, "Классифицировано как спам с уверенностью 77%"),
+        (
+            "<abc> да 77% <xyz>",
+            True,
+            77,
+            "Классифицировано как спам с уверенностью 77%",
+        ),
         (
             "<ответ> нет 0% <end>",
-            0,
+            False,
             0,
             "Классифицировано как не спам с уверенностью 0%",
         ),
-        ("да 55% <любой тег>", 55, 55, "Классифицировано как спам с уверенностью 55%"),
-        ("нет 12% <abc>", -12, 12, "Классифицировано как не спам с уверенностью 12%"),
-        ("<abc> да 99% <abc>", 99, 99, "Классифицировано как спам с уверенностью 99%"),
-        ("<abc> да 88% <zzz>", 88, 88, "Классифицировано как спам с уверенностью 88%"),
+        (
+            "да 55% <любой тег>",
+            True,
+            55,
+            "Классифицировано как спам с уверенностью 55%",
+        ),
+        ("нет 12% <abc>", False, 12, "Классифицировано как не спам с уверенностью 12%"),
+        (
+            "<abc> да 99% <abc>",
+            True,
+            99,
+            "Классифицировано как спам с уверенностью 99%",
+        ),
+        (
+            "<abc> да 88% <zzz>",
+            True,
+            88,
+            "Классифицировано как спам с уверенностью 88%",
+        ),
         (
             "<abc> нет 66% <zzz>",
-            -66,
+            False,
             66,
             "Классифицировано как не спам с уверенностью 66%",
         ),
     ],
 )
 def test_parse_classification_response_valid(
-    response, expected_score, expected_confidence, expected_reason
+    response, expected_is_spam, expected_confidence, expected_reason
 ):
-    score, confidence, reason = parse_classification_response(response)
-    assert score == expected_score
+    is_spam, confidence, reason = parse_classification_response(response)
+    assert is_spam == expected_is_spam
     assert confidence == expected_confidence
     assert reason == expected_reason
 

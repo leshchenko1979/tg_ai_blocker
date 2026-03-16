@@ -1410,7 +1410,7 @@
       <div class="tech-card">
         <div class="tech-num">03 / CONFIDENCE</div>
         <h3>Smart decisions without mistakes</h3>
-        <p>At ≥90% confidence — auto-delete. At 50–90% — the bot notifies you and waits for your call. Real users won't
+        <p>At ≥90% confidence — auto-delete. Below 90% — the bot notifies you and waits for your call. Real users won't
           get caught in false bans.</p>
         <div class="tech-tags">
           <span class="tag">confidence score</span>
@@ -1444,7 +1444,7 @@
       <div class="flow-arrow">→</div>
       <div class="flow-step">
         <div class="flow-icon bg-orange">⚖️</div>
-        <div class="flow-step-label"><strong>Score</strong>0–100% spam probability</div>
+        <div class="flow-step-label"><strong>Classification</strong>spam/not-spam + confidence 0–100%</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-step">
@@ -1454,7 +1454,7 @@
       <div class="flow-arrow">→</div>
       <div class="flow-step">
         <div class="flow-icon bg-green">✅</div>
-        <div class="flow-step-label"><strong>&lt;50%</strong>pass through silently</div>
+        <div class="flow-step-label"><strong>Not spam</strong>pass through</div>
       </div>
     </div>
   </section>
@@ -1504,7 +1504,7 @@
       <a href="https://t.me/ai_antispam/41" class="news-card">
         <div class="news-date">Feb 17, 2026</div>
         <h3>You control borderline cases</h3>
-        <p>Now at low AI confidence (50–90%) the bot doesn't delete by itself — you
+        <p>Now at low AI confidence (&lt;90%) the bot doesn't delete by itself — you
           get a notification with "Delete" and "Not spam" buttons. Fewer false positives.</p>
       </a>
 
@@ -1559,7 +1559,7 @@
 
       <div class="faq-item">
         <div class="faq-q" onclick="toggle(this)">Will the bot ban regular users by mistake?</div>
-        <div class="faq-a">No. At 50–90% confidence the bot <strong>doesn't auto-delete</strong> — it sends you a
+        <div class="faq-a">No. Below 90% confidence the bot <strong>doesn't auto-delete</strong> — it sends you a
           notification with "Delete" and "Not spam" buttons. Only at ≥90% does auto-delete kick in. False positives are
           rare — and when they happen, the "Not spam" button trains the AI not to repeat the mistake.</div>
       </div>
