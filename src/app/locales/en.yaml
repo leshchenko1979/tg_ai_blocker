@@ -240,6 +240,8 @@ spam:
   not_spam_button: "✅ Not spam"
   not_spam_confirm: "✅ Not spam"
   notify_title: "⚠️ <b>INTRUSION!</b>\n\n"
+  deleted_title: "✅ <b>Spam removed</b>\n\n"
+  needs_confirmation_title: "🔔 <b>Confirm: Delete or allow?</b>\n\n"
   review_low_confidence_title: "⚠️ <b>Low confidence — please review</b>\n\n"
   review_low_confidence_hint: "AI classified as not spam with {confidence}% confidence."
   group_label: "<b>Group:</b> {display}\n\n"

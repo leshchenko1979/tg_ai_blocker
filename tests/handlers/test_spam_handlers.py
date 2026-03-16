@@ -356,8 +356,8 @@ class TestFormatAdminNotificationMessage:
         assert "10" in result
         assert "INTRUSION" not in result
 
-    def test_default_spam_uses_intrusion_title(self):
-        """With is_low_confidence_not_spam=False, uses default INTRUSION title."""
+    def test_spam_needs_confirmation_uses_confirmation_title(self):
+        """With is_low_confidence_not_spam=False and all_admins_delete=False, uses needs_confirmation_title."""
         context = MessageNotificationContext(
             effective_user_id=123,
             content_text="Test content",
@@ -379,7 +379,7 @@ class TestFormatAdminNotificationMessage:
             lang="en",
             is_low_confidence_not_spam=False,
         )
-        assert "INTRUSION" in result
+        assert "Confirm" in result
 
     """Test format_admin_notification_message with is_low_confidence_not_spam."""
 
@@ -446,8 +446,10 @@ class TestFormatAdminNotificationMessage:
         assert "Low confidence" in result
         assert "10" in result
 
-    def test_normal_spam_uses_intrusion_title(self, notification_context):
-        """With is_low_confidence_not_spam=False, uses default notify_title."""
+    def test_spam_needs_confirmation_uses_confirmation_title(
+        self, notification_context
+    ):
+        """With is_low_confidence_not_spam=False, uses needs_confirmation_title."""
         result = format_admin_notification_message(
             notification_context,
             all_admins_delete=False,
@@ -455,7 +457,7 @@ class TestFormatAdminNotificationMessage:
             lang="en",
             is_low_confidence_not_spam=False,
         )
-        assert "INTRUSION" in result
+        assert "Confirm" in result
 
 
 class TestFormatAdminNotificationMessage:
@@ -529,15 +531,26 @@ class TestFormatAdminNotificationMessage:
         assert "10" in result  # confidence in hint
         assert "INTRUSION" not in result
 
-    def test_default_uses_intrusion_title(self, context):
-        """With is_low_confidence_not_spam=False, uses default notify_title."""
+    def test_spam_needs_confirmation_uses_confirmation_title(self, context):
+        """With is_low_confidence_not_spam=False, uses needs_confirmation_title."""
         result = format_admin_notification_message(
             context,
             all_admins_delete=False,
             reason="Spam detected",
             lang="en",
         )
-        assert "INTRUSION" in result
+        assert "Confirm" in result
+
+    def test_deleted_spam_uses_deleted_title(self, context):
+        """With all_admins_delete=True, uses deleted_title (informational)."""
+        result = format_admin_notification_message(
+            context,
+            all_admins_delete=True,
+            reason="Spam detected",
+            lang="en",
+        )
+        assert "Spam removed" in result
+        assert "Confirm" not in result
 
 
 class TestFormatAdminNotificationMessage:
@@ -584,7 +597,7 @@ class TestFormatAdminNotificationMessage:
             lang="en",
             is_low_confidence_not_spam=False,
         )
-        assert "INTRUSION" in result
+        assert "Confirm" in result
 
 
 class TestFormatAdminNotificationMessage:
@@ -699,7 +712,7 @@ class TestFormatAdminNotificationMessage:
             lang="en",
         )
 
-        assert "INTRUSION" in result
+        assert "Confirm" in result
         assert "Low confidence" not in result
 
 
@@ -746,7 +759,7 @@ class TestFormatAdminNotificationMessage:
             reason="Some reason",
             lang="en",
         )
-        assert "INTRUSION" in result
+        assert "Confirm" in result
 
 
 class TestFormatAdminNotificationMessage:
@@ -803,7 +816,7 @@ class TestFormatAdminNotificationMessage:
             lang="en",
             is_low_confidence_not_spam=False,
         )
-        assert "INTRUSION" in result
+        assert "Confirm" in result
 
 
 class TestFormatAdminNotificationMessage:
@@ -837,8 +850,8 @@ class TestFormatAdminNotificationMessage:
         assert "10" in result
         assert "INTRUSION" not in result
 
-    def test_default_spam_uses_intrusion_title(self):
-        """When is_low_confidence_not_spam=False, uses default INTRUSION title."""
+    def test_default_spam_uses_needs_confirmation_title(self):
+        """When is_low_confidence_not_spam=False, uses needs_confirmation_title."""
         context = MessageNotificationContext(
             effective_user_id=123,
             content_text="Test message",
@@ -859,4 +872,4 @@ class TestFormatAdminNotificationMessage:
             reason="AI reason",
             lang="en",
         )
-        assert "INTRUSION" in result
+        assert "Confirm" in result

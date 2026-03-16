@@ -265,7 +265,12 @@ def format_admin_notification_message(
         else ""
     )
 
-    if is_low_confidence_not_spam:
+    if all_admins_delete:
+        # Informational: spam was auto-deleted, no action needed
+        title = t(lang, "spam.deleted_title")
+        hint = ""
+    elif is_low_confidence_not_spam:
+        # Action required: low-confidence not-spam needs review
         title = t(lang, "spam.review_low_confidence_title")
         hint = (
             t(lang, "spam.review_low_confidence_hint", confidence=confidence or 0)
@@ -273,7 +278,8 @@ def format_admin_notification_message(
             else ""
         )
     else:
-        title = t(lang, "spam.notify_title")
+        # Action required: spam needs Delete / Not spam confirmation
+        title = t(lang, "spam.needs_confirmation_title")
         hint = ""
 
     admin_msg = (
