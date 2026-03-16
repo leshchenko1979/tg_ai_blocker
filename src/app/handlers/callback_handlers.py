@@ -36,7 +36,7 @@ async def handle_lang_set_callback(callback: CallbackQuery) -> str:
     )
     await callback.answer(confirm_text, show_alert=False)
     if callback.message and isinstance(callback.message, types.Message):
-        await callback.message.edit_text(confirm_text)
+        await callback.message.edit_text(confirm_text, parse_mode="HTML")
     return "callback_lang_set"
 
 
