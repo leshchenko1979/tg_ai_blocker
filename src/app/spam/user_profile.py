@@ -43,6 +43,28 @@ async def _resolve_username_to_channel_id(username: str) -> Optional[int]:
     return None
 
 
+def _extract_personal_channel_username(
+    full_user_response: dict, personal_channel_id: int
+) -> Optional[str]:
+    """
+    Extract username for personal channel from MTProto users.getFullUser chats array.
+    The response includes the channel in chats with id and username—no Bot API needed.
+    """
+    chats = full_user_response.get("chats") or []
+    for chat in chats:
+        if chat.get("id") == personal_channel_id:
+            username = chat.get("username")
+            if username:
+                return username
+            # Collectible usernames: usernames is Vector<Username>
+            usernames = chat.get("usernames") or []
+            for u in usernames:
+                if isinstance(u, dict) and u.get("active") and u.get("username"):
+                    return u["username"]
+            return None
+    return None
+
+
 async def collect_user_context(
     user_id_or_message,
     username: Optional[str] = None,
@@ -157,17 +179,10 @@ async def collect_user_context(
         personal_channel_id = full_user.get("personal_channel_id")
         if personal_channel_id:
             channel_id = int(personal_channel_id)
-            # Resolve username via Bot API before MTProto; skip if inaccessible
-            linked_username: Optional[str] = None
-            try:
-                chat = await bot.get_chat(channel_id)
-                linked_username = getattr(chat, "username", None)
-            except Exception as e:
-                logger.debug(
-                    "Could not resolve personal channel for username (skipping MTProto): %s",
-                    e,
-                    extra={"user_id": actual_user_id, "channel_id": channel_id},
-                )
+            # Username comes from the same MTProto response (chats array), no Bot API needed
+            linked_username = _extract_personal_channel_username(
+                full_user_response, channel_id
+            )
             if linked_username is not None:
                 channel_result = await collect_channel_summary_by_id(
                     channel_id,
