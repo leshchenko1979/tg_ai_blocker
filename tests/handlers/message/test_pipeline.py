@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.app.handlers.message.pipeline import process_spam_or_approve
 
+DEFAULT_SPAM_CONFIG = {"spam": {"high_confidence_threshold": 90}}
+
 
 @pytest.fixture
 def mock_message():
@@ -35,7 +37,7 @@ def mock_message_context_result():
 
 
 class TestProcessSpamOrApprove:
-    """Test process_spam_or_approve score thresholds and skip_auto_delete."""
+    """Test process_spam_or_approve confidence thresholds and skip_auto_delete."""
 
     @pytest.mark.asyncio
     async def test_not_spam_high_confidence_approves_user(
@@ -60,7 +62,7 @@ class TestProcessSpamOrApprove:
             ) as mock_load_config,
         ):
             mock_deduct.return_value = True
-            mock_load_config.return_value = {"spam": {"high_confidence_threshold": 90}}
+            mock_load_config.return_value = DEFAULT_SPAM_CONFIG
 
             result = await process_spam_or_approve(
                 mock_message,
@@ -94,7 +96,7 @@ class TestProcessSpamOrApprove:
             ) as mock_load_config,
         ):
             mock_deduct.return_value = True
-            mock_load_config.return_value = {"spam": {"high_confidence_threshold": 90}}
+            mock_load_config.return_value = DEFAULT_SPAM_CONFIG
 
             result = await process_spam_or_approve(
                 mock_message,
@@ -128,7 +130,7 @@ class TestProcessSpamOrApprove:
             ) as mock_load_config,
         ):
             mock_deduct.return_value = True
-            mock_load_config.return_value = {"spam": {"high_confidence_threshold": 90}}
+            mock_load_config.return_value = DEFAULT_SPAM_CONFIG
 
             result = await process_spam_or_approve(
                 mock_message,
@@ -162,7 +164,7 @@ class TestProcessSpamOrApprove:
             ) as mock_load_config,
         ):
             mock_deduct.return_value = True
-            mock_load_config.return_value = {"spam": {"high_confidence_threshold": 90}}
+            mock_load_config.return_value = DEFAULT_SPAM_CONFIG
 
             result = await process_spam_or_approve(
                 mock_message,
@@ -233,7 +235,7 @@ class TestProcessSpamOrApprove:
             ) as mock_load_config,
         ):
             mock_deduct.return_value = True
-            mock_load_config.return_value = {"spam": {"high_confidence_threshold": 90}}
+            mock_load_config.return_value = DEFAULT_SPAM_CONFIG
             mock_handle_spam.return_value = "spam_admins_notified"
 
             result = await process_spam_or_approve(
