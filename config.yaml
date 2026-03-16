@@ -19,8 +19,9 @@ cache:
   message_history_ttl_days: 7  # Chat history retention
   pending_spam_ttl_days: 7     # Pending spam examples before cleanup
 
-# Threshold for auto-delete: spam with score >= this is high-confidence (may auto-delete).
-# Spam with 50 < score < threshold is low-confidence (notify only, admin confirms).
+# Confidence threshold (0-100): spam/not-spam with confidence >= this is high-confidence.
+# High-confidence spam: may auto-delete (if admins allow). Low-confidence: notify only, admin confirms.
+# High-confidence not-spam: auto-approve. Low-confidence not-spam: send for review.
 spam:
   high_confidence_threshold: 90
 
