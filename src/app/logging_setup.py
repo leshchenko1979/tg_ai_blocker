@@ -46,7 +46,18 @@ def setup_logging():
         # Initialize Logfire
         import logfire
 
-        logfire.configure()
+        def _scrubbing_callback(match):
+            """Allow spam classifier / LLM prompt content; Logfire scrubs 'auth' broadly,
+            masking system prompts that contain words like 'authority' or 'authentic'."""
+            path = match.path
+            if isinstance(path, (list, tuple)) and len(path) >= 3:
+                if path[-1] == "content" and path[-3] == "messages":
+                    return match.value
+            return None
+
+        logfire.configure(
+            scrubbing=logfire.ScrubbingOptions(callback=_scrubbing_callback)
+        )
 
         _telegram_handler = TelegramLogHandler(bot=bot, chat_id=LESHCHENKO_CHAT_ID)
         _telegram_handler.setFormatter(

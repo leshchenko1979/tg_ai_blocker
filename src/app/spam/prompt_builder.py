@@ -135,14 +135,14 @@ CRITICAL INSTRUCTION:
 4. ONLY use this context to check if the user's reply is RELEVANT to the conversation.
 
 HIGH SPAM INDICATOR: User replies that are completely unrelated to the discussion topic.
-This is a common scam tactic: post irrelevant comments to "befriend" users,
-then send investment/crypto offers via private messages.
 
-Signs of irrelevant replies:
+Some signs of irrelevant replies:
 - Reply ignores the main topic of the original post
 - Shifts to personal topics (books, movies, hobbies) with no connection
 - Generic phrases like "interesting" or "I agree" without specific reference
-- Self-promotion disguised as "helpful advice" on unrelated topics""")
+- Self-promotion disguised as "helpful advice" on unrelated topics
+- Messages in a different language than the discussion
+""")
         return self
 
     def add_knowledge_sharing_guidance(self) -> "SpamPromptBuilder":
@@ -166,18 +166,13 @@ Genuine human sharing is usually direct or occurs naturally within the conversat
 A major spam indicator is the use of AI to generate comments that appear "clean" but add no value. This is often combined with unusual emoji patterns.
 
 HIGH SPAM INDICATORS:
-1. ROBOTIC TONE:
-   - Message is a generic rephrasing or summary of the "REPLY CONTEXT".
-   - Phrasing is overly polite, hollow, or reads like an automated summary (e.g., "This post discusses...", "Basically, the writer says...").
-   - Zero unique contribution, personal opinion, or genuine human insight.
 
-2. UNUSUAL EMOJI USAGE:
-   - Excessive use of emojis (more than 3-4 in a short comment).
-   - Unusual placement (e.g., emojis between words where they don't make sense).
-   - Using emojis as "visual noise" to grab attention or bypass filters.
-   - Real humans use emojis sparingly to express emotion, while spammers use them to clutter the view.
+- Message is a generic rephrasing or summary of the "REPLY CONTEXT" (e.g., "This post discusses...", "Basically, the writer says...").
+- Zero unique contribution, personal opinion, or genuine human insight.
+- Spammers use Telegram custom emojis to bypass filters. You see it as an uncomprhesible stream of emojis.
 
-These AI signatures are strong indicators of spam REGARDLESS of whether the profile has promotional links in stories or linked channels. The goal of such posts is to clutter the discussion and lure users to a bot-controlled profile.""")
+These AI signatures are strong indicators of spam REGARDLESS of whether the profile has promotional links
+in stories or linked channels. The goal of such posts is to lure users to a bot-controlled profile.""")
         return self
 
     def add_response_format(self, lang: str = "en") -> "SpamPromptBuilder":
