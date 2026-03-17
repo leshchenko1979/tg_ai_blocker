@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 # Available models - actively maintained free models
 MODELS = [
-    "nvidia/nemotron-3-super-120b-a12b:free",
-    "minimax/minimax-m2.5:free",
+    # "nvidia/nemotron-3-super-120b-a12b:free",
+    # "minimax/minimax-m2.5:free",
     "nvidia/nemotron-3-nano-30b-a3b:free",
     # "meta-llama/llama-3.3-70b-instruct:free",
     # "upstage/solar-pro-3:free", Times out every time
