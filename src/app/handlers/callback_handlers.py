@@ -159,7 +159,9 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         admin = await get_admin(admin_id)
         lang = resolve_lang(callback.from_user, admin)
         try:
-            await callback.answer(t(lang, "callback.safe_added"), show_alert=False)
+            await callback.answer(
+                f"✅ {t(lang, 'callback.safe_added')}", show_alert=False
+            )
         except Exception:
             pass
 
@@ -178,7 +180,10 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
         if not isinstance(message, types.Message):
             return "callback_invalid_message_type"
 
-        message_text = message.text or message.caption or ""
+        # Preserve HTML formatting (message.text is plain text; entities hold formatting)
+        message_text = (
+            getattr(message, "html_text", None) or message.text or message.caption or ""
+        )
         updated_message_text = (
             f"{message_text}\n\n✅ <b>{t(lang, 'callback.safe_added')}</b>"
         )
@@ -255,7 +260,9 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
 
     try:
         try:
-            await callback.answer(t(lang, "callback.spam_deleted"), show_alert=False)
+            await callback.answer(
+                f"✅ {t(lang, 'callback.spam_deleted')}", show_alert=False
+            )
         except Exception:
             pass
 
@@ -307,7 +314,10 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
         # Remove keyboard and append confirmation line (Callback Button UX Pattern)
         msg = callback.message
         if isinstance(msg, types.Message):
-            existing_text = msg.text or msg.caption or ""
+            # Preserve HTML formatting (message.text is plain text; entities hold formatting)
+            existing_text = (
+                getattr(msg, "html_text", None) or msg.text or msg.caption or ""
+            )
             updated_text = (
                 f"{existing_text}\n\n✅ <b>{t(lang, 'callback.spam_deleted')}</b>"
             )

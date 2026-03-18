@@ -283,8 +283,8 @@ private:
 
 callback:
   message_inaccessible: "❌ Message unavailable"
-  safe_added: "✅ Message added as safe example"
-  spam_deleted: "✅ Spam deleted"
+  safe_added: "Message added as safe example"
+  spam_deleted: "Spam deleted"
   invalid_callback: "❌ Invalid callback"
   delete_failed: "❌ Failed to delete message"
   error_generic: "❌ An error occurred"

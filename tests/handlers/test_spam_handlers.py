@@ -552,6 +552,19 @@ class TestFormatAdminNotificationMessage:
         assert "Spam removed" in result
         assert "Confirm" not in result
 
+    def test_include_mode_tip_false_omits_mode_tip(self, context):
+        """With include_mode_tip=False, mode tip is not shown (admin already in delete mode)."""
+        result = format_admin_notification_message(
+            context,
+            all_admins_delete=False,
+            reason="Spam detected",
+            lang="en",
+            include_mode_tip=False,
+        )
+        assert "Confirm" in result
+        assert "Use /mode" not in result
+        assert "automatic spam deletion" not in result
+
 
 class TestFormatAdminNotificationMessage:
     """Test format_admin_notification_message with is_low_confidence_not_spam."""

@@ -1,4 +1,6 @@
 import logging
+from collections.abc import Callable
+from typing import cast
 
 import logfire
 from aiogram.exceptions import TelegramBadRequest
@@ -38,7 +40,7 @@ async def notify_admins_with_fallback_and_cleanup(
     bot,
     admin_ids: list[int],
     group_id: int,
-    private_message: str,
+    private_message: str | Callable[[int], str],
     group_message_template: str = "{mention}, I can't send a private message to any administrator. Please message me privately to receive important group notifications!",
     cleanup_if_group_fails: bool = True,
     parse_mode: str = "HTML",
@@ -90,12 +92,18 @@ async def notify_admins_with_fallback_and_cleanup(
                     bots_skipped.append(admin_id)
                     continue
 
+            # Resolve message (support per-admin customization)
+            if callable(private_message):
+                msg_text = cast(Callable[[int], str], private_message)(admin_id)
+            else:
+                msg_text = private_message
+
             # Send message with retry
             @retry_on_network_error
             async def send_private_message():
                 return await bot.send_message(
                     admin_id,
-                    private_message,
+                    msg_text,
                     parse_mode=parse_mode,
                     reply_markup=reply_markup,
                     disable_web_page_preview=True,
@@ -123,7 +131,7 @@ async def notify_admins_with_fallback_and_cleanup(
                         exc_info=True,
                         extra={
                             "error_message": error_msg,
-                            "private_message": private_message,
+                            "private_message": msg_text,
                         },
                     )
                     # Don't treat content parsing errors as "unreachable admin"

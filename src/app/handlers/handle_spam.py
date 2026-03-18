@@ -247,6 +247,7 @@ def format_admin_notification_message(
     lang: str = "en",
     is_low_confidence_not_spam: bool = False,
     confidence: Optional[int] = None,
+    include_mode_tip: bool = True,
 ) -> str:
     """Format spam notification text for admins."""
     if context.effective_user_id is None:
@@ -302,7 +303,8 @@ def format_admin_notification_message(
     else:
         link = context.message_link or get_project_channel_url()
         admin_msg += t(lang, "spam.message_link", link=link)
-        admin_msg += t(lang, "spam.mode_tip")
+        if include_mode_tip:
+            admin_msg += t(lang, "spam.mode_tip")
 
     admin_msg += (
         "\n\n" + f'<a href="{get_spam_guide_url()}">' + t(lang, "spam.spam_guide_link")
@@ -327,14 +329,34 @@ async def notify_admins(
     lang = await _get_notification_lang(admin_ids, message.from_user)
 
     context = MessageNotificationContext.from_message(message)
-    private_message = format_admin_notification_message(
-        context,
-        all_admins_delete,
-        reason,
-        lang=lang,
-        is_low_confidence_not_spam=is_low_confidence_not_spam,
-        confidence=confidence,
-    )
+
+    # When confirmation needed, hide mode_tip for admins already in delete mode
+    if all_admins_delete:
+        private_message = format_admin_notification_message(
+            context,
+            all_admins_delete,
+            reason,
+            lang=lang,
+            is_low_confidence_not_spam=is_low_confidence_not_spam,
+            confidence=confidence,
+        )
+    else:
+        admins_map = await get_admins_map(admin_ids)
+
+        def message_for_admin(admin_id: int) -> str:
+            admin = admins_map.get(admin_id)
+            include_mode_tip = not (admin and admin.delete_spam)
+            return format_admin_notification_message(
+                context,
+                all_admins_delete,
+                reason,
+                lang=lang,
+                is_low_confidence_not_spam=is_low_confidence_not_spam,
+                confidence=confidence,
+                include_mode_tip=include_mode_tip,
+            )
+
+        private_message = message_for_admin
 
     pending_id = None
     if context.effective_user_id is not None:
