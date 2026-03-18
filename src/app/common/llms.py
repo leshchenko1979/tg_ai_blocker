@@ -479,6 +479,7 @@ async def get_primary_gateway_response(
             raise
 
 
+@logfire.instrument(extract_args=True, record_return=True)
 async def _request_chat_completions(
     api_base: str,
     model: str,
