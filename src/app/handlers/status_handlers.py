@@ -467,6 +467,7 @@ async def handle_member_service_message(message: types.Message) -> str:
                     f"Cannot delete service message {message_id} in chat {chat_id} ('{message.chat.title or ''}'): {e}",
                     exc_info=True,
                 )
+                await set_no_rights_detected_at(chat_id)
                 # Notify admins about missing permission - if this fails, cleanup will happen
                 try:
                     admins = await bot.get_chat_administrators(chat_id)
