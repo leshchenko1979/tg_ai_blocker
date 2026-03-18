@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 
 import logfire
 
-from ..common.utils import clean_alert_text
+from ..common.utils import clean_alert_text, load_config
 from .postgres_connection import get_pool
 
 logger = logging.getLogger(__name__)
@@ -131,45 +131,91 @@ async def confirm_pending_example_as_spam(
         return result != "UPDATE 0"
 
 
+def _get_examples_config() -> tuple[int, float, float]:
+    """Return (limit, ham_ratio, spam_ratio) from config. spam_ratio = 1 - ham_ratio."""
+    spam_cfg = load_config().get("spam", {})
+    limit = spam_cfg.get("examples_limit", 40)
+    ham_ratio = spam_cfg.get("examples_ham_ratio", 0.25)
+    spam_ratio = 1.0 - ham_ratio
+    return limit, ham_ratio, spam_ratio
+
+
 async def get_spam_examples(
     admin_ids: Optional[List[int]] = None,
+    limit: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
-    """Get spam examples from PostgreSQL. With admin_ids, includes user-specific examples."""
+    """Get spam examples from PostgreSQL with proportional ham/spam mix.
+    With admin_ids, includes user-specific examples.
+    Uses examples_limit and examples_ham_ratio / examples_spam_ratio from config.
+    Prefers most recent examples within each category."""
+    cfg_limit, ham_ratio, spam_ratio = _get_examples_config()
+    total_limit = limit if limit is not None else cfg_limit
+    ham_limit = max(1, round(total_limit * ham_ratio))
+    spam_limit = max(1, round(total_limit * spam_ratio))
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         if admin_ids:
-            rows = await conn.fetch(
+            ham_rows = await conn.fetch(
                 """
-                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context
+                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context, created_at
                 FROM spam_examples
-                WHERE (admin_id IS NULL OR admin_id = ANY($1)) AND (confirmed IS NOT DISTINCT FROM true)
+                WHERE (admin_id IS NULL OR admin_id = ANY($1)) AND (confirmed IS NOT DISTINCT FROM true) AND score < 0
                 ORDER BY created_at DESC
-            """,
+                LIMIT $2
+                """,
                 admin_ids,
+                ham_limit,
+            )
+            spam_rows = await conn.fetch(
+                """
+                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context, created_at
+                FROM spam_examples
+                WHERE (admin_id IS NULL OR admin_id = ANY($1)) AND (confirmed IS NOT DISTINCT FROM true) AND score > 0
+                ORDER BY created_at DESC
+                LIMIT $2
+                """,
+                admin_ids,
+                spam_limit,
             )
         else:
-            rows = await conn.fetch(
+            ham_rows = await conn.fetch(
                 """
-                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context
+                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context, created_at
                 FROM spam_examples
-                WHERE admin_id IS NULL AND (confirmed IS NOT DISTINCT FROM true)
+                WHERE admin_id IS NULL AND (confirmed IS NOT DISTINCT FROM true) AND score < 0
                 ORDER BY created_at DESC
-            """
+                LIMIT $1
+                """,
+                ham_limit,
+            )
+            spam_rows = await conn.fetch(
+                """
+                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context, created_at
+                FROM spam_examples
+                WHERE admin_id IS NULL AND (confirmed IS NOT DISTINCT FROM true) AND score > 0
+                ORDER BY created_at DESC
+                LIMIT $1
+                """,
+                spam_limit,
             )
 
-        return [
-            {
-                "text": row["text"],
-                "name": row["name"],
-                "bio": row["bio"],
-                "score": row["score"],
-                "linked_channel_fragment": row["linked_channel_fragment"],
-                "stories_context": row["stories_context"],
-                "reply_context": row["reply_context"],
-                "account_age_context": row["account_age_context"],
-            }
-            for row in rows
-        ]
+    combined = list(ham_rows) + list(spam_rows)
+    combined.sort(key=lambda r: r["created_at"], reverse=True)
+
+    return [
+        {
+            "text": row["text"],
+            "name": row["name"],
+            "bio": row["bio"],
+            "score": row["score"],
+            "linked_channel_fragment": row["linked_channel_fragment"],
+            "stories_context": row["stories_context"],
+            "reply_context": row["reply_context"],
+            "account_age_context": row["account_age_context"],
+        }
+        for row in combined
+    ]
 
 
 @logfire.no_auto_trace

@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch
 
 from app.database import (
     add_spam_example,
@@ -107,6 +108,32 @@ async def test_get_spam_examples_with_multiple_admins(patched_db_conn, clean_db)
         assert any(ex["text"] == "common spam" for ex in result)
         assert any(ex["text"] == "admin1 spam" for ex in result)
         assert any(ex["text"] == "admin2 spam" for ex in result)
+
+
+@pytest.mark.asyncio
+async def test_get_spam_examples_ham_spam_proportion(patched_db_conn, clean_db):
+    """Test that examples respect config ham/spam ratio, most recent first."""
+    async with clean_db.acquire() as conn:
+        # Add 5 ham and 15 spam (config: limit=20, ham_ratio=0.25, spam_ratio=0.75 -> 5 ham, 15 spam)
+        for i in range(5):
+            await add_spam_example(text=f"ham {i}", score=-100)
+        for i in range(15):
+            await add_spam_example(text=f"spam {i}", score=100)
+
+        with patch("app.database.spam_examples.load_config") as mock_load:
+            mock_load.return_value = {
+                "spam": {
+                    "examples_limit": 20,
+                    "examples_ham_ratio": 0.25,  # spam_ratio derived as 0.75
+                }
+            }
+            result = await get_spam_examples()
+
+        ham = [r for r in result if r["score"] < 0]
+        spam = [r for r in result if r["score"] > 0]
+        assert len(ham) == 5  # 25% of 20
+        assert len(spam) == 15  # 75% of 20
+        assert len(result) == 20
 
 
 @pytest.mark.asyncio

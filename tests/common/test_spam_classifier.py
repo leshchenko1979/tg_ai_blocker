@@ -189,10 +189,33 @@ async def test_build_system_prompt_reply_context_guidance():
         assert "## DISCUSSION CONTEXT ANALYSIS" in prompt
         assert 'The "REPLY CONTEXT" is NOT the message you are classifying.' in prompt
         assert "DO NOT classify the user's message as spam" in prompt
+        assert '"Relevant to discussion" alone does NOT mean legitimate' in prompt
         assert (
             "HIGH SPAM INDICATOR: User replies that are completely unrelated to the discussion topic."
             in prompt
         )
+
+
+@pytest.mark.asyncio
+async def test_build_system_prompt_trojan_horse_guidance():
+    """Trojan Horse and signal hierarchy are always present in the prompt."""
+    from src.app.types import SpamClassificationContext
+
+    with patch(
+        "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
+    ) as mock_examples:
+        mock_examples.return_value = []
+
+        context = SpamClassificationContext(
+            reply="Promo post",
+            name="Лида | Комменты без усилий",
+            bio="ИИ агенты приводят лиды t.me/LeadHunter_robot",
+        )
+        prompt = await build_system_prompt(context=context)
+
+        assert "## TROJAN HORSE PATTERN (Critical)" in prompt
+        assert "Clean message + dirty profile = SPAM" in prompt
+        assert "SIGNAL HIERARCHY" in prompt
 
 
 @pytest.mark.asyncio

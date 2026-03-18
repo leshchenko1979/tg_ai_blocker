@@ -22,8 +22,11 @@ cache:
 # Confidence threshold (0-100): spam/not-spam with confidence >= this is high-confidence.
 # High-confidence spam: may auto-delete (if admins allow). Low-confidence: notify only, admin confirms.
 # High-confidence not-spam: auto-approve. Low-confidence not-spam: send for review.
+# Examples: limit and ham share for prompt (prefer most recent within each category).
 spam:
   high_confidence_threshold: 90
+  examples_limit: 40        # Max examples in prompt
+  examples_ham_ratio: 0.25   # 25% ham, rest is spam
 
 system:
   admin_chat_id: 133526395  # ID администратора для уведомлений

@@ -56,8 +56,22 @@ IMPORTANT: Do not classify the context information as spam. Only classify the me
 Examine the user's name and bio for professional labels or hidden promotions.
 
 HIGH SPAM INDICATORS:
-- NAME: Professional titles ("Psychologist", "Coach", "Investor", "Realtor") or links directly in the user's display name.
-- BIO: Links to Telegram bots, external sites, or "consultation" offers.""")
+- NAME: Professional titles ("Psychologist", "Coach", "Investor", "Realtor"); income or offer in display name ("100к за 7 дней", "50к/мес в общаге", "Комменты без усилий", "Экспертиза бренда X"); links directly in the user's display name.
+- BIO: Links to Telegram bots (including "helpful" bots or "free tools" — often lead-gen funnels), external sites, t.me/ links to channels or bots, "consultation" offers, or phrases like "чекай канал в био".""")
+        return self
+
+    def add_trojan_horse_guidance(self) -> "SpamPromptBuilder":
+        """Add Trojan Horse pattern guidance (clean message + dirty profile)."""
+        self.prompt_parts.append("""
+## TROJAN HORSE PATTERN (Critical)
+When the message looks innocent or on-topic BUT the profile has strong spam indicators, this is Trojan Horse spam.
+
+- Clean message + dirty profile = SPAM. The goal is to drive profile clicks, not add value.
+- Strong profile indicators: bot link in bio, offer/income in name, photo_age=0mo or unknown.
+- A "relevant" or "expert-looking" comment from such a profile is HIGH SPAM — the comment is bait.
+- Do NOT let "message is relevant to reply" override profile indicators when profile has bot links or promotional name.
+
+SIGNAL HIERARCHY: Profile indicators (name, bio, stories, account age) can outweigh message content. When multiple profile indicators point to spam, classify as spam even if the message appears on-topic.""")
         return self
 
     def add_linked_channel_guidance(self) -> "SpamPromptBuilder":
@@ -72,10 +86,7 @@ Key metrics to evaluate:
 - age_delta: Channel age in months (format: "11mo")
 - recent_posts: Content from recent channel posts (if available)
 
-Consider the user HIGH RISK if these are true:
-- subscribers < 200
-- total_posts < 10
-- age_delta < 5mo
+GASKET (PROXY) CHANNEL: When subscribers < 5, total_posts < 5, age_delta=0mo — likely a "gasket" (one-post proxy channel). Strong spam indicator.
 
 CONTENT ANALYSIS: Examine recent_posts for spam indicators like:
 - Pornographic content
@@ -133,6 +144,7 @@ CRITICAL INSTRUCTION:
 2. It often contains the spam message that the user is replying to (e.g. asking a question about a spam offer).
 3. DO NOT classify the user's message as spam just because the "REPLY CONTEXT" is spam.
 4. ONLY use this context to check if the user's reply is RELEVANT to the conversation.
+5. "Relevant to discussion" alone does NOT mean legitimate. If the profile has strong spam indicators (bot in bio, promotional name, new account), treat even relevant comments as high-risk Trojan Horse.
 
 HIGH SPAM INDICATOR: User replies that are completely unrelated to the discussion topic.
 
@@ -153,6 +165,8 @@ A frequent spam tactic is offering "free" materials to lure users into private m
 
 HIGH SPAM INDICATORS:
 - BAIT OFFERS: "I have a free book/course/intensive", "I can share my material", "Write to me and I'll send you the link".
+- CONCRETE PHRASES (Russian): "пишите, скину бесплатно", "Могу скинуть", "пишите, скину за спасибо", "скину материал за благодарность".
+- CONTEXT LURES: "архив с курсом", "курс по трейдингу", "материал" — these lure users to private chat.
 - VAGUE "HELP": Offering help or sharing experience in a way that requires leaving the current discussion.
 - "KARMA" BAIT: Using phrases like "giving away for free", "believing in karma", or "just want to help" to appear altruistic while posting advertisements.
 
@@ -168,8 +182,9 @@ A major spam indicator is the use of AI to generate comments that appear "clean"
 HIGH SPAM INDICATORS:
 
 - Message is a generic rephrasing or summary of the "REPLY CONTEXT" (e.g., "This post discusses...", "Basically, the writer says...").
+- Paraphrasing the post without adding insight — just ticking a "relevant reply" checkbox.
 - Zero unique contribution, personal opinion, or genuine human insight.
-- Spammers use Telegram custom emojis to bypass filters. You see it as an uncomprhesible stream of emojis.
+- Spammers use Telegram custom emojis to bypass filters. You see it as an incomprehensible stream of emojis.
 
 These AI signatures are strong indicators of spam REGARDLESS of whether the profile has promotional links
 in stories or linked channels. The goal of such posts is to lure users to a bot-controlled profile.""")
@@ -268,6 +283,7 @@ async def build_system_prompt(
 
     # Always include user info guidance as it's fundamental
     builder.add_user_info_guidance()
+    builder.add_trojan_horse_guidance()
 
     if context is None:
         context = SpamClassificationContext()
