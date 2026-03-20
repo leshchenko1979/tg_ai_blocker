@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 # Start the server
 import asyncio
+import os
 import time
 from asyncio import TimeoutError
 from typing import Optional, Union
@@ -142,7 +143,7 @@ async def _on_startup_setup_bot(app: web.Application) -> None:
     register_telegram_logging_loop(asyncio.get_running_loop())
     await setup_bot_commands(bot)
     try:
-        webhook_url = "https://tg-ai-blocker.l1979.ru/process-tg-updates"
+        webhook_url = os.environ.get("TELEGRAM_WEBHOOK_URL")
         logger.info(f"Setting webhook URL to: {webhook_url}")
         await bot.set_webhook(webhook_url)
         logger.info("Webhook setup completed successfully")
