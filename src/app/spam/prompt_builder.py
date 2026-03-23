@@ -12,7 +12,7 @@ The module provides:
 
 Prompt Structure:
 1. Base instructions (what spam classification is)
-2. Context-specific guidance sections (linked channels, stories, account age, replies)
+2. Context-specific guidance sections (linked channels, stories, account signals, replies)
 3. Response format specification
 4. Spam classification examples from database
 """
@@ -25,6 +25,7 @@ import logfire
 from ..database.spam_examples import get_spam_examples
 from ..i18n import t
 from ..types import ContextResult, ContextStatus, SpamClassificationContext
+from .account_signals import ACCOUNT_SIGNALS_HEADER, format_account_signals_user_section
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class SpamPromptBuilder:
 
 Your task: Analyze user messages and determine if they are spam or legitimate.
 The message to classify is enclosed in >>> BEGIN MESSAGE markers.
-You will also receive context information (User Bio, Linked Channel, User Stories, Account Age, Reply Context).
+You will also receive context information (User Bio, Linked Channel, User Stories, Account Signals, Reply Context).
 
 IMPORTANT: Do not classify the context information as spam. Only classify the message inside the markers.
 
@@ -71,7 +72,9 @@ When the message looks innocent or on-topic BUT the profile has strong spam indi
 - A "relevant" or "expert-looking" comment from such a profile is HIGH SPAM — the comment is bait.
 - Do NOT let "message is relevant to reply" override profile indicators when profile has bot links or promotional name.
 
-SIGNAL HIERARCHY: Profile indicators (name, bio, stories, account age) can outweigh message content. When multiple profile indicators point to spam, classify as spam even if the message appears on-topic.""")
+SIGNAL HIERARCHY: Profile indicators (name, bio, stories, profile photo age, Telegram Premium in Account Signals) can outweigh message content when they are genuinely strong (e.g. bot in bio, promotional name, gasket channel, story bait). Do NOT treat the absence of linked channel, absence of stories, and photo_age=unknown alone as multiple strong indicators — many legitimate users have empty auxiliary fields.
+
+- Missing stories, no linked channel, and photo_age=unknown are common for ordinary accounts; stack them only with real spam signals in the message or profile (bots, offers, etc.), not as standalone proof of a "coordinated" or fake account.""")
         return self
 
     def add_linked_channel_guidance(self) -> "SpamPromptBuilder":
@@ -117,20 +120,21 @@ Flag as HIGH SPAM if stories contain:
 This is a strong spam indicator even if the message itself appears legitimate.""")
         return self
 
-    def add_account_age_guidance(self) -> "SpamPromptBuilder":
-        """Add guidance for analyzing account age context."""
+    def add_account_signals_guidance(self) -> "SpamPromptBuilder":
+        """Add guidance for profile photo age and Telegram Premium (Account Signals section)."""
         self.prompt_parts.append("""
-## ACCOUNT AGE ANALYSIS
-This section shows the age of the user's profile photo.
+## ACCOUNT SIGNALS ANALYSIS
+This section combines profile photo age (photo_age=…mo or photo_age=unknown) and optionally is_premium=true/false from Telegram.
 
-Account age is a powerful spam indicator because spammers create new accounts
-and immediately start posting spam.
+Profile photo age is useful because spammers often use new accounts with new or missing photos.
 
-Risk assessment:
-- photo_age=unknown OR no photo: HIGH spam risk for new messages
-- photo_age=0mo (less than 1 month): HIGH spam risk - likely brand new account
-- photo_age=1mo to 3mo: MEDIUM spam risk
-- photo_age > 12mo: LOW spam risk - established account with old photo""")
+Risk assessment (photo age alone — combine with message and other profile signals):
+- photo_age=unknown OR no photo: elevated suspicion, but NOT sufficient for high-confidence spam by itself on a short, on-topic, non-bait message.
+- photo_age=0mo: high suspicion for spam when combined with other promotional or bot signals.
+- photo_age=1mo to 3mo: medium suspicion
+- photo_age > 12mo: low suspicion from photo age alone
+
+Telegram Premium (is_premium=true): weak legitimacy signal — paid accounts are somewhat less typical of disposable spam-only socks, but premium does NOT rule out spam. Do not argue "typical fake/new spam account" based only on empty stories, no linked channel, and unknown photo_age when is_premium=true unless strong indicators exist elsewhere (name, bio, bot links, bait in message, etc.).""")
         return self
 
     def add_reply_context_guidance(self) -> "SpamPromptBuilder":
@@ -145,6 +149,8 @@ CRITICAL INSTRUCTION:
 3. DO NOT classify the user's message as spam just because the "REPLY CONTEXT" is spam.
 4. ONLY use this context to check if the user's reply is RELEVANT to the conversation.
 5. "Relevant to discussion" alone does NOT mean legitimate. If the profile has strong spam indicators (bot in bio, promotional name, new account), treat even relevant comments as high-risk Trojan Horse.
+
+6. When REPLY CONTEXT is clearly a commercial or channel promo and the message to classify is only a polite, on-topic request for details (scheme, steps, how it works) without DM bait, links in the message, or self-promo in name/bio — do NOT classify as high-confidence spam based on speculation about "coordinated campaigns", "fake interest", or stacking weak empty-field signals alone. Require concrete spam cues in the message or strong profile spam indicators.
 
 HIGH SPAM INDICATOR: User replies that are completely unrelated to the discussion topic.
 
@@ -214,6 +220,7 @@ Always respond with valid JSON in this exact format:
 
             for example in examples:
                 # Create context from example data
+                sig = example.get("account_signals_context")
                 example_context = SpamClassificationContext(
                     name=example.get("name"),
                     bio=example.get("bio"),
@@ -230,12 +237,7 @@ Always respond with valid JSON in this exact format:
                     if example.get("stories_context")
                     else None,
                     reply=example.get("reply_context"),
-                    account_age=ContextResult(
-                        status=ContextStatus.FOUND,
-                        content=example.get("account_age_context"),
-                    )
-                    if example.get("account_age_context")
-                    else None,
+                    account_signals_snapshot=sig.strip() if sig else None,
                 )
 
                 example_request = format_spam_request(
@@ -292,8 +294,8 @@ async def build_system_prompt(
         builder.add_linked_channel_guidance()
     if context.include_stories_guidance:
         builder.add_stories_guidance()
-    if context.include_account_age_guidance:
-        builder.add_account_age_guidance()
+    if context.include_account_signals_guidance:
+        builder.add_account_signals_guidance()
     if context.include_reply_guidance:
         builder.add_reply_context_guidance()
     if context.include_ai_detection_guidance:
@@ -308,6 +310,7 @@ async def build_system_prompt(
     return builder.build()
 
 
+@logfire.no_auto_trace
 def _format_context_section(
     section_name: str, context_result: Optional[ContextResult]
 ) -> str:
@@ -334,7 +337,7 @@ def _format_context_section(
         empty_messages = {
             "LINKED CHANNEL INFO": "no channel linked",
             "USER STORIES CONTENT": "no stories posted",
-            "ACCOUNT AGE INFO": "photo_age=unknown",
+            ACCOUNT_SIGNALS_HEADER: "photo_age=unknown",
         }
         message = empty_messages.get(section_name, "no data available")
         return f"{section_name}:\n{message}\n"
@@ -388,11 +391,14 @@ def format_spam_request(
     for section_name, context_result in [
         ("LINKED CHANNEL INFO", context.linked_channel),
         ("USER STORIES CONTENT", context.stories),
-        ("ACCOUNT AGE INFO", context.account_age),
     ]:
         section = _format_context_section(section_name, context_result)
         if section:
             parts.append(section.rstrip())
+
+    acc = format_account_signals_user_section(context)
+    if acc:
+        parts.append(acc.rstrip())
 
     # Handle reply context (special case due to different formatting)
     if context.reply is not None:

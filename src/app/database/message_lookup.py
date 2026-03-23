@@ -2,7 +2,7 @@
 Message lookup cache for recovering original message metadata from forwarded messages.
 
 Stores message metadata (chat_id, message_id, user_id, text, reply_to_text) and
-classification context (stories, account_age) for lookup when admins forward
+classification context (stories, account_signals) for lookup when admins forward
 messages to add spam examples. Replaces Logfire-based lookup.
 """
 
@@ -35,7 +35,7 @@ async def save_message_lookup_entry(
     *,
     reply_to_text: Optional[str] = None,
     stories_context: Optional[str] = None,
-    account_age_context: Optional[str] = None,
+    account_signals_context: Optional[str] = None,
 ) -> None:
     """Upsert message metadata and optional classification context into lookup cache."""
     pool = await get_pool()
@@ -44,7 +44,7 @@ async def save_message_lookup_entry(
             """
             INSERT INTO message_lookup_cache (
                 chat_id, message_id, effective_user_id, message_text,
-                reply_to_text, stories_context, account_age_context
+                reply_to_text, stories_context, account_signals_context
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             ON CONFLICT (chat_id, message_id) DO UPDATE SET
@@ -52,7 +52,7 @@ async def save_message_lookup_entry(
                 message_text = EXCLUDED.message_text,
                 reply_to_text = COALESCE(EXCLUDED.reply_to_text, message_lookup_cache.reply_to_text),
                 stories_context = COALESCE(EXCLUDED.stories_context, message_lookup_cache.stories_context),
-                account_age_context = COALESCE(EXCLUDED.account_age_context, message_lookup_cache.account_age_context),
+                account_signals_context = COALESCE(EXCLUDED.account_signals_context, message_lookup_cache.account_signals_context),
                 created_at = NOW()
             """,
             chat_id,
@@ -61,7 +61,7 @@ async def save_message_lookup_entry(
             message_text[:10000],  # Limit length
             reply_to_text[:5000] if reply_to_text else None,  # Limit length
             stories_context[:10000] if stories_context else None,
-            account_age_context[:2000] if account_age_context else None,
+            account_signals_context[:2000] if account_signals_context else None,
         )
 
 
@@ -86,7 +86,7 @@ async def find_message_by_text_and_user(
             row = await conn.fetchrow(
                 """
                 SELECT chat_id, message_id, effective_user_id, reply_to_text,
-                       stories_context, account_age_context
+                       stories_context, account_signals_context
                 FROM message_lookup_cache
                 WHERE message_text LIKE $1
                   AND effective_user_id = $2
@@ -106,7 +106,7 @@ async def find_message_by_text_and_user(
             row = await conn.fetchrow(
                 """
                 SELECT chat_id, message_id, effective_user_id, reply_to_text,
-                       stories_context, account_age_context
+                       stories_context, account_signals_context
                 FROM message_lookup_cache
                 WHERE message_text LIKE $1
                   AND chat_id = ANY($2)
@@ -130,7 +130,7 @@ async def find_message_by_text_and_user(
             "user_id": row["effective_user_id"],
             "reply_to_text": row["reply_to_text"],
             "stories_context": row["stories_context"],
-            "account_age_context": row["account_age_context"],
+            "account_signals_context": row["account_signals_context"],
         }
 
 

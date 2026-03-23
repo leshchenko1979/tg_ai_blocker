@@ -79,7 +79,7 @@ async def collect_user_context(
         chat_id: Optional chat ID (ignored when message object is passed)
 
     Returns:
-        SpamClassificationContext with linked_channel, account_age; stories=SKIPPED
+        SpamClassificationContext with linked_channel, profile_photo_age; stories=SKIPPED
     """
     client = get_mtproto_client()
     linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
@@ -122,7 +122,7 @@ async def collect_user_context(
                         status=ContextStatus.FAILED,
                         error="Invalid user_id for user_id-based collection",
                     ),
-                    account_age=ContextResult(
+                    profile_photo_age=ContextResult(
                         status=ContextStatus.FAILED,
                         error="Invalid user_id for user_id-based collection",
                     ),
@@ -243,7 +243,7 @@ async def collect_user_context(
 
     return SpamClassificationContext(
         linked_channel=linked_channel_result,
-        account_age=account_info_result,
+        profile_photo_age=account_info_result,
     )
 
 

@@ -25,7 +25,7 @@ async def insert_pending_spam_example(
     linked_channel_fragment: Optional[str] = None,
     stories_context: Optional[str] = None,
     reply_context: Optional[str] = None,
-    account_age_context: Optional[str] = None,
+    account_signals_context: Optional[str] = None,
 ) -> int:
     """
     Insert a pending spam example. Run TTL cleanup, return new row id.
@@ -37,7 +37,7 @@ async def insert_pending_spam_example(
                 """
                 INSERT INTO spam_examples (
                     text, name, bio, score,
-                    linked_channel_fragment, stories_context, reply_context, account_age_context,
+                    linked_channel_fragment, stories_context, reply_context, account_signals_context,
                     confirmed, chat_id, message_id, effective_user_id
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10, $11)
@@ -50,7 +50,7 @@ async def insert_pending_spam_example(
                 linked_channel_fragment,
                 stories_context,
                 reply_context,
-                account_age_context,
+                account_signals_context,
                 chat_id,
                 message_id,
                 effective_user_id,
@@ -158,7 +158,7 @@ async def get_spam_examples(
         if admin_ids:
             ham_rows = await conn.fetch(
                 """
-                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context, created_at
+                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_signals_context, created_at
                 FROM spam_examples
                 WHERE (admin_id IS NULL OR admin_id = ANY($1)) AND (confirmed IS NOT DISTINCT FROM true) AND score < 0
                 ORDER BY created_at DESC
@@ -169,7 +169,7 @@ async def get_spam_examples(
             )
             spam_rows = await conn.fetch(
                 """
-                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context, created_at
+                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_signals_context, created_at
                 FROM spam_examples
                 WHERE (admin_id IS NULL OR admin_id = ANY($1)) AND (confirmed IS NOT DISTINCT FROM true) AND score > 0
                 ORDER BY created_at DESC
@@ -181,7 +181,7 @@ async def get_spam_examples(
         else:
             ham_rows = await conn.fetch(
                 """
-                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context, created_at
+                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_signals_context, created_at
                 FROM spam_examples
                 WHERE admin_id IS NULL AND (confirmed IS NOT DISTINCT FROM true) AND score < 0
                 ORDER BY created_at DESC
@@ -191,7 +191,7 @@ async def get_spam_examples(
             )
             spam_rows = await conn.fetch(
                 """
-                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_age_context, created_at
+                SELECT text, name, bio, score, linked_channel_fragment, stories_context, reply_context, account_signals_context, created_at
                 FROM spam_examples
                 WHERE admin_id IS NULL AND (confirmed IS NOT DISTINCT FROM true) AND score > 0
                 ORDER BY created_at DESC
@@ -212,7 +212,7 @@ async def get_spam_examples(
             "linked_channel_fragment": row["linked_channel_fragment"],
             "stories_context": row["stories_context"],
             "reply_context": row["reply_context"],
-            "account_age_context": row["account_age_context"],
+            "account_signals_context": row["account_signals_context"],
         }
         for row in combined
     ]
@@ -229,7 +229,7 @@ async def add_spam_example(
     linked_channel_fragment: Optional[str] = None,
     stories_context: Optional[str] = None,
     reply_context: Optional[str] = None,
-    account_age_context: Optional[str] = None,
+    account_signals_context: Optional[str] = None,
 ) -> bool:
     """Add a new spam example to PostgreSQL"""
     pool = await get_pool()
@@ -260,7 +260,7 @@ async def add_spam_example(
                         linked_channel_fragment,
                         stories_context,
                         reply_context,
-                        account_age_context,
+                        account_signals_context,
                         created_at
                     )
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
@@ -273,7 +273,7 @@ async def add_spam_example(
                     linked_channel_fragment,
                     stories_context,
                     reply_context,
-                    account_age_context,
+                    account_signals_context,
                 )
                 return True
             except Exception as e:

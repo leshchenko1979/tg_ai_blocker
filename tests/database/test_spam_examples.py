@@ -263,7 +263,7 @@ async def test_add_spam_example_with_context_fields(patched_db_conn, clean_db):
             "bio": "Test bio",
             "stories_context": "Story content here",
             "reply_context": "Original reply message",
-            "account_age_context": "Account age: 2mo",
+            "account_signals_context": "photo_age=2mo",
         }
 
         # Add example with context fields
@@ -275,7 +275,7 @@ async def test_add_spam_example_with_context_fields(patched_db_conn, clean_db):
             admin_id=admin_id,
             stories_context=example_data["stories_context"],
             reply_context=example_data["reply_context"],
-            account_age_context=example_data["account_age_context"],
+            account_signals_context=example_data["account_signals_context"],
         )
 
         # Verify addition succeeded
@@ -295,7 +295,10 @@ async def test_add_spam_example_with_context_fields(patched_db_conn, clean_db):
         assert example["bio"] == example_data["bio"]
         assert example["stories_context"] == example_data["stories_context"]
         assert example["reply_context"] == example_data["reply_context"]
-        assert example["account_age_context"] == example_data["account_age_context"]
+        assert (
+            example["account_signals_context"]
+            == example_data["account_signals_context"]
+        )
 
 
 @pytest.mark.asyncio
@@ -322,7 +325,7 @@ async def test_add_spam_example_with_empty_context_markers(patched_db_conn, clea
             "bio": "Another bio",
             "stories_context": "[EMPTY]",  # Checked but no stories
             "reply_context": "Some reply content",  # Found reply context
-            "account_age_context": "[EMPTY]",  # Checked but no age info
+            "account_signals_context": "photo_age=unknown",  # Checked but no age info
         }
 
         # Add example with mixed context states
@@ -334,7 +337,7 @@ async def test_add_spam_example_with_empty_context_markers(patched_db_conn, clea
             admin_id=admin_id,
             stories_context=example_data["stories_context"],
             reply_context=example_data["reply_context"],
-            account_age_context=example_data["account_age_context"],
+            account_signals_context=example_data["account_signals_context"],
         )
 
         # Verify addition succeeded
@@ -350,7 +353,7 @@ async def test_add_spam_example_with_empty_context_markers(patched_db_conn, clea
         # Verify context fields with markers
         assert example["stories_context"] == "[EMPTY]"
         assert example["reply_context"] == "Some reply content"
-        assert example["account_age_context"] == "[EMPTY]"
+        assert example["account_signals_context"] == "photo_age=unknown"
 
 
 @pytest.mark.asyncio

@@ -3,13 +3,14 @@ import logging
 import pathlib
 from collections.abc import Coroutine
 from datetime import timedelta
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Optional, cast
 
 from aiogram import F, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import or_f
 
 from ..common.bot import bot
+from ..spam.account_signals import build_account_signals_body
 from ..spam.user_profile import collect_user_context
 from ..common.llms import get_llm_response_with_fallback
 from ..common.utils import sanitize_llm_html
@@ -26,7 +27,7 @@ from ..database import (
 )
 from ..database.group_operations import get_admin_groups
 from ..i18n import normalize_lang, t
-from ..types import ContextStatus
+from ..types import SpamClassificationContext
 from .dp import dp
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,15 @@ logger = logging.getLogger(__name__)
 
 class OriginalMessageExtractionError(Exception):
     """Raised when original message information cannot be extracted"""
+
+
+def _premium_from_forward(msg: types.Message) -> Optional[bool]:
+    if msg.forward_from:
+        return getattr(msg.forward_from, "is_premium", None)
+    origin = msg.forward_origin
+    if isinstance(origin, types.MessageOriginUser):
+        return getattr(origin.sender_user, "is_premium", None)
+    return None
 
 
 @dp.message(
@@ -280,7 +290,7 @@ async def process_spam_example_callback(callback: types.CallbackQuery) -> str:
                 linked_channel_fragment=channel_fragment,
                 stories_context=info.get("stories_context"),
                 reply_context=info.get("reply_context"),
-                account_age_context=info.get("account_age_context"),
+                account_signals_context=info.get("account_signals_context"),
             ),
             bot.edit_message_text(
                 chat_id=callback.message.chat.id,
@@ -372,7 +382,7 @@ async def extract_original_message_info(
         "group_message_id": None,
         "stories_context": None,
         "reply_context": None,
-        "account_age_context": None,
+        "account_signals_context": None,
     }
 
     origin = original_message.forward_origin
@@ -438,29 +448,27 @@ async def extract_original_message_info(
                     )
                 info["reply_context"] = lookup_result.get("reply_to_text")
                 info["stories_context"] = lookup_result.get("stories_context")
-                info["account_age_context"] = lookup_result.get("account_age_context")
+                info["account_signals_context"] = lookup_result.get(
+                    "account_signals_context"
+                )
 
                 # On-demand context when cache has none (e.g. approved user message)
                 if info["user_id"] and (
                     not info.get("stories_context")
-                    or not info.get("account_age_context")
+                    or not info.get("account_signals_context")
                 ):
                     try:
                         user_context = await collect_user_context(
                             info["user_id"], username=info.get("username")
                         )
-                        if user_context.account_age and not info.get(
-                            "account_age_context"
-                        ):
-                            if (
-                                user_context.account_age.status == ContextStatus.FOUND
-                                and user_context.account_age.content
-                            ):
-                                info["account_age_context"] = (
-                                    user_context.account_age.content.to_prompt_fragment()
-                                )
-                            elif user_context.account_age.status == ContextStatus.EMPTY:
-                                info["account_age_context"] = "[EMPTY]"
+                        if not info.get("account_signals_context"):
+                            merge_ctx = SpamClassificationContext(
+                                profile_photo_age=user_context.profile_photo_age,
+                                is_premium=_premium_from_forward(original_message),
+                            )
+                            body = build_account_signals_body(merge_ctx)
+                            if body:
+                                info["account_signals_context"] = body
                     except Exception as e:
                         logger.debug(
                             "On-demand context collection failed",

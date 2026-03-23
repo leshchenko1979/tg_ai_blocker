@@ -336,7 +336,7 @@ async def create_sqlite_schema(conn):
             linked_channel_fragment TEXT,
             stories_context TEXT,
             reply_context TEXT,
-            account_age_context TEXT,
+            account_signals_context TEXT,
             confirmed INTEGER DEFAULT 1,
             chat_id INTEGER,
             message_id INTEGER,
@@ -367,7 +367,7 @@ async def create_sqlite_schema(conn):
             message_text TEXT NOT NULL,
             reply_to_text TEXT,
             stories_context TEXT,
-            account_age_context TEXT,
+            account_signals_context TEXT,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(chat_id, message_id)
         );

@@ -49,7 +49,9 @@ def _to_profile_context(
             extra={"user_id": user_id, "username": username, "error": str(result)},
         )
         failed = ContextResult(status=ContextStatus.FAILED, error=str(result))
-        return SpamClassificationContext(linked_channel=failed, account_age=failed)
+        return SpamClassificationContext(
+            linked_channel=failed, profile_photo_age=failed
+        )
     return cast(SpamClassificationContext, result)
 
 
@@ -67,7 +69,7 @@ async def collect_user_context_with_stories(
         username: Optional username for the user
 
     Returns:
-        SpamClassificationContext with linked_channel, account_age, and stories
+        SpamClassificationContext with linked_channel, profile_photo_age, and stories
     """
     # Extract basic message info needed for stories collection
     chat_id = message.chat.id
@@ -99,7 +101,7 @@ async def collect_user_context_with_stories(
             )
             return SpamClassificationContext(
                 linked_channel=skipped,
-                account_age=skipped,
+                profile_photo_age=skipped,
             )
 
         # Run stories and profile collection in parallel
@@ -114,7 +116,7 @@ async def collect_user_context_with_stories(
             profile_context = _to_profile_context(results[1], user_id, username)
             return SpamClassificationContext(
                 linked_channel=profile_context.linked_channel,
-                account_age=profile_context.account_age,
+                profile_photo_age=profile_context.profile_photo_age,
                 stories=stories_context,
             )
 
@@ -131,7 +133,7 @@ async def collect_user_context_with_stories(
             failed = ContextResult(status=ContextStatus.FAILED, error=str(exc))
             return SpamClassificationContext(
                 linked_channel=failed,
-                account_age=failed,
+                profile_photo_age=failed,
                 stories=failed,
             )
 
@@ -191,12 +193,13 @@ async def _collect_user_sender_context(message) -> SpamClassificationContext:
         message: Telegram message from a user sender
 
     Returns:
-        SpamClassificationContext with stories, linked_channel, account_age, name, bio
+        SpamClassificationContext with stories, linked_channel, profile_photo_age, name, bio
     """
     from_user = message.from_user
     user_id = from_user.id
     username = getattr(from_user, "username", None)
     name = from_user.full_name if from_user else "Unknown"
+    is_premium = getattr(from_user, "is_premium", None)
 
     bio = None
     try:
@@ -215,7 +218,8 @@ async def _collect_user_sender_context(message) -> SpamClassificationContext:
         bio=bio,
         linked_channel=ctx.linked_channel,
         stories=ctx.stories,
-        account_age=ctx.account_age,
+        profile_photo_age=ctx.profile_photo_age,
+        is_premium=is_premium,
     )
 
 

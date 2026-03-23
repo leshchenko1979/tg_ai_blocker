@@ -1,7 +1,7 @@
 # Confirmed Spam Examples from Database
 
 Экспорт подтверждённого спама (score=100, confirmed=true) из PostgreSQL на 2026-03-14.
-Только спам, без хэма. Полный контекст: text, name, bio, linked_channel_fragment, stories_context, reply_context, account_age_context.
+Только спам, без хэма. Полный контекст: text, name, bio, linked_channel_fragment, stories_context, reply_context, account_signals_context.
 
 ---
 
@@ -12,7 +12,7 @@
 **linked_channel_fragment**: —
 **stories_context**: —
 **reply_context**: —
-**account_age_context**: —
+**account_signals_context**: —
 
 ---
 
@@ -23,7 +23,7 @@
 **linked_channel_fragment**: —
 **stories_context**: —
 **reply_context**: —
-**account_age_context**: —
+**account_signals_context**: —
 
 ---
 
@@ -34,7 +34,7 @@
 **linked_channel_fragment**: —
 **stories_context**: —
 **reply_context**: —
-**account_age_context**: —
+**account_signals_context**: —
 
 ---
 
@@ -45,7 +45,7 @@
 **linked_channel_fragment**: —
 **stories_context**: —
 **reply_context**: —
-**account_age_context**: —
+**account_signals_context**: —
 
 ---
 
@@ -56,7 +56,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: Мортал комбат\n\nСегодня весь день чувствую себя как российский борец на чемпионате Европы - крутишься чтобы всё успеть:\n- тренировка по карате утром\n- запись нашего подкаста с Натальей Кулиговской и Юлией Шевелёвой (к слову, получилось мощно - обсуждали премиальную недвижимость и интерьеры, которые стоят больше, чем квартира)\n- работа в офисе\n- телемост по сайту\n- онлайн учёба в Перформии\n- встреча с Клиентом по новому проекту\n- тренировка по гольфу…\n\nВ городе долгожданная весна, пробки и мяша… \n\nА Бозигит Исламгереев проигрывающий три очка в последней атаке за 7 секунд до конца вырвал победу с помощью приема из Mortal Kombat - вот что значит крутиться до победного! Чемпион!
-**account_age_context**: photo_age=0mo
+**account_signals_context**: photo_age=0mo
 
 ---
 
@@ -67,7 +67,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: Иногда ловлю себя на мысли, что пишу о рынке, ставках ЦБ и инвестиционных стратегиях гораздо чаще, чем о самих объектах. А ведь, если честно, именно они и есть настоящая причина всей этой игры.\n\nВозьмём, к примеру, один дом в посёлке «Дубрава»...
-**account_age_context**: photo_age=0mo
+**account_signals_context**: photo_age=0mo
 
 ---
 
@@ -78,7 +78,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: 🤡 FAQ от инвесторов ЯрФинТраст\n\nЧто делать, если в отношении одного из созаемщиков...
-**account_age_context**: photo_age=unknown
+**account_signals_context**: photo_age=unknown
 
 ---
 
@@ -89,7 +89,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: —
-**account_age_context**: photo_age=132mo
+**account_signals_context**: photo_age=132mo
 
 ---
 
@@ -100,7 +100,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: —
-**account_age_context**: photo_age=7mo
+**account_signals_context**: photo_age=7mo
 
 ---
 
@@ -111,7 +111,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: —
-**account_age_context**: photo_age=101mo
+**account_signals_context**: photo_age=101mo
 
 ---
 
@@ -122,7 +122,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: Иногда ловлю себя на мысли, что пишу о рынке, ставках ЦБ и инвестиционных стратегиях...
-**account_age_context**: photo_age=0mo
+**account_signals_context**: photo_age=0mo
 
 ---
 
@@ -133,7 +133,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: Иногда ловлю себя на мысли, что пишу о рынке...
-**account_age_context**: photo_age=unknown
+**account_signals_context**: photo_age=unknown
 
 ---
 
@@ -144,7 +144,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: 🤡 FAQ от инвесторов ЯрФинТраст...
-**account_age_context**: photo_age=0mo
+**account_signals_context**: photo_age=0mo
 
 ---
 
@@ -155,7 +155,7 @@
 **linked_channel_fragment**: subscribers=1; total_posts=2; age_delta=0mo; channel_source=message; recent_posts=[post_1: ✅Ипотека без первого взноса на побережье черного моря со ставкой 0.11% для каждого\n\n⚡️ЧИТАЙТЕ ПОДРОБНОСТИ В КАНАЛЕ \n👉 https://t.me/+6cx01evsqJVmN2My\n]
 **stories_context**: [EMPTY]
 **reply_context**: Дополнение:\n\nУсловия участия: \n- коллективные инвестиции...
-**account_age_context**: photo_age=5mo
+**account_signals_context**: photo_age=5mo
 
 ---
 
@@ -166,7 +166,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: —
-**account_age_context**: photo_age=unknown
+**account_signals_context**: photo_age=unknown
 
 ---
 
@@ -177,7 +177,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: —
-**account_age_context**: photo_age=8mo
+**account_signals_context**: photo_age=8mo
 
 ---
 
@@ -188,7 +188,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: Иногда ловлю себя на мысли, что пишу о рынке...
-**account_age_context**: photo_age=1mo
+**account_signals_context**: photo_age=1mo
 
 ---
 
@@ -199,7 +199,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: Иногда ловлю себя на мысли, что пишу о рынке...
-**account_age_context**: photo_age=unknown
+**account_signals_context**: photo_age=unknown
 
 ---
 
@@ -210,7 +210,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: Дополнение:\n\nУсловия участия: \n- коллективные инвестиции...
-**account_age_context**: photo_age=unknown
+**account_signals_context**: photo_age=unknown
 
 ---
 
@@ -221,7 +221,7 @@
 **linked_channel_fragment**: —
 **stories_context**: [EMPTY]
 **reply_context**: —
-**account_age_context**: photo_age=116mo
+**account_signals_context**: photo_age=116mo
 
 ---
 

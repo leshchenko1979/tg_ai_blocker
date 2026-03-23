@@ -7,7 +7,7 @@ by testing spam classification accuracy using manually labeled examples from the
 
 GROUND TRUTH:
 - Uses spam_examples database with known scores (positive = spam, negative = legitimate)
-- Tests all available context fields: text, name, bio, linked_channel_fragment, stories_context, reply_context, account_age_context
+- Tests all available context fields: text, name, bio, linked_channel_fragment, stories_context, reply_context, account_signals_context
 - Does NOT use production Logfire results as ground truth (classifier outputs aren't ground truth)
 
 USAGE:
@@ -84,7 +84,7 @@ class TestCase:
     linked_channel_fragment: Optional[str] = None
     stories_context: Optional[str] = None
     reply_context: Optional[str] = None
-    account_age_context: Optional[str] = None
+    account_signals_context: Optional[str] = None
     ground_truth_score: int = (
         0  # The score from database (positive = spam, negative = legitimate)
     )
@@ -213,7 +213,7 @@ async def load_test_cases_from_db(
             linked_channel_fragment=example.get("linked_channel_fragment"),
             stories_context=example.get("stories_context"),
             reply_context=example.get("reply_context"),
-            account_age_context=example.get("account_age_context"),
+            account_signals_context=example.get("account_signals_context"),
         )
         all_test_cases.append(test_case)
 
@@ -426,11 +426,8 @@ async def test_model(
                     if test_case.stories_context
                     else None,
                     reply=test_case.reply_context,
-                    account_age=ContextResult(
-                        status=ContextStatus.FOUND,
-                        content=test_case.account_age_context,
-                    )
-                    if test_case.account_age_context
+                    account_signals_snapshot=test_case.account_signals_context.strip()
+                    if test_case.account_signals_context
                     else None,
                 )
 

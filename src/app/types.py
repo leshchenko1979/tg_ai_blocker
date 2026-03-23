@@ -53,7 +53,7 @@ class ContextResult(Generic[T]):
 
         Handles dict with status/content/error. Returns content if status=found
         and content is a string; empty_marker if status=empty; None otherwise.
-        For dict content (e.g. account_age), returns None - caller handles separately.
+        For dict content (e.g. profile_photo_age), returns None - caller handles separately.
         """
         if not obj or not isinstance(obj, dict):
             return None
@@ -142,7 +142,7 @@ class UserAccountInfo:
 
     @classmethod
     def fragment_from_logfire_dict(cls, content: Any) -> str:
-        """Convert Logfire-serialized account_age content dict to prompt fragment.
+        """Convert Logfire-serialized profile photo age content dict to prompt fragment.
 
         Expects dict with user_id and profile_photo_date (ISO string).
         Returns 'photo_age=Xmo' or 'photo_age=unknown' per to_prompt_fragment contract.
@@ -264,8 +264,11 @@ class SpamClassificationContext:
     linked_channel: Optional[ContextResult[LinkedChannelSummary]] = None
     stories: Optional[ContextResult[str]] = None
     reply: Optional[str] = None
-    account_age: Optional[ContextResult[UserAccountInfo]] = None
+    profile_photo_age: Optional[ContextResult[UserAccountInfo]] = None
+    is_premium: Optional[bool] = None
     is_channel_sender: bool = False
+    # DB replay: raw ACCOUNT SIGNALS body from spam_examples / cache (photo + optional is_premium lines)
+    account_signals_snapshot: Optional[str] = None
 
     @property
     def include_linked_channel_guidance(self) -> bool:
@@ -289,12 +292,11 @@ class SpamClassificationContext:
         return self.reply is not None
 
     @property
-    def include_account_age_guidance(self) -> bool:
-        """Whether to include account age guidance in the prompt."""
-        return self.account_age is not None and self.account_age.status in (
-            ContextStatus.FOUND,
-            ContextStatus.EMPTY,
-        )
+    def include_account_signals_guidance(self) -> bool:
+        """Whether to include account signals guidance (photo age + optional Premium)."""
+        from .spam.account_signals import context_includes_account_signals
+
+        return context_includes_account_signals(self)
 
     @property
     def include_ai_detection_guidance(self) -> bool:

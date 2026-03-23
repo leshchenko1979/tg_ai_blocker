@@ -70,7 +70,7 @@ class TestExtractOriginalMessageInfo:
                     "user_id": 12345,
                     "reply_to_text": None,
                     "stories_context": None,
-                    "account_age_context": None,
+                    "account_signals_context": None,
                 }
 
                 result = await extract_original_message_info(
@@ -229,7 +229,7 @@ class TestExtractOriginalMessageInfo:
                     "user_id": 67890,
                     "reply_to_text": None,
                     "stories_context": None,
-                    "account_age_context": None,
+                    "account_signals_context": None,
                 }
 
                 result = await extract_original_message_info(callback_message, admin_id)

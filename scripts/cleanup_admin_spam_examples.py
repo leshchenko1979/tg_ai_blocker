@@ -52,7 +52,7 @@ async def list_examples(admin_ids: list[int]) -> None:
         rows = await conn.fetch(
             """
             SELECT id, admin_id, score, LEFT(text, 70) as text_preview, name, LEFT(bio, 50) as bio_preview,
-                   account_age_context, created_at
+                   account_signals_context, created_at
             FROM spam_examples
             WHERE (admin_id IS NULL OR admin_id = ANY($1)) AND (confirmed IS NOT DISTINCT FROM true)
             ORDER BY admin_id NULLS FIRST, created_at DESC
@@ -88,7 +88,7 @@ async def list_examples(admin_ids: list[int]) -> None:
             (row["text_preview"] or "")[:50],
             row["name"],
             row["bio_preview"],
-            row["account_age_context"],
+            row["account_signals_context"],
         )
     if len(rows) > 50:
         logger.info("... and %s more", len(rows) - 50)
@@ -100,7 +100,7 @@ def _is_contradicting(row: dict) -> bool:
         return False
     bio = (row.get("bio") or "") or ""
     name = (row.get("name") or "") or ""
-    age = row.get("account_age_context") or ""
+    age = row.get("account_signals_context") or ""
     if BIO_BOT_PATTERN.search(bio) and (age in RISKY_ACCOUNT_AGE or not age):
         return True
     if NAME_PROMO_PATTERN.search(name) and (age in RISKY_ACCOUNT_AGE or not age):
@@ -114,7 +114,7 @@ async def remove_contradicting(admin_ids: list[int], dry_run: bool) -> int:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, admin_id, text, name, bio, score, account_age_context
+            SELECT id, admin_id, text, name, bio, score, account_signals_context
             FROM spam_examples
             WHERE admin_id = ANY($1) AND score < 0 AND (confirmed IS NOT DISTINCT FROM true)
             """,
@@ -136,7 +136,7 @@ async def remove_contradicting(admin_ids: list[int], dry_run: bool) -> int:
             r["id"],
             r["name"],
             (r["bio"] or "")[:40],
-            r["account_age_context"],
+            r["account_signals_context"],
         )
     if dry_run:
         logger.info("Dry run: would delete %s rows", len(ids_to_delete))

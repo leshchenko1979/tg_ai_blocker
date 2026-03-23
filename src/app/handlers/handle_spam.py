@@ -27,6 +27,7 @@ from ..database.group_operations import (
     set_no_rights_detected_at,
 )
 from ..database.spam_examples import insert_pending_spam_example
+from ..spam.account_signals import build_account_signals_body
 from ..types import MessageContextResult, MessageNotificationContext
 
 logger = logging.getLogger(__name__)
@@ -366,7 +367,7 @@ async def notify_admins(
         linked_channel_fragment = None
         stories_context = None
         reply_context = None
-        account_age_context = None
+        account_signals_context = None
         if message_context_result:
             ctx = message_context_result.context
             text = message_context_result.message_text or "[MEDIA_MESSAGE]"
@@ -380,8 +381,7 @@ async def notify_admins(
                 if ctx.stories:
                     stories_context = ctx.stories.get_fragment("[EMPTY]")
                 reply_context = ctx.reply
-                if ctx.account_age:
-                    account_age_context = ctx.account_age.get_fragment("[EMPTY]")
+                account_signals_context = build_account_signals_body(ctx)
         pending_id = await insert_pending_spam_example(
             message.chat.id,
             message.message_id,
@@ -392,7 +392,7 @@ async def notify_admins(
             linked_channel_fragment=linked_channel_fragment,
             stories_context=stories_context,
             reply_context=reply_context,
-            account_age_context=account_age_context,
+            account_signals_context=account_signals_context,
         )
 
     keyboard = create_admin_notification_keyboard(

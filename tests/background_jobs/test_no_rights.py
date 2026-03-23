@@ -68,6 +68,11 @@ async def test_leave_no_rights_groups_leaves_when_no_rights():
             "app.background_jobs.no_rights.send_admin_dm",
             new_callable=AsyncMock,
         ) as mock_send,
+        patch(
+            "app.background_jobs.no_rights.get_admin",
+            new_callable=AsyncMock,
+            return_value=MagicMock(is_active=True, language_code="en"),
+        ),
     ):
         mock_load.return_value = {"billing": {"no_rights_grace_days": 7}}
         mock_get.return_value = [100]

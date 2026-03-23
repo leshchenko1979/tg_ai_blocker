@@ -21,6 +21,7 @@ from .validation import (
 )
 from ...spam.message_context import collect_message_context
 from ...spam.spam_classifier import is_spam as classify_spam
+from ...spam.account_signals import build_account_signals_body
 from ...types import ContextStatus, MessageContextResult
 
 logger = logging.getLogger(__name__)
@@ -29,21 +30,16 @@ logger = logging.getLogger(__name__)
 def _context_to_lookup_strings(
     message_context_result: "MessageContextResult",
 ) -> tuple[str | None, str | None]:
-    """Extract stories and account_age context as strings for message_lookup_cache."""
+    """Extract stories and account_signals body for message_lookup_cache."""
     ctx = message_context_result.context
     stories_context = None
-    account_age_context = None
     if ctx.stories:
         if ctx.stories.status == ContextStatus.FOUND and ctx.stories.content:
             stories_context = ctx.stories.content
         elif ctx.stories.status == ContextStatus.EMPTY:
             stories_context = "[EMPTY]"
-    if ctx.account_age:
-        if ctx.account_age.status == ContextStatus.FOUND and ctx.account_age.content:
-            account_age_context = ctx.account_age.content.to_prompt_fragment()
-        elif ctx.account_age.status == ContextStatus.EMPTY:
-            account_age_context = "[EMPTY]"
-    return stories_context, account_age_context
+    account_signals_context = build_account_signals_body(ctx)
+    return stories_context, account_signals_context
 
 
 async def handle_moderated_message(message: types.Message) -> str:
@@ -137,7 +133,7 @@ async def handle_moderated_message(message: types.Message) -> str:
                 message_text=msg_text,
                 reply_to_text=reply_ctx,
                 stories_context=stories_ctx,
-                account_age_context=account_ctx,
+                account_signals_context=account_ctx,
             )
         except Exception as e:
             logger.warning(f"Failed to save message lookup after classification: {e}")

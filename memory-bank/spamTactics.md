@@ -70,7 +70,7 @@ Based on current trends, the most frequent tactics are:
 
 Полный выгруз 127 подтверждённых примеров спама (score=100, confirmed=true) с контекстом — в файле **memory-bank/confirmedSpamExamples.md**.
 
-Источник: PostgreSQL `spam_examples` (2026-03-14). Каждый пример содержит: text, name, bio, linked_channel_fragment, stories_context, reply_context, account_age_context.
+Источник: PostgreSQL `spam_examples` (2026-03-14). Каждый пример содержит: text, name, bio, linked_channel_fragment, stories_context, reply_context, account_signals_context.
 
 ## Key Indicators for Detection
 *   **Account Age**: New accounts are significantly more likely to be spam.

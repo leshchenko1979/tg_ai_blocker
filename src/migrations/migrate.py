@@ -268,7 +268,7 @@ async def add_message_lookup_cache_migration(conn: Any) -> List[str]:
                 message_text TEXT NOT NULL,
                 reply_to_text TEXT,
                 stories_context TEXT,
-                account_age_context TEXT,
+                account_signals_context TEXT,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 UNIQUE(chat_id, message_id)
             )
@@ -288,6 +288,39 @@ async def add_message_lookup_cache_migration(conn: Any) -> List[str]:
 
     print(
         f"message_lookup_cache migration completed successfully. {len(operations)} operations performed."
+    )
+    return operations
+
+
+async def rename_account_signals_context_migration(conn: Any) -> List[str]:
+    """
+    Rename account_age_context -> account_signals_context on spam_examples and message_lookup_cache.
+    Idempotent: only renames when the old column exists.
+    """
+    operations: List[str] = []
+    print("Starting account_signals_context column rename...")
+
+    async with conn.transaction():
+        for table in ("spam_examples", "message_lookup_cache"):
+            exists_old = await conn.fetchval(
+                """
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = $1
+                  AND column_name = 'account_age_context'
+                """,
+                table,
+            )
+            if exists_old:
+                await conn.execute(
+                    f'ALTER TABLE "{table}" RENAME COLUMN account_age_context TO account_signals_context'
+                )
+                operations.append(
+                    f"{table}: account_age_context -> account_signals_context"
+                )
+                print(f"✓ Renamed column on {table}")
+
+    print(
+        f"account_signals_context rename completed. {len(operations)} operation(s) performed."
     )
     return operations
 
@@ -537,6 +570,18 @@ async def run_message_lookup_cache_migration():
         await add_message_lookup_cache_migration(conn)
 
 
+async def run_rename_account_signals_context_migration():
+    """Rename account_age_context columns to account_signals_context."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    print("Getting database pool...")
+    pool = await get_pool()
+    print("Running account_signals_context rename migration...")
+    async with pool.acquire() as conn:
+        print("Acquired connection from pool")
+        await rename_account_signals_context_migration(conn)
+
+
 async def run_is_active_column_migration():
     """Run the is_active column migration manually."""
     print("Creating database if it doesn't exist...")
@@ -607,6 +652,8 @@ async def main():
             await run_is_active_column_migration()
         elif sys.argv[1] == "--add-message-lookup-cache":
             await run_message_lookup_cache_migration()
+        elif sys.argv[1] == "--rename-account-signals-context":
+            await run_rename_account_signals_context_migration()
         elif sys.argv[1] == "--add-pending-spam-columns":
             await run_pending_spam_example_migration()
         elif sys.argv[1] == "--add-language-code":

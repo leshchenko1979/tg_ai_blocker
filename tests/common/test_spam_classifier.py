@@ -157,6 +157,24 @@ def test_format_spam_request_with_reply_context():
 
 
 @pytest.mark.asyncio
+async def test_build_system_prompt_account_signals_guidance():
+    from src.app.types import ContextResult, ContextStatus, SpamClassificationContext
+
+    with patch(
+        "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
+    ) as mock_examples:
+        mock_examples.return_value = []
+
+        context = SpamClassificationContext(
+            profile_photo_age=ContextResult(status=ContextStatus.EMPTY)
+        )
+        prompt = await build_system_prompt(context=context)
+
+        assert "## ACCOUNT SIGNALS ANALYSIS" in prompt
+        assert "is_premium=true" in prompt or "Telegram Premium" in prompt
+
+
+@pytest.mark.asyncio
 async def test_build_system_prompt_stories_guidance():
     from src.app.types import ContextResult, ContextStatus, SpamClassificationContext
 
@@ -263,7 +281,7 @@ def test_format_spam_request_null_context_skipped():
 
     # Verify NULL context fields are NOT included
     assert "USER STORIES CONTENT:" not in req
-    assert "ACCOUNT AGE INFO:" not in req
+    assert "ACCOUNT SIGNALS:" not in req
     assert "REPLY CONTEXT" not in req
 
 
@@ -279,13 +297,13 @@ def test_format_spam_request_empty_marker_shows_metadata():
         name="User",
         bio="Bio",
         stories=ContextResult(status=ContextStatus.EMPTY),
-        account_age=ContextResult(status=ContextStatus.EMPTY),
+        profile_photo_age=ContextResult(status=ContextStatus.EMPTY),
     )
     req = format_spam_request("Hello", context)
 
     # Verify metadata is shown for empty markers (metric-style phrasing)
     assert "USER STORIES CONTENT:\nno stories posted" in req
-    assert "ACCOUNT AGE INFO:\nphoto_age=unknown" in req
+    assert "ACCOUNT SIGNALS:\nphoto_age=unknown" in req
 
     # Verify regular fields are still present
     assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
@@ -309,7 +327,7 @@ def test_format_spam_request_content_shows_normally():
             status=ContextStatus.FOUND, content="Actual story content"
         ),
         reply="Original post content",
-        account_age=ContextResult(
+        profile_photo_age=ContextResult(
             status=ContextStatus.FOUND, content="Account age: 3mo"
         ),
     )
@@ -322,13 +340,28 @@ def test_format_spam_request_content_shows_normally():
         in req
     )
     assert ">>> BEGIN CONTEXT\nOriginal post content\n<<< END CONTEXT" in req
-    assert "ACCOUNT AGE INFO:\nAccount age: 3mo" in req
+    assert "ACCOUNT SIGNALS:\nAccount age: 3mo" in req
 
     # Verify basic fields are present
     assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
     assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
     assert "USER NAME:\nUser" in req
     assert "USER BIO:\nBio" in req
+
+
+def test_format_spam_request_is_premium_bundled():
+    from src.app.types import (
+        SpamClassificationContext,
+        ContextResult,
+        ContextStatus,
+    )
+
+    context = SpamClassificationContext(
+        profile_photo_age=ContextResult(status=ContextStatus.EMPTY),
+        is_premium=True,
+    )
+    req = format_spam_request("Hello", context)
+    assert "ACCOUNT SIGNALS:\nphoto_age=unknown\nis_premium=true" in req
 
 
 def test_format_spam_request_mixed_states():
@@ -344,7 +377,7 @@ def test_format_spam_request_mixed_states():
         bio="Bio",
         stories=ContextResult(status=ContextStatus.EMPTY),  # Checked but empty
         reply="Reply content",  # Found content
-        # account_age is None - Not checked (NULL)
+        # profile_photo_age is None - Not checked (NULL)
     )
     req = format_spam_request("Hello", context)
 
@@ -359,7 +392,7 @@ def test_format_spam_request_mixed_states():
     assert ">>> BEGIN CONTEXT\nReply content\n<<< END CONTEXT" in req
 
     # NULL should be skipped entirely
-    assert "ACCOUNT AGE INFO:" not in req
+    assert "ACCOUNT SIGNALS:" not in req
 
     # Basic fields should be present
     assert "MESSAGE TO CLASSIFY (Analyze this content):" in req

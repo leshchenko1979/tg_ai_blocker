@@ -108,7 +108,7 @@ async def create_schema(conn: asyncpg.Connection):
                 linked_channel_fragment TEXT,
                 stories_context TEXT,
                 reply_context TEXT,
-                account_age_context TEXT,
+                account_signals_context TEXT,
                 confirmed BOOLEAN DEFAULT true,
                 chat_id BIGINT,
                 message_id INTEGER,
@@ -135,7 +135,7 @@ async def create_schema(conn: asyncpg.Connection):
                 message_text TEXT NOT NULL,
                 reply_to_text TEXT,
                 stories_context TEXT,
-                account_age_context TEXT,
+                account_signals_context TEXT,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 UNIQUE(chat_id, message_id)
             );

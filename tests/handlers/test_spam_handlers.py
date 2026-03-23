@@ -62,6 +62,11 @@ class TestSpamDeletion:
         with (
             patch("src.app.handlers.handle_spam.bot") as mock_bot,
             patch("src.app.handlers.handle_spam.logger") as mock_logger,
+            patch(
+                "src.app.handlers.handle_spam._get_notification_lang",
+                new_callable=AsyncMock,
+                return_value="en",
+            ),
         ):
             mock_bot.delete_message = AsyncMock(
                 side_effect=MockTelegramBadRequest("Some other error")
@@ -89,6 +94,10 @@ class TestSpamDeletion:
                 "src.app.handlers.handle_spam.get_admin",
                 new_callable=AsyncMock,
                 return_value=mock_admin,
+            ),
+            patch(
+                "src.app.handlers.handle_spam.set_no_rights_detected_at",
+                new_callable=AsyncMock,
             ),
             patch(
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
@@ -131,8 +140,17 @@ class TestSpamDeletion:
         with (
             patch("src.app.handlers.handle_spam.bot") as mock_bot,
             patch(
+                "src.app.handlers.handle_spam.set_no_rights_detected_at",
+                new_callable=AsyncMock,
+            ),
+            patch(
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
             ) as mock_notify,
+            patch(
+                "src.app.handlers.handle_spam._get_notification_lang",
+                new_callable=AsyncMock,
+                return_value="en",
+            ),
             patch("src.app.handlers.handle_spam.logger") as mock_logger,
         ):
             # Mock permission error
@@ -166,6 +184,10 @@ class TestSpamDeletion:
         """Test spam deletion failure due to permission error when group not found."""
         with (
             patch("src.app.handlers.handle_spam.bot") as mock_bot,
+            patch(
+                "src.app.handlers.handle_spam.set_no_rights_detected_at",
+                new_callable=AsyncMock,
+            ),
             patch(
                 "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup"
             ) as mock_notify,

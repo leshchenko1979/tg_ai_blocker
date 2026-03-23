@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.types import CallbackQuery, User, Message, Chat
 
 from src.app.handlers.callback_handlers import (
@@ -26,6 +26,11 @@ async def test_handle_spam_ignore_callback_answer_error():
 
     with (
         patch("src.app.handlers.callback_handlers.bot") as mock_bot,
+        patch(
+            "src.app.handlers.callback_handlers.get_admin",
+            new_callable=AsyncMock,
+            return_value=MagicMock(is_active=True, language_code="en"),
+        ),
         patch(
             "src.app.handlers.callback_handlers.confirm_pending_example_as_not_spam",
             new_callable=AsyncMock,
