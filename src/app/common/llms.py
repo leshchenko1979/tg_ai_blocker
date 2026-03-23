@@ -17,16 +17,38 @@ REQUEST_TIMEOUT_SECONDS = 15
 FALLBACK_RESET_SECONDS = 60
 MILLISECONDS_MULTIPLIER = 1000
 DEFAULT_OPENROUTER_API_BASE = "https://openrouter.ai/api/v1"
+LLM_HTTP_CONNECTOR_LIMIT = 10
 
-# Global SSL context for connection reuse
+# Global SSL context for connection reuse (OpenRouter + AI Gateway, verified TLS only)
 _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
-# SSL context with verification disabled (for direct IP gateway workaround)
-_SSL_CONTEXT_INSECURE = ssl.create_default_context()
-_SSL_CONTEXT_INSECURE.check_hostname = False
-_SSL_CONTEXT_INSECURE.verify_mode = ssl.CERT_NONE
+_llm_connector: aiohttp.TCPConnector | None = None
+_llm_session: aiohttp.ClientSession | None = None
 
 logger = logging.getLogger(__name__)
+
+
+async def _get_llm_session() -> aiohttp.ClientSession:
+    global _llm_connector, _llm_session
+    if _llm_connector is None or _llm_connector.closed:
+        _llm_connector = aiohttp.TCPConnector(
+            ssl=_SSL_CONTEXT, limit=LLM_HTTP_CONNECTOR_LIMIT
+        )
+    if _llm_session is None or _llm_session.closed:
+        _llm_session = aiohttp.ClientSession(connector=_llm_connector)
+    return _llm_session
+
+
+async def close_llm_http_resources() -> None:
+    """Close shared LLM HTTP session and connector (call on app shutdown)."""
+    global _llm_connector, _llm_session
+    if _llm_session is not None:
+        await _llm_session.close()
+        _llm_session = None
+    if _llm_connector is not None:
+        await _llm_connector.close()
+        _llm_connector = None
+
 
 # Available models - actively maintained free models
 MODELS = [
@@ -304,58 +326,53 @@ async def get_openrouter_response(
     except ValueError:
         start_idx = 0
 
-    # Use global SSL context for connection reuse
-    connector = aiohttp.TCPConnector(ssl=_SSL_CONTEXT)
+    session = await _get_llm_session()
+    # Try each model once, but allow retries for rate limits
+    for model_idx in range(num_models):
+        current_model_idx = (start_idx + model_idx) % num_models
+        current_model = MODELS[current_model_idx]
+        _current_model = current_model
 
-    async with aiohttp.ClientSession(connector=connector) as session:
-        # Try each model once, but allow retries for rate limits
-        for model_idx in range(num_models):
-            current_model_idx = (start_idx + model_idx) % num_models
-            current_model = MODELS[current_model_idx]
-            _current_model = current_model
+        try:
+            api_base = os.getenv("OPENROUTER_API_BASE", DEFAULT_OPENROUTER_API_BASE)
+            result = await _request_chat_completions(
+                api_base,
+                current_model,
+                messages,
+                headers,
+                session,
+                temperature,
+                response_format,
+            )
+            # Check for errors in response body
+            _process_response_errors(result, current_model)
 
-            try:
-                api_base = os.getenv("OPENROUTER_API_BASE", DEFAULT_OPENROUTER_API_BASE)
-                result = await _request_chat_completions(
-                    api_base,
-                    current_model,
-                    messages,
-                    headers,
-                    session,
-                    temperature,
-                    response_format,
-                )
-                # Check for errors in response body
-                _process_response_errors(result, current_model)
+            return _extract_content(result, current_model)
 
-                return _extract_content(result, current_model)
+        except RateLimitExceeded as e:
+            await _handle_rate_limit_exception(e, current_model)
+            if not e.is_upstream_error and e.reset_time:
+                # For OpenRouter rate limits, we already waited in _handle_rate_limit_exception
+                # Retry the same model after waiting
+                model_idx -= 1  # Retry same model index
+            most_recent_exception = e
+            continue
 
-            except RateLimitExceeded as e:
-                await _handle_rate_limit_exception(e, current_model)
-                if not e.is_upstream_error and e.reset_time:
-                    # For OpenRouter rate limits, we already waited in _handle_rate_limit_exception
-                    # Retry the same model after waiting
-                    model_idx -= 1  # Retry same model index
-                most_recent_exception = e
-                continue
+        except (ModelNotFound, TimeoutError) as e:
+            # Skip to next model immediately for unavailable models or timeouts
+            error_msg = (
+                f"Model {current_model} not found or unavailable"
+                if isinstance(e, ModelNotFound)
+                else f"Timeout occurred with model {current_model}"
+            )
+            logger.warning("%s, trying next model", error_msg)
+            most_recent_exception = e
+            continue
 
-            except (ModelNotFound, TimeoutError) as e:
-                # Skip to next model immediately for unavailable models or timeouts
-                error_msg = (
-                    f"Model {current_model} not found or unavailable"
-                    if isinstance(e, ModelNotFound)
-                    else f"Timeout occurred with model {current_model}"
-                )
-                logger.warning("%s, trying next model", error_msg)
-                most_recent_exception = e
-                continue
-
-            except Exception as e:
-                most_recent_exception = e
-                logger.warning(
-                    "Unexpected error with model %s: %s", current_model, str(e)
-                )
-                continue
+        except Exception as e:
+            most_recent_exception = e
+            logger.warning("Unexpected error with model %s: %s", current_model, str(e))
+            continue
 
     if most_recent_exception:
         raise most_recent_exception
@@ -445,38 +462,29 @@ async def get_primary_gateway_response(
     if not model:
         raise ValueError("CUSTOM_GATEWAY_MODEL environment variable is required")
 
-    # Use SSL context: disable verification when AI_GATEWAY_SSL_VERIFY is false/0
-    ssl_verify = os.getenv("AI_GATEWAY_SSL_VERIFY", "true").lower() not in (
-        "false",
-        "0",
-        "no",
-    )
-    ssl_context = _SSL_CONTEXT if ssl_verify else _SSL_CONTEXT_INSECURE
-    connector = aiohttp.TCPConnector(ssl=ssl_context)
-
     api_base = os.getenv("API_BASE")
     if not api_base:
         raise ValueError("API_BASE environment variable is required")
 
-    async with aiohttp.ClientSession(connector=connector) as session:
-        try:
-            result = await _request_chat_completions(
-                api_base,
-                model,
-                messages,
-                headers,
-                session,
-                temperature,
-                response_format,
-            )
-            # Check for errors in response body
-            _process_response_errors(result, model)
+    session = await _get_llm_session()
+    try:
+        result = await _request_chat_completions(
+            api_base,
+            model,
+            messages,
+            headers,
+            session,
+            temperature,
+            response_format,
+        )
+        # Check for errors in response body
+        _process_response_errors(result, model)
 
-            return _extract_content(result, model)
+        return _extract_content(result, model)
 
-        except Exception as e:
-            logger.warning("custom gateway API request failed: %s", str(e))
-            raise
+    except Exception as e:
+        logger.warning("custom gateway API request failed: %s", str(e))
+        raise
 
 
 @logfire.instrument(extract_args=True, record_return=True)

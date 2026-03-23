@@ -23,7 +23,7 @@ async def get_pool() -> asyncpg.Pool:
                 password=os.getenv("PG_PASSWORD", ""),
                 database=os.getenv("PG_DB", "ai_spam_bot"),
                 min_size=1,
-                max_size=10,
+                max_size=5,
             )
         except Exception as e:
             logger.error(f"Failed to create database pool: {e}")

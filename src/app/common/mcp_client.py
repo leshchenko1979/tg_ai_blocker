@@ -41,6 +41,33 @@ class McpHttpClient:
             ssl_context = ssl.create_default_context(cafile=ca_bundle)
             self._session_ssl_kwargs["ssl"] = ssl_context
 
+        self._connector: aiohttp.BaseConnector | None = None
+        self._session: aiohttp.ClientSession | None = None
+
+    async def _ensure_session(self) -> aiohttp.ClientSession:
+        if self._session is not None and not self._session.closed:
+            return self._session
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
+        if self._connector is not None:
+            await self._connector.close()
+            self._connector = None
+        if "ssl" in self._session_ssl_kwargs:
+            self._connector = aiohttp.TCPConnector(ssl=self._session_ssl_kwargs["ssl"])
+        else:
+            self._connector = aiohttp.TCPConnector()
+        self._session = aiohttp.ClientSession(connector=self._connector)
+        return self._session
+
+    async def aclose(self) -> None:
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
+        if self._connector is not None:
+            await self._connector.close()
+            self._connector = None
+
     @classmethod
     def from_env(
         cls,
@@ -98,60 +125,54 @@ class McpHttpClient:
         }
 
         client_timeout = aiohttp.ClientTimeout(total=timeout)
-        connector = None
-        if "ssl" in self._session_ssl_kwargs:
-            connector = aiohttp.TCPConnector(ssl=self._session_ssl_kwargs["ssl"])
-
-        session_kwargs: Dict[str, Any] = {"timeout": client_timeout}
-        if connector:
-            session_kwargs["connector"] = connector
-
-        async with aiohttp.ClientSession(**session_kwargs) as session:
-            with logfire.span(
-                "mcp_http_call",
-                url=url,
-                payload=payload,
-                tool=payload["params"]["name"],
-            ) as span:
-                async with session.post(url, headers=headers, json=payload) as response:
-                    span.set_attribute("status", response.status)
-                    try:
-                        if response.content_type == "text/event-stream":
-                            text = await response.text()
-                            # SSE format: "data: {json}\n\n"
-                            data = None
-                            for line in text.splitlines():
-                                if line.startswith("data: "):
-                                    try:
-                                        data = json.loads(line[len("data: ") :])
-                                        break
-                                    except json.JSONDecodeError:
-                                        continue
-                            if data is None:
-                                raise McpHttpError(
-                                    f"MCP HTTP bridge returned text/event-stream but no valid data found: {text}"
-                                )
-                        else:
-                            data = await response.json()
-                    except (aiohttp.ContentTypeError, json.JSONDecodeError) as e:
+        session = await self._ensure_session()
+        with logfire.span(
+            "mcp_http_call",
+            url=url,
+            payload=payload,
+            tool=payload["params"]["name"],
+        ) as span:
+            async with session.post(
+                url, headers=headers, json=payload, timeout=client_timeout
+            ) as response:
+                span.set_attribute("status", response.status)
+                try:
+                    if response.content_type == "text/event-stream":
                         text = await response.text()
-                        span.set_level("error")
-                        span.record_exception(e)
-                        span.set_attribute("response_text", text)
-                        raise McpHttpError(
-                            f"MCP HTTP bridge returned non-JSON body: {text}"
-                        ) from e
-                    span.set_attribute("response", data)
+                        # SSE format: "data: {json}\n\n"
+                        data = None
+                        for line in text.splitlines():
+                            if line.startswith("data: "):
+                                try:
+                                    data = json.loads(line[len("data: ") :])
+                                    break
+                                except json.JSONDecodeError:
+                                    continue
+                        if data is None:
+                            raise McpHttpError(
+                                f"MCP HTTP bridge returned text/event-stream but no valid data found: {text}"
+                            )
+                    else:
+                        data = await response.json()
+                except (aiohttp.ContentTypeError, json.JSONDecodeError) as e:
+                    text = await response.text()
+                    span.set_level("error")
+                    span.record_exception(e)
+                    span.set_attribute("response_text", text)
+                    raise McpHttpError(
+                        f"MCP HTTP bridge returned non-JSON body: {text}"
+                    ) from e
+                span.set_attribute("response", data)
 
-                    if response.status >= 400:
-                        raise McpHttpError(
-                            f"MCP HTTP bridge error {response.status}: {data}"
-                        )
+                if response.status >= 400:
+                    raise McpHttpError(
+                        f"MCP HTTP bridge error {response.status}: {data}"
+                    )
 
-                    if data.get("error"):
-                        raise McpHttpError(str(data["error"]))
+                if data.get("error"):
+                    raise McpHttpError(str(data["error"]))
 
-                    return data.get("result", data)
+                return data.get("result", data)
 
 
 _client: Optional[McpHttpClient] = None
@@ -162,3 +183,10 @@ def get_mcp_client() -> McpHttpClient:
     if _client is None:
         _client = McpHttpClient.from_env()
     return _client
+
+
+async def close_mcp_http_client() -> None:
+    global _client
+    if _client is not None:
+        await _client.aclose()
+        _client = None
