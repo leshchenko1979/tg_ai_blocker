@@ -1,4 +1,4 @@
-FROM python:3.14-alpine
+FROM python:3-alpine
 
 LABEL Name=tg-ai-blocker Version=0.0.1
 
