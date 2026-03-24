@@ -17,6 +17,18 @@ _SUPPORTED = {"ru", "en"}
 _DEFAULT_LANG = "en"
 _LOCALES: dict[str, dict[str, Any]] = {}
 
+# Inline help-section callback_data — same strings as t() keys (≤64 bytes for Telegram).
+HELP_PAGE_CALLBACK_KEYS: frozenset[str] = frozenset(
+    {
+        "help.getting_started",
+        "help.training",
+        "help.moderation",
+        "help.commands",
+        "help.payment",
+        "help.support",
+    }
+)
+
 
 def _get_locales_dir() -> Path:
     """Return path to locales directory."""

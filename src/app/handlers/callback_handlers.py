@@ -13,7 +13,7 @@ from ..database.spam_examples import (
     confirm_pending_example_as_not_spam,
     confirm_pending_example_as_spam,
 )
-from ..i18n import resolve_lang, t
+from ..i18n import HELP_PAGE_CALLBACK_KEYS, resolve_lang, t
 from .dp import dp
 from .handle_spam import ban_user_for_spam
 
@@ -40,14 +40,9 @@ async def handle_lang_set_callback(callback: CallbackQuery) -> str:
     return "callback_lang_set"
 
 
-def _help_callback_to_key(callback_data: str) -> str:
-    """Map help_getting_started -> help.getting_started etc."""
-    return "help." + callback_data.replace("help_", "", 1).replace("_", ".")
-
-
-@dp.callback_query(F.data.startswith("help_") & ~F.data.in_(["help_back"]))
+@dp.callback_query(F.data.in_(HELP_PAGE_CALLBACK_KEYS))
 async def handle_help_pages(callback: CallbackQuery) -> str:
-    """Единый обработчик для всех страниц помощи"""
+    """Show a help subsection; callback_data is the same string as the t() key."""
     if not callback.message or not isinstance(callback.message, types.Message):
         await callback.answer(t("en", "callback.message_inaccessible"), show_alert=True)
         return "callback_message_inaccessible"
@@ -57,12 +52,11 @@ async def handle_help_pages(callback: CallbackQuery) -> str:
     lang = resolve_lang(callback.from_user, admin)
 
     callback_data = callback.data or ""
-    text_key = _help_callback_to_key(callback_data)
-    if text_key == "help.getting_started":
-        text = t(lang, text_key, add_to_group_url=get_add_to_group_url())
+    if callback_data == "help.getting_started":
+        text = t(lang, callback_data, add_to_group_url=get_add_to_group_url())
     else:
-        text = t(lang, text_key)
-    if text == text_key:
+        text = t(lang, callback_data)
+    if text == callback_data:
         text = t(lang, "help.default_page")
 
     back_button = InlineKeyboardMarkup(
@@ -89,7 +83,7 @@ async def handle_help_pages(callback: CallbackQuery) -> str:
 
 @dp.callback_query(F.data == "help_back")
 async def handle_help_back(callback: CallbackQuery) -> str:
-    """Возвращает к основному меню помощи"""
+    """Return to the main help menu."""
     if not callback.message or not isinstance(callback.message, types.Message):
         await callback.answer(t("en", "callback.message_inaccessible"), show_alert=True)
         return "callback_message_inaccessible"
@@ -104,31 +98,31 @@ async def handle_help_back(callback: CallbackQuery) -> str:
             [
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.getting_started"),
-                    callback_data="help_getting_started",
+                    callback_data="help.getting_started",
                 ),
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.training"),
-                    callback_data="help_training",
+                    callback_data="help.training",
                 ),
             ],
             [
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.moderation"),
-                    callback_data="help_moderation",
+                    callback_data="help.moderation",
                 ),
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.commands"),
-                    callback_data="help_commands",
+                    callback_data="help.commands",
                 ),
             ],
             [
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.payment"),
-                    callback_data="help_payment",
+                    callback_data="help.payment",
                 ),
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.support"),
-                    callback_data="help_support",
+                    callback_data="help.support",
                 ),
             ],
         ]

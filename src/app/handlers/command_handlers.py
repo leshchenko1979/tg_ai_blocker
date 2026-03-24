@@ -215,31 +215,31 @@ async def handle_help_command(message: types.Message) -> str:
             [
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.getting_started"),
-                    callback_data="help_getting_started",
+                    callback_data="help.getting_started",
                 ),
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.training"),
-                    callback_data="help_training",
+                    callback_data="help.training",
                 ),
             ],
             [
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.moderation"),
-                    callback_data="help_moderation",
+                    callback_data="help.moderation",
                 ),
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.commands"),
-                    callback_data="help_commands",
+                    callback_data="help.commands",
                 ),
             ],
             [
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.payment"),
-                    callback_data="help_payment",
+                    callback_data="help.payment",
                 ),
                 InlineKeyboardButton(
                     text=t(lang, "help.buttons.support"),
-                    callback_data="help_support",
+                    callback_data="help.support",
                 ),
             ],
         ]
