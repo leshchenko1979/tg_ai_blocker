@@ -86,22 +86,27 @@ help:
   training: |
     <b>📚 Training the bot with your examples:</b>
 
-    To help the bot understand what counts as spam:
+    Examples are used when checking messages <b>in your groups</b>.
 
-    1. <b>Forward a suspicious message</b> to me in private
-    2. I'll analyze it and show the result
-    3. <b>Tap the rating button:</b>
-       • "Spam" - bot will remember as bad example
-       • "Not spam" - bot will remember as good example
+    <b>1. When the AI is unsure</b>
+    On <b>low confidence</b> (both borderline spam and borderline legitimate) I'll DM you a notification with context and <b>Delete</b> / <b>Not spam</b> buttons. Your choice is saved as a training example for future checks. <b>No need to forward</b> the message — data already comes from group moderation. If every admin has auto-delete on and the message was already removed, you'll only see <b>"Not spam"</b> to fix a false positive.
+
+    <b>2. Manually from chat</b>
+
+    1. <b>Forward a message</b> to me in private (best from a group the bot already moderates — easier to match the forward to the original and pull context)
+    2. I'll ask whether to <b>add it to the example database</b>
+    3. <b>Tap a button:</b>
+       • "Spam" — saved as a spam example; if the original is found in your group, I'll delete it there and remove the sender from the approved list
+       • "Not spam" — saved as a good-message example so similar posts are less likely to be flagged as spam
 
     <b>The more examples you provide, the better the protection!</b>
 
-    Examples help the bot tell apart:
+    Examples help tell apart:
     • Spam links from useful links
     • Scam messages from normal chat
     • Suspicious channels from legitimate ones
 
-    <b>Tip:</b> Train the bot regularly for best protection.
+    <b>Tip:</b> add examples regularly, especially after borderline calls.
   moderation: |
     <b>⚙️ What the bot checks:</b>
 
