@@ -46,7 +46,11 @@ async def _prepare_classification_request(
         lang=lang,
     )
     user_request = format_spam_request(comment, context)
-    user_message = f"{user_request}\nAnalyze this message and respond with JSON spam classification."
+    user_message = (
+        f"{user_request}\n\n"
+        "Analyze this message and respond with JSON spam classification "
+        "including is_spam, confidence, and reason."
+    )
     return [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_message},

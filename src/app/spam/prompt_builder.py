@@ -7,7 +7,8 @@ including system instructions, context guidance, response formats, and examples.
 The module provides:
 - SpamPromptBuilder: A fluent builder for constructing prompts with various guidance sections
 - build_system_prompt(): Async function to build complete prompts with examples from database
-- format_spam_request(): Formats message and context data for LLM input
+- format_spam_request(): Formats live classification requests for the user message (prose + BEGIN/END markers).
+- format_spam_example_input_yaml_card(): Compact YAML card for few-shot DB examples only (same logical fields as live context).
 - _format_context_section(): Internal helper for consistent context section formatting
 
 Prompt Structure:
@@ -17,17 +18,54 @@ Prompt Structure:
 4. Spam classification examples from database
 """
 
+import json
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import logfire
+import yaml
 
 from ..database.spam_examples import get_spam_examples
 from ..i18n import t
-from ..types import ContextResult, ContextStatus, SpamClassificationContext
+from ..types import ContextResult, SpamClassificationContext
 from .account_signals import ACCOUNT_SIGNALS_HEADER, format_account_signals_user_section
 
 logger = logging.getLogger(__name__)
+
+
+def format_spam_example_input_yaml_card(example: Dict[str, Any]) -> str:
+    """
+    Build a compact YAML card for a spam_examples DB row (few-shot input only).
+
+    Keys align with live `format_spam_request` sections: message, user profile,
+    linked channel fragment, stories, reply thread text, account_signals line(s).
+    Null/empty optional fields are emitted as YAML null.
+    """
+
+    def norm_opt(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            value = str(value)
+        stripped = value.strip()
+        return stripped if stripped else None
+
+    card = {
+        "message": example.get("text") or "",
+        "user_name": norm_opt(example.get("name")),
+        "user_bio": norm_opt(example.get("bio")),
+        "linked_channel": norm_opt(example.get("linked_channel_fragment")),
+        "stories": norm_opt(example.get("stories_context")),
+        "reply_context": norm_opt(example.get("reply_context")),
+        "account_signals": norm_opt(example.get("account_signals_context")),
+    }
+    return yaml.safe_dump(
+        card,
+        allow_unicode=True,
+        sort_keys=False,
+        default_flow_style=False,
+        width=10_000,
+    ).strip()
 
 
 class SpamPromptBuilder:
@@ -46,6 +84,8 @@ The message to classify is enclosed in >>> BEGIN MESSAGE markers.
 You will also receive context information (User Bio, Linked Channel, User Stories, Account Signals, Reply Context).
 
 IMPORTANT: Do not classify the context information as spam. Only classify the message inside the markers.
+
+Few-shot examples in the system prompt use compact YAML cards (`message`, `user_name`, `user_bio`, `linked_channel`, `stories`, `reply_context`, `account_signals`) with the same meaning as the live request sections below.
 
 {explanation_hint}""")
         return self
@@ -67,7 +107,7 @@ HIGH SPAM INDICATORS:
 ## TROJAN HORSE PATTERN (Critical)
 When the message looks innocent or on-topic BUT the profile has strong spam indicators, this is Trojan Horse spam.
 
-- Clean message + dirty profile = SPAM. The goal is to drive profile clicks, not add value.
+- Clean message + dirty profile can be SPAM when profile evidence is truly strong. The goal is to drive profile clicks, not add value.
 - Strong profile indicators: bot link in bio, offer/income in name, photo_age=0mo or unknown.
 - A "relevant" or "expert-looking" comment from such a profile is HIGH SPAM — the comment is bait.
 - Do NOT let "message is relevant to reply" override profile indicators when profile has bot links or promotional name.
@@ -151,6 +191,7 @@ CRITICAL INSTRUCTION:
 5. "Relevant to discussion" alone does NOT mean legitimate. If the profile has strong spam indicators (bot in bio, promotional name, new account), treat even relevant comments as high-risk Trojan Horse.
 
 6. When REPLY CONTEXT is clearly a commercial or channel promo and the message to classify is only a polite, on-topic request for details (scheme, steps, how it works) without DM bait, links in the message, or self-promo in name/bio — do NOT classify as high-confidence spam based on speculation about "coordinated campaigns", "fake interest", or stacking weak empty-field signals alone. Require concrete spam cues in the message or strong profile spam indicators.
+7. High-confidence spam (e.g., 90+) requires clear evidence: concrete message-level spam cues OR multiple strong profile cues. Do not assign high confidence from weak absence signals alone.
 
 HIGH SPAM INDICATOR: User replies that are completely unrelated to the discussion topic.
 
@@ -208,6 +249,12 @@ Always respond with valid JSON in this exact format:
     "reason": "{reason_format}"
 }}
 
+Few-shot example inputs are YAML cards (`EXAMPLE_INPUT_YAML`); labels are JSON (`EXAMPLE_LABEL_JSON`) with only `is_spam` and `confidence`. The live user turn uses prose with `>>> BEGIN MESSAGE` markers instead of YAML.
+
+Few-shot labels omit `reason` (not stored in the database). Your real response to this task must always include all three keys, including `reason`, as required by the API schema.
+
+Confidence calibration policy: use medium confidence for ambiguous cases with mixed/weak signals; reserve very high confidence for clear evidence.
+
 ## SPAM CLASSIFICATION EXAMPLES""")
         return self
 
@@ -219,42 +266,21 @@ Always respond with valid JSON in this exact format:
             examples = await get_spam_examples(admin_ids)
 
             for example in examples:
-                # Create context from example data
-                sig = example.get("account_signals_context")
-                example_context = SpamClassificationContext(
-                    name=example.get("name"),
-                    bio=example.get("bio"),
-                    linked_channel=ContextResult(
-                        status=ContextStatus.FOUND,
-                        content=example.get("linked_channel_fragment"),
-                    )
-                    if example.get("linked_channel_fragment")
-                    else None,
-                    stories=ContextResult(
-                        status=ContextStatus.FOUND,
-                        content=example.get("stories_context"),
-                    )
-                    if example.get("stories_context")
-                    else None,
-                    reply=example.get("reply_context"),
-                    account_signals_snapshot=sig.strip() if sig else None,
-                )
-
-                example_request = format_spam_request(
-                    text=example["text"],
-                    context=example_context,
-                )
+                yaml_card = format_spam_example_input_yaml_card(example)
 
                 is_spam_ex = example["score"] > 0
                 confidence_ex = abs(example["score"])
+                label_json = json.dumps(
+                    {"is_spam": is_spam_ex, "confidence": confidence_ex},
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
 
-                self.prompt_parts.append(f"""
-{example_request}
+                self.prompt_parts.append(f"""--- EXAMPLE_INPUT_YAML ---
+{yaml_card}
 
-{{
-    "is_spam": {"true" if is_spam_ex else "false"},
-    "confidence": {confidence_ex}
-}}""")
+EXAMPLE_LABEL_JSON:
+{label_json}""")
         except Exception as e:
             logger.warning(f"Failed to load spam examples for prompt: {e}")
 
@@ -357,6 +383,11 @@ def _format_context_section(
     return ""
 
 
+REPLY_CONTEXT_HEADER = (
+    "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
+)
+
+
 @logfire.no_auto_trace
 def format_spam_request(
     text: str,
@@ -364,6 +395,10 @@ def format_spam_request(
 ) -> str:
     """
     Format a spam classification request for the LLM.
+
+    Sections are emitted in a fixed order: target message, then user profile,
+    linked channel, stories, account signals, reply context. A `---` delimiter
+    separates the classified message from sender context when any context exists.
 
     Args:
         text: Message text to classify
@@ -376,42 +411,39 @@ def format_spam_request(
     if context is None:
         context = SpamClassificationContext()
 
-    parts = [
-        "MESSAGE TO CLASSIFY (Analyze this content):",
-        f">>> BEGIN MESSAGE\n{text}\n<<< END MESSAGE",
-    ]
+    message_header = "MESSAGE TO CLASSIFY (Analyze this content):"
+    message_body = f">>> BEGIN MESSAGE\n{text}\n<<< END MESSAGE"
 
-    # Add basic user information
+    context_parts: list[str] = []
+
     if context.name:
-        parts.append(f"USER NAME:\n{context.name}")
+        context_parts.append(f"USER NAME:\n{context.name}")
     if context.bio:
-        parts.append(f"USER BIO:\n{context.bio}")
+        context_parts.append(f"USER BIO:\n{context.bio}")
 
-    # Add context sections using the helper function
     for section_name, context_result in [
         ("LINKED CHANNEL INFO", context.linked_channel),
         ("USER STORIES CONTENT", context.stories),
     ]:
         section = _format_context_section(section_name, context_result)
         if section:
-            parts.append(section.rstrip())
+            context_parts.append(section.rstrip())
 
     acc = format_account_signals_user_section(context)
     if acc:
-        parts.append(acc.rstrip())
+        context_parts.append(acc.rstrip())
 
-    # Handle reply context (special case due to different formatting)
     if context.reply is not None:
         if context.reply == "[EMPTY]":
-            parts.append(
-                "REPLY CONTEXT (Original post being replied to):\n[checked, none found]"
-            )
+            context_parts.append(f"{REPLY_CONTEXT_HEADER}\n[checked, none found]")
         else:
-            parts.append(
-                f"""REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):
+            context_parts.append(
+                f"""{REPLY_CONTEXT_HEADER}
 >>> BEGIN CONTEXT
 {context.reply}
 <<< END CONTEXT""".rstrip()
             )
 
-    return "\n\n".join(parts)
+    if context_parts:
+        return "\n\n".join([message_header, message_body, "---", *context_parts])
+    return "\n\n".join([message_header, message_body])

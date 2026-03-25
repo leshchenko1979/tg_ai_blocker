@@ -117,7 +117,7 @@ async def handle_moderated_message(message: types.Message) -> str:
         target_span.set_attribute("llm_is_spam", is_spam)
         target_span.set_attribute("llm_confidence", confidence)
         target_span.set_attribute("llm_reason", reason)
-        target_span.set_attribute("context", message_context_result.context)  # type: ignore[arg-type]
+        target_span.set_attribute("context", str(message_context_result.context))
 
         # Save full context to lookup cache for forwarded-message recovery
         try:

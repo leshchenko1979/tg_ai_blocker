@@ -1,12 +1,16 @@
+import json
+
 import pytest
+import yaml
 from unittest.mock import patch, AsyncMock
 from src.app.spam.llm_client import (
     ExtractionFailedError,
     parse_classification_response,
 )
 from src.app.spam.prompt_builder import (
-    format_spam_request,
     build_system_prompt,
+    format_spam_example_input_yaml_card,
+    format_spam_request,
 )
 
 
@@ -98,8 +102,172 @@ def test_format_spam_request_basic():
     assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
     assert "USER NAME:\nUser" in req
     assert "USER BIO:\nBio" in req
+    assert "<<< END MESSAGE\n\n---\n\nUSER NAME:" in req
     assert "<истории_пользователя>" not in req
     assert "<связанный_канал>" not in req
+
+
+def test_format_spam_request_empty_context_no_delimiter():
+    """No sender context: no --- delimiter after message block."""
+    from src.app.types import SpamClassificationContext
+
+    req = format_spam_request("Only this", SpamClassificationContext())
+    assert ">>> BEGIN MESSAGE\nOnly this\n<<< END MESSAGE" in req
+    assert "\n---\n" not in req
+
+
+def test_format_spam_request_deterministic_section_order():
+    """Context sections appear in fixed order after the delimiter."""
+    from datetime import datetime, timedelta, timezone
+
+    from src.app.types import (
+        SpamClassificationContext,
+        ContextResult,
+        ContextStatus,
+        LinkedChannelSummary,
+        UserAccountInfo,
+    )
+
+    linked = LinkedChannelSummary(
+        subscribers=1, total_posts=1, post_age_delta=0, recent_posts_content=None
+    )
+    photo_date = datetime.now(timezone.utc) - timedelta(days=150)
+    profile = UserAccountInfo(user_id=1, profile_photo_date=photo_date)
+    context = SpamClassificationContext(
+        name="N",
+        bio="B",
+        linked_channel=ContextResult(status=ContextStatus.FOUND, content=linked),
+        stories=ContextResult(status=ContextStatus.FOUND, content="story"),
+        profile_photo_age=ContextResult(status=ContextStatus.FOUND, content=profile),
+        reply="post body",
+    )
+    req = format_spam_request("msg", context)
+    p_bio = req.find("USER BIO:\nB")
+    p_linked = req.find("LINKED CHANNEL INFO:")
+    p_stories = req.find("USER STORIES CONTENT:")
+    p_acc = req.find("ACCOUNT SIGNALS:")
+    p_reply = req.find(
+        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
+    )
+    assert 0 < p_bio < p_linked < p_stories < p_acc < p_reply
+
+
+def test_format_spam_request_empty_reply_unified_header():
+    from src.app.types import SpamClassificationContext
+
+    context = SpamClassificationContext(reply="[EMPTY]")
+    req = format_spam_request("Hi", context)
+    assert (
+        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
+        in req
+    )
+    assert "[checked, none found]" in req
+
+
+@pytest.mark.asyncio
+async def test_build_system_prompt_requires_reason_in_actual_response():
+    with patch(
+        "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
+    ) as mock_examples:
+        mock_examples.return_value = []
+        prompt = await build_system_prompt()
+        assert "EXAMPLE_INPUT_YAML" in prompt
+        assert "all three keys, including `reason`" in prompt
+        assert "## RESPONSE FORMAT" in prompt
+        assert '"is_spam"' in prompt
+        assert '"reason"' in prompt
+        assert "Confidence calibration policy" in prompt
+        assert "use medium confidence for ambiguous cases" in prompt
+
+
+@pytest.mark.asyncio
+async def test_build_system_prompt_reply_context_has_high_confidence_gating():
+    from src.app.types import SpamClassificationContext
+
+    with patch(
+        "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
+    ) as mock_examples:
+        mock_examples.return_value = []
+        prompt = await build_system_prompt(
+            context=SpamClassificationContext(reply="context post")
+        )
+        assert "High-confidence spam (e.g., 90+) requires clear evidence" in prompt
+        assert (
+            "Do not assign high confidence from weak absence signals alone." in prompt
+        )
+
+
+@pytest.mark.asyncio
+async def test_build_system_prompt_few_shot_labels_json_keys():
+    """EXAMPLE_LABEL_JSON lines contain only is_spam and confidence."""
+    example_row = {
+        "text": "spam text",
+        "score": 100,
+        "name": None,
+        "bio": None,
+        "linked_channel_fragment": None,
+        "stories_context": None,
+        "reply_context": None,
+        "account_signals_context": None,
+    }
+    ham_row = {
+        "text": "legit",
+        "score": 0,
+        "name": "U",
+        "bio": None,
+        "linked_channel_fragment": None,
+        "stories_context": None,
+        "reply_context": None,
+        "account_signals_context": None,
+    }
+    with patch(
+        "src.app.spam.prompt_builder.get_spam_examples", new_callable=AsyncMock
+    ) as mock_examples:
+        mock_examples.return_value = [example_row, ham_row]
+        prompt = await build_system_prompt()
+    assert "--- EXAMPLE_INPUT_YAML ---" in prompt
+    assert "EXAMPLE_LABEL_JSON:" in prompt
+    chunks = prompt.split("--- EXAMPLE_INPUT_YAML ---")[1:]
+    assert len(chunks) >= 2
+    for chunk in chunks:
+        yaml_blob, sep, tail = chunk.partition("\n\nEXAMPLE_LABEL_JSON:\n")
+        assert sep
+        card = yaml.safe_load(yaml_blob.strip())
+        assert set(card.keys()) == {
+            "message",
+            "user_name",
+            "user_bio",
+            "linked_channel",
+            "stories",
+            "reply_context",
+            "account_signals",
+        }
+        label_line = tail.strip().split("\n", 1)[0]
+        data = json.loads(label_line)
+        assert set(data.keys()) == {"is_spam", "confidence"}
+        assert isinstance(data["is_spam"], bool)
+        assert isinstance(data["confidence"], int)
+
+
+def test_format_spam_example_input_yaml_card_roundtrip():
+    row = {
+        "text": "hello\nworld",
+        "name": " N ",
+        "bio": None,
+        "linked_channel_fragment": "subscribers=1",
+        "stories_context": "[EMPTY]",
+        "reply_context": "thread",
+        "account_signals_context": " photo_age=0mo ",
+    }
+    dumped = format_spam_example_input_yaml_card(row)
+    card = yaml.safe_load(dumped)
+    assert card["message"] == "hello\nworld"
+    assert card["user_name"] == "N"
+    assert card["user_bio"] is None
+    assert card["linked_channel"] == "subscribers=1"
+    assert card["stories"] == "[EMPTY]"
+    assert card["reply_context"] == "thread"
+    assert card["account_signals"] == "photo_age=0mo"
 
 
 def test_format_spam_request_with_stories():
@@ -232,7 +400,7 @@ async def test_build_system_prompt_trojan_horse_guidance():
         prompt = await build_system_prompt(context=context)
 
         assert "## TROJAN HORSE PATTERN (Critical)" in prompt
-        assert "Clean message + dirty profile = SPAM" in prompt
+        assert "Clean message + dirty profile can be SPAM" in prompt
         assert "SIGNAL HIERARCHY" in prompt
 
 
@@ -314,12 +482,18 @@ def test_format_spam_request_empty_marker_shows_metadata():
 
 def test_format_spam_request_content_shows_normally():
     """Test that actual content shows normally"""
+    from datetime import datetime, timezone
+
     from src.app.types import (
         SpamClassificationContext,
         ContextResult,
         ContextStatus,
+        UserAccountInfo,
     )
 
+    profile = UserAccountInfo(
+        user_id=1, profile_photo_date=datetime(2024, 6, 1, tzinfo=timezone.utc)
+    )
     context = SpamClassificationContext(
         name="User",
         bio="Bio",
@@ -327,9 +501,7 @@ def test_format_spam_request_content_shows_normally():
             status=ContextStatus.FOUND, content="Actual story content"
         ),
         reply="Original post content",
-        profile_photo_age=ContextResult(
-            status=ContextStatus.FOUND, content="Account age: 3mo"
-        ),
+        profile_photo_age=ContextResult(status=ContextStatus.FOUND, content=profile),
     )
     req = format_spam_request("Hello", context)
 
@@ -340,7 +512,7 @@ def test_format_spam_request_content_shows_normally():
         in req
     )
     assert ">>> BEGIN CONTEXT\nOriginal post content\n<<< END CONTEXT" in req
-    assert "ACCOUNT SIGNALS:\nAccount age: 3mo" in req
+    assert f"ACCOUNT SIGNALS:\n{profile.to_prompt_fragment()}" in req
 
     # Verify basic fields are present
     assert "MESSAGE TO CLASSIFY (Analyze this content):" in req

@@ -7,12 +7,17 @@ and retrieve it downstream via get_root_span(). The context propagates through
 async/await automatically.
 """
 
-from typing import Any
+from typing import Any, Protocol, cast
 
 from opentelemetry import context
-from opentelemetry.trace import Span, get_current_span
+from opentelemetry.trace import get_current_span
+from opentelemetry.util.types import AttributeValue
 
 ROOT_SPAN_KEY = context.create_key("logfire_root_span")
+
+
+class SpanLike(Protocol):
+    def set_attribute(self, key: str, value: AttributeValue) -> None: ...
 
 
 def set_root_span(span: Any) -> None:
@@ -25,12 +30,12 @@ def set_root_span(span: Any) -> None:
     context.attach(ctx)
 
 
-def get_root_span() -> Span:
+def get_root_span() -> SpanLike:
     """
     Get the root span from the current context, if one was stored via set_root_span().
     Falls back to the current span when the root span is not set.
     """
     span = context.get_value(ROOT_SPAN_KEY)
     if span is not None and hasattr(span, "set_attribute"):
-        return span  # type: ignore[return-value]
-    return get_current_span()
+        return cast(SpanLike, span)
+    return cast(SpanLike, get_current_span())
