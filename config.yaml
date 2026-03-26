@@ -27,6 +27,7 @@ spam:
   high_confidence_threshold: 90
   examples_limit: 40        # Max examples in prompt
   examples_ham_ratio: 0.25   # 25% ham, rest is spam
+  recent_posts_limit: 5      # Number of recent channel posts to fetch for analysis
 
 system:
   admin_chat_id: 133526395  # ID администратора для уведомлений

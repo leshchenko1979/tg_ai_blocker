@@ -20,9 +20,26 @@ from ..common.mtproto_client import (
     get_mtproto_client,
 )
 from ..common.mtproto_utils import bot_api_chat_id_to_mtproto
+from ..common.utils import load_config
 from .linked_channel_mention import extract_first_channel_mention
 
 logger = logging.getLogger(__name__)
+JsonDict = Dict[str, Any]
+
+
+def _empty_context_result() -> ContextResult:
+    return ContextResult(status=ContextStatus.EMPTY)
+
+
+def _failed_spam_context(error: str) -> SpamClassificationContext:
+    failed = ContextResult(status=ContextStatus.FAILED, error=error)
+    return SpamClassificationContext(linked_channel=failed, profile_photo_age=failed)
+
+
+def _get_recent_posts_limit() -> int:
+    spam_cfg = load_config().get("spam", {})
+    limit = spam_cfg.get("recent_posts_limit", 5)
+    return limit if isinstance(limit, int) and limit > 0 else 5
 
 
 async def _resolve_username_to_channel_id(username: str) -> Optional[int]:
@@ -35,12 +52,158 @@ async def _resolve_username_to_channel_id(username: str) -> Optional[int]:
         chat_type = getattr(chat, "type", None)
         if chat_type in ("channel", "supergroup"):
             return chat.id
-    except Exception as e:
+    except Exception as exc:
         logger.debug(
             "Could not resolve username to channel",
-            extra={"username": username, "error": str(e)},
+            extra={"username": username, "error": str(exc)},
         )
     return None
+
+
+def _parse_user_context_input(
+    user_id_or_message: Any, username: Optional[str], chat_id: Optional[int]
+) -> tuple[Any, Optional[int], Optional[int], Optional[str]]:
+    if hasattr(user_id_or_message, "chat"):
+        message_obj = user_id_or_message
+        actual_user_id = (
+            getattr(message_obj.from_user, "id", None)
+            if message_obj.from_user
+            else None
+        )
+        actual_chat_id = message_obj.chat.id
+        resolved_username = (
+            username
+            if username is not None
+            else (
+                getattr(message_obj.from_user, "username", None)
+                if message_obj.from_user
+                else None
+            )
+        )
+        return message_obj, actual_user_id, actual_chat_id, resolved_username
+
+    return None, user_id_or_message, chat_id, username
+
+
+def _pick_first_linked_channel_mention(
+    full_user: JsonDict, message: Any
+) -> tuple[Optional[str], Optional[str]]:
+    if about := full_user.get("about"):
+        if username_from_bio := extract_first_channel_mention(about):
+            return username_from_bio, "bio"
+
+    if message is not None:
+        msg_text = (message.text or message.caption or "") or ""
+        entities = getattr(message, "entities", None)
+        if username_from_message := extract_first_channel_mention(msg_text, entities):
+            return username_from_message, "message"
+
+    return None, None
+
+
+def _resolve_user_identifier(
+    *, actual_user_id: Optional[int], username: Optional[str]
+) -> str | int | None:
+    return username or actual_user_id
+
+
+async def _fetch_full_user_and_account_context(
+    *,
+    client: MtprotoHttpClient,
+    identifier: str | int,
+    actual_user_id: Optional[int],
+    username: Optional[str],
+) -> tuple[JsonDict, JsonDict, ContextResult]:
+    full_user: JsonDict = {}
+    full_user_response: JsonDict = {}
+    account_info_result = _empty_context_result()
+    try:
+        full_user_response = await client.call(
+            "users.getFullUser",
+            params={"id": identifier},
+            resolve=True,
+        )
+        full_user = full_user_response.get("full_user") or {}
+        if user_id := full_user.get("id") or actual_user_id:
+            profile_photo = full_user.get("profile_photo")
+            photo_date = None
+            if profile_photo and isinstance(profile_photo, dict):
+                photo_date = _extract_date(profile_photo.get("date"))
+            account_info_result = ContextResult(
+                status=ContextStatus.FOUND,
+                content=UserAccountInfo(
+                    user_id=int(user_id),
+                    profile_photo_date=photo_date,
+                ),
+            )
+    except MtprotoHttpError as exc:
+        logger.info(
+            "MTProto failed for full user",
+            extra={
+                "user_id": actual_user_id,
+                "username": username,
+                "identifier_used": identifier,
+                "error": str(exc),
+            },
+        )
+        account_info_result = ContextResult(status=ContextStatus.FAILED, error=str(exc))
+
+    return full_user, full_user_response, account_info_result
+
+
+async def _collect_linked_channel_from_profile(
+    *,
+    full_user: JsonDict,
+    full_user_response: JsonDict,
+    actual_user_id: Optional[int],
+) -> Optional[ContextResult]:
+    if not (personal_channel_id := full_user.get("personal_channel_id")):
+        return None
+
+    channel_id = int(personal_channel_id)
+    linked_username = _extract_personal_channel_username(full_user_response, channel_id)
+    if linked_username is None:
+        return _empty_context_result()
+
+    return await collect_channel_summary_by_id(
+        channel_id,
+        actual_user_id,
+        username=linked_username,
+        channel_source="linked",
+    )
+
+
+async def _collect_linked_channel_from_mentions(
+    *,
+    full_user: JsonDict,
+    message: Any,
+    actual_user_id: Optional[int],
+) -> ContextResult:
+    candidate_username, source = _pick_first_linked_channel_mention(full_user, message)
+    if candidate_username and source:
+        channel_id = await _resolve_username_to_channel_id(candidate_username)
+        if channel_id is not None:
+            return await collect_channel_summary_by_id(
+                channel_id,
+                actual_user_id,
+                username=candidate_username,
+                channel_source=source,
+            )
+        logger.debug(
+            "Resolved mention is not a channel",
+            extra={
+                "user_id": actual_user_id,
+                "candidate": candidate_username,
+                "source": source,
+            },
+        )
+        return _empty_context_result()
+
+    logger.debug(
+        "User has no linked channel in profile, bio, or message",
+        extra={"user_id": actual_user_id, "full_user_keys": list(full_user.keys())},
+    )
+    return _empty_context_result()
 
 
 def _extract_personal_channel_username(
@@ -53,15 +216,18 @@ def _extract_personal_channel_username(
     chats = full_user_response.get("chats") or []
     for chat in chats:
         if chat.get("id") == personal_channel_id:
-            username = chat.get("username")
-            if username:
+            if username := chat.get("username"):
                 return username
             # Collectible usernames: usernames is Vector<Username>
             usernames = chat.get("usernames") or []
-            for u in usernames:
-                if isinstance(u, dict) and u.get("active") and u.get("username"):
-                    return u["username"]
-            return None
+            return next(
+                (
+                    u["username"]
+                    for u in usernames
+                    if isinstance(u, dict) and u.get("active") and u.get("username")
+                ),
+                None,
+            )
     return None
 
 
@@ -82,23 +248,9 @@ async def collect_user_context(
         SpamClassificationContext with linked_channel, profile_photo_age; stories=SKIPPED
     """
     client = get_mtproto_client()
-    linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
-    account_info_result = ContextResult(status=ContextStatus.EMPTY)
-
-    # Detect if first parameter is a message object or user_id
-    if hasattr(user_id_or_message, "chat"):  # It's a message object
-        message = user_id_or_message
-        actual_user_id = (
-            getattr(message.from_user, "id", None) if message.from_user else None
-        )
-        actual_chat_id = message.chat.id
-        # Extract username from message if not provided
-        if username is None and message.from_user:
-            username = getattr(message.from_user, "username", None)
-    else:  # It's a user_id
-        message = None
-        actual_user_id = user_id_or_message
-        actual_chat_id = chat_id
+    message, actual_user_id, actual_chat_id, username = _parse_user_context_input(
+        user_id_or_message, username, chat_id
+    )
 
     with logfire.span(
         "Collecting user context via MTProto",
@@ -106,140 +258,38 @@ async def collect_user_context(
         username=username,
         chat_id=actual_chat_id,
     ):
-        # Set up identifier: prefer username, but use user_id if no username
-        # (subscription check is handled at higher level)
-        if username:
-            identifier = username
-        else:
-            # Using user_id directly (subscription already verified at higher level)
-            if not actual_user_id:
-                logger.error(
-                    "No username and invalid user_id for user_id-based collection",
-                    extra={"user_id": actual_user_id, "username": username},
-                )
-                return SpamClassificationContext(
-                    linked_channel=ContextResult(
-                        status=ContextStatus.FAILED,
-                        error="Invalid user_id for user_id-based collection",
-                    ),
-                    profile_photo_age=ContextResult(
-                        status=ContextStatus.FAILED,
-                        error="Invalid user_id for user_id-based collection",
-                    ),
-                )
-            identifier = actual_user_id
-
-        full_user = {}
-        try:
-            full_user_response = await client.call(
-                "users.getFullUser",
-                params={"id": identifier},
-                resolve=True,
+        identifier = _resolve_user_identifier(
+            actual_user_id=actual_user_id, username=username
+        )
+        if identifier is None:
+            logger.error(
+                "No username and invalid user_id for user_id-based collection",
+                extra={"user_id": actual_user_id, "username": username},
             )
-            full_user = full_user_response.get("full_user") or {}
+            return _failed_spam_context("Invalid user_id for user_id-based collection")
 
-            # Extract Account Info
-            user_id = full_user.get("id")
-            if not user_id:
-                user_id = actual_user_id
+        (
+            full_user,
+            full_user_response,
+            account_info_result,
+        ) = await _fetch_full_user_and_account_context(
+            client=client,
+            identifier=identifier,
+            actual_user_id=actual_user_id,
+            username=username,
+        )
 
-            # Fallback to actual_user_id if not found in response (unlikely for success)
-            if user_id:
-                profile_photo = full_user.get("profile_photo")
-                photo_date = None
-                if profile_photo and isinstance(profile_photo, dict):
-                    photo_date = _extract_date(profile_photo.get("date"))
-
-                account_info_result = ContextResult(
-                    status=ContextStatus.FOUND,
-                    content=UserAccountInfo(
-                        user_id=int(user_id),
-                        profile_photo_date=photo_date,
-                    ),
-                )
-            else:
-                account_info_result = ContextResult(status=ContextStatus.EMPTY)
-
-        except MtprotoHttpError as e:
-            logger.info(
-                "MTProto failed for full user",
-                extra={
-                    "user_id": actual_user_id,
-                    "username": username,
-                    "identifier_used": identifier,
-                    "error": str(e),
-                },
+        linked_channel_result = await _collect_linked_channel_from_profile(
+            full_user=full_user,
+            full_user_response=full_user_response,
+            actual_user_id=actual_user_id,
+        )
+        if linked_channel_result is None:
+            linked_channel_result = await _collect_linked_channel_from_mentions(
+                full_user=full_user,
+                message=message,
+                actual_user_id=actual_user_id,
             )
-            account_info_result = ContextResult(
-                status=ContextStatus.FAILED, error=str(e)
-            )
-
-        # Extract Linked Channel: preference profile > bio > message
-        # MTProto ID-Query Prohibition: never call collect_channel_summary with ID only
-        personal_channel_id = full_user.get("personal_channel_id")
-        if personal_channel_id:
-            channel_id = int(personal_channel_id)
-            # Username comes from the same MTProto response (chats array), no Bot API needed
-            linked_username = _extract_personal_channel_username(
-                full_user_response, channel_id
-            )
-            if linked_username is not None:
-                channel_result = await collect_channel_summary_by_id(
-                    channel_id,
-                    actual_user_id,
-                    username=linked_username,
-                    channel_source="linked",
-                )
-                linked_channel_result = channel_result
-            else:
-                linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
-        else:
-            candidate_username = None
-            source = None
-
-            # Try first mention in bio
-            about = full_user.get("about")
-            if about:
-                candidate_username = extract_first_channel_mention(about)
-                if candidate_username:
-                    source = "bio"
-
-            # If no candidate from bio, try first mention in message (if provided)
-            if not candidate_username and message is not None:
-                msg_text = (message.text or message.caption or "") or ""
-                entities = getattr(message, "entities", None)
-                candidate_username = extract_first_channel_mention(msg_text, entities)
-                if candidate_username:
-                    source = "message"
-
-            if candidate_username and source:
-                channel_id = await _resolve_username_to_channel_id(candidate_username)
-                if channel_id is not None:
-                    linked_channel_result = await collect_channel_summary_by_id(
-                        channel_id,
-                        actual_user_id,
-                        username=candidate_username,
-                        channel_source=source,
-                    )
-                else:
-                    logger.debug(
-                        "Resolved mention is not a channel",
-                        extra={
-                            "user_id": actual_user_id,
-                            "candidate": candidate_username,
-                            "source": source,
-                        },
-                    )
-                    linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
-            else:
-                logger.debug(
-                    "User has no linked channel in profile, bio, or message",
-                    extra={
-                        "user_id": actual_user_id,
-                        "full_user_keys": list(full_user.keys()),
-                    },
-                )
-                linked_channel_result = ContextResult(status=ContextStatus.EMPTY)
 
     return SpamClassificationContext(
         linked_channel=linked_channel_result,
@@ -280,7 +330,7 @@ async def collect_channel_summary_by_id(
                 params={"channel": channel_identifier},
                 resolve=True,
             )
-        except MtprotoHttpError as e:
+        except MtprotoHttpError as exc:
             logger.info(
                 "Failed to load full channel via MTProto",
                 extra={
@@ -288,10 +338,10 @@ async def collect_channel_summary_by_id(
                     "channel_id": channel_id,
                     "username": username,
                     "identifier_used": channel_identifier,
-                    "error": str(e),
+                    "error": str(exc),
                 },
             )
-            return ContextResult(status=ContextStatus.FAILED, error=str(e))
+            return ContextResult(status=ContextStatus.FAILED, error=str(exc))
 
     subscribers = full_channel.get("full_chat", {}).get("participants_count")
     logger.debug(
@@ -307,19 +357,25 @@ async def collect_channel_summary_by_id(
     peer_to_use = channel_identifier
 
     # Fetch recent posts content for spam analysis - this also gives us the newest message and total count
+    recent_posts_limit = _get_recent_posts_limit()
+
     (
         recent_posts_content,
         newest_message,
+        oldest_message_in_recent_batch,
         total_posts,
-    ) = await _fetch_recent_posts_content(client, peer_to_use, limit=5)
+    ) = await _fetch_recent_posts_content(client, peer_to_use, limit=recent_posts_limit)
 
     newest_post_date = _extract_message_date(newest_message)
     oldest_post_date = None
     if total_posts and total_posts > 1:
-        oldest_message, _ = await _fetch_channel_edge_message(
-            client, peer_to_use, limit_offset=total_posts - 1
-        )
-        oldest_post_date = _extract_message_date(oldest_message)
+        if total_posts <= recent_posts_limit:
+            oldest_post_date = _extract_message_date(oldest_message_in_recent_batch)
+        else:
+            oldest_message, _ = await _fetch_channel_edge_message(
+                client, peer_to_use, limit_offset=total_posts - 1
+            )
+            oldest_post_date = _extract_message_date(oldest_message)
 
     oldest_post_date = oldest_post_date or newest_post_date
     post_age_delta = None
@@ -334,7 +390,7 @@ async def collect_channel_summary_by_id(
         subscribers=subscribers,
         total_posts=total_posts,
         post_age_delta=post_age_delta,
-        recent_posts_content=recent_posts_content if recent_posts_content else None,
+        recent_posts_content=recent_posts_content or None,
         users=users,
         channel_source=channel_source,
         channel_id=channel_id,
@@ -361,17 +417,12 @@ async def _fetch_channel_edge_message(
     peer_reference: int | str,
     *,
     limit_offset: Optional[int],
-) -> tuple[Optional[Dict[str, Any]], Optional[int]]:
-    params: Dict[str, Any] = {
-        "peer": peer_reference,
-        "offset_id": 0,
-        "offset_date": 0,
-        "add_offset": max(limit_offset or 0, 0),
-        "limit": 1,
-        "max_id": 0,
-        "min_id": 0,
-        "hash": 0,
-    }
+) -> tuple[Optional[JsonDict], Optional[int]]:
+    params = _build_history_params(
+        peer_reference=peer_reference,
+        add_offset=max(limit_offset or 0, 0),
+        limit=1,
+    )
 
     try:
         history = await client.call("messages.getHistory", params=params, resolve=True)
@@ -382,36 +433,25 @@ async def _fetch_channel_edge_message(
         )
         return None, None
 
-    messages = history.get("messages", [])
-    message = messages[0] if messages else None
-    total = history.get("count")
-    if total is None and messages:
-        total = len(messages)
-    return message, total
+    return _extract_first_message_and_total(history)
 
 
 async def _fetch_recent_posts_content(
     client: MtprotoHttpClient,
     peer_reference: int | str,
     limit: int = 5,
-) -> tuple[list[str], Optional[Dict[str, Any]], Optional[int]]:
+) -> tuple[list[str], Optional[JsonDict], Optional[JsonDict], Optional[int]]:
     """
     Fetch content from recent posts in a channel to analyze for spam indicators.
-    Returns tuple of (content_list, newest_message, total_count).
+    Returns tuple of (content_list, newest_message, oldest_message_in_batch, total_count).
     - content_list: list of text content from recent posts (excluding media-only posts)
     - newest_message: the most recent message (first in results)
+    - oldest_message_in_batch: oldest message present in the fetched batch
     - total_count: total number of messages in the channel
     """
-    params: Dict[str, Any] = {
-        "peer": peer_reference,
-        "offset_id": 0,
-        "offset_date": 0,
-        "add_offset": 0,
-        "limit": limit,
-        "max_id": 0,
-        "min_id": 0,
-        "hash": 0,
-    }
+    params = _build_history_params(
+        peer_reference=peer_reference, add_offset=0, limit=limit
+    )
 
     try:
         history = await client.call("messages.getHistory", params=params, resolve=True)
@@ -420,11 +460,12 @@ async def _fetch_recent_posts_content(
             "Failed to fetch recent posts content",
             extra={"peer_reference": peer_reference, "error": str(exc)},
         )
-        return [], None, None
+        return [], None, None, None
 
     messages = history.get("messages", [])
     content_list = []
     newest_message = messages[0] if messages else None
+    oldest_message_in_batch = messages[-1] if len(messages) > 1 else newest_message
     total_count = history.get("count")
 
     for message in messages:
@@ -433,7 +474,7 @@ async def _fetch_recent_posts_content(
         if text_content and text_content.strip():
             content_list.append(text_content.strip())
 
-    return content_list, newest_message, total_count
+    return content_list, newest_message, oldest_message_in_batch, total_count
 
 
 def _extract_message_text(message: Dict[str, Any]) -> str:
@@ -471,6 +512,30 @@ def _extract_date(timestamp: Any) -> Optional[datetime]:
 
 
 def _extract_message_date(message: Optional[Dict[str, Any]]) -> Optional[datetime]:
-    if not message:
-        return None
-    return _extract_date(message.get("date"))
+    return _extract_date(message.get("date")) if message else None
+
+
+def _build_history_params(
+    *, peer_reference: int | str, add_offset: int, limit: int
+) -> JsonDict:
+    return {
+        "peer": peer_reference,
+        "offset_id": 0,
+        "offset_date": 0,
+        "add_offset": add_offset,
+        "limit": limit,
+        "max_id": 0,
+        "min_id": 0,
+        "hash": 0,
+    }
+
+
+def _extract_first_message_and_total(
+    history: JsonDict,
+) -> tuple[Optional[JsonDict], Optional[int]]:
+    messages = history.get("messages", [])
+    first_message = messages[0] if messages else None
+    total = history.get("count")
+    if total is None and messages:
+        total = len(messages)
+    return first_message, total

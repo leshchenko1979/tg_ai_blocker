@@ -33,6 +33,7 @@ from .account_signals import ACCOUNT_SIGNALS_HEADER, format_account_signals_user
 logger = logging.getLogger(__name__)
 
 
+@logfire.no_auto_trace
 def format_spam_example_input_yaml_card(example: Dict[str, Any]) -> str:
     """
     Build a compact YAML card for a spam_examples DB row (few-shot input only).
@@ -68,6 +69,7 @@ def format_spam_example_input_yaml_card(example: Dict[str, Any]) -> str:
     ).strip()
 
 
+@logfire.no_auto_trace
 class SpamPromptBuilder:
     """Builder for spam classification prompts."""
 
