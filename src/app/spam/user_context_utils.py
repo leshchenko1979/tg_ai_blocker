@@ -103,7 +103,7 @@ def _create_chat_context(
     if chat_username is not None:
         context["chat_username"] = chat_username
 
-    context.update(extra_fields)
+    context |= extra_fields
     return context
 
 
@@ -650,14 +650,12 @@ async def establish_peer_resolution_context(
         Context establishment is crucial for the user bot to resolve user IDs to peer information
         when collecting spam analysis context. Different chat types require different strategies.
     """
-    # Choose context establishment strategy based on message type
-    if context.message_thread_id and not context.is_topic_message:
-        # Discussion thread detected (channel reply), using thread-based peer resolution
-        logger.debug(
-            "Discussion thread detected (channel reply), using thread-based peer resolution",
-            extra={"context": context},
-        )
-        return await establish_context_via_thread_reading(context)
-    else:
+    if not context.message_thread_id or context.is_topic_message:
         # Regular group message or forum topic message
         return await _establish_context_for_regular_group_message(context)
+    # Discussion thread detected (channel reply), using thread-based peer resolution
+    logger.debug(
+        "Discussion thread detected (channel reply), using thread-based peer resolution",
+        extra={"context": context},
+    )
+    return await establish_context_via_thread_reading(context)

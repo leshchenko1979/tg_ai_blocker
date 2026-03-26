@@ -5,6 +5,7 @@ This module handles channel-related operations including notifications
 to administrators when the bot is incorrectly added to channels.
 """
 
+import contextlib
 import logging
 
 from aiogram import types
@@ -203,7 +204,7 @@ async def notify_channel_admins_and_leave(
     )
 
     lang = "en"
-    try:
+    with contextlib.suppress(Exception):
         admins = await bot.get_chat_administrators(chat.id)
         for a in admins:
             if not a.user.is_bot:
@@ -215,9 +216,6 @@ async def notify_channel_admins_and_leave(
                 elif getattr(a.user, "language_code", None):
                     lang = normalize_lang(a.user.language_code)
                 break
-    except Exception:
-        pass
-
     instruction = build_channel_instruction_message(
         channel_title, discussion_link, channel_username, lang=lang
     )

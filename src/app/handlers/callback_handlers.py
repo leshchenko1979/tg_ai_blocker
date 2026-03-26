@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 
 from aiogram import F, types
@@ -152,13 +153,10 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
 
         admin = await get_admin(admin_id)
         lang = resolve_lang(callback.from_user, admin)
-        try:
+        with contextlib.suppress(Exception):
             await callback.answer(
                 f"✅ {t(lang, 'callback.safe_added')}", show_alert=False
             )
-        except Exception:
-            pass
-
         parts = callback.data.split(":")
         if len(parts) < 2:
             return "callback_invalid_data_format"
@@ -214,7 +212,7 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
                 "mark_as_not_spam: pending record not found, skipping unban/add",
                 extra={"pending_id": pending_id},
             )
-            try:
+            with contextlib.suppress(Exception):
                 await bot.edit_message_text(
                     chat_id=callback.message.chat.id,
                     message_id=callback.message.message_id,
@@ -222,21 +220,16 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
                     parse_mode="HTML",
                     reply_markup=None,
                 )
-            except Exception:
-                pass
-
         return "callback_marked_as_not_spam"
 
     except Exception as e:
         logger.error(f"Error in spam ignore callback: {e}", exc_info=True)
-        try:
+        with contextlib.suppress(Exception):
             admin = (
                 await get_admin(callback.from_user.id) if callback.from_user else None
             )
             lang = resolve_lang(callback.from_user, admin)
             await callback.answer(t(lang, "callback.error_generic"), show_alert=True)
-        except Exception:
-            pass
         return "callback_error_marking_not_spam"
 
 
@@ -253,13 +246,10 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
     lang = resolve_lang(callback.from_user, admin)
 
     try:
-        try:
+        with contextlib.suppress(Exception):
             await callback.answer(
                 f"✅ {t(lang, 'callback.spam_deleted')}", show_alert=False
             )
-        except Exception:
-            pass
-
         _, effective_user_id_str, chat_id_str, message_id_str = callback.data.split(":")
         effective_user_id = int(effective_user_id_str)
         chat_id = int(chat_id_str)
@@ -331,8 +321,6 @@ async def handle_spam_confirm_callback(callback: CallbackQuery) -> str:
 
     except Exception as e:
         logger.error(f"Error in spam confirm callback: {e}", exc_info=True)
-        try:
+        with contextlib.suppress(Exception):
             await callback.answer(t(lang, "callback.error_generic"), show_alert=True)
-        except Exception:
-            pass
         return "callback_error_deleting_spam"

@@ -24,7 +24,7 @@ async def collect_user_stories(
         try:
             # Set up identifier: prefer username, but use user_id if no username
             # (subscription check is handled at higher level)
-            peer_identifier = username if username else user_id
+            peer_identifier = username or user_id
 
             try:
                 peer_response = await client.call(

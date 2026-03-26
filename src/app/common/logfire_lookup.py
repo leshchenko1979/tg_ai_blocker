@@ -7,10 +7,10 @@ from typing import Dict, Sequence
 
 try:
     from logfire.query_client import LogfireQueryClient
-except ImportError:
+except ImportError as e:
     raise ImportError(
         "logfire package is required for get_weekly_stats. Install with: pip install logfire"
-    )
+    ) from e
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +23,13 @@ def _get_client() -> LogfireQueryClient:
     if _client is None:
         import os
 
-        token = os.getenv("LOGFIRE_READ_TOKEN")
-        if not token:
+        if token := os.getenv("LOGFIRE_READ_TOKEN"):
+            _client = LogfireQueryClient(token)
+        else:
             raise ValueError(
                 "LOGFIRE_READ_TOKEN environment variable is required for Logfire queries. "
                 "Please set it to your Logfire read token."
             )
-        _client = LogfireQueryClient(token)
     return _client
 
 

@@ -63,6 +63,4 @@ def get_mtproto_chat_identifier(
     Returns:
         Union[int, str]: Username if available, otherwise MTProto-formatted chat ID
     """
-    if username:
-        return username
-    return bot_api_chat_id_to_mtproto(chat_id)
+    return username or bot_api_chat_id_to_mtproto(chat_id)

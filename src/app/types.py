@@ -39,9 +39,7 @@ class ContextResult(Generic[T]):
         if self.status != ContextStatus.FOUND or self.content is None:
             return not_found_default
         method = getattr(self.content, "to_prompt_fragment", None)
-        if callable(method):
-            return str(method())
-        return str(self.content)
+        return str(method()) if callable(method) else str(self.content)
 
     @staticmethod
     def fragment_from_logfire_dict(
@@ -62,12 +60,8 @@ class ContextResult(Generic[T]):
         if status == "found" and content is not None:
             if isinstance(content, str):
                 return content
-            if isinstance(content, dict):
-                return None  # Handled separately (e.g. UserAccountInfo.fragment_from_logfire_dict)
-            return str(content)
-        if status == "empty":
-            return empty_marker
-        return None
+            return None if isinstance(content, dict) else str(content)
+        return empty_marker if status == "empty" else None
 
 
 @dataclass(slots=True)
@@ -98,10 +92,11 @@ class LinkedChannelSummary:
         if self.recent_posts_content:
             # Limit to first 3 posts and truncate each to 200 chars to avoid token bloat
             content_snippets = []
-            for i, content in enumerate(self.recent_posts_content[:3]):
-                if content.strip():
-                    content_snippets.append(f"post_{i + 1}: {content.strip()}")
-
+            content_snippets.extend(
+                f"post_{i + 1}: {content.strip()}"
+                for i, content in enumerate(self.recent_posts_content[:3])
+                if content.strip()
+            )
             if content_snippets:
                 formatted_posts = "\n\n".join(content_snippets)
                 parts.append(f"recent_posts=[\n{formatted_posts}\n]")
@@ -350,26 +345,23 @@ class StorySummary:
         if self.caption:
             parts.append(f"Caption: {self.caption}")
         if self.entities:
-            entity_links = [
+            if entity_links := [
                 f"Link: {entity['url']}"
                 for entity in self.entities
                 if entity.get("_") == "messageEntityTextUrl" and entity.get("url")
-            ]
-            if entity_links:
+            ]:
                 parts.append(f"Links: {', '.join(entity_links)}")
         if self.media:
             media_links = []
             if self.media.get("_") == "messageMediaWebPage":
-                url = self.media.get("webpage", {}).get("url")
-                if url:
+                if url := self.media.get("webpage", {}).get("url"):
                     media_links.append(f"Link: {url}")
             media_links.extend(
                 self._link_strings_from_areas(self.media.get("media_areas"))
             )
             if media_links:
                 parts.append(f"Links: {', '.join(media_links)}")
-        area_links = self._link_strings_from_areas(self.media_areas)
-        if area_links:
+        if area_links := self._link_strings_from_areas(self.media_areas):
             parts.append(f"Links: {', '.join(area_links)}")
         return " | ".join(parts) if parts else "Media story"
 

@@ -300,6 +300,3 @@ async def truncate_all_tables(conn: asyncpg.Connection):
     if table_names:
         # Truncate all tables in a single statement
         await conn.execute(f"TRUNCATE TABLE {table_names} CASCADE")
-    else:
-        # No tables to truncate
-        pass

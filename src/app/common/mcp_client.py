@@ -45,9 +45,9 @@ class McpHttpClient:
         self._session: aiohttp.ClientSession | None = None
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
-        if self._session is not None and not self._session.closed:
-            return self._session
         if self._session is not None:
+            if not self._session.closed:
+                return self._session
             await self._session.close()
             self._session = None
         if self._connector is not None:
@@ -78,9 +78,9 @@ class McpHttpClient:
         disable_ssl_verify_env: str = "MCP_HTTP_DISABLE_SSL_VERIFY",
         ca_bundle_env: str = "MCP_HTTP_CA_BUNDLE",
     ) -> "McpHttpClient":
-        base_url = os.getenv(base_url_env)
-        if not base_url:
-            base_url = os.getenv("MTPROTO_HTTP_BASE_URL", default_base_url)
+        base_url = os.getenv(base_url_env) or os.getenv(
+            "MTPROTO_HTTP_BASE_URL", default_base_url
+        )
         bearer_token = os.getenv(token_env) or os.getenv("MTPROTO_HTTP_BEARER_TOKEN")
         if bearer_token is None:
             raise ValueError(f"Environment variable {token_env} is not set")

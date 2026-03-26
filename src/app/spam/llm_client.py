@@ -111,7 +111,7 @@ async def call_llm_with_spam_classification(
                 last_error = e
                 transient_errors += 1
                 logger.warning(
-                    f"Unexpected error on attempt {attempt} (error {transient_errors}/{MAX_RETRIES}): {e}"
+                    f"Unexpected error on attempt {attempt} (error {transient_errors}/{MAX_RETRIES}): {last_error}"
                 )
                 # Continue to next attempt for unexpected errors too
 
@@ -176,9 +176,7 @@ def _parse_json_response(response: str) -> Optional[Tuple[bool, int, str]]:
 
 def _parse_legacy_response(response: str) -> Optional[Tuple[bool, int, str]]:
     """Parse legacy text format. Returns (is_spam, confidence, reason) or None."""
-    # Extract content from tags
-    match = LEGACY_RESPONSE_PATTERN.search(response)
-    if match:
+    if match := LEGACY_RESPONSE_PATTERN.search(response):
         answer = match[1].strip()
     else:
         # If there's only a closing tag, take everything before it

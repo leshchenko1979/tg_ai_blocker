@@ -13,6 +13,31 @@ MENTION_REGEX = re.compile(r"@([a-zA-Z0-9_]{5,32})")
 T_ME_USERNAME_REGEX = re.compile(
     r"t\.me/([a-zA-Z0-9_]{5,32})(?:\s|$|/|\))", re.IGNORECASE
 )
+T_ME_URL_IN_ENTITY_REGEX = re.compile(r"t\.me/([a-zA-Z0-9_]{5,32})(?:/|$|\?)", re.I)
+
+
+def _entity_field(entity: Any, field: str, default: Any = None) -> Any:
+    """Read field from dict-like or object-like Telegram entity."""
+    if isinstance(entity, dict):
+        return entity.get(field, default)
+    return getattr(entity, field, default)
+
+
+def _extract_username_from_entity(text: str, entity: Any) -> Optional[str]:
+    """Extract username from a single Telegram entity if present."""
+    if (entity_type := _entity_field(entity, "type")) == "mention":
+        offset = _entity_field(entity, "offset", 0) or 0
+        if length := _entity_field(entity, "length", 0) or 0:
+            mention = text[offset : offset + length].lstrip("@")
+            if USERNAME_PATTERN.fullmatch(mention):
+                return mention
+        return None
+
+    if entity_type == "text_link":
+        url = _entity_field(entity, "url", "") or ""
+        if match := T_ME_URL_IN_ENTITY_REGEX.search(url):
+            return match[1]
+    return None
 
 
 def extract_first_channel_mention(
@@ -39,45 +64,12 @@ def extract_first_channel_mention(
     # Prefer entities for exact boundaries
     if entities:
         for entity in entities:
-            if isinstance(entity, dict):
-                etype = entity.get("type")
-                if etype == "mention":
-                    offset = entity.get("offset", 0)
-                    length = entity.get("length", 0)
-                    if offset is not None and length:
-                        mention = text[offset : offset + length].lstrip("@")
-                        if USERNAME_PATTERN.fullmatch(mention):
-                            return mention
-                elif etype == "text_link":
-                    url = entity.get("url") or ""
-                    match = re.search(
-                        r"t\.me/([a-zA-Z0-9_]{5,32})(?:/|$|\?)", url, re.I
-                    )
-                    if match:
-                        return match.group(1)
-            else:
-                # aiogram MessageEntity-like object
-                etype = getattr(entity, "type", None)
-                if etype == "mention":
-                    offset = getattr(entity, "offset", 0) or 0
-                    length = getattr(entity, "length", 0) or 0
-                    if length:
-                        mention = text[offset : offset + length].lstrip("@")
-                        if USERNAME_PATTERN.fullmatch(mention):
-                            return mention
-                elif etype == "text_link":
-                    url = getattr(entity, "url", None) or ""
-                    match = re.search(
-                        r"t\.me/([a-zA-Z0-9_]{5,32})(?:/|$|\?)", url, re.I
-                    )
-                    if match:
-                        return match.group(1)
+            if username := _extract_username_from_entity(text, entity):
+                return username
 
     # Fallback: regex on text
     m = MENTION_REGEX.search(text)
     if m:
         return m.group(1)
     m = T_ME_USERNAME_REGEX.search(text)
-    if m:
-        return m.group(1)
-    return None
+    return m.group(1) if m else None

@@ -49,7 +49,7 @@ def format_spam_example_input_yaml_card(example: Dict[str, Any]) -> str:
         if not isinstance(value, str):
             value = str(value)
         stripped = value.strip()
-        return stripped if stripped else None
+        return stripped or None
 
     card = {
         "message": example.get("text") or "",
@@ -427,12 +427,10 @@ def format_spam_request(
         ("LINKED CHANNEL INFO", context.linked_channel),
         ("USER STORIES CONTENT", context.stories),
     ]:
-        section = _format_context_section(section_name, context_result)
-        if section:
+        if section := _format_context_section(section_name, context_result):
             context_parts.append(section.rstrip())
 
-    acc = format_account_signals_user_section(context)
-    if acc:
+    if acc := format_account_signals_user_section(context):
         context_parts.append(acc.rstrip())
 
     if context.reply is not None:

@@ -138,10 +138,10 @@ class TelegramLogHandler(logging.Handler):
         rendered = self.format(record)
         body = html.escape(rendered)
         if len(body) > self.MAX_MESSAGE_BODY:
-            body = body[: self.MAX_MESSAGE_BODY - 1] + "…"
+            body = f"{body[: self.MAX_MESSAGE_BODY - 1]}…"
         text = f"<pre>{body}</pre>"
         if len(text) > self.MAX_TELEGRAM_LENGTH:
-            text = text[: self.MAX_TELEGRAM_LENGTH - 1] + "…"
+            text = f"{text[: self.MAX_TELEGRAM_LENGTH - 1]}…"
         return text
 
     async def _send(self, text: str) -> None:
@@ -160,9 +160,7 @@ class TelegramLogHandler(logging.Handler):
         ):
             self._sent_timestamps.popleft()
         limit = self._sent_timestamps.maxlen or 0
-        if limit <= 0:
-            return True
-        return len(self._sent_timestamps) < limit
+        return True if limit <= 0 else len(self._sent_timestamps) < limit
 
     def _should_dedupe(self, text: str) -> bool:
         if not self._last_text:

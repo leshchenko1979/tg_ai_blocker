@@ -371,7 +371,11 @@ async def get_openrouter_response(
 
         except Exception as e:
             most_recent_exception = e
-            logger.warning("Unexpected error with model %s: %s", current_model, str(e))
+            logger.warning(
+                "Unexpected error with model %s: %s",
+                current_model,
+                str(most_recent_exception),
+            )
             continue
 
     if most_recent_exception:

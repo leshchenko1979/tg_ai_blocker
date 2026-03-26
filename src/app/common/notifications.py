@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from collections.abc import Callable
 from typing import cast
@@ -149,7 +150,7 @@ async def notify_admins_with_fallback_and_cleanup(
                     f"Failed to notify admin {admin_id} in private: {e}", exc_info=True
                 )
                 unreachable.append(admin_id)
-            try:
+            with contextlib.suppress(Exception):
 
                 @retry_on_network_error
                 async def get_chat_info_fallback():
@@ -157,9 +158,6 @@ async def notify_admins_with_fallback_and_cleanup(
 
                 admin_chat = await get_chat_info_fallback()
                 last_admin_info = admin_chat
-            except Exception:
-                pass
-
     result = {
         "notified_private": notified_private,
         "unreachable": unreachable,

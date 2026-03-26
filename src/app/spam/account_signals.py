@@ -38,22 +38,16 @@ def build_account_signals_body(context: "SpamClassificationContext") -> Optional
         lines.append(pl)
     if not context.is_channel_sender and context.is_premium is not None:
         lines.append(f"is_premium={str(context.is_premium).lower()}")
-    if not lines:
-        return None
-    return "\n".join(lines)
+    return "\n".join(lines) if lines else None
 
 
 def format_account_signals_user_section(context: "SpamClassificationContext") -> str:
     """Full ACCOUNT SIGNALS block for the LLM user message, or empty string."""
     if context.account_signals_snapshot is not None:
         snap = context.account_signals_snapshot.strip()
-        if snap:
-            return f"{ACCOUNT_SIGNALS_HEADER}:\n{snap}\n"
-        return ""
+        return f"{ACCOUNT_SIGNALS_HEADER}:\n{snap}\n" if snap else ""
     body = build_account_signals_body(context)
-    if not body:
-        return ""
-    return f"{ACCOUNT_SIGNALS_HEADER}:\n{body}\n"
+    return f"{ACCOUNT_SIGNALS_HEADER}:\n{body}\n" if body else ""
 
 
 def context_includes_account_signals(context: "SpamClassificationContext") -> bool:

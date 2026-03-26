@@ -28,10 +28,7 @@ def _should_skip_logfire() -> bool:
     if skip_env in {"1", "true", "yes", "on"}:
         return True
 
-    if "PYTEST_CURRENT_TEST" in os.environ:
-        return True
-
-    return False
+    return "PYTEST_CURRENT_TEST" in os.environ
 
 
 def setup_logging():
@@ -50,9 +47,12 @@ def setup_logging():
             """Allow spam classifier / LLM prompt content; Logfire scrubs 'auth' broadly,
             masking system prompts that contain words like 'authority' or 'authentic'."""
             path = match.path
-            if isinstance(path, (list, tuple)) and len(path) >= 3:
-                if path[-1] == "content" and path[-3] == "messages":
-                    return match.value
+            if (
+                isinstance(path, (list, tuple))
+                and len(path) >= 3
+                and (path[-1] == "content" and path[-3] == "messages")
+            ):
+                return match.value
             return None
 
         logfire.configure(

@@ -39,9 +39,9 @@ async def collect_message_context(
 
     sender_context.reply = reply_context
 
+    channel_users = None
     if sender_context.is_channel_sender:
         linked_channel_found = True
-        channel_users = None
         if sender_context.linked_channel and sender_context.linked_channel.content:
             channel_users = sender_context.linked_channel.content.users
     else:
@@ -49,8 +49,6 @@ async def collect_message_context(
             sender_context.linked_channel is not None
             and sender_context.linked_channel.status == ContextStatus.FOUND
         )
-        channel_users = None
-
     return MessageContextResult(
         message_text,
         is_story,

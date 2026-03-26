@@ -1,3 +1,4 @@
+import contextlib
 import html
 import logging
 from typing import cast
@@ -36,10 +37,8 @@ logger = logging.getLogger(__name__)
 @dp.message(F.text.startswith("/"), F.chat.type != "private")
 async def delete_and_redirect_to_pm(message: types.Message) -> str:
     """Удаляет команду в группе и отправляет сообщение о переходе в ЛС. Использует answer(), т.к. reply() падает после delete()."""
-    try:
+    with contextlib.suppress(Exception):
         await message.delete()
-    except Exception:
-        pass
     lang = resolve_lang(message, None)
 
     # When /start has a param (e.g. from startgroup=landing deep link), show brief ready message
@@ -70,70 +69,18 @@ async def _try_send_linked_channel_offer(
     Returns True if offer was sent, False otherwise.
     Never queries MTProto by ID—always uses username when available.
     """
-    linked = ContextResult(status=ContextStatus.EMPTY)
-    display_chat: Chat | None = None  # Cached when from Bot API (personal_chat/bio)
-    try:
-        chat_full = await bot.get_chat(user_id)
-        if chat_full.personal_chat and chat_full.personal_chat.type == "channel":
-            personal_chat = chat_full.personal_chat
-            channel_id = personal_chat.id
-            personal_username = getattr(personal_chat, "username", None)
-            linked = await collect_channel_summary_by_id(
-                channel_id,
-                user_id,
-                username=personal_username,
-                channel_source="linked",
-            )
-            if linked.status == ContextStatus.FOUND:
-                display_chat = personal_chat
-        if linked.status != ContextStatus.FOUND and chat_full.bio:
-            candidate_username = extract_first_channel_mention(chat_full.bio)
-            if candidate_username:
-                try:
-                    channel_chat = await bot.get_chat(f"@{candidate_username}")
-                    if channel_chat.type in ("channel", "supergroup"):
-                        linked = await collect_channel_summary_by_id(
-                            channel_chat.id,
-                            user_id,
-                            username=candidate_username,
-                            channel_source="bio",
-                        )
-                        if linked.status == ContextStatus.FOUND:
-                            display_chat = channel_chat
-                except Exception:
-                    pass
-        if linked.status != ContextStatus.FOUND and username:
-            user_context = await collect_user_context(user_id, username=username)
-            linked = user_context.linked_channel or linked
-    except Exception as e:
-        logger.warning(
-            "Failed to collect context via Bot API for /start offer: %s",
-            e,
-            exc_info=True,
-        )
+    linked, display_chat = await _collect_linked_channel_for_offer(user_id, username)
+    channel_id = _get_found_channel_id(linked)
+    if channel_id is None:
         return False
 
-    if (
-        linked is None
-        or linked.status != ContextStatus.FOUND
-        or linked.content is None
-        or linked.content.channel_id is None
-    ):
+    chat = await _resolve_offer_display_chat(
+        user_id=user_id,
+        channel_id=channel_id,
+        display_chat=display_chat,
+    )
+    if chat is None:
         return False
-
-    if display_chat is not None:
-        chat = display_chat
-    else:
-        # Linked from collect_user_context (MTProto); bot.get_chat by ID may fail
-        try:
-            chat = await bot.get_chat(linked.content.channel_id)
-        except TelegramBadRequest as e:
-            logger.warning(
-                "Linked channel not accessible for offer display: %s",
-                e,
-                extra={"user_id": user_id, "channel_id": linked.content.channel_id},
-            )
-            return False
 
     channel_display = format_chat_or_channel_display(
         chat.title, getattr(chat, "username", None), t("ru", "common.channel")
@@ -163,6 +110,105 @@ async def _try_send_linked_channel_offer(
         extra={"user_id": user_id, "offer_message": offer_text},
     )
     return True
+
+
+def _get_found_channel_id(linked: ContextResult | None) -> int | None:
+    """Return linked channel id only when context status is FOUND."""
+    if linked is None or linked.status != ContextStatus.FOUND or linked.content is None:
+        return None
+    return linked.content.channel_id
+
+
+async def _resolve_offer_display_chat(
+    user_id: int,
+    channel_id: int,
+    display_chat: Chat | None,
+) -> Chat | None:
+    """Use cached Bot API chat when possible, fallback to channel id lookup."""
+    if display_chat is not None:
+        return display_chat
+
+    # Linked from collect_user_context (MTProto); bot.get_chat by ID may fail.
+    try:
+        return await bot.get_chat(channel_id)
+    except TelegramBadRequest as e:
+        logger.warning(
+            "Linked channel not accessible for offer display: %s",
+            e,
+            extra={"user_id": user_id, "channel_id": channel_id},
+        )
+        return None
+
+
+async def _collect_linked_channel_for_offer(
+    user_id: int,
+    username: str | None,
+) -> tuple[ContextResult, Chat | None]:
+    """Collect linked channel with Bot API first and MTProto fallback."""
+    linked = ContextResult(status=ContextStatus.EMPTY)
+    display_chat: Chat | None = None
+
+    try:
+        chat_full = await bot.get_chat(user_id)
+        linked, display_chat = await _collect_linked_channel_via_bot_api(
+            chat_full=chat_full,
+            user_id=user_id,
+            linked=linked,
+            display_chat=display_chat,
+        )
+
+        if linked.status != ContextStatus.FOUND and username:
+            user_context = await collect_user_context(user_id, username=username)
+            linked = user_context.linked_channel or linked
+    except Exception as e:
+        logger.warning(
+            "Failed to collect context via Bot API for /start offer: %s",
+            e,
+            exc_info=True,
+        )
+
+    return linked, display_chat
+
+
+async def _collect_linked_channel_via_bot_api(
+    chat_full: Chat,
+    user_id: int,
+    linked: ContextResult,
+    display_chat: Chat | None,
+) -> tuple[ContextResult, Chat | None]:
+    """Try personal_chat and bio mentions for linked channel discovery."""
+    if chat_full.personal_chat and chat_full.personal_chat.type == "channel":
+        personal_chat = chat_full.personal_chat
+        personal_username = getattr(personal_chat, "username", None)
+        linked = await collect_channel_summary_by_id(
+            personal_chat.id,
+            user_id,
+            username=personal_username,
+            channel_source="linked",
+        )
+        if linked.status == ContextStatus.FOUND:
+            return linked, personal_chat
+
+    if linked.status == ContextStatus.FOUND or not chat_full.bio:
+        return linked, display_chat
+
+    candidate_username = extract_first_channel_mention(chat_full.bio)
+    if not candidate_username:
+        return linked, display_chat
+
+    with contextlib.suppress(Exception):
+        channel_chat = await bot.get_chat(f"@{candidate_username}")
+        if channel_chat.type in ("channel", "supergroup"):
+            linked = await collect_channel_summary_by_id(
+                channel_chat.id,
+                user_id,
+                username=candidate_username,
+                channel_source="bio",
+            )
+            if linked.status == ContextStatus.FOUND:
+                return linked, channel_chat
+
+    return linked, display_chat
 
 
 @dp.message(Command("start", "help"))

@@ -1,6 +1,7 @@
 # autoflake: skip_file
 
 # Initialize logging
+import contextlib
 import logging
 
 from .logging_setup import setup_logging
@@ -102,10 +103,9 @@ async def handle_update(request: web.Request) -> web.Response:
             return await handle_unhandled_exception(span, e, json)
 
         finally:
-            update_time = get_dotted_path(json, "*.edit_date") or get_dotted_path(
+            if update_time := get_dotted_path(json, "*.edit_date") or get_dotted_path(
                 json, "*.date"
-            )
-            if update_time:
+            ):
                 serve_time = time.time() - update_time
                 span.set_attribute("serve_time", serve_time)
                 serve_time_histogram.record(serve_time)
@@ -114,11 +114,11 @@ async def handle_update(request: web.Request) -> web.Response:
 def extract_update_type_ignored(json: dict) -> str:
     """Extract update type from JSON and return it with '_ignored' suffix."""
     # Remove 'update_id' from keys to find the update type
-    update_keys = [key for key in json.keys() if key != "update_id"]
+    update_keys = [key for key in json if key != "update_id"]
 
     if len(update_keys) == 1:
         return f"{update_keys[0]}_ignored"
-    elif len(update_keys) == 0:
+    elif not update_keys:
         return "empty_update_ignored"
     else:
         # Multiple update types (shouldn't happen in valid Telegram updates)
@@ -182,20 +182,15 @@ async def _shutdown(app: web.Application) -> None:
     global _scheduled_jobs_task
     if _scheduled_jobs_task and not _scheduled_jobs_task.done():
         _scheduled_jobs_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await _scheduled_jobs_task
-        except asyncio.CancelledError:
-            pass
-
     async with asyncio.TaskGroup() as tg:
         tg.create_task(bot.session.close())
         tg.create_task(close_pool())
         tg.create_task(close_llm_http_resources())
         tg.create_task(close_mcp_http_client())
 
-    # Stop TelegramLogHandler background task last
-    telegram_handler = get_telegram_handler()
-    if telegram_handler:
+    if telegram_handler := get_telegram_handler():
         try:
             await telegram_handler.stop(timeout=5.0)
         except Exception as e:

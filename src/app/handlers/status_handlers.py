@@ -261,13 +261,11 @@ async def _handle_bot_removed(
     if group and group.admin_ids:
         # Filter out bots from admin list - only notify human admins
         human_admin_ids = []
-        for current_admin_id in group.admin_ids:
-            # Skip known bot IDs and any ID that looks like a bot (negative IDs for channels, etc.)
-            if current_admin_id > 0:  # Only positive IDs are users (bots and humans)
-                # We can't easily check if it's a bot here without API calls,
-                # but we'll handle bot detection in the notification function
-                human_admin_ids.append(current_admin_id)
-
+        human_admin_ids.extend(
+            current_admin_id
+            for current_admin_id in group.admin_ids
+            if current_admin_id > 0
+        )
         if human_admin_ids:
             await _notify_admins_about_removal(
                 chat_id,

@@ -432,10 +432,8 @@ async def update_group_admins(
                         credits=admin_operations.INITIAL_CREDITS,
                         delete_spam=False,
                     )
-                else:
-                    # Update existing admin with username if not already set
-                    if admin.username is None and username is not None:
-                        admin.username = username
+                elif admin.username is None and username is not None:
+                    admin.username = username
 
                 await admin_operations.save_admin(admin)
 

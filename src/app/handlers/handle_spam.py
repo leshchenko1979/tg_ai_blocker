@@ -43,9 +43,7 @@ async def _get_notification_lang(
     admin = await get_admin(admin_ids[0])
     if admin and admin.language_code:
         return normalize_lang(admin.language_code)
-    if fallback_user:
-        return resolve_lang(fallback_user, None)
-    return "en"
+    return resolve_lang(fallback_user, None) if fallback_user else "en"
 
 
 async def handle_spam(

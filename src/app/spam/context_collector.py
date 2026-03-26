@@ -7,6 +7,7 @@ process while delegating specific collection tasks to specialized modules.
 """
 
 import asyncio
+import contextlib
 import logging
 from typing import Optional, cast
 
@@ -202,12 +203,9 @@ async def _collect_user_sender_context(message) -> SpamClassificationContext:
     is_premium = getattr(from_user, "is_premium", None)
 
     bio = None
-    try:
+    with contextlib.suppress(Exception):
         user_with_bio = await bot.get_chat(user_id)
         bio = user_with_bio.bio if user_with_bio else None
-    except Exception:
-        pass
-
     ctx = await collect_user_context_with_stories(
         message=message,
         user_id=user_id,
