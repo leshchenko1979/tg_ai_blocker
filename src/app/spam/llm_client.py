@@ -159,18 +159,28 @@ async def _handle_rate_limit_error(error: RateLimitExceeded) -> None:
 
 
 def _parse_json_response(response: str) -> Optional[Tuple[bool, int, str]]:
-    """Parse response as JSON. Returns (is_spam, confidence, reason) or None."""
-    try:
-        data = json.loads(response)
-        if not isinstance(data, dict):
-            return None
+    """Parse response as JSON. Returns (is_spam, confidence, reason) or None.
 
+    Uses raw_decode from the first object so trailing junk (e.g. free-tier
+    provider ads after the closing brace) does not break parsing.
+    """
+    text = response.strip()
+    start = text.find("{")
+    if start < 0:
+        return None
+    try:
+        data, _end = json.JSONDecoder().raw_decode(text, start)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    try:
         is_spam = data.get("is_spam", False)
         confidence = data.get("confidence", 0)
         reason = data.get("reason", "No reason provided")
-
         return is_spam, confidence, reason
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+    except (TypeError, ValueError):
         return None
 
 

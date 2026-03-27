@@ -93,6 +93,102 @@ def test_parse_classification_response_invalid(response):
         parse_classification_response(response)
 
 
+def test_parse_classification_response_json_with_trailing_provider_ad():
+    """Free-tier models sometimes append ads after valid JSON."""
+    response = (
+        '{\n    "is_spam": true,\n    "confidence": 100,\n    '
+        '"reason": "spam reason"\n}\n\n'
+        "Need proxies cheaper than the market?\nhttps://op.wtf"
+    )
+    is_spam, confidence, reason = parse_classification_response(response)
+    assert is_spam is True
+    assert confidence == 100
+    assert reason == "spam reason"
+
+
+@pytest.mark.parametrize(
+    "response,expected_is_spam,expected_confidence,expected_reason",
+    [
+        pytest.param(
+            '{"is_spam": false, "confidence": 90, "reason": "legit"}',
+            False,
+            90,
+            "legit",
+            id="clean-json",
+        ),
+        pytest.param(
+            '  \n{"is_spam": true, "confidence": 50, "reason": "leading space"}',
+            True,
+            50,
+            "leading space",
+            id="leading-whitespace",
+        ),
+        pytest.param(
+            'Here is the result:\n{"is_spam": false, "confidence": 80, "reason": "preamble"}',
+            False,
+            80,
+            "preamble",
+            id="preamble-before-object",
+        ),
+        pytest.param(
+            "```json\n"
+            '{"is_spam": true, "confidence": 10, "reason": "fenced"}\n'
+            "```\n"
+            "sponsored footer",
+            True,
+            10,
+            "fenced",
+            id="markdown-fence-and-footer",
+        ),
+        pytest.param(
+            '{"is_spam": false, "confidence": 0, "reason": "x"} same-line junk',
+            False,
+            0,
+            "x",
+            id="same-line-trailing-junk",
+        ),
+        pytest.param(
+            '{"is_spam": true, "confidence": 100, "reason": "brace {in} reason"}',
+            True,
+            100,
+            "brace {in} reason",
+            id="reason-with-brace-literals",
+        ),
+    ],
+)
+def test_parse_classification_response_json_edge_cases(
+    response, expected_is_spam, expected_confidence, expected_reason
+):
+    is_spam, confidence, reason = parse_classification_response(response)
+    assert is_spam == expected_is_spam
+    assert confidence == expected_confidence
+    assert reason == expected_reason
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        pytest.param("not json {broken", id="truncated-json"),
+        pytest.param("[1, 2, 3]", id="json-array-not-object"),
+        pytest.param("42", id="json-scalar-no-brace"),
+    ],
+)
+def test_parse_classification_response_json_unparseable(response):
+    """Non-object JSON or truncated text must fall through and raise."""
+    with pytest.raises(ExtractionFailedError):
+        parse_classification_response(response)
+
+
+def test_parse_classification_response_json_partial_uses_defaults():
+    """Omitted optional-style fields fall back to parser defaults."""
+    is_spam, confidence, reason = parse_classification_response(
+        '{"is_spam": true, "confidence": 77}'
+    )
+    assert is_spam is True
+    assert confidence == 77
+    assert reason == "No reason provided"
+
+
 def test_format_spam_request_basic():
     from src.app.types import SpamClassificationContext
 
@@ -505,20 +601,31 @@ def test_format_spam_request_content_shows_normally():
     )
     req = format_spam_request("Hello", context)
 
-    # Verify content is shown normally
-    assert "USER STORIES CONTENT:\nActual story content" in req
-    assert (
-        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
-        in req
+    _extracted_from_test_format_spam_request_content_shows_normally_27(
+        "USER STORIES CONTENT:\nActual story content",
+        req,
+        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):",
+        ">>> BEGIN CONTEXT\nOriginal post content\n<<< END CONTEXT",
     )
-    assert ">>> BEGIN CONTEXT\nOriginal post content\n<<< END CONTEXT" in req
     assert f"ACCOUNT SIGNALS:\n{profile.to_prompt_fragment()}" in req
 
-    # Verify basic fields are present
-    assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
-    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
-    assert "USER NAME:\nUser" in req
+    _extracted_from_test_format_spam_request_content_shows_normally_27(
+        "MESSAGE TO CLASSIFY (Analyze this content):",
+        req,
+        ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE",
+        "USER NAME:\nUser",
+    )
     assert "USER BIO:\nBio" in req
+
+
+# TODO Rename this here and in `test_format_spam_request_content_shows_normally`
+def _extracted_from_test_format_spam_request_content_shows_normally_27(
+    arg0, req, arg2, arg3
+):
+    # Verify content is shown normally
+    assert arg0 in req
+    assert arg2 in req
+    assert arg3 in req
 
 
 def test_format_spam_request_is_premium_bundled():
@@ -553,21 +660,29 @@ def test_format_spam_request_mixed_states():
     )
     req = format_spam_request("Hello", context)
 
-    # '[EMPTY]' should show with metadata
-    assert "USER STORIES CONTENT:\nno stories posted" in req
-
-    # Content should show normally
-    assert (
-        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
-        in req
+    _extracted_from_test_format_spam_request_mixed_states_19(
+        "USER STORIES CONTENT:\nno stories posted",
+        req,
+        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):",
+        ">>> BEGIN CONTEXT\nReply content\n<<< END CONTEXT",
     )
-    assert ">>> BEGIN CONTEXT\nReply content\n<<< END CONTEXT" in req
-
     # NULL should be skipped entirely
     assert "ACCOUNT SIGNALS:" not in req
 
-    # Basic fields should be present
-    assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
-    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
-    assert "USER NAME:\nUser" in req
+    _extracted_from_test_format_spam_request_mixed_states_19(
+        "MESSAGE TO CLASSIFY (Analyze this content):",
+        req,
+        ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE",
+        "USER NAME:\nUser",
+    )
     assert "USER BIO:\nBio" in req
+
+
+# TODO Rename this here and in `test_format_spam_request_mixed_states`
+def _extracted_from_test_format_spam_request_mixed_states_19(arg0, req, arg2, arg3):
+    # '[EMPTY]' should show with metadata
+    assert arg0 in req
+
+    # Content should show normally
+    assert arg2 in req
+    assert arg3 in req
