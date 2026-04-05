@@ -1,7 +1,6 @@
 import json
 
 import pytest
-import yaml
 from unittest.mock import patch, AsyncMock
 from src.app.spam.llm_client import (
     ExtractionFailedError,
@@ -9,7 +8,7 @@ from src.app.spam.llm_client import (
 )
 from src.app.spam.prompt_builder import (
     build_system_prompt,
-    format_spam_example_input_yaml_card,
+    format_spam_example_input,
     format_spam_request,
 )
 
@@ -194,26 +193,33 @@ def test_format_spam_request_basic():
 
     context = SpamClassificationContext(name="User", bio="Bio")
     req = format_spam_request("Hello", context)
-    assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
-    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
-    assert "USER NAME:\nUser" in req
-    assert "USER BIO:\nBio" in req
-    assert "<<< END MESSAGE\n\n---\n\nUSER NAME:" in req
-    assert "<истории_пользователя>" not in req
-    assert "<связанный_канал>" not in req
+    data = json.loads(req)
+    assert data["message"] == "Hello"
+    assert data["user_name"] == "User"
+    assert data["user_bio"] == "Bio"
+    assert data["linked_channel"] is None
+    assert data["stories"] is None
+    assert data["reply_context"] is None
+    assert data["account_signals"] is None
 
 
 def test_format_spam_request_empty_context_no_delimiter():
-    """No sender context: no --- delimiter after message block."""
+    """All null fields produce valid JSON with null values."""
     from src.app.types import SpamClassificationContext
 
     req = format_spam_request("Only this", SpamClassificationContext())
-    assert ">>> BEGIN MESSAGE\nOnly this\n<<< END MESSAGE" in req
-    assert "\n---\n" not in req
+    data = json.loads(req)
+    assert data["message"] == "Only this"
+    assert data["user_name"] is None
+    assert data["user_bio"] is None
+    assert data["linked_channel"] is None
+    assert data["stories"] is None
+    assert data["reply_context"] is None
+    assert data["account_signals"] is None
 
 
 def test_format_spam_request_deterministic_section_order():
-    """Context sections appear in fixed order after the delimiter."""
+    """JSON output contains all expected keys in any order (JSON object)."""
     from datetime import datetime, timedelta, timezone
 
     from src.app.types import (
@@ -238,14 +244,14 @@ def test_format_spam_request_deterministic_section_order():
         reply="post body",
     )
     req = format_spam_request("msg", context)
-    p_bio = req.find("USER BIO:\nB")
-    p_linked = req.find("LINKED CHANNEL INFO:")
-    p_stories = req.find("USER STORIES CONTENT:")
-    p_acc = req.find("ACCOUNT SIGNALS:")
-    p_reply = req.find(
-        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
-    )
-    assert 0 < p_bio < p_linked < p_stories < p_acc < p_reply
+    data = json.loads(req)
+    assert data["message"] == "msg"
+    assert data["user_name"] == "N"
+    assert data["user_bio"] == "B"
+    assert data["linked_channel"] == "subscribers=1; total_posts=1; age_delta=0mo"
+    assert data["stories"] == "story"
+    assert data["reply_context"] == "post body"
+    assert "photo_age=" in data["account_signals"]
 
 
 def test_format_spam_request_empty_reply_unified_header():
@@ -253,11 +259,8 @@ def test_format_spam_request_empty_reply_unified_header():
 
     context = SpamClassificationContext(reply="[EMPTY]")
     req = format_spam_request("Hi", context)
-    assert (
-        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
-        in req
-    )
-    assert "[checked, none found]" in req
+    data = json.loads(req)
+    assert data["reply_context"] == "no reply context"
 
 
 @pytest.mark.asyncio
@@ -267,7 +270,7 @@ async def test_build_system_prompt_requires_reason_in_actual_response():
     ) as mock_examples:
         mock_examples.return_value = []
         prompt = await build_system_prompt()
-        assert "EXAMPLE_INPUT_YAML" in prompt
+        assert '"examples"' in prompt
         assert "all three keys, including `reason`" in prompt
         assert "## RESPONSE FORMAT" in prompt
         assert '"is_spam"' in prompt
@@ -295,7 +298,7 @@ async def test_build_system_prompt_reply_context_has_high_confidence_gating():
 
 @pytest.mark.asyncio
 async def test_build_system_prompt_few_shot_labels_json_keys():
-    """EXAMPLE_LABEL_JSON lines contain only is_spam and confidence."""
+    """Examples are formatted as JSON with input and label keys."""
     example_row = {
         "text": "spam text",
         "score": 100,
@@ -308,7 +311,7 @@ async def test_build_system_prompt_few_shot_labels_json_keys():
     }
     ham_row = {
         "text": "legit",
-        "score": 0,
+        "score": -100,
         "name": "U",
         "bio": None,
         "linked_channel_fragment": None,
@@ -321,14 +324,18 @@ async def test_build_system_prompt_few_shot_labels_json_keys():
     ) as mock_examples:
         mock_examples.return_value = [example_row, ham_row]
         prompt = await build_system_prompt()
-    assert "--- EXAMPLE_INPUT_YAML ---" in prompt
-    assert "EXAMPLE_LABEL_JSON:" in prompt
-    chunks = prompt.split("--- EXAMPLE_INPUT_YAML ---")[1:]
-    assert len(chunks) >= 2
-    for chunk in chunks:
-        yaml_blob, sep, tail = chunk.partition("\n\nEXAMPLE_LABEL_JSON:\n")
-        assert sep
-        card = yaml.safe_load(yaml_blob.strip())
+    assert '"examples"' in prompt
+    # Extract JSON from end of prompt
+    json_start = prompt.rfind('{"examples":')
+    assert json_start != -1
+    json_str = prompt[json_start:]
+    data = json.loads(json_str)
+    assert "examples" in data
+    assert len(data["examples"]) == 2
+    for example in data["examples"]:
+        assert "input" in example
+        assert "label" in example
+        card = example["input"]
         assert set(card.keys()) == {
             "message",
             "user_name",
@@ -338,14 +345,13 @@ async def test_build_system_prompt_few_shot_labels_json_keys():
             "reply_context",
             "account_signals",
         }
-        label_line = tail.strip().split("\n", 1)[0]
-        data = json.loads(label_line)
-        assert set(data.keys()) == {"is_spam", "confidence"}
-        assert isinstance(data["is_spam"], bool)
-        assert isinstance(data["confidence"], int)
+        label = example["label"]
+        assert set(label.keys()) == {"is_spam", "confidence"}
+        assert isinstance(label["is_spam"], bool)
+        assert isinstance(label["confidence"], int)
 
 
-def test_format_spam_example_input_yaml_card_roundtrip():
+def test_format_spam_example_input():
     row = {
         "text": "hello\nworld",
         "name": " N ",
@@ -355,8 +361,7 @@ def test_format_spam_example_input_yaml_card_roundtrip():
         "reply_context": "thread",
         "account_signals_context": " photo_age=0mo ",
     }
-    dumped = format_spam_example_input_yaml_card(row)
-    card = yaml.safe_load(dumped)
+    card = format_spam_example_input(row)
     assert card["message"] == "hello\nworld"
     assert card["user_name"] == "N"
     assert card["user_bio"] is None
@@ -381,7 +386,8 @@ def test_format_spam_request_with_stories():
         ),
     )
     req = format_spam_request("Hello", context)
-    assert "USER STORIES CONTENT:\nCaption: spam story" in req
+    data = json.loads(req)
+    assert data["stories"] == "Caption: spam story"
 
 
 def test_format_spam_request_with_linked_channel():
@@ -405,7 +411,8 @@ def test_format_spam_request_with_linked_channel():
         )
     )
     req = format_spam_request("Hello", context)
-    assert "LINKED CHANNEL INFO:\nsubscribers=100; total_posts=50; age_delta=3mo" in req
+    data = json.loads(req)
+    assert data["linked_channel"] == "subscribers=100; total_posts=50; age_delta=3mo"
 
 
 def test_format_spam_request_with_reply_context():
@@ -413,11 +420,8 @@ def test_format_spam_request_with_reply_context():
 
     context = SpamClassificationContext(reply="Original post text")
     req = format_spam_request("Hello", context)
-    assert (
-        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
-        in req
-    )
-    assert ">>> BEGIN CONTEXT\nOriginal post text\n<<< END CONTEXT" in req
+    data = json.loads(req)
+    assert data["reply_context"] == "Original post text"
 
 
 @pytest.mark.asyncio
@@ -531,26 +535,23 @@ async def test_build_system_prompt_no_guidance():
 
 
 def test_format_spam_request_null_context_skipped():
-    """Test that NULL context fields are skipped entirely"""
+    """NULL context fields are null in JSON."""
     from src.app.types import SpamClassificationContext
 
     context = SpamClassificationContext(name="User", bio="Bio")
     req = format_spam_request("Hello", context)
-
-    # Verify basic fields are present
-    assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
-    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
-    assert "USER NAME:\nUser" in req
-    assert "USER BIO:\nBio" in req
-
-    # Verify NULL context fields are NOT included
-    assert "USER STORIES CONTENT:" not in req
-    assert "ACCOUNT SIGNALS:" not in req
-    assert "REPLY CONTEXT" not in req
+    data = json.loads(req)
+    assert data["message"] == "Hello"
+    assert data["user_name"] == "User"
+    assert data["user_bio"] == "Bio"
+    assert data["linked_channel"] is None
+    assert data["stories"] is None
+    assert data["reply_context"] is None
+    assert data["account_signals"] is None
 
 
 def test_format_spam_request_empty_marker_shows_metadata():
-    """Test that '[EMPTY]' markers show with metadata"""
+    """Test that EMPTY status shows with user-friendly messages."""
     from src.app.types import (
         SpamClassificationContext,
         ContextResult,
@@ -564,20 +565,16 @@ def test_format_spam_request_empty_marker_shows_metadata():
         profile_photo_age=ContextResult(status=ContextStatus.EMPTY),
     )
     req = format_spam_request("Hello", context)
-
-    # Verify metadata is shown for empty markers (metric-style phrasing)
-    assert "USER STORIES CONTENT:\nno stories posted" in req
-    assert "ACCOUNT SIGNALS:\nphoto_age=unknown" in req
-
-    # Verify regular fields are still present
-    assert "MESSAGE TO CLASSIFY (Analyze this content):" in req
-    assert ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE" in req
-    assert "USER NAME:\nUser" in req
-    assert "USER BIO:\nBio" in req
+    data = json.loads(req)
+    assert data["message"] == "Hello"
+    assert data["user_name"] == "User"
+    assert data["user_bio"] == "Bio"
+    assert data["stories"] == "no stories posted"
+    assert data["account_signals"] == "photo_age=unknown"
 
 
 def test_format_spam_request_content_shows_normally():
-    """Test that actual content shows normally"""
+    """Test that actual content shows normally in JSON."""
     from datetime import datetime, timezone
 
     from src.app.types import (
@@ -600,32 +597,13 @@ def test_format_spam_request_content_shows_normally():
         profile_photo_age=ContextResult(status=ContextStatus.FOUND, content=profile),
     )
     req = format_spam_request("Hello", context)
-
-    _extracted_from_test_format_spam_request_content_shows_normally_27(
-        "USER STORIES CONTENT:\nActual story content",
-        req,
-        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):",
-        ">>> BEGIN CONTEXT\nOriginal post content\n<<< END CONTEXT",
-    )
-    assert f"ACCOUNT SIGNALS:\n{profile.to_prompt_fragment()}" in req
-
-    _extracted_from_test_format_spam_request_content_shows_normally_27(
-        "MESSAGE TO CLASSIFY (Analyze this content):",
-        req,
-        ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE",
-        "USER NAME:\nUser",
-    )
-    assert "USER BIO:\nBio" in req
-
-
-# TODO Rename this here and in `test_format_spam_request_content_shows_normally`
-def _extracted_from_test_format_spam_request_content_shows_normally_27(
-    arg0, req, arg2, arg3
-):
-    # Verify content is shown normally
-    assert arg0 in req
-    assert arg2 in req
-    assert arg3 in req
+    data = json.loads(req)
+    assert data["message"] == "Hello"
+    assert data["user_name"] == "User"
+    assert data["user_bio"] == "Bio"
+    assert data["stories"] == "Actual story content"
+    assert data["reply_context"] == "Original post content"
+    assert "photo_age=" in data["account_signals"]
 
 
 def test_format_spam_request_is_premium_bundled():
@@ -640,11 +618,12 @@ def test_format_spam_request_is_premium_bundled():
         is_premium=True,
     )
     req = format_spam_request("Hello", context)
-    assert "ACCOUNT SIGNALS:\nphoto_age=unknown\nis_premium=true" in req
+    data = json.loads(req)
+    assert data["account_signals"] == "photo_age=unknown\nis_premium=true"
 
 
 def test_format_spam_request_mixed_states():
-    """Test mixed NULL, '[EMPTY]', and content states"""
+    """Test mixed NULL, '[EMPTY]', and content states."""
     from src.app.types import (
         SpamClassificationContext,
         ContextResult,
@@ -659,30 +638,12 @@ def test_format_spam_request_mixed_states():
         # profile_photo_age is None - Not checked (NULL)
     )
     req = format_spam_request("Hello", context)
-
-    _extracted_from_test_format_spam_request_mixed_states_19(
-        "USER STORIES CONTENT:\nno stories posted",
-        req,
-        "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):",
-        ">>> BEGIN CONTEXT\nReply content\n<<< END CONTEXT",
-    )
-    # NULL should be skipped entirely
-    assert "ACCOUNT SIGNALS:" not in req
-
-    _extracted_from_test_format_spam_request_mixed_states_19(
-        "MESSAGE TO CLASSIFY (Analyze this content):",
-        req,
-        ">>> BEGIN MESSAGE\nHello\n<<< END MESSAGE",
-        "USER NAME:\nUser",
-    )
-    assert "USER BIO:\nBio" in req
-
-
-# TODO Rename this here and in `test_format_spam_request_mixed_states`
-def _extracted_from_test_format_spam_request_mixed_states_19(arg0, req, arg2, arg3):
-    # '[EMPTY]' should show with metadata
-    assert arg0 in req
-
-    # Content should show normally
-    assert arg2 in req
-    assert arg3 in req
+    data = json.loads(req)
+    assert data["message"] == "Hello"
+    assert data["user_name"] == "User"
+    assert data["user_bio"] == "Bio"
+    assert data["stories"] == "no stories posted"
+    assert data["reply_context"] == "Reply content"
+    # NULL fields are None
+    assert data["linked_channel"] is None
+    assert data["account_signals"] is None

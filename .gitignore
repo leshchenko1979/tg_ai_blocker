@@ -10,7 +10,9 @@ profile_output
 aiogram_types.cache
 .cursorrules
 .cursor/mcp.json
+.mcp.json
 .ruff_cache
 eval_results/
+src/ai_antispam.egg-info/
 src/tg_ai_blocker.egg-info/
 uv.lock

@@ -8,7 +8,7 @@ The module provides:
 - SpamPromptBuilder: A fluent builder for constructing prompts with various guidance sections
 - build_system_prompt(): Async function to build complete prompts with examples from database
 - format_spam_request(): Formats live classification requests for the user message (prose + BEGIN/END markers).
-- format_spam_example_input_yaml_card(): Compact YAML card for few-shot DB examples only (same logical fields as live context).
+- format_spam_example_input(): Dict for few-shot DB examples (same logical fields as live request).
 - _format_context_section(): Internal helper for consistent context section formatting
 
 Prompt Structure:
@@ -23,50 +23,42 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import logfire
-import yaml
 
 from ..database.spam_examples import get_spam_examples
 from ..i18n import t
 from ..types import ContextResult, SpamClassificationContext
-from .account_signals import ACCOUNT_SIGNALS_HEADER, format_account_signals_user_section
+from .account_signals import build_account_signals_body
 
 logger = logging.getLogger(__name__)
 
 
+def _norm_opt(value: Any) -> Optional[str]:
+    """Coerce value to stripped string, or None if empty."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        value = str(value)
+    stripped = value.strip()
+    return stripped or None
+
+
 @logfire.no_auto_trace
-def format_spam_example_input_yaml_card(example: Dict[str, Any]) -> str:
+def format_spam_example_input(example: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Build a compact YAML card for a spam_examples DB row (few-shot input only).
+    Build a dict for a spam_examples DB row (few-shot input only).
 
     Keys align with live `format_spam_request` sections: message, user profile,
     linked channel fragment, stories, reply thread text, account_signals line(s).
-    Null/empty optional fields are emitted as YAML null.
     """
-
-    def norm_opt(value: Any) -> Optional[str]:
-        if value is None:
-            return None
-        if not isinstance(value, str):
-            value = str(value)
-        stripped = value.strip()
-        return stripped or None
-
-    card = {
+    return {
         "message": example.get("text") or "",
-        "user_name": norm_opt(example.get("name")),
-        "user_bio": norm_opt(example.get("bio")),
-        "linked_channel": norm_opt(example.get("linked_channel_fragment")),
-        "stories": norm_opt(example.get("stories_context")),
-        "reply_context": norm_opt(example.get("reply_context")),
-        "account_signals": norm_opt(example.get("account_signals_context")),
+        "user_name": _norm_opt(example.get("name")),
+        "user_bio": _norm_opt(example.get("bio")),
+        "linked_channel": _norm_opt(example.get("linked_channel_fragment")),
+        "stories": _norm_opt(example.get("stories_context")),
+        "reply_context": _norm_opt(example.get("reply_context")),
+        "account_signals": _norm_opt(example.get("account_signals_context")),
     }
-    return yaml.safe_dump(
-        card,
-        allow_unicode=True,
-        sort_keys=False,
-        default_flow_style=False,
-        width=10_000,
-    ).strip()
 
 
 @logfire.no_auto_trace
@@ -82,12 +74,11 @@ class SpamPromptBuilder:
         self.prompt_parts.append(f"""You are a spam message classifier for Telegram groups.
 
 Your task: Analyze user messages and determine if they are spam or legitimate.
-The message to classify is enclosed in >>> BEGIN MESSAGE markers.
-You will also receive context information (User Bio, Linked Channel, User Stories, Account Signals, Reply Context).
+You will receive context information as JSON (User Bio, Linked Channel, User Stories, Account Signals, Reply Context).
 
-IMPORTANT: Do not classify the context information as spam. Only classify the message inside the markers.
+IMPORTANT: Do not classify the context information as spam. Only classify the message.
 
-Few-shot examples in the system prompt use compact YAML cards (`message`, `user_name`, `user_bio`, `linked_channel`, `stories`, `reply_context`, `account_signals`) with the same meaning as the live request sections below.
+Few-shot examples and live requests use the same JSON structure with keys: `message`, `user_name`, `user_bio`, `linked_channel`, `stories`, `reply_context`, `account_signals`.
 
 {explanation_hint}""")
         return self
@@ -251,7 +242,7 @@ Always respond with valid JSON in this exact format:
     "reason": "{reason_format}"
 }}
 
-Few-shot example inputs are YAML cards (`EXAMPLE_INPUT_YAML`); labels are JSON (`EXAMPLE_LABEL_JSON`) with only `is_spam` and `confidence`. The live user turn uses prose with `>>> BEGIN MESSAGE` markers instead of YAML.
+Few-shot examples are provided as a JSON array under the `examples` key. Each example has `input` (the message context) and `label` (is_spam and confidence).
 
 Few-shot labels omit `reason` (not stored in the database). Your real response to this task must always include all three keys, including `reason`, as required by the API schema.
 
@@ -263,26 +254,27 @@ Confidence calibration policy: use medium confidence for ambiguous cases with mi
     async def add_spam_examples(
         self, admin_ids: Optional[List[int]] = None
     ) -> "SpamPromptBuilder":
-        """Add spam examples from the database."""
+        """Add spam examples from the database as unified JSON."""
         try:
-            examples = await get_spam_examples(admin_ids)
+            db_examples = await get_spam_examples(admin_ids)
 
-            for example in examples:
-                yaml_card = format_spam_example_input_yaml_card(example)
-
+            examples_list = []
+            for example in db_examples:
                 is_spam_ex = example["score"] > 0
                 confidence_ex = abs(example["score"])
-                label_json = json.dumps(
-                    {"is_spam": is_spam_ex, "confidence": confidence_ex},
-                    ensure_ascii=False,
-                    separators=(",", ":"),
+                examples_list.append(
+                    {
+                        "input": format_spam_example_input(example),
+                        "label": {"is_spam": is_spam_ex, "confidence": confidence_ex},
+                    }
                 )
 
-                self.prompt_parts.append(f"""--- EXAMPLE_INPUT_YAML ---
-{yaml_card}
-
-EXAMPLE_LABEL_JSON:
-{label_json}""")
+            examples_json = json.dumps(
+                {"examples": examples_list},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            self.prompt_parts.append(examples_json)
         except Exception as e:
             logger.warning(f"Failed to load spam examples for prompt: {e}")
 
@@ -311,7 +303,6 @@ async def build_system_prompt(
     """
     builder = SpamPromptBuilder().build_base_instructions(lang=lang)
 
-    # Always include user info guidance as it's fundamental
     builder.add_user_info_guidance()
     builder.add_trojan_horse_guidance()
 
@@ -339,55 +330,26 @@ async def build_system_prompt(
 
 
 @logfire.no_auto_trace
-def _format_context_section(
-    section_name: str, context_result: Optional[ContextResult]
-) -> str:
-    """
-    Format a context section based on its result status.
-
-    Args:
-        section_name: Name of the context section (e.g., "LINKED CHANNEL INFO")
-        context_result: ContextResult object containing status and content
-
-    Returns:
-        Formatted section string, or empty string if section should be skipped
-    """
-    if not context_result:
-        return ""
-
+def _context_result_to_str(
+    context_result: Optional[ContextResult],
+    empty_msg: str,
+) -> Optional[str]:
+    """Convert a ContextResult to a string or null for JSON serialization."""
+    if context_result is None:
+        return None
     status = context_result.status.name
-
     if status == "SKIPPED":
-        return ""  # Skip section entirely for missing prerequisites
-
+        return None
     if status == "EMPTY":
-        # Use user-friendly messages for empty results
-        empty_messages = {
-            "LINKED CHANNEL INFO": "no channel linked",
-            "USER STORIES CONTENT": "no stories posted",
-            ACCOUNT_SIGNALS_HEADER: "photo_age=unknown",
-        }
-        message = empty_messages.get(section_name, "no data available")
-        return f"{section_name}:\n{message}\n"
-
+        return empty_msg
     if status == "FAILED":
-        return f"{section_name}:\nverification failed: {context_result.error}\n"
-
+        return f"verification failed: {context_result.error}"
     if status == "FOUND":
-        # Handle objects with custom prompt formatting
         c = context_result.content
         if c is not None and hasattr(c, "to_prompt_fragment"):
-            content = c.to_prompt_fragment()
-        else:
-            content = str(c) if c else ""
-        return f"{section_name}:\n{content}\n"
-
-    return ""
-
-
-REPLY_CONTEXT_HEADER = (
-    "REPLY CONTEXT (The post the user is replying to - DO NOT CLASSIFY THIS):"
-)
+            return c.to_prompt_fragment()
+        return str(c) if c else None
+    return None
 
 
 @logfire.no_auto_trace
@@ -396,54 +358,47 @@ def format_spam_request(
     context: Optional[SpamClassificationContext] = None,
 ) -> str:
     """
-    Format a spam classification request for the LLM.
+    Format a spam classification request as JSON for the LLM.
 
-    Sections are emitted in a fixed order: target message, then user profile,
-    linked channel, stories, account signals, reply context. A `---` delimiter
-    separates the classified message from sender context when any context exists.
+    The returned JSON has keys matching few-shot example inputs:
+    message, user_name, user_bio, linked_channel, stories, reply_context, account_signals.
 
     Args:
         text: Message text to classify
         context: Spam classification context with all optional context data
 
     Returns:
-        str: Formatted request with clear section headers
+        str: JSON string with classification request data
     """
-    # Use empty context if none provided
     if context is None:
         context = SpamClassificationContext()
 
-    message_header = "MESSAGE TO CLASSIFY (Analyze this content):"
-    message_body = f">>> BEGIN MESSAGE\n{text}\n<<< END MESSAGE"
+    linked_channel_str = _context_result_to_str(
+        context.linked_channel, "no channel linked"
+    )
+    stories_str = _context_result_to_str(context.stories, "no stories posted")
 
-    context_parts: list[str] = []
+    if context.account_signals_snapshot is not None:
+        account_signals_str = context.account_signals_snapshot.strip() or None
+    else:
+        acc_body = build_account_signals_body(context)
+        account_signals_str = acc_body or None
 
-    if context.name:
-        context_parts.append(f"USER NAME:\n{context.name}")
-    if context.bio:
-        context_parts.append(f"USER BIO:\n{context.bio}")
+    if context.reply is None:
+        reply_context_str = None
+    elif context.reply == "[EMPTY]":
+        reply_context_str = "no reply context"
+    else:
+        reply_context_str = context.reply
 
-    for section_name, context_result in [
-        ("LINKED CHANNEL INFO", context.linked_channel),
-        ("USER STORIES CONTENT", context.stories),
-    ]:
-        if section := _format_context_section(section_name, context_result):
-            context_parts.append(section.rstrip())
+    request_dict = {
+        "message": text,
+        "user_name": context.name or None,
+        "user_bio": context.bio or None,
+        "linked_channel": linked_channel_str,
+        "stories": stories_str,
+        "reply_context": reply_context_str,
+        "account_signals": account_signals_str,
+    }
 
-    if acc := format_account_signals_user_section(context):
-        context_parts.append(acc.rstrip())
-
-    if context.reply is not None:
-        if context.reply == "[EMPTY]":
-            context_parts.append(f"{REPLY_CONTEXT_HEADER}\n[checked, none found]")
-        else:
-            context_parts.append(
-                f"""{REPLY_CONTEXT_HEADER}
->>> BEGIN CONTEXT
-{context.reply}
-<<< END CONTEXT""".rstrip()
-            )
-
-    if context_parts:
-        return "\n\n".join([message_header, message_body, "---", *context_parts])
-    return "\n\n".join([message_header, message_body])
+    return json.dumps(request_dict, ensure_ascii=False, separators=(",", ":"))
