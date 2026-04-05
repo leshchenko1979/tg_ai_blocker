@@ -54,6 +54,7 @@ async def close_llm_http_resources() -> None:
 MODELS = [
     # "nvidia/nemotron-3-super-120b-a12b:free",
     # "minimax/minimax-m2.5:free",
+    "qwen/qwen3.6-plus:free",
     "nvidia/nemotron-3-nano-30b-a3b:free",
     # "meta-llama/llama-3.3-70b-instruct:free",
     # "upstage/solar-pro-3:free", Times out every time
@@ -62,8 +63,8 @@ MODELS = [
     #    "qwen/qwen3-next-80b-a3b-instruct:free", "Payment required"
 ]
 
-# Current model for round-robin (initialized randomly)
-_current_model = random.choice(MODELS)
+# Current model for round-robin (initialized to qwen)
+_current_model = "qwen/qwen3.6-plus:free"
 logger.debug("Initial model set: %s", _current_model)
 
 
