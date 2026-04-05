@@ -82,8 +82,8 @@ start_section "📦 File Transfer & Setup"
 echo "Setting up directory structure..."
 ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "
     # Create persistent directories with proper permissions
-    mkdir -p ${LOGS_DIR:-/data/projects/tg-ai-blocker/logs}
-    chown -R 1000:1000 ${LOGS_DIR:-/data/projects/tg-ai-blocker/logs}
+    mkdir -p ${LOGS_DIR:-/data/projects/ai-antispam/logs}
+    chown -R 1000:1000 ${LOGS_DIR:-/data/projects/ai-antispam/logs}
 "
 
 # Create package archive
@@ -102,12 +102,12 @@ COPYFILE_DISABLE=1 tar \
 
 # Clean and recreate project directory
 echo "Cleaning and recreating project directory..."
-ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "rm -rf /data/projects/tg-ai-blocker && mkdir -p /data/projects/tg-ai-blocker"
+ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "rm -rf /data/projects/ai-antispam && mkdir -p /data/projects/ai-antispam"
 
 # Copy and extract Python package
 echo "Copying and extracting Python package..."
-scp "$TEMP_DIR/app.tar.gz" ${REMOTE_USER}@${REMOTE_HOST}:/data/projects/tg-ai-blocker/
-ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && tar xzf app.tar.gz && rm app.tar.gz && ls -la"
+scp "$TEMP_DIR/app.tar.gz" ${REMOTE_USER}@${REMOTE_HOST}:/data/projects/ai-antispam/
+ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/ai-antispam && tar xzf app.tar.gz && rm app.tar.gz && ls -la"
 rm -rf "$TEMP_DIR"
 
 end_section
@@ -117,7 +117,7 @@ start_section "🐳 Container Deployment"
 # Deploy container
 echo "Deploying container..."
 ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} '
-    cd /data/projects/tg-ai-blocker
+    cd /data/projects/ai-antispam
     docker compose down --remove-orphans
     docker compose up -d --build
 '
@@ -131,7 +131,7 @@ echo "Waiting for container to be healthy..."
 ATTEMPTS=0
 MAX_ATTEMPTS=30
 while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-    if ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && docker compose ps --format json | grep -q 'Health.*healthy'"; then
+    if ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/ai-antispam && docker compose ps --format json | grep -q 'Health.*healthy'"; then
         break
     fi
     ATTEMPTS=$((ATTEMPTS + 1))
@@ -151,15 +151,15 @@ end_section
 start_section "🧹 Cleanup & Security"
 
 # Clean up old Docker images for this project to prevent disk bloat
-echo "Cleaning up old tg-ai-blocker Docker images..."
+echo "Cleaning up old ai-antispam Docker images..."
 ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "
-    # Remove images containing 'tg-ai-blocker' but exclude the currently running image
-    docker images --format 'table {{.Repository}}\t{{.ID}}\t{{.CreatedAt}}' | grep tg-ai-blocker | head -n -1 | awk '{print \$2}' | xargs -r docker rmi
+    # Remove images containing 'ai-antispam' but exclude the currently running image
+    docker images --format 'table {{.Repository}}\t{{.ID}}\t{{.CreatedAt}}' | grep ai-antispam | head -n -1 | awk '{print \$2}' | xargs -r docker rmi
 "
 
 # Clean up source files after successful deployment
 echo "Cleaning up source files on the server (preserving docker-compose and .env for Sablier)..."
-ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/tg-ai-blocker && rm -rf src app"
+ssh -o ControlMaster=auto -o ControlPath=~/.ssh/master-%r@%h:%p -o ControlPersist=10m ${REMOTE_USER}@${REMOTE_HOST} "cd /data/projects/ai-antispam && rm -rf src app"
 
 end_section
 

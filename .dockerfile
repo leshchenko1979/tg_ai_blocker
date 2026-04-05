@@ -1,6 +1,6 @@
 FROM python:3-alpine
 
-LABEL Name=tg-ai-blocker Version=0.0.1
+LABEL Name=ai-antispam Version=0.0.1
 
 WORKDIR /app
 

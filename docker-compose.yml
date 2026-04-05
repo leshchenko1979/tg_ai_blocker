@@ -1,9 +1,9 @@
 services:
-  tg-ai-blocker:
+  ai-antispam:
     build:
       context: .
       dockerfile: .dockerfile
-    container_name: tg-ai-blocker
+    container_name: ai-antispam
     mem_limit: 256mb
     mem_reservation: 128mb
     cpus: 0.5
