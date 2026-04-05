@@ -1,3 +1,8 @@
+# Load environment variables FIRST, before any app imports
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import pytest
 from pytest_asyncio import is_async_test
 
@@ -9,21 +14,14 @@ def pytest_collection_modifyitems(items: list[pytest.Item]):
             test.add_marker(pytest.mark.asyncio(loop_scope="session"), append=False)
 
 
-# Load environment variables
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Other imports
-import os
-from datetime import datetime
-
 # Mute Yandex logging
 from app.logging_setup import mute_logging_for_tests
 
 mute_logging_for_tests()
 
 
+import os
+from datetime import datetime
 import asyncpg
 import aiosqlite
 import re
