@@ -31,6 +31,19 @@ def _empty_context_result() -> ContextResult:
     return ContextResult(status=ContextStatus.EMPTY)
 
 
+def _extract_is_premium(full_user: JsonDict) -> Optional[bool]:
+    """Extract is_premium from a users.getFullUser full_user dict.
+
+    The response contains a 'user' object with a direct premium field.
+    """
+    user = full_user.get("user", {})
+    if isinstance(user, dict):
+        premium = user.get("premium")
+        if premium is not None:
+            return bool(premium)
+    return None
+
+
 def _failed_spam_context(error: str) -> SpamClassificationContext:
     failed = ContextResult(status=ContextStatus.FAILED, error=error)
     return SpamClassificationContext(linked_channel=failed, profile_photo_age=failed)
@@ -113,10 +126,12 @@ async def _fetch_full_user_and_account_context(
     identifier: str | int,
     actual_user_id: Optional[int],
     username: Optional[str],
-) -> tuple[JsonDict, JsonDict, ContextResult]:
+) -> tuple[JsonDict, JsonDict, ContextResult, Optional[bool]]:
+    """Fetch full user via MTProto. Returns (full_user, full_user_response, account_info_result, is_premium)."""
     full_user: JsonDict = {}
     full_user_response: JsonDict = {}
     account_info_result = _empty_context_result()
+    is_premium: Optional[bool] = None
     try:
         full_user_response = await client.call(
             "users.getFullUser",
@@ -136,6 +151,7 @@ async def _fetch_full_user_and_account_context(
                     profile_photo_date=photo_date,
                 ),
             )
+        is_premium = _extract_is_premium(full_user)
     except MtprotoHttpError as exc:
         logger.info(
             "MTProto failed for full user",
@@ -148,7 +164,7 @@ async def _fetch_full_user_and_account_context(
         )
         account_info_result = ContextResult(status=ContextStatus.FAILED, error=str(exc))
 
-    return full_user, full_user_response, account_info_result
+    return full_user, full_user_response, account_info_result, is_premium
 
 
 async def _collect_linked_channel_from_profile(
@@ -272,6 +288,7 @@ async def collect_user_context(
             full_user,
             full_user_response,
             account_info_result,
+            is_premium,
         ) = await _fetch_full_user_and_account_context(
             client=client,
             identifier=identifier,
@@ -294,6 +311,7 @@ async def collect_user_context(
     return SpamClassificationContext(
         linked_channel=linked_channel_result,
         profile_photo_age=account_info_result,
+        is_premium=is_premium,
     )
 
 
