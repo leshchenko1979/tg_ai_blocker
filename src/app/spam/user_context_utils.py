@@ -355,9 +355,7 @@ async def establish_context_via_group_reading(
             )
             return True
 
-        _log_mtproto_error(
-            e, "group message reading", logging_context, log_level=logging.DEBUG
-        )
+        _log_mtproto_error(e, "group message reading", logging_context)
         return False
 
     except Exception as e:
@@ -437,12 +435,7 @@ async def establish_context_via_thread_reading(
         return True
 
     except MtprotoHttpError as e:
-        _log_mtproto_error(
-            e,
-            "thread-based context establishment",
-            logging_context,
-            log_level=logging.DEBUG,
-        )
+        _log_mtproto_error(e, "thread-based context establishment", logging_context)
         return False
 
     except Exception as e:
