@@ -157,6 +157,7 @@ ERROR_PEER_ID_INVALID = "peer id invalid"
 
 # Context source types
 CONTEXT_SOURCE_DISCUSSION_GROUP = "discussion_group"
+CONTEXT_SOURCE_MAIN_CHANNEL = "main_channel"
 
 
 # =============================================================================
@@ -371,9 +372,15 @@ async def establish_context_via_thread_reading(
     """
     Establish peer resolution context by reading messages from a discussion thread.
 
-    For discussion groups linked to channels, GetReplies always works on the
-    discussion group—message_thread_id is the thread ID there. Reading from the
-    linked channel fails for forwarded posts (msg_id mismatch).
+    When the thread is linked to a channel post, prefer ``messages.getReplies`` on the
+    **main channel** peer (using ``main_channel_username`` / ``main_channel_id``).
+    That matches Telegram's comment thread model and avoids resolving a **private**
+    discussion supergroup by bare numeric id (often fails in MTProto).
+
+    Fallback: if the main channel is unknown, use the discussion group chat and
+    ``message_thread_id`` / ``reply_to_message_id`` as before. Channel-post
+    ``msg_id`` prefers ``original_channel_post_id`` (``forward_from_message_id``),
+    then thread / reply ids.
 
     Args:
         context: PeerResolutionContext object containing all resolution parameters
@@ -383,12 +390,36 @@ async def establish_context_via_thread_reading(
     """
     client = get_mtproto_client()
 
-    target_chat_id = context.chat_id
-    target_chat_username = context.chat_username
-    target_message_id = context.message_thread_id or context.reply_to_message_id
-    context_source = CONTEXT_SOURCE_DISCUSSION_GROUP
+    use_main_channel_peer = (
+        context.main_channel_username is not None or context.main_channel_id is not None
+    )
 
-    chat_identifier = get_mtproto_chat_identifier(target_chat_id, target_chat_username)
+    if use_main_channel_peer:
+        channel_chat_id = (
+            context.main_channel_id
+            if context.main_channel_id is not None
+            else context.chat_id
+        )
+        chat_identifier = get_mtproto_chat_identifier(
+            channel_chat_id, context.main_channel_username
+        )
+        target_message_id = (
+            context.original_channel_post_id
+            or context.message_thread_id
+            or context.reply_to_message_id
+        )
+        context_source = CONTEXT_SOURCE_MAIN_CHANNEL
+        target_chat_id = channel_chat_id
+        target_chat_username = context.main_channel_username
+    else:
+        target_chat_id = context.chat_id
+        target_chat_username = context.chat_username
+        target_message_id = context.message_thread_id or context.reply_to_message_id
+        context_source = CONTEXT_SOURCE_DISCUSSION_GROUP
+        chat_identifier = get_mtproto_chat_identifier(
+            target_chat_id, target_chat_username
+        )
+
     logging_context = _create_chat_context(
         context.chat_id,
         context.user_id,
@@ -396,8 +427,10 @@ async def establish_context_via_thread_reading(
         context.chat_username,
         message_thread_id=context.message_thread_id,
         main_channel_id=context.main_channel_id,
+        main_channel_username=context.main_channel_username,
         original_channel_post_id=context.original_channel_post_id,
         target_chat_id=target_chat_id,
+        target_chat_username=target_chat_username,
         target_message_id=target_message_id,
         context_source=context_source,
         chat_identifier=chat_identifier,
@@ -414,7 +447,7 @@ async def establish_context_via_thread_reading(
             "messages.getReplies",
             params={
                 "peer": chat_identifier,
-                "msg_id": target_message_id,  # Thread starter in discussion group
+                "msg_id": target_message_id,
                 "offset_id": DEFAULT_OFFSET,
                 "offset_date": DEFAULT_OFFSET,
                 "add_offset": DEFAULT_OFFSET,
@@ -624,8 +657,9 @@ async def establish_peer_resolution_context(
     which is necessary for the user bot to resolve user IDs when usernames are not available.
 
     **Discussion Thread Messages** (replies to channel posts in discussion groups):
-    - Uses thread-based reading from the linked channel (preferred) or discussion group
-    - No subscription attempt needed as we read from public channels
+    - Uses ``messages.getReplies`` on the **main channel** when ``main_channel_id`` /
+      ``main_channel_username`` are known (preferred); otherwise on the discussion group
+    - No subscription attempt needed when the channel has a public username
 
     **Regular Group Messages** (standard group chats or forum topics):
     - Performs membership pre-check via message reading for public chats
