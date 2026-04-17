@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import ssl
 import time
 from typing import Any, Dict, List, Optional, Union
@@ -51,19 +52,24 @@ async def close_llm_http_resources() -> None:
 
 # Available models - actively maintained free models
 MODELS = [
+    "openrouter/elephant-alpha",
+    "openai/gpt-oss-120b:free",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+    # Removed/unavailable:
+    # "qwen/qwen3.6-plus:free",
+    # "nvidia/nemotron-3-nano-30b-a3b:free",
     # "nvidia/nemotron-3-super-120b-a12b:free",
     # "minimax/minimax-m2.5:free",
-    "qwen/qwen3.6-plus:free",
-    "nvidia/nemotron-3-nano-30b-a3b:free",
     # "meta-llama/llama-3.3-70b-instruct:free",
     # "upstage/solar-pro-3:free", Times out every time
     # "arcee-ai/trinity-large-preview:free",
     # "stepfun/step-3.5-flash:free",
-    #    "qwen/qwen3-next-80b-a3b-instruct:free", "Payment required"
+    # "qwen/qwen3-next-80b-a3b-instruct:free", "Payment required"
 ]
 
-# Current model for round-robin (initialized to qwen)
-_current_model = "qwen/qwen3.6-plus:free"
+# Current model for round-robin (initialized to elephant-alpha)
+_current_model = "openrouter/elephant-alpha"
 logger.debug("Initial model set: %s", _current_model)
 
 
@@ -567,6 +573,8 @@ def _extract_content(result: Dict[str, Any], model: str) -> str:
                 result,
             )
             raise RuntimeError("Invalid API response format")
+        # Strip model thinking chunks (e.g. MiniMax)
+        content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
         return content
     except (KeyError, IndexError, TypeError) as e:
         logger.warning(
