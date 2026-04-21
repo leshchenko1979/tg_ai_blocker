@@ -1,8 +1,6 @@
 services:
   ai-antispam:
-    build:
-      context: .
-      dockerfile: .dockerfile
+    image: ${GHCR_IMAGE:-ghcr.io/leshchenko1979/ai-antispam}:${IMAGE_TAG:-main}
     container_name: ai-antispam
     mem_limit: 256mb
     mem_reservation: 128mb
@@ -16,14 +14,13 @@ services:
     networks:
       - traefik-public
     volumes:
-      - ${LOGS_DIR:-/home/$${REMOTE_USER}/logs}:/app/logs
+      - ${LOGS_DIR:-/home/${REMOTE_USER:-root}/logs}:/app/logs
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health').read() == b'ok' else 1)\""]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
       interval: 30s
       timeout: 3s
       retries: 1
       start_period: 60s
-      start_interval: 2s
 
 networks:
   traefik-public:

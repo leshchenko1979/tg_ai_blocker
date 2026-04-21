@@ -58,12 +58,12 @@ ruff format src
 
 # Run type checking
 echo "Running type checking..."
-uvx ty check --python $(which python3) src
+uvx ty check src
 
 # Run tests if not skipped
 if [ "$SKIP_TESTS" = false ]; then
     echo "Running unit tests with SQLite (integration tests are excluded by default)..."
-    USE_SQLITE_TESTS=true python3 -m pytest tests --maxfail=1 --exitfirst --last-failed -q
+    USE_SQLITE_TESTS=true uv run python -m pytest tests --maxfail=1 --exitfirst --last-failed -q
 
     if [ $? -ne 0 ]; then
         echo -e "${RED}Tests failed! Aborting deployment.${NC}"
