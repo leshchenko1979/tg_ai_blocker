@@ -13,7 +13,7 @@ from aiogram.filters import or_f
 from ..common.bot import bot
 from ..spam.account_signals import build_account_signals_body
 from ..spam.user_profile import collect_user_context
-from ..agents import get_chat_agent
+from ..agents import get_chat_agent, get_openrouter_chat_agent, _next_openrouter_chat_agent
 from ..common.utils import sanitize_llm_html
 from ..database import (
     add_spam_example,
@@ -158,54 +158,99 @@ async def handle_private_message(message: types.Message) -> str:
 
         # Get response from chat agent with retry logic for HTML parsing errors
         max_retries = 3
-        for retry_count in range(max_retries):
-            # Get response from chat agent
-            chat_agent = get_chat_agent()
-            result = await chat_agent.run(
-                user_message_text,
-                instructions=system_prompt,
-            )
-            response = result.output
+        last_error = None
 
-            # Save bot's response to history
-            await save_message(admin_id, "assistant", response)
+        # Try gateway first
+        try:
+            for retry_count in range(max_retries):
+                chat_agent = get_chat_agent()
+                result = await chat_agent.run(
+                    user_message_text,
+                    instructions=system_prompt,
+                )
+                response = result.output
 
-            # Send with HTML formatting
-            sanitized_response = sanitize_llm_html(response)
+                await save_message(admin_id, "assistant", response)
+                sanitized_response = sanitize_llm_html(response)
 
-            try:
-                await message.reply(sanitized_response, parse_mode="HTML")
-                return "private_message_replied"
+                try:
+                    await message.reply(sanitized_response, parse_mode="HTML")
+                    return "private_message_replied"
 
-            except TelegramBadRequest as send_error:
-                # Check if this is a Telegram HTML parsing error
-                error_msg = str(send_error).lower()
-                is_html_error = any(
-                    error_text in error_msg
-                    for error_text in (
-                        "can't parse entities",
-                        "can't find end tag",
-                        "unclosed tag",
+                except TelegramBadRequest as send_error:
+                    error_msg = str(send_error).lower()
+                    is_html_error = any(
+                        error_text in error_msg
+                        for error_text in ("can't parse entities", "can't find end tag", "unclosed tag")
                     )
-                )
 
-                if not is_html_error or retry_count >= max_retries - 1:
-                    # Not an HTML error or max retries reached, re-raise
-                    raise send_error
+                    if not is_html_error or retry_count >= max_retries - 1:
+                        raise send_error
 
-                # This is an HTML parsing error, retry with new agent call
-                user_message_text = (
-                    f"{admin_message}\n\n"
-                    "ПРЕДЫДУЩИЙ ОТВЕТ СОДЕРЖАЛ ОШИБКУ ФОРМАТИРОВАНИЯ HTML: "
-                    f"{response}\n\n"
-                    "Пожалуйста, повтори ответ, строго следуя правилам HTML: "
-                    "используй только <b> для жирного и <i> для курсива, "
-                    "обязательно закрывай все теги."
-                )
-        # If we get here, max retries exceeded
-        raise RuntimeError(
-            f"Failed to send message after {max_retries} retries due to HTML parsing errors"
-        )
+                    # Retry with HTML correction
+                    user_message_text = (
+                        f"{admin_message}\n\n"
+                        "ПРЕДЫДУЩИЙ ОТВЕТ СОДЕРЖАЛ ОШИБКУ ФОРМАТИРОВАНИЯ HTML: "
+                        f"{response}\n\n"
+                        "Пожалуйста, повтори ответ, строго следуя правилам HTML: "
+                        "используй только <b> для жирного и <i> для курсива, "
+                        "обязательно закрывай все теги."
+                    )
+
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Gateway chat failed: {e}")
+
+        # OpenRouter pool with rotation
+        from ..agents import _get_openrouter_chat_agents
+        num_openrouter = len(_get_openrouter_chat_agents())
+
+        for i in range(num_openrouter):
+            chat_agent = get_openrouter_chat_agent()
+            provider_label = f"openrouter-{chat_agent.name}" if hasattr(chat_agent, 'name') else f"openrouter-{i}"
+
+            for retry_count in range(max_retries):
+                try:
+                    result = await chat_agent.run(
+                        user_message_text,
+                        instructions=system_prompt,
+                    )
+                    response = result.output
+
+                    await save_message(admin_id, "assistant", response)
+                    sanitized_response = sanitize_llm_html(response)
+
+                    try:
+                        await message.reply(sanitized_response, parse_mode="HTML")
+                        return "private_message_replied"
+
+                    except TelegramBadRequest as send_error:
+                        error_msg = str(send_error).lower()
+                        is_html_error = any(
+                            error_text in error_msg
+                            for error_text in ("can't parse entities", "can't find end tag", "unclosed tag")
+                        )
+
+                        if not is_html_error or retry_count >= max_retries - 1:
+                            raise send_error
+
+                        user_message_text = (
+                            f"{admin_message}\n\n"
+                            "ПРЕДЫДУЩИЙ ОТВЕТ СОДЕРЖАЛ ОШИБКУ ФОРМАТИРОВАНИЯ HTML: "
+                            f"{response}\n\n"
+                            "Пожалуйста, повтори ответ, строго следуя правилам HTML: "
+                            "используй только <b> для жирного и <i> для курсива, "
+                            "обязательно закрывай все теги."
+                        )
+                        continue  # Retry same agent with corrected prompt
+
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f"{provider_label} chat agent failed: {e}")
+                    _next_openrouter_chat_agent()
+                    break  # Try next OpenRouter agent
+
+        raise RuntimeError(f"All chat providers failed. Last error: {last_error}")
 
     except Exception as e:
         logger.error(f"Error in private message handler: {e}", exc_info=True)

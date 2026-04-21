@@ -120,6 +120,7 @@ def get_gateway_spam_agent() -> Any:
         _gateway_spam_agent = Agent(
             get_gateway_model(),
             output_type=SpamClassification,
+            name="gateway-spam",
         )
     return _gateway_spam_agent
 
@@ -133,7 +134,11 @@ def _get_openrouter_agents() -> Any:
     global _openrouter_agents
     if _openrouter_agents is None:
         _openrouter_agents = [
-            Agent(_create_openrouter_model(model_name), output_type=SpamClassification)
+            Agent(
+                _create_openrouter_model(model_name),
+                output_type=SpamClassification,
+                name=f"openrouter-spam-{model_name.split('/')[1]}",
+            )
             for model_name in OPENROUTER_MODELS
         ]
     return _openrouter_agents
@@ -153,6 +158,39 @@ def get_openrouter_spam_agent() -> Agent[None, SpamClassification]:
     return agents[_openrouter_agent_idx]
 
 
+# OpenRouter chat agent pool (plain text output)
+_openrouter_chat_agents: Any = None
+_openrouter_chat_agent_idx: int = 0
+
+
+def _get_openrouter_chat_agents() -> Any:
+    global _openrouter_chat_agents
+    if _openrouter_chat_agents is None:
+        _openrouter_chat_agents = [
+            Agent(
+                _create_openrouter_model(model_name),
+                output_type=str,
+                name=f"openrouter-chat-{model_name.split('/')[1]}",
+            )
+            for model_name in OPENROUTER_MODELS
+        ]
+    return _openrouter_chat_agents
+
+
+def _next_openrouter_chat_agent() -> Agent[str]:
+    """Rotate to next OpenRouter chat agent."""
+    global _openrouter_chat_agent_idx
+    agents = _get_openrouter_chat_agents()
+    _openrouter_chat_agent_idx = (_openrouter_chat_agent_idx + 1) % len(agents)
+    return agents[_openrouter_chat_agent_idx]
+
+
+def get_openrouter_chat_agent() -> Agent[str]:
+    """Get current OpenRouter chat agent (round-robin)."""
+    agents = _get_openrouter_chat_agents()
+    return agents[_openrouter_chat_agent_idx]
+
+
 # Chat agent (plain text, gateway first, fallback to OpenRouter)
 _chat_agent: Optional[Agent[str]] = None
 
@@ -164,13 +202,6 @@ def get_chat_agent() -> Agent[str]:
         _chat_agent = Agent(
             get_gateway_model(),
             output_type=str,
+            name="gateway-chat",
         )
     return _chat_agent
-
-
-def get_openrouter_chat_agent() -> Agent[str]:
-    """Get OpenRouter chat agent (plain text output)."""
-    return Agent(
-        _create_openrouter_model(OPENROUTER_MODELS[0]),
-        output_type=str,
-    )
