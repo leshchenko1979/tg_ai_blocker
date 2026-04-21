@@ -1,16 +1,24 @@
 # Stage 1: builder
 FROM python:3-slim-bookworm AS builder
 
+# Install system deps - NO cargo (pre-built wheels used)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config gcc libffi-dev libssl-dev cargo protobuf-compiler && \
+    pkg-config gcc libffi-dev libssl-dev protobuf-compiler && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-COPY src/app ./app/
+# Install uv first (layer cached separately)
+RUN pip install --no-cache-dir uv
 
-RUN set -e; pip install --no-cache-dir uv && \
+# Copy dependency files FIRST (before app code)
+# This layer only invalidates when lockfile/pyproject changes
+COPY pyproject.toml ./
+COPY uv.lock ./
+
+# Install deps with BuildKit cache mount for wheel cache
+# Cache persists across builds
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     uv pip install --system -r pyproject.toml
 
 # Stage 2: runner
