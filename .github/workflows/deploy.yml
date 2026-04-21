@@ -9,6 +9,7 @@ on:
       - 'Dockerfile'
       - 'docker-compose.yml'
       - '.github/workflows/deploy.yml'
+      - 'uv.lock'
   workflow_dispatch:
 
 permissions:
