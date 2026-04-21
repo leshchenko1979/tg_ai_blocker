@@ -1,7 +1,7 @@
 # rebuild trigger
-FROM python:3-alpine
+FROM python:3-slim-bookworm
 
-RUN apk add --no-cache curl libgcc
+RUN apt-get update && apt-get install -y --no-install-recommends curl libgcc-s1 && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
