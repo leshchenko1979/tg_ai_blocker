@@ -28,8 +28,7 @@ COPY pyproject.toml ./
 COPY --chown=appuser:appuser PRD.md config.yaml ./
 COPY src/app ./app/
 
-RUN groupadd -g 1000 appuser && \
-    useradd -s /bin/sh -u 1000 -M -G appuser appuser && \
+RUN useradd -s /bin/sh -u 1000 -M -G appuser appuser || true && \
     mkdir -p logs && chown -R appuser:appuser /app
 
 USER appuser
