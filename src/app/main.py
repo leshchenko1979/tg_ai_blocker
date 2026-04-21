@@ -185,17 +185,20 @@ async def _shutdown(app: web.Application) -> None:
         _scheduled_jobs_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await _scheduled_jobs_task
-    async with asyncio.TaskGroup() as tg:
-        tg.create_task(bot.session.close())
-        tg.create_task(close_pool())
-        tg.create_task(close_llm_http_resources())
-        tg.create_task(close_mcp_http_client())
 
+    # Stop TelegramLogHandler before closing the bot session,
+    # so that queued messages can still be sent before the connector is closed.
     if telegram_handler := get_telegram_handler():
         try:
             await telegram_handler.stop(timeout=5.0)
         except Exception as e:
             logger.warning(f"Error stopping TelegramLogHandler: {e}", exc_info=True)
+
+    async with asyncio.TaskGroup() as tg:
+        tg.create_task(bot.session.close())
+        tg.create_task(close_pool())
+        tg.create_task(close_llm_http_resources())
+        tg.create_task(close_mcp_http_client())
 
 
 app.on_startup.append(_on_startup_setup_bot)

@@ -89,26 +89,37 @@ class TelegramLogHandler(logging.Handler):
     async def _process_queue(self) -> None:
         """Background task that processes the message queue."""
         while not self._shutdown_flag:
-            try:
-                # Wait a bit between sends to avoid overwhelming Telegram
-                await asyncio.sleep(0.1)
-
-                with self._lock:
-                    if self._shutdown_flag:
-                        break
-                    if not self._message_queue:
-                        continue
+            text = None
+            with self._lock:
+                if self._shutdown_flag:
+                    break
+                if self._message_queue:
                     text = self._message_queue.popleft()
 
+            if text is not None:
                 await self._send(text)
+            else:
+                await asyncio.sleep(0.1)
 
-            except asyncio.CancelledError:
-                # Task was cancelled, exit gracefully
-                break
+        # Drain remaining queued messages before exiting
+        drain_logger = logging.getLogger(__name__)
+        drained_count = 0
+        while True:
+            with self._lock:
+                if not self._message_queue:
+                    break
+                text = self._message_queue.popleft()
+            # Send outside the lock so emit() isn't blocked while we await
+            try:
+                await self._send(text)
+                drained_count += 1
             except Exception as e:
-                # Log send failures but don't crash the task
-                logger = logging.getLogger(__name__)
-                logger.error(f"Failed to send Telegram notification: {e}", exc_info=e)
+                drain_logger.warning(
+                    f"TelegramLogHandler _process_queue drain stopped after {drained_count} "
+                    f"messages due to error: {e}",
+                    exc_info=e,
+                )
+                break
 
     async def stop(self, timeout: float = 5.0) -> None:
         """
@@ -133,6 +144,28 @@ class TelegramLogHandler(logging.Handler):
             except asyncio.CancelledError:
                 # Task was cancelled, which is expected
                 pass
+
+        # Best-effort drain of any remaining messages after task completes/times out.
+        # This ensures messages are sent even if the task was cancelled or timed out.
+        drain_logger = logging.getLogger(__name__)
+        drained_count = 0
+        while True:
+            with self._lock:
+                if not self._message_queue:
+                    break
+                text = self._message_queue.popleft()
+            try:
+                await self._send(text)
+                drained_count += 1
+            except Exception as e:
+                drain_logger.warning(
+                    f"TelegramLogHandler drain stopped early after {drained_count} messages "
+                    f"due to error: {e}",
+                    exc_info=e,
+                )
+                break
+
+        self._send_task = None
 
     def _render_message(self, record: logging.LogRecord) -> str:
         rendered = self.format(record)
