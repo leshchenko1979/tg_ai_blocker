@@ -1,5 +1,7 @@
 ## Progress
 
+- **GitHub Actions CI Pipeline (2026-04-21)**: ✅ **Complete** — Migrated from manual `deploy.sh` to GitHub Actions. Workflow: push to main → build Docker image → push to GHCR → SSH deploy. Secrets in GitHub: `SSH_HOST`, `SSH_USER`, `SSH_PORT`, `SSH_PRIVATE_KEY`, `BOT_TOKEN`, `GHCR_PULL_TOKEN`, `GHCR_PULL_USER`. Unit tests run in CI (integration tests excluded). Sync script: `scripts/sync-remote-config.sh` for initial server bootstrap.
+
 ### What works
 - Project website [ai-antispam.ru](https://ai-antispam.ru)
 - Telegram webhook server (endpoint `/process-tg-updates`, POST only; Traefik restricts to `/process-tg-updates` and `/health`)
