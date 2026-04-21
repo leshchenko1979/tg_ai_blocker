@@ -17,7 +17,7 @@ permissions:
 
 env:
   IMAGE_REGISTRY: ghcr.io/leshchenko1979/ai-antispam
-  BOT_TOKEN: "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ0123456789"
+  BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
 
 jobs:
   build-push:
