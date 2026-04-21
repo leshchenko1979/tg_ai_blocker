@@ -82,6 +82,9 @@ jobs:
   deploy:
     needs: build-push
     runs-on: ubuntu-latest
+    env:
+      GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+      GHCR_PULL_USER: ${{ secrets.GHCR_PULL_USER }}
     steps:
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.2.0
