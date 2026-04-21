@@ -2,8 +2,7 @@
 FROM python:3-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl libgcc-s1 pkgconfig gcc musl-dev libffi-dev openssl-dev \
-    cargo rust protobuf-compiler && \
+    pkg-config gcc libffi-dev libssl-dev cargo protobuf-compiler && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
