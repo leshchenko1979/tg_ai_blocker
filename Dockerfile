@@ -8,17 +8,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY pyproject.toml ./
-RUN mkdir -p src && touch src/__init__.py
 COPY src/app ./app/
 
 RUN set -e; pip install --no-cache-dir uv && \
-    uv pip install --system --no-cache -r pyproject.toml && \
-    pip uninstall -y uv
+    uv pip install --system -r pyproject.toml
 
 # Stage 2: runner
 FROM python:3-slim-bookworm
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl libgcc-s1 && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
