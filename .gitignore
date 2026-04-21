@@ -15,4 +15,3 @@ aiogram_types.cache
 eval_results/
 src/ai_antispam.egg-info/
 src/tg_ai_blocker.egg-info/
-uv.lock
