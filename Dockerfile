@@ -21,7 +21,7 @@ RUN addgroup -g 1000 appuser && \
 RUN mkdir -p logs && chown -R appuser:appuser /app
 USER appuser
 
-COPY --chown=appuser:appuser .env PRD.md config.yaml ./
+COPY --chown=appuser:appuser PRD.md config.yaml ./
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
