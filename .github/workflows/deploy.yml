@@ -51,7 +51,7 @@ jobs:
         run: uvx ty check src
 
       - name: Run tests
-        run: USE_SQLITE_TESTS=true uv run pytest --ignore=tests/integration -v --tb=short -x -k "not test_sender_chat_spam_check_trigger"
+        run: USE_SQLITE_TESTS=true uv run pytest --ignore=tests/integration -v --tb=short -x
 
       - name: Set image repo output
         id: vars

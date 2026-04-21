@@ -207,6 +207,7 @@ class TestSpamDeletion:
             mock_notify.assert_not_called()
 
     @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_sender_chat_spam_check_trigger(self, mock_message):
         """
         Test that messages with sender_chat trigger collect_channel_summary_by_id
