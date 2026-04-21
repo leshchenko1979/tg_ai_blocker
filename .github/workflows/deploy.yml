@@ -101,4 +101,4 @@ jobs:
             if [ -n "${GHCR_PULL_TOKEN:-}" ] && [ -n "${GHCR_PULL_USER:-}" ]; then
               echo "${GHCR_PULL_TOKEN:-}" | docker login ghcr.io -u "${GHCR_PULL_USER:-}" --password-stdin
             fi
-            docker compose pull && docker compose up -d --pull always
+            docker compose pull && docker compose up -d
