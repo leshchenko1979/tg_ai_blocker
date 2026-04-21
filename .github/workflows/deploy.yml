@@ -104,4 +104,16 @@ jobs:
             if [ -n "${GHCR_PULL_TOKEN:-}" ] && [ -n "${GHCR_PULL_USER:-}" ]; then
               echo "${GHCR_PULL_TOKEN:-}" | docker login ghcr.io -u "${GHCR_PULL_USER:-}" --password-stdin
             fi
-            docker compose pull && docker compose up -d
+            docker compose pull && docker compose up -d --wait
+      - name: Prune old images
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          command_timeout: 5m
+          script: |
+            docker images --format '{{.ID}} {{.Repository}}:{{.Tag}}' | \
+              grep 'ghcr.io/leshchenko1979/ai-antispam' | \
+              grep -v ':main$' | awk '{print $1}' | xargs -r docker rmi -f
