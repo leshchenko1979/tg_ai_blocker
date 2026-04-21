@@ -24,9 +24,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl libgcc-s1 
 WORKDIR /app
 
 COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
-COPY --from=builder /app/src/app ./app
-COPY --from=builder /app/pyproject.toml ./
+COPY pyproject.toml ./
 COPY --chown=appuser:appuser PRD.md config.yaml ./
+COPY src/app ./app/
 
 RUN addgroup -g 1000 appuser && \
     adduser -D -s /bin/sh -u 1000 -G appuser appuser && \
