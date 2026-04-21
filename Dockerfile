@@ -1,7 +1,10 @@
-# rebuild trigger
-FROM python:3-slim-bookworm
+# Stage 1: builder
+FROM python:3-slim-bookworm AS builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl libgcc-s1 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl libgcc-s1 pkgconfig gcc musl-dev libffi-dev openssl-dev \
+    cargo rust protobuf-compiler && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -9,20 +12,28 @@ COPY pyproject.toml ./
 RUN mkdir -p src && touch src/__init__.py
 COPY src/app ./app/
 
-# Install dependencies via uv
-RUN set -e; pip install --no-cache-dir uv; \
-    uv pip install --system --no-cache -r pyproject.toml; \
-    pip uninstall -y uv; \
-    rm -rf /root/.cache/uv
+RUN set -e; pip install --no-cache-dir uv && \
+    uv pip install --system --no-cache -r pyproject.toml && \
+    pip uninstall -y uv
 
-# Non-root user (appuser, uid 1000)
-RUN addgroup -g 1000 appuser && \
-    adduser -D -s /bin/sh -u 1000 -G appuser appuser
+# Stage 2: runner
+FROM python:3-slim-bookworm
 
-RUN mkdir -p logs && chown -R appuser:appuser /app
-USER appuser
+RUN apt-get update && apt-get install -y --no-install-recommends curl libgcc-s1 && \
+    rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
+
+COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
+COPY --from=builder /app/src/app ./app
+COPY --from=builder /app/pyproject.toml ./
 COPY --chown=appuser:appuser PRD.md config.yaml ./
+
+RUN addgroup -g 1000 appuser && \
+    adduser -D -s /bin/sh -u 1000 -G appuser appuser && \
+    mkdir -p logs && chown -R appuser:appuser /app
+
+USER appuser
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
