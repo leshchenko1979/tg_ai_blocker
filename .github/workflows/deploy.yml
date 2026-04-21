@@ -94,7 +94,7 @@ jobs:
             type=registry,ref=${{ env.IMAGE_REGISTRY }}:main
           cache-to: |
             type=gha,mode=max
-            type=registry,mode=max
+            type=registry,ref=${{ env.IMAGE_REGISTRY }}:main,mode=max
 
   deploy:
     needs: build-push
