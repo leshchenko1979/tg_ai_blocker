@@ -10,7 +10,7 @@ RUN mkdir -p src && touch src/__init__.py
 COPY src/app ./app/
 
 # Install dependencies via uv
-RUN pip install --no-cache-dir uv; \
+RUN set -e; pip install --no-cache-dir uv; \
     uv pip install --system --no-cache -r pyproject.toml; \
     pip uninstall -y uv; \
     rm -rf /root/.cache/uv
