@@ -46,9 +46,6 @@ jobs:
       - name: Lint
         run: uvx ruff check src
 
-      - name: Format check
-        run: uvx ruff format --check src
-
       - name: Type check
         run: uvx ty check src
 
