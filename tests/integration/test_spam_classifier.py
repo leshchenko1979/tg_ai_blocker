@@ -328,5 +328,45 @@ async def test_spam_classifier():
         traceback.print_exc()
 
 
+@pytest.mark.integration
+async def test_spam_classifier_direct():
+    """Test spam classifier directly without channel extraction."""
+    from app.spam.spam_classifier import is_spam
+    from app.types import SpamClassificationContext, ContextResult, ContextStatus
+
+    print("Testing Spam Classifier Directly (no channel fetch)")
+    print("=" * 70)
+
+    ctx = SpamClassificationContext(
+        name="Test User",
+        linked_channel=ContextResult(
+            status=ContextStatus.FOUND,
+            content="subscribers=1000; total_posts=50; age_delta=3mo",
+        ),
+    )
+
+    test_message = "Free crypto giveaway! Send 0.1 BTC and get 1 BTC back!"
+
+    print(f"Test message: {test_message}")
+    print("Running spam classifier...")
+    print("-" * 50)
+
+    try:
+        is_spam_result, confidence, reason = await is_spam(
+            comment=test_message,
+            context=ctx,
+        )
+
+        print("Classification Results:")
+        print(f"  Is Spam: {'YES' if is_spam_result else 'NO'}")
+        print(f"  Confidence: {confidence}%")
+        print(f"  Reason: {reason}")
+
+    except Exception as e:
+        print(f"Spam classifier failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 if __name__ == "__main__":
     asyncio.run(test_spam_classifier())

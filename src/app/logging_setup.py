@@ -19,6 +19,12 @@ def mute_logging_for_tests():
     debug = True
 
 
+def _reset_debug() -> None:
+    """Reset debug flag — used to re-enable Logfire for integration tests."""
+    global debug
+    debug = False
+
+
 def _should_skip_logfire() -> bool:
     """Determine whether Logfire initialization should be skipped for this process."""
     if debug:
@@ -31,7 +37,7 @@ def _should_skip_logfire() -> bool:
     return "PYTEST_CURRENT_TEST" in os.environ
 
 
-def setup_logging():
+def setup_logging(environment: str | None = None):
     global _telegram_handler
     if _should_skip_logfire():
         logging.basicConfig(level=logging.WARNING)
@@ -56,8 +62,13 @@ def setup_logging():
             return None
 
         logfire.configure(
-            scrubbing=logfire.ScrubbingOptions(callback=_scrubbing_callback)
+            scrubbing=logfire.ScrubbingOptions(callback=_scrubbing_callback),
+            environment=environment,
+            send_to_logfire="if-token-present",
         )
+
+        # Instrument pydantic-ai agents for automatic tracing
+        logfire.instrument_pydantic_ai()
 
         _telegram_handler = TelegramLogHandler(bot=bot, chat_id=LESHCHENKO_CHAT_ID)
         _telegram_handler.setFormatter(
@@ -90,6 +101,7 @@ def setup_logging():
                 "app.database",
                 "app.handlers",
                 "app.spam",
+                "app.agents",
                 "app.background_jobs",
             ],
             min_duration=0.01,

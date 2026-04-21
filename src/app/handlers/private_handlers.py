@@ -13,7 +13,7 @@ from aiogram.filters import or_f
 from ..common.bot import bot
 from ..spam.account_signals import build_account_signals_body
 from ..spam.user_profile import collect_user_context
-from ..common.llms import get_llm_response_with_fallback
+from ..agents import get_chat_agent
 from ..common.utils import sanitize_llm_html
 from ..database import (
     add_spam_example,
@@ -82,7 +82,10 @@ async def handle_private_message(message: types.Message) -> str:
         # Get conversation history
         message_history = await get_message_history(admin_id)
 
-        prd_text = pathlib.Path("PRD.md").read_text()
+        try:
+            prd_text = pathlib.Path("PRD.md").read_text()
+        except Exception:
+            prd_text = ""
         spam_examples = await get_spam_examples()
 
         # Format spam examples for prompt
@@ -143,15 +146,26 @@ async def handle_private_message(message: types.Message) -> str:
 </требования к форматированию>
 """
 
-        # Combine system prompt with message history
-        messages = [{"role": "system", "content": system_prompt}]
-        messages.extend(message_history)
+        # Build conversation for chat agent
+        # pydantic-ai agent.run() takes a single user message string;
+        # include history as part of the user message for context
+        conversation_parts = []
+        for msg in message_history:
+            role = msg["role"]
+            content = msg["content"]
+            conversation_parts.append(f"{role.upper()}: {content}")
+        user_message_text = "\n".join(conversation_parts) + f"\n\nUSER: {admin_message}"
 
-        # Get response from LLM with retry logic for HTML parsing errors
+        # Get response from chat agent with retry logic for HTML parsing errors
         max_retries = 3
         for retry_count in range(max_retries):
-            # Get response from LLM
-            response = await get_llm_response_with_fallback(messages, temperature=0.6)
+            # Get response from chat agent
+            chat_agent = get_chat_agent()
+            result = await chat_agent.run(
+                user_message_text,
+                instructions=system_prompt,
+            )
+            response = result.output
 
             # Save bot's response to history
             await save_message(admin_id, "assistant", response)
@@ -179,15 +193,14 @@ async def handle_private_message(message: types.Message) -> str:
                     # Not an HTML error or max retries reached, re-raise
                     raise send_error
 
-                # This is an HTML parsing error, retry with new LLM response
-                messages.extend(
-                    (
-                        {"role": "assistant", "content": response},
-                        {
-                            "role": "user",
-                            "content": "Предыдущий ответ содержал ошибку форматирования HTML. Пожалуйста, повтори ответ, строго следуя правилам HTML: используй только <b> для жирного и <i> для курсива, обязательно закрывай все теги.",
-                        },
-                    )
+                # This is an HTML parsing error, retry with new agent call
+                user_message_text = (
+                    f"{admin_message}\n\n"
+                    "ПРЕДЫДУЩИЙ ОТВЕТ СОДЕРЖАЛ ОШИБКУ ФОРМАТИРОВАНИЯ HTML: "
+                    f"{response}\n\n"
+                    "Пожалуйста, повтори ответ, строго следуя правилам HTML: "
+                    "используй только <b> для жирного и <i> для курсива, "
+                    "обязательно закрывай все теги."
                 )
         # If we get here, max retries exceeded
         raise RuntimeError(

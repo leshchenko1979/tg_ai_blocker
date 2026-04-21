@@ -19,6 +19,7 @@ dependencies = [
     "httpx", # required for logfire
     "tenacity",
     "pydantic",
+    "pydantic-ai>=0.3.0",
 ]
 
 [project.optional-dependencies]

@@ -3,24 +3,50 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import os
+
+# Set this BEFORE any app.logging_setup import to prevent Logfire init in unit-test runs.
+# Integration tests will override this in pytest_collection_finish (before any test runs).
+os.environ.setdefault("SKIP_LOGFIRE", "1")
+
 import pytest
 from pytest_asyncio import is_async_test
 
+_session_has_integration = False
 
-def pytest_collection_modifyitems(items: list[pytest.Item]):
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    global _session_has_integration
     for test in items:
         if is_async_test(test):
-            # Mark async tests with session scope
             test.add_marker(pytest.mark.asyncio(loop_scope="session"), append=False)
+        if test.get_closest_marker("integration") is not None:
+            _session_has_integration = True
 
 
-# Mute Yandex logging
-from app.logging_setup import mute_logging_for_tests
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Called after test collection is complete. If there are integration tests, keep Logfire enabled."""
+    global _session_has_integration
+    if _session_has_integration:
+        # Integration tests run with real Logfire — reset debug flag and remove skip envs
+        os.environ.pop("SKIP_LOGFIRE", None)
+        os.environ.pop("PYTEST_CURRENT_TEST", None)
+        from app.logging_setup import _reset_debug, setup_logging
 
-mute_logging_for_tests()
+        _reset_debug()
+        setup_logging(environment="testing")
 
 
-import os
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    global _session_has_integration
+    _session_has_integration = False
+    os.environ.setdefault("SKIP_LOGFIRE", "1")
+    os.environ.pop("PYTEST_CURRENT_TEST", None)
+    from app.logging_setup import mute_logging_for_tests
+
+    mute_logging_for_tests()
+
+
 from datetime import datetime
 import asyncpg
 import aiosqlite

@@ -5,17 +5,21 @@ from typing import List, Optional, Tuple
 
 import logfire
 
+from ..agents import (
+    get_gateway_spam_agent,
+    get_openrouter_spam_agent,
+    _get_openrouter_agents,
+    _next_openrouter_agent,
+)
 from ..database import get_admin
 from ..i18n import normalize_lang
 from ..types import SpamClassificationContext
-from .llm_client import call_llm_with_spam_classification
+from .llm_client import classification_confidence_gauge, attempts_histogram
 from .prompt_builder import build_system_prompt, format_spam_request
 
 logger = logging.getLogger(__name__)
 
 
-@logfire.no_auto_trace
-@logfire.instrument(extract_args=True, record_return=True)
 async def is_spam(
     comment: str,
     admin_ids: Optional[List[int]] = None,
@@ -30,28 +34,62 @@ async def is_spam(
         if admin and admin.language_code:
             lang = normalize_lang(admin.language_code)
 
-    messages = await _prepare_classification_request(comment, admin_ids, ctx, lang)
-    return await call_llm_with_spam_classification(messages)
-
-
-async def _prepare_classification_request(
-    comment: str,
-    admin_ids: Optional[List[int]],
-    context: SpamClassificationContext,
-    lang: str = "en",
-) -> List[dict]:
     system_prompt = await build_system_prompt(
         admin_ids=admin_ids,
-        context=context,
+        context=ctx,
         lang=lang,
     )
-    user_request = format_spam_request(comment, context)
+    user_request = format_spam_request(comment, ctx)
     user_message = (
         f"{user_request}\n\n"
         "Analyze this message and respond with JSON spam classification "
         "including is_spam, confidence, and reason."
     )
-    return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message},
-    ]
+
+    # Try gateway first
+    try:
+        with logfire.span("spam_classifier_gateway_call"):
+            agent = get_gateway_spam_agent()
+            result = await agent.run(
+                user_message,
+                instructions=system_prompt,
+            )
+        is_spam_result = result.output.is_spam
+        confidence_result = result.output.confidence
+        reason_result = result.output.reason
+        classification_confidence_gauge.set(
+            confidence_result if is_spam_result else -confidence_result
+        )
+        attempts_histogram.record(1)
+        return is_spam_result, confidence_result, reason_result
+
+    except Exception as e:
+        with logfire.span("spam_classifier_gateway_failure"):
+            logger.warning(f"Gateway spam classification failed: {e}, trying OpenRouter")
+
+    # OpenRouter pool with rotation
+    with logfire.span("spam_classifier_openrouter_loop"):
+        agents = _get_openrouter_agents()
+        num_models = len(agents)
+
+        for attempt in range(num_models):
+            agent = get_openrouter_spam_agent()
+            try:
+                result = await agent.run(
+                    user_message,
+                    instructions=system_prompt,
+                )
+                is_spam_result = result.output.is_spam
+                confidence_result = result.output.confidence
+                reason_result = result.output.reason
+                classification_confidence_gauge.set(
+                    confidence_result if is_spam_result else -confidence_result
+                )
+                attempts_histogram.record(attempt + 1)
+                return is_spam_result, confidence_result, reason_result
+            except Exception as e:
+                logger.warning(f"OpenRouter agent {attempt + 1}/{num_models} failed: {e}")
+                _next_openrouter_agent()
+                continue
+
+        raise RuntimeError("All spam classifiers failed")

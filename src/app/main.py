@@ -6,7 +6,7 @@ import logging
 
 from .logging_setup import setup_logging
 
-setup_logging()
+setup_logging(environment="production")
 logger = logging.getLogger(__name__)
 
 # Start the server
@@ -14,7 +14,7 @@ import asyncio
 import os
 import time
 from asyncio import TimeoutError
-from typing import Optional, Union
+from typing import Optional
 
 import logfire
 from aiogram.dispatcher.event.bases import UNHANDLED
@@ -27,11 +27,8 @@ from .background_jobs import scheduled_jobs_loop
 from .bot_commands import setup_bot_commands
 from .common.bot import bot
 from .common.trace_context import set_root_span
-from .common.llms import (
-    LocationNotSupported,
-    RateLimitExceeded,
-    close_llm_http_resources,
-)
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
+from .common.llms import close_llm_http_resources
 from .common.mcp_client import close_mcp_http_client
 from .common.utils import get_dotted_path
 from .database.postgres_connection import close_pool
@@ -94,7 +91,11 @@ async def handle_update(request: web.Request) -> web.Response:
             elapsed = time.time() - start_time
             return await handle_timeout(span, json, elapsed)
 
-        except (RateLimitExceeded, LocationNotSupported) as e:
+        except TimeoutError:
+            elapsed = time.time() - start_time
+            return await handle_timeout(span, json, elapsed)
+
+        except ModelAPIError as e:
             elapsed = time.time() - start_time
             remaining = WEBHOOK_TIMEOUT - elapsed
             return await handle_temporary_error(span, e, elapsed, remaining)
@@ -216,64 +217,52 @@ async def handle_timeout(
     )
 
 
-def _temporary_error_to_response(
-    e: Union[RateLimitExceeded, LocationNotSupported],
-    remaining: float,
-) -> tuple[dict, int]:
-    """Build JSON body and status for temporary errors (rate limit, location not supported)."""
-    if isinstance(e, RateLimitExceeded):
-        if e.is_upstream_error:
-            return {"error": "Upstream provider rate limit exceeded"}, 503
-        return {
-            "error": "OpenRouter rate limit exceeded",
-            "retry_after": e.reset_time,
-        }, 503
-    return {"error": "Location not supported", "provider": e.provider}, 503
-
-
 async def handle_temporary_error(
     span: logfire.LogfireSpan,
-    e: Union[RateLimitExceeded, LocationNotSupported],
+    e: ModelAPIError,
     elapsed: float,
     remaining: float,
 ) -> web.Response:
-    """Handle rate limit or location not supported error."""
-    is_rate_limit = isinstance(e, RateLimitExceeded)
-    error_type = "rate_limit" if is_rate_limit else "location_not_supported"
+    """Handle ModelAPIError from pydantic-ai after retries exhausted."""
+    # Check if it's an HTTP error with status_code
+    if isinstance(e, ModelHTTPError):
+        status_code = e.status_code
+    else:
+        status_code = None
+
+    is_rate_limit = status_code == 429
+    error_type = "rate_limit" if is_rate_limit else "model_api_error"
     span.tags = [error_type]
 
-    error_msg = "Rate limit" if is_rate_limit else "Location not supported"
+    logger.warning(
+        f"LLM error after retries exhausted: {e.model_name} {e.message}",
+        extra={
+            "elapsed": elapsed,
+            "remaining": remaining,
+            "status_code": status_code,
+            "model": e.model_name,
+            "message": e.message,
+        },
+    )
+
     if remaining < 5:
         logger.warning(
-            f"{error_msg} hit but no time for retries",
+            "LLM error but no time for retries",
             extra={
                 "elapsed": elapsed,
                 "remaining": remaining,
-                "reset_time": getattr(e, "reset_time", None),
-                "provider": getattr(e, "provider", None),
+                "status_code": status_code,
             },
         )
         return web.json_response(
-            {"message": f"{error_msg} hit but no time for retries", "elapsed": elapsed}
+            {"message": "LLM error but no time for retries", "elapsed": elapsed}
         )
 
-    if isinstance(e, RateLimitExceeded) and e.is_upstream_error:
-        logger.info(
-            "Upstream provider rate limit exceeded, immediate retry",
-            extra={"remaining": remaining},
-        )
-    elif isinstance(e, RateLimitExceeded):
-        logger.info(
-            f"OpenRouter rate limit exceeded, {remaining:.2f} seconds remaining for retries",
-            extra={"reset_time": e.reset_time},
-        )
+    if is_rate_limit:
+        body = {"error": "OpenRouter rate limit exceeded", "retry": True}
     else:
-        logger.info(
-            f"Location not supported for provider {e.provider}, {remaining:.2f} seconds remaining for retries"
-        )
-
-    body, status = _temporary_error_to_response(e, remaining)
-    return web.json_response(body, status=status)
+        body = {"error": "LLM provider error", "retry": True}
+    return web.json_response(body, status=503)
 
 
 async def handle_unhandled_exception(
