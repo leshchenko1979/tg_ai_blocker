@@ -5,6 +5,8 @@ from typing import List, Optional, Tuple
 
 import logfire
 
+from pydantic_ai import ModelSettings
+
 from ..agents import (
     get_gateway_spam_agent,
     get_openrouter_spam_agent,
@@ -53,6 +55,7 @@ async def is_spam(
             result = await agent.run(
                 user_message,
                 instructions=system_prompt,
+                model_settings=ModelSettings(timeout=15.0),
             )
         is_spam_result = result.output.is_spam
         confidence_result = result.output.confidence
@@ -65,7 +68,9 @@ async def is_spam(
 
     except Exception as e:
         with logfire.span("spam_classifier_gateway_failure"):
-            logger.warning(f"Gateway spam classification failed: {e}, trying OpenRouter")
+            logger.warning(
+                f"Gateway spam classification failed: {e}, trying OpenRouter"
+            )
 
     # OpenRouter pool with rotation
     with logfire.span("spam_classifier_openrouter_loop"):
@@ -75,10 +80,12 @@ async def is_spam(
         for attempt in range(num_models):
             agent = get_openrouter_spam_agent()
             try:
-                result = await agent.run(
-                    user_message,
-                    instructions=system_prompt,
-                )
+                with logfire.span(f"spam_classifier_openrouter_call_{attempt + 1}"):
+                    result = await agent.run(
+                        user_message,
+                        instructions=system_prompt,
+                        model_settings=ModelSettings(timeout=15.0),
+                    )
                 is_spam_result = result.output.is_spam
                 confidence_result = result.output.confidence
                 reason_result = result.output.reason
@@ -88,7 +95,9 @@ async def is_spam(
                 attempts_histogram.record(attempt + 1)
                 return is_spam_result, confidence_result, reason_result
             except Exception as e:
-                logger.warning(f"OpenRouter agent {attempt + 1}/{num_models} failed: {e}")
+                logger.warning(
+                    f"OpenRouter agent {attempt + 1}/{num_models} failed: {e}"
+                )
                 _next_openrouter_agent()
                 continue
 

@@ -13,7 +13,14 @@ from aiogram.filters import or_f
 from ..common.bot import bot
 from ..spam.account_signals import build_account_signals_body
 from ..spam.user_profile import collect_user_context
-from ..agents import get_chat_agent, get_openrouter_chat_agent, _next_openrouter_chat_agent
+from pydantic_ai import ModelSettings
+
+from ..agents import (
+    get_chat_agent,
+    get_openrouter_chat_agent,
+    _get_openrouter_chat_agents,
+    _next_openrouter_chat_agent,
+)
 from ..common.utils import sanitize_llm_html
 from ..database import (
     add_spam_example,
@@ -167,6 +174,7 @@ async def handle_private_message(message: types.Message) -> str:
                 result = await chat_agent.run(
                     user_message_text,
                     instructions=system_prompt,
+                    model_settings=ModelSettings(timeout=15.0),
                 )
                 response = result.output
 
@@ -181,7 +189,11 @@ async def handle_private_message(message: types.Message) -> str:
                     error_msg = str(send_error).lower()
                     is_html_error = any(
                         error_text in error_msg
-                        for error_text in ("can't parse entities", "can't find end tag", "unclosed tag")
+                        for error_text in (
+                            "can't parse entities",
+                            "can't find end tag",
+                            "unclosed tag",
+                        )
                     )
 
                     if not is_html_error or retry_count >= max_retries - 1:
@@ -197,23 +209,29 @@ async def handle_private_message(message: types.Message) -> str:
                         "обязательно закрывай все теги."
                     )
 
+        except asyncio.CancelledError:
+            raise  # Don't swallow cancellation — let it propagate
         except Exception as e:
             last_error = e
             logger.warning(f"Gateway chat failed: {e}")
 
         # OpenRouter pool with rotation
-        from ..agents import _get_openrouter_chat_agents
         num_openrouter = len(_get_openrouter_chat_agents())
 
         for i in range(num_openrouter):
             chat_agent = get_openrouter_chat_agent()
-            provider_label = f"openrouter-{chat_agent.name}" if hasattr(chat_agent, 'name') else f"openrouter-{i}"
+            provider_label = (
+                f"openrouter-{chat_agent.name}"
+                if hasattr(chat_agent, "name")
+                else f"openrouter-{i}"
+            )
 
             for retry_count in range(max_retries):
                 try:
                     result = await chat_agent.run(
                         user_message_text,
                         instructions=system_prompt,
+                        model_settings=ModelSettings(timeout=15.0),
                     )
                     response = result.output
 
@@ -228,7 +246,11 @@ async def handle_private_message(message: types.Message) -> str:
                         error_msg = str(send_error).lower()
                         is_html_error = any(
                             error_text in error_msg
-                            for error_text in ("can't parse entities", "can't find end tag", "unclosed tag")
+                            for error_text in (
+                                "can't parse entities",
+                                "can't find end tag",
+                                "unclosed tag",
+                            )
                         )
 
                         if not is_html_error or retry_count >= max_retries - 1:
