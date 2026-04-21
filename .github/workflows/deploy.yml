@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -108,6 +108,7 @@ jobs:
               echo "${GHCR_PULL_TOKEN:-}" | docker login ghcr.io -u "${GHCR_PULL_USER:-}" --password-stdin
             fi
             docker compose pull && docker compose up -d --wait
+
       - name: Prune old images
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -117,6 +118,6 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           command_timeout: 5m
           script: |
-            docker images --format '{{.ID}} {{.Repository}}:{{.Tag}}' | \
-              grep 'ghcr.io/leshchenko1979/ai-antispam' | \
+            docker images --format '{{.ID}} {{.Repository}}:{{.Tag}}' | 
+              grep 'ghcr.io/leshchenko1979/ai-antispam' | 
               grep -v ':main$' | awk '{print $1}' | xargs -r docker rmi -f
