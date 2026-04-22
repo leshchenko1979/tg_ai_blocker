@@ -66,6 +66,15 @@ At start of dialog, read relevant memory-bank files:
 - `memory-bank/progress.md` — recent work log
 - `memory-bank/techContext.md` — technical details
 
+## Docker
+
+**Image:** `ghcr.io/leshchenko1979/ai-antispam` — **184MB** (reduced from ~800MB+)
+
+- Base: `python:3.14-alpine` (Alpine Linux, ~5MB base vs ~25MB Debian)
+- `pydantic-ai-slim[openai,logfire]` instead of full `pydantic-ai`
+- Builder stage: no system deps (pre-built wheels only)
+- Runner stage: `apk add --no-cache curl` for healthcheck only
+
 ## Key Patterns
 
 - Spam classification uses LLM with confidence thresholds (default 90%)
