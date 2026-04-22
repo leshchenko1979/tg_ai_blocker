@@ -29,7 +29,7 @@ COPY --chown=appuser:appuser PRD.md config.yaml ./
 COPY src/app ./app/
 
 RUN addgroup -S -g 1000 appuser && \
-    adduser -S -u 1000 -M -g 1000 appuser && \
+    adduser -S -u 1000 -H -G appuser appuser && \
     mkdir -p logs && chown -R appuser:appuser /app
 
 USER appuser
