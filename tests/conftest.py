@@ -48,6 +48,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
 
 from datetime import datetime
+from unittest.mock import MagicMock
 import asyncpg
 import aiosqlite
 import re
@@ -619,6 +620,58 @@ async def clean_db(patched_db_conn, test_pool):
                 await test_pool.release(conn)
 
 
+from aiogram.exceptions import TelegramBadRequest
+
+
+class MockTelegramBadRequest(TelegramBadRequest):
+    """Mock TelegramBadRequest for testing."""
+
+    def __init__(self, message):
+        super().__init__(MagicMock(), message)
+
+
+@pytest.fixture
+def mock_message():
+    """Mock message for spam handler tests."""
+    message = MagicMock()
+    message.message_id = 12345
+    message.chat.id = -1001234567890
+    message.chat.title = "Test Group"
+
+    user = MagicMock()
+    user.id = 67890
+    user.full_name = "Test User"
+    user.username = "testuser"
+    message.from_user = user
+    message.sender_chat = None
+
+    return message
+
+
+@pytest.fixture
+def mock_message_with_sender_chat(mock_message):
+    """Variant of mock_message with sender_chat set (for channel spam tests)."""
+    mock_message.sender_chat = MagicMock()
+    mock_message.sender_chat.id = -1002916411724
+    mock_message.sender_chat.title = "Channel Bot"
+    mock_message.sender_chat.type = "channel"
+    mock_message.reply_to_message = None
+    return mock_message
+
+
+@pytest.fixture
+def mock_message_context_result():
+    """Mock MessageContextResult for pipeline tests."""
+    result = MagicMock()
+    result.message_text = "Test message"
+    result.is_story = False
+    result.context = None
+    return result
+
+
+DEFAULT_SPAM_CONFIG = {"spam": {"high_confidence_threshold": 90}}
+
+
 @pytest.fixture
 def sample_user():
     return Administrator(
@@ -626,6 +679,12 @@ def sample_user():
         username="testuser",
         credits=50,
         delete_spam=False,
+        is_active=True,
+        language_code="en",
         created_at=datetime.now(),
         last_active=datetime.now(),
+        credits_depleted_at=None,
+        low_balance_warned_at=None,
+        depletion_day_1_warned_at=None,
+        depletion_day_6_warned_at=None,
     )

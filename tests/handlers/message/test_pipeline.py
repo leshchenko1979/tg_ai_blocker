@@ -1,39 +1,10 @@
 """Tests for message processing pipeline."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from src.app.handlers.message.pipeline import process_spam_or_approve
-
-DEFAULT_SPAM_CONFIG = {"spam": {"high_confidence_threshold": 90}}
-
-
-@pytest.fixture
-def mock_message():
-    """Create a mock message for testing."""
-    message = MagicMock()
-    message.message_id = 12345
-    message.chat.id = -1001234567890
-    message.chat.title = "Test Group"
-
-    user = MagicMock()
-    user.id = 67890
-    user.full_name = "Test User"
-    user.username = "testuser"
-    message.from_user = user
-    message.sender_chat = None
-
-    return message
-
-
-@pytest.fixture
-def mock_message_context_result():
-    """Create a mock MessageContextResult."""
-    result = MagicMock()
-    result.message_text = "Test message"
-    result.is_story = False
-    result.context = None
-    return result
+from tests.conftest import DEFAULT_SPAM_CONFIG
 
 
 class TestProcessSpamOrApprove:

@@ -1,6 +1,5 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from aiogram.exceptions import TelegramBadRequest
 
 from src.app.handlers.handle_spam import (
     format_admin_notification_message,
@@ -12,35 +11,11 @@ from src.app.types import (
     ContextStatus,
     MessageNotificationContext,
 )
-
-
-class MockTelegramBadRequest(TelegramBadRequest):
-    """Mock TelegramBadRequest for testing."""
-
-    def __init__(self, message):
-        # TelegramBadRequest requires method and message, but we can mock it
-        super().__init__(MagicMock(), message)
+from tests.conftest import MockTelegramBadRequest
 
 
 class TestSpamDeletion:
     """Test spam message deletion and permission error handling."""
-
-    @pytest.fixture
-    def mock_message(self):
-        """Create a mock message for testing."""
-        message = MagicMock()
-        message.message_id = 12345
-        message.chat.id = -1001234567890
-        message.chat.title = "Test Group"
-
-        user = MagicMock()
-        user.id = 67890
-        user.full_name = "Test User"
-        user.username = "testuser"
-        message.from_user = user
-        message.sender_chat = None  # Default to no sender_chat
-
-        return message
 
     @pytest.mark.asyncio
     async def test_successful_spam_deletion(self, mock_message):
@@ -268,23 +243,6 @@ class TestSpamDeletion:
 
 class TestHandleSpamSkipAutoDelete:
     """Test handle_spam with skip_auto_delete (low-confidence spam flow)."""
-
-    @pytest.fixture
-    def mock_message(self):
-        """Create a mock message for testing."""
-        message = MagicMock()
-        message.message_id = 12345
-        message.chat.id = -1001234567890
-        message.chat.title = "Test Group"
-
-        user = MagicMock()
-        user.id = 67890
-        user.full_name = "Test User"
-        user.username = "testuser"
-        message.from_user = user
-        message.sender_chat = None
-
-        return message
 
     @pytest.mark.asyncio
     async def test_skip_auto_delete_no_deletion_no_ban(self, mock_message):
