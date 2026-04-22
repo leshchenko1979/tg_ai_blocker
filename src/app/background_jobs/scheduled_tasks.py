@@ -12,7 +12,6 @@ import asyncio
 import logging
 
 from ..common.utils import load_config
-from .constants import SECONDS_PER_DAY
 from .low_balance import run_low_balance_checks
 from .no_rights import leave_no_rights_groups
 from ..database.message_lookup import cleanup_old_lookup_entries
@@ -20,6 +19,7 @@ from ..database.message_operations import cleanup_old_message_history
 from ..database.spam_examples import cleanup_pending_spam_examples
 
 logger = logging.getLogger(__name__)
+SECONDS_PER_DAY = 86400
 
 
 def _get_cache_ttl_days() -> dict[str, int]:

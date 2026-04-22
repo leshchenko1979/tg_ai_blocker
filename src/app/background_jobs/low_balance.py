@@ -31,9 +31,9 @@ from ..database import (
     mark_low_balance_warned,
 )
 
-from .constants import SECONDS_PER_DAY
-
 logger = logging.getLogger(__name__)
+
+SECONDS_PER_DAY = 86400
 
 
 def _get_billing_config():

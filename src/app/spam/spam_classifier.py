@@ -16,8 +16,10 @@ from ..agents import (
 from ..database import get_admin
 from ..i18n import normalize_lang
 from ..types import SpamClassificationContext
-from .llm_client import classification_confidence_gauge, attempts_histogram
 from .prompt_builder import build_system_prompt, format_spam_request
+
+classification_confidence_gauge = logfire.metric_gauge("spam_score")
+attempts_histogram = logfire.metric_histogram("attempts")
 
 logger = logging.getLogger(__name__)
 

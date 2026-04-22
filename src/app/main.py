@@ -28,7 +28,6 @@ from .bot_commands import setup_bot_commands
 from .common.bot import bot
 from .common.trace_context import set_root_span
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
-from .common.llms import close_llm_http_resources
 from .common.mcp_client import close_mcp_http_client
 from .common.utils import get_dotted_path
 from .database.postgres_connection import close_pool
@@ -197,7 +196,6 @@ async def _shutdown(app: web.Application) -> None:
     async with asyncio.TaskGroup() as tg:
         tg.create_task(bot.session.close())
         tg.create_task(close_pool())
-        tg.create_task(close_llm_http_resources())
         tg.create_task(close_mcp_http_client())
 
 
