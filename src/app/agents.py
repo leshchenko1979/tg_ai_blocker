@@ -5,6 +5,7 @@ import os
 from typing import Any, Optional
 
 import httpx
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -73,13 +74,15 @@ def _create_gateway_model() -> OpenAIChatModel:
         raise ValueError("CUSTOM_GATEWAY_MODEL environment variable is required")
 
     client = _create_retrying_client(timeout=15.0)
+    openai_client = AsyncOpenAI(
+        base_url=f"{GATEWAY_API_BASE.rstrip('/')}",
+        api_key=GATEWAY_API_KEY,
+        http_client=client,
+        max_retries=0,  # Disable SDK-level retries; AsyncTenacityTransport handles 502/503/504
+    )
     return OpenAIChatModel(
         GATEWAY_MODEL,
-        provider=OpenAIProvider(
-            base_url=f"{GATEWAY_API_BASE.rstrip('/')}",
-            api_key=GATEWAY_API_KEY,
-            http_client=client,
-        ),
+        provider=OpenAIProvider(openai_client=openai_client),
     )
 
 
@@ -89,13 +92,15 @@ def _create_openrouter_model(model_name: str) -> OpenAIChatModel:
         raise ValueError("OPENROUTER_API_KEY environment variable is required")
 
     client = _create_retrying_client(timeout=15.0)
+    openai_client = AsyncOpenAI(
+        base_url=f"{OPENROUTER_API_BASE.rstrip('/')}",
+        api_key=OPENROUTER_API_KEY,
+        http_client=client,
+        max_retries=0,  # Disable SDK-level retries; AsyncTenacityTransport handles 502/503/504
+    )
     return OpenAIChatModel(
         model_name,
-        provider=OpenAIProvider(
-            base_url=f"{OPENROUTER_API_BASE.rstrip('/')}",
-            api_key=OPENROUTER_API_KEY,
-            http_client=client,
-        ),
+        provider=OpenAIProvider(openai_client=openai_client),
     )
 
 
