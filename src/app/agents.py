@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import httpx
 from openai import AsyncOpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -21,7 +21,9 @@ class SpamClassification(BaseModel):
 
     is_spam: bool
     confidence: int
-    reason: str
+    reason: str = Field(
+        description="Reason for classification. IMPORTANT: Write in the same language as the admin's preference (Russian/English). Do NOT write in Chinese."
+    )
 
 
 # Models list for OpenRouter (same as original llms.py)
