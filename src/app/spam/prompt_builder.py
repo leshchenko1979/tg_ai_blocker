@@ -94,6 +94,17 @@ HIGH SPAM INDICATORS:
 - BIO: Links to Telegram bots (including "helpful" bots or "free tools" — often lead-gen funnels), external sites, t.me/ links to channels or bots, "consultation" offers, or phrases like "чекай канал в био".""")
         return self
 
+    def add_message_metadata_guidance(self) -> "SpamPromptBuilder":
+        """Add guidance for message metadata signals (via_bot, inline keyboard URLs)."""
+        self.prompt_parts.append("""
+## MESSAGE METADATA SIGNALS
+
+The following metadata fields may appear in the message:
+
+- [VIA_BOT]: If present, the message was sent via an inline bot (e.g., PostBot). Humans rarely post via inline bots — this is a strong spam indicator, especially when combined with promotional content or external links.
+- [INLINE_KEYBOARD_URLS]: URLs from inline keyboard buttons attached to the message. Spam messages often hide malicious links behind innocent-looking buttons (e.g., "Подробно" leading to phishing sites like fake government services). Treat these URLs as part of the message content for classification.""")
+        return self
+
     def add_trojan_horse_guidance(self) -> "SpamPromptBuilder":
         """Add Trojan Horse pattern guidance (clean message + dirty profile)."""
         self.prompt_parts.append("""
@@ -304,6 +315,7 @@ async def build_system_prompt(
     builder = SpamPromptBuilder().build_base_instructions(lang=lang)
 
     builder.add_user_info_guidance()
+    builder.add_message_metadata_guidance()
     builder.add_trojan_horse_guidance()
 
     if context is None:

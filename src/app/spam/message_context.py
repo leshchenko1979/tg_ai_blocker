@@ -101,8 +101,7 @@ def _collect_story_info(message: types.Message) -> tuple[list[str], bool]:
     story_info = []
     is_story = False
 
-    story_obj = getattr(message, "story", None)
-    if story_obj:
+    if story_obj := getattr(message, "story", None):
         story_chat = getattr(getattr(story_obj, "chat", None), "title", "Unknown")
         story_username = getattr(getattr(story_obj, "chat", None), "username", "")
         story_info.append(f"Forwarded story from: {story_chat} (@{story_username})")
@@ -125,10 +124,53 @@ def _collect_channel_info(message: types.Message) -> list[str]:
     return channel_info
 
 
+def _collect_inline_keyboard_urls(message: types.Message) -> list[str]:
+    """Collect URLs from inline keyboard buttons in the message."""
+    urls = []
+    if reply_markup := getattr(message, "reply_markup", None):
+        return (
+            [
+                button.url
+                for row in inline_keyboard
+                for button in row
+                if getattr(button, "url", None)
+            ]
+            if (inline_keyboard := getattr(reply_markup, "inline_keyboard", None))
+            else urls
+        )
+    else:
+        return urls
+
+
+def _collect_via_bot_info(message: types.Message) -> Optional[str]:
+    """Collect information about inline bot used to send the message."""
+    via_bot = getattr(message, "via_bot", None)
+    if not via_bot:
+        return None
+
+    bot_name = getattr(via_bot, "first_name", None) or "Unknown"
+    bot_username = getattr(via_bot, "username", None)
+    return f"Sent via bot: {bot_name}" + (f" (@{bot_username})" if bot_username else "")
+
+
 def _combine_forward_info(message_text: str, forward_info: list[str]) -> str:
     """Combine message text with forward information if any exists."""
     if forward_info:
         return f"{message_text}\n[FORWARD_INFO]: {' | '.join(forward_info)}"
+    return message_text
+
+
+def _combine_inline_urls(message_text: str, urls: list[str]) -> str:
+    """Append inline keyboard URLs to message text if any exist."""
+    if urls:
+        return f"{message_text}\n[INLINE_KEYBOARD_URLS]: {' | '.join(urls)}"
+    return message_text
+
+
+def _combine_via_bot(message_text: str, via_bot_info: Optional[str]) -> str:
+    """Append via_bot info to message text if present."""
+    if via_bot_info:
+        return f"{message_text}\n[VIA_BOT]: {via_bot_info}"
     return message_text
 
 
@@ -152,11 +194,19 @@ def extract_message_with_forward_context(message: types.Message) -> Tuple[str, b
     forward_info = _collect_forward_info(message)
     story_info, is_story = _collect_story_info(message)
     channel_info = _collect_channel_info(message)
+    via_bot_info = _collect_via_bot_info(message)
+    inline_urls = _collect_inline_keyboard_urls(message)
 
     # Combine all forward-related information
     all_forward_info = forward_info + story_info + channel_info
 
     # Add forward info to message text if any exists
     message_text = _combine_forward_info(message_text, all_forward_info)
+
+    # Add inline keyboard URLs if any exist
+    message_text = _combine_inline_urls(message_text, inline_urls)
+
+    # Add via_bot info if present
+    message_text = _combine_via_bot(message_text, via_bot_info)
 
     return message_text, is_story
