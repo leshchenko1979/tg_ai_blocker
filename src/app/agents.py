@@ -28,7 +28,7 @@ class SpamClassification(BaseModel):
 
 # Models list for OpenRouter (same as original llms.py)
 OPENROUTER_MODELS = [
-    "inclusionai/ling-2.6-flash:free",
+    "tencent/hy3-preview:free",
     "openai/gpt-oss-120b:free",
     "google/gemma-4-31b-it:free",
     "google/gemma-4-26b-a4b-it:free",
