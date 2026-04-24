@@ -44,7 +44,7 @@ OPENROUTER_API_BASE = "https://openrouter.ai/api/v1"
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 
-def _create_retrying_client(timeout: float = 15.0) -> httpx.AsyncClient:
+def _create_retrying_client(timeout: float = 60.0) -> httpx.AsyncClient:
     """Create httpx client with retry logic for gateway."""
 
     def should_retry_status(response: httpx.Response) -> None:
@@ -75,7 +75,7 @@ def _create_gateway_model() -> OpenAIChatModel:
     if not GATEWAY_MODEL:
         raise ValueError("CUSTOM_GATEWAY_MODEL environment variable is required")
 
-    client = _create_retrying_client(timeout=15.0)
+    client = _create_retrying_client(timeout=60.0)
     openai_client = AsyncOpenAI(
         base_url=f"{GATEWAY_API_BASE.rstrip('/')}",
         api_key=GATEWAY_API_KEY,
@@ -93,7 +93,7 @@ def _create_openrouter_model(model_name: str) -> OpenAIChatModel:
     if not OPENROUTER_API_KEY:
         raise ValueError("OPENROUTER_API_KEY environment variable is required")
 
-    client = _create_retrying_client(timeout=15.0)
+    client = _create_retrying_client(timeout=60.0)
     openai_client = AsyncOpenAI(
         base_url=f"{OPENROUTER_API_BASE.rstrip('/')}",
         api_key=OPENROUTER_API_KEY,
