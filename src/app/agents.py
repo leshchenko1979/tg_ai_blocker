@@ -7,7 +7,7 @@ from typing import Any, Optional
 import httpx
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, PromptedOutput
+from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
@@ -28,7 +28,6 @@ class SpamClassification(BaseModel):
 
 # Models list for OpenRouter (same as original llms.py)
 OPENROUTER_MODELS = [
-    "tencent/hy3-preview:free",
     "openai/gpt-oss-120b:free",
     "google/gemma-4-31b-it:free",
     "google/gemma-4-26b-a4b-it:free",
@@ -126,7 +125,7 @@ def get_gateway_spam_agent() -> Any:
     if _gateway_spam_agent is None:
         _gateway_spam_agent = Agent(
             get_gateway_model(),
-            output_type=PromptedOutput(SpamClassification),
+            output_type=SpamClassification,
             name="gateway-spam",
         )
     return _gateway_spam_agent
@@ -143,9 +142,7 @@ def _get_openrouter_agents() -> Any:
         _openrouter_agents = [
             Agent(
                 _create_openrouter_model(model_name),
-                output_type=PromptedOutput(SpamClassification)
-                if model_name == "tencent/hy3-preview:free"
-                else SpamClassification,
+                output_type=SpamClassification,
                 name=f"openrouter-spam-{model_name.split('/')[1]}",
             )
             for model_name in OPENROUTER_MODELS
