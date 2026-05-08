@@ -75,6 +75,8 @@ jobs:
 
       - name: Build and push
         uses: docker/build-push-action@v6
+        env:
+            BUILDKIT_PROGRESS: plain
         with:
           context: .
           file: ./Dockerfile
@@ -118,6 +120,6 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           command_timeout: 5m
           script: |
-            docker images --format '{{.ID}} {{.Repository}}:{{.Tag}}' | 
-              grep 'ghcr.io/leshchenko1979/ai-antispam' | 
+            docker images --format '{{.ID}} {{.Repository}}:{{.Tag}}' |
+              grep 'ghcr.io/leshchenko1979/ai-antispam' |
               grep -v ':main$' | awk '{print $1}' | xargs -r docker rmi -f
