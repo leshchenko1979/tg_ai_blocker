@@ -1,5 +1,6 @@
 import html
 import logging
+import os
 import re
 from functools import cache
 from typing import Any, Dict, Optional
@@ -81,6 +82,23 @@ def load_config() -> Dict[str, Any]:
         config = yaml.safe_load(f)
     logger.debug("Configuration loaded successfully")
     return config
+
+
+def spam_notify_spammers_via_mcp_enabled() -> bool:
+    """Return whether MTProto spammer promotional DMs are enabled."""
+    env_value = os.getenv("SPAM_NOTIFY_SPAMMERS_VIA_MCP")
+    if env_value is not None:
+        normalized = env_value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        logger.warning(
+            "Invalid SPAM_NOTIFY_SPAMMERS_VIA_MCP value '%s', falling back to config",
+            env_value,
+        )
+
+    return bool(load_config().get("spam", {}).get("notify_spammers_via_mcp", False))
 
 
 def remove_lines_to_fit_len(text: str, max_len: int) -> str:

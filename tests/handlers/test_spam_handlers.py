@@ -5,6 +5,7 @@ from src.app.handlers.handle_spam import (
     format_admin_notification_message,
     handle_spam,
     handle_spam_message_deletion,
+    notify_spam_contacts_via_mcp,
 )
 from src.app.spam.message_context import collect_message_context
 from src.app.types import (
@@ -361,6 +362,54 @@ class TestFormatAdminNotificationMessage:
             is_low_confidence_not_spam=False,
         )
         assert "Confirm" in result
+
+
+class TestNotifySpamContactsFeatureFlag:
+    @pytest.mark.asyncio
+    async def test_notify_spam_contacts_skips_when_flag_disabled(self, mock_message):
+        context = MagicMock()
+        context.channel_users = []
+
+        with (
+            patch(
+                "src.app.handlers.handle_spam.spam_notify_spammers_via_mcp_enabled",
+                return_value=False,
+            ),
+            patch(
+                "src.app.handlers.handle_spam.send_mcp_message_to_user",
+                new_callable=AsyncMock,
+            ) as mock_send,
+        ):
+            await notify_spam_contacts_via_mcp(
+                mock_message, reason="test reason", message_context_result=context
+            )
+
+        mock_send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_notify_spam_contacts_sends_when_flag_enabled(self, mock_message):
+        context = MagicMock()
+        context.channel_users = []
+        mock_message.sender_chat = None
+        mock_message.from_user.id = 12345
+        mock_message.from_user.username = "spammer"
+
+        with (
+            patch(
+                "src.app.handlers.handle_spam.spam_notify_spammers_via_mcp_enabled",
+                return_value=True,
+            ),
+            patch(
+                "src.app.handlers.handle_spam.send_mcp_message_to_user",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_send,
+        ):
+            await notify_spam_contacts_via_mcp(
+                mock_message, reason="test reason", message_context_result=context
+            )
+
+        mock_send.assert_called_once()
 
     """Test format_admin_notification_message with is_low_confidence_not_spam."""
 

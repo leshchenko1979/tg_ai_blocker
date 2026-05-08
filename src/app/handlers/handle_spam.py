@@ -19,6 +19,7 @@ from ..common.utils import (
     get_setup_guide_url,
     get_spam_guide_url,
     retry_on_network_error,
+    spam_notify_spammers_via_mcp_enabled,
 )
 from ..database import get_admin, get_admins_map
 from ..i18n import normalize_lang, resolve_lang, t
@@ -587,6 +588,12 @@ async def notify_spam_contacts_via_mcp(
     message_context_result: Optional["MessageContextResult"] = None,
 ) -> None:
     """Send MCP promotional notifications to spammers and spamming channel admins."""
+    if not spam_notify_spammers_via_mcp_enabled():
+        logger.debug(
+            "Skipping MTProto spammer notifications because feature flag is off"
+        )
+        return
+
     channel_users = (
         message_context_result.channel_users if message_context_result else None
     )

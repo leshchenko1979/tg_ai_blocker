@@ -28,6 +28,7 @@ spam:
   examples_limit: 40        # Max examples in prompt
   examples_ham_ratio: 0.25   # 25% ham, rest is spam
   recent_posts_limit: 5      # Number of recent channel posts to fetch for analysis
+  notify_spammers_via_mcp: false  # Enable MTProto promo DMs to blocked spammers/channel admins
 
 system:
   admin_chat_id: 133526395  # ID администратора для уведомлений
