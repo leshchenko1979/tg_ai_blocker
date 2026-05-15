@@ -3,6 +3,9 @@
 
 DB pool is skipped for targeted sends until a TelegramBadRequest triggers deactivation.
 Transient network errors are logged only (no deactivate). Optional `python-dotenv` for local runs.
+
+Resume: append successful admin IDs to --resume-file (default scripts/broadcast_sent.ids) and skip
+them on the next run. Use --clear-resume to start fresh.
 """
 
 from __future__ import annotations
@@ -21,7 +24,10 @@ if str(_PROJECT_ROOT) not in sys.path:
 try:
     from dotenv import load_dotenv
 except ImportError:
-    load_dotenv = lambda *_a, **_k: None  # Docker Compose injects env; optional locally
+
+    def load_dotenv(*_a, **_k) -> bool:  # Docker injects env; optional locally
+        return False
+
 
 load_dotenv(_PROJECT_ROOT / ".env")
 
@@ -35,6 +41,9 @@ from src.app.database.postgres_connection import close_pool, get_pool
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_RESUME_FILE = _PROJECT_ROOT / "scripts" / "broadcast_sent.ids"
+PROGRESS_EVERY = 10
+
 
 def load_admin_ids_from_file(path: Path) -> list[int]:
     """Load admin Telegram user IDs: one integer per line; # starts a comment."""
@@ -46,6 +55,25 @@ def load_admin_ids_from_file(path: Path) -> list[int]:
             continue
         ids.append(int(s))
     return sorted(set(ids))
+
+
+def load_sent_ids(path: Path) -> set[int]:
+    """Load admin IDs already notified (one integer per line)."""
+    if not path.is_file():
+        return set()
+    sent: set[int] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        sent.add(int(s))
+    return sent
+
+
+def append_sent_id(path: Path, admin_id: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(f"{admin_id}\n")
 
 
 def parse_args() -> argparse.Namespace:
@@ -83,6 +111,30 @@ def parse_args() -> argparse.Namespace:
         "--log-level",
         default="INFO",
         help="Logging verbosity (DEBUG, INFO, WARNING, ERROR, CRITICAL).",
+    )
+    parser.add_argument(
+        "--resume-file",
+        type=Path,
+        default=DEFAULT_RESUME_FILE,
+        help=f"Track successful sends in this file (default: {DEFAULT_RESUME_FILE}).",
+    )
+    parser.add_argument(
+        "--clear-resume",
+        action="store_true",
+        help="Delete --resume-file before sending.",
+    )
+    parser.add_argument(
+        "--min-sent",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Exit with code 1 if fewer than N messages were sent this run.",
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.05,
+        help="Seconds to wait after each send attempt (default: 0.05).",
     )
     args = parser.parse_args()
 
@@ -136,68 +188,165 @@ async def _deactivate_admin_after_failure(admin_id: int) -> None:
         )
 
 
+def _print_progress(
+    attempt: int,
+    total: int,
+    *,
+    sent: int,
+    skipped_resume: int,
+    failed: int,
+) -> None:
+    print(
+        f"[{attempt}/{total}] sent={sent} skipped_resume={skipped_resume} failed={failed}",
+        flush=True,
+    )
+
+
 async def broadcast_updates(
     bot: Bot,
     message: str,
     parse_mode: str,
+    *,
     admin_ids_filter: list[int] | None = None,
+    resume_file: Path,
+    sent_ids: set[int],
+    delay: float,
 ) -> tuple[dict[str, list[int]], int]:
     if admin_ids_filter is not None:
         admins = [Administrator(admin_id=i) for i in sorted(set(admin_ids_filter))]
     else:
         admins = await get_all_admins()
+
+    total = len(admins)
+    already_sent = sum(1 for a in admins if a.admin_id in sent_ids and a.admin_id >= 0)
+    print(
+        f"Broadcast: {total} recipient(s), {already_sent} already sent "
+        f"(resume file: {resume_file})",
+        flush=True,
+    )
+
     summary: dict[str, list[int]] = {
         "sent": [],
         "unreachable": [],
         "bots_skipped": [],
+        "skipped_resume": [],
     }
+
+    attempt = 0
+    sent_this_run = 0
+    failed_this_run = 0
+    skipped_resume_this_run = 0
 
     for admin in admins:
         admin_id = admin.admin_id
+        attempt += 1
 
         if admin_id < 0:
             summary["bots_skipped"].append(admin_id)
             logger.info("Skipping non-user admin %s", admin_id)
+            if attempt % PROGRESS_EVERY == 0 or attempt == total:
+                _print_progress(
+                    attempt,
+                    total,
+                    sent=sent_this_run,
+                    skipped_resume=skipped_resume_this_run,
+                    failed=failed_this_run,
+                )
+            continue
+
+        if admin_id in sent_ids:
+            summary["skipped_resume"].append(admin_id)
+            skipped_resume_this_run += 1
+            logger.debug("Skipping admin %s (already in resume file)", admin_id)
+            if attempt % PROGRESS_EVERY == 0 or attempt == total:
+                _print_progress(
+                    attempt,
+                    total,
+                    sent=sent_this_run,
+                    skipped_resume=skipped_resume_this_run,
+                    failed=failed_this_run,
+                )
             continue
 
         try:
             await _send_update(bot, admin_id, message, parse_mode)
             summary["sent"].append(admin_id)
+            sent_ids.add(admin_id)
+            append_sent_id(resume_file, admin_id)
+            sent_this_run += 1
             logger.info("Message sent to admin %s", admin_id)
         except TelegramBadRequest as tb:
             summary["unreachable"].append(admin_id)
+            failed_this_run += 1
             logger.warning("Cannot send update to admin %s: %s", admin_id, tb)
             await _deactivate_admin_after_failure(admin_id)
         except Exception as exc:
             summary["unreachable"].append(admin_id)
+            failed_this_run += 1
             logger.error("Unexpected error while messaging admin %s: %s", admin_id, exc)
 
-    return summary, len(admins)
+        if delay > 0:
+            await asyncio.sleep(delay)
+
+        if attempt % PROGRESS_EVERY == 0 or attempt == total:
+            _print_progress(
+                attempt,
+                total,
+                sent=sent_this_run,
+                skipped_resume=skipped_resume_this_run,
+                failed=failed_this_run,
+            )
+
+    return summary, total
 
 
 def print_summary(
     summary: dict[str, list[int]], total: int, message: str, *, recipient_source: str
 ) -> None:
-    print("\nBroadcast summary")
-    print("-----------------")
-    print(f"Recipients ({recipient_source}): {total}")
-    print(f"Successfully notified: {len(summary['sent'])}")
-    print(f"Unable to reach: {len(summary['unreachable'])}")
-    print(f"Skipped (non-user accounts): {len(summary['bots_skipped'])}")
+    print("\nBroadcast summary", flush=True)
+    print("-----------------", flush=True)
+    print(f"Recipients ({recipient_source}): {total}", flush=True)
+    print(f"Successfully notified: {len(summary['sent'])}", flush=True)
+    print(
+        f"Skipped (resume file): {len(summary.get('skipped_resume', []))}", flush=True
+    )
+    print(f"Unable to reach: {len(summary['unreachable'])}", flush=True)
+    print(f"Skipped (non-user accounts): {len(summary['bots_skipped'])}", flush=True)
     if summary["unreachable"]:
-        print("Problematic IDs: " + ", ".join(map(str, summary["unreachable"])))
+        print(
+            "Problematic IDs: " + ", ".join(map(str, summary["unreachable"])),
+            flush=True,
+        )
     if summary["sent"]:
         snippet = message if len(message) <= 200 else message[:200] + "..."
-        print(f"\nMessage preview:\n{snippet}")
+        print(f"\nMessage preview:\n{snippet}", flush=True)
 
 
 def _print_dry_run_admin_ids(admin_ids: list[int]) -> None:
-    print(f"Dry run: {len(admin_ids)} recipient(s)")
+    print(f"Dry run: {len(admin_ids)} recipient(s)", flush=True)
     if len(admin_ids) <= 10:
-        print(f"  IDs: {admin_ids}")
+        print(f"  IDs: {admin_ids}", flush=True)
     else:
-        print(f"  First: {admin_ids[:5]}")
-        print(f"  Last:  {admin_ids[-5:]}")
+        print(f"  First: {admin_ids[:5]}", flush=True)
+        print(f"  Last:  {admin_ids[-5:]}", flush=True)
+
+
+def _validate_exit(
+    summary: dict[str, list[int]], total: int, min_sent: int | None
+) -> None:
+    sent_count = len(summary["sent"])
+    if total > 0 and sent_count == 0:
+        print(
+            "ERROR: No messages were sent (0 successes). Check logs and resume file.",
+            flush=True,
+        )
+        sys.exit(1)
+    if min_sent is not None and sent_count < min_sent:
+        print(
+            f"ERROR: Sent {sent_count} message(s), but --min-sent requires at least {min_sent}.",
+            flush=True,
+        )
+        sys.exit(1)
 
 
 async def main() -> None:
@@ -229,6 +378,13 @@ async def main() -> None:
     if not message.strip():
         raise ValueError("Provided message is empty.")
 
+    resume_file: Path = args.resume_file
+    if args.clear_resume and resume_file.is_file():
+        resume_file.unlink()
+        print(f"Cleared resume file: {resume_file}", flush=True)
+
+    sent_ids = load_sent_ids(resume_file)
+
     if admin_ids_filter is None:
         await get_pool()
     bot = Bot(token=token)
@@ -240,7 +396,13 @@ async def main() -> None:
 
     try:
         summary, total_admins = await broadcast_updates(
-            bot, message, args.parse_mode, admin_ids_filter=admin_ids_filter
+            bot,
+            message,
+            args.parse_mode,
+            admin_ids_filter=admin_ids_filter,
+            resume_file=resume_file,
+            sent_ids=sent_ids,
+            delay=args.delay,
         )
         print_summary(
             summary,
@@ -248,6 +410,7 @@ async def main() -> None:
             message=message,
             recipient_source=recipient_source,
         )
+        _validate_exit(summary, total_admins, args.min_sent)
     finally:
         await bot.session.close()
         await close_pool()
@@ -258,3 +421,8 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Broadcast interrupted by user.")
+        print(
+            "Interrupted. Re-run to resume from scripts/broadcast_sent.ids.",
+            flush=True,
+        )
+        sys.exit(130)
