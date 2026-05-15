@@ -9,7 +9,8 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from ..common.bot import bot
 from ..common.utils import get_add_to_group_url, retry_on_network_error
 from ..database import get_admin, get_group, update_admin_language
-from ..database.group_operations import add_member
+from ..common.utils import load_config
+from ..database.group_operations import add_member, set_moderation_events
 from ..database.spam_examples import (
     confirm_pending_example_as_not_spam,
     confirm_pending_example_as_spam,
@@ -198,6 +199,12 @@ async def handle_spam_ignore_callback(callback: CallbackQuery) -> str:
                         )
                     )
                 tg.create_task(add_member(group_id, effective_user_id))
+                probation_min = int(
+                    load_config().get("spam", {}).get("probation_min_events", 3)
+                )
+                tg.create_task(
+                    set_moderation_events(group_id, effective_user_id, probation_min)
+                )
                 tg.create_task(
                     bot.edit_message_text(
                         chat_id=callback.message.chat.id,

@@ -34,8 +34,9 @@ class TestProcessSpamOrApprove:
         ):
             mock_deduct.return_value = True
             mock_load_config.return_value = DEFAULT_SPAM_CONFIG
+            mock_add_member.return_value = True
 
-            result = await process_spam_or_approve(
+            result, inserted = await process_spam_or_approve(
                 mock_message,
                 False,  # not spam
                 90,  # high confidence
@@ -45,6 +46,7 @@ class TestProcessSpamOrApprove:
             )
 
             assert result == "message_user_approved"
+            assert inserted is True
             mock_handle_spam.assert_not_called()
             mock_add_member.assert_called_once()
 
@@ -207,9 +209,10 @@ class TestProcessSpamOrApprove:
         ):
             mock_deduct.return_value = True
             mock_load_config.return_value = DEFAULT_SPAM_CONFIG
+            mock_add_member.return_value = True
             mock_handle_spam.return_value = "spam_admins_notified"
 
-            result = await process_spam_or_approve(
+            result, inserted = await process_spam_or_approve(
                 mock_message,
                 False,  # not spam
                 10,  # low confidence
@@ -219,6 +222,7 @@ class TestProcessSpamOrApprove:
             )
 
             assert result == "message_low_confidence_review"
+            assert inserted is True
             mock_add_member.assert_called_once()
             mock_handle_spam.assert_called_once()
             call_kwargs = mock_handle_spam.call_args[1]
@@ -243,7 +247,7 @@ class TestProcessSpamOrApprove:
         ):
             mock_deduct.return_value = False
 
-            result = await process_spam_or_approve(
+            result, _ = await process_spam_or_approve(
                 mock_message,
                 True,  # spam
                 95,  # confidence

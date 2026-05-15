@@ -215,17 +215,24 @@ class SQLiteConnectionAdapter:
         return None
 
     def _convert_on_conflict_to_sqlite(self, query):
-        """Convert PostgreSQL ON CONFLICT syntax to SQLite INSERT OR REPLACE"""
-        # Replace INSERT with INSERT OR REPLACE
+        """Convert PostgreSQL ON CONFLICT to SQLite INSERT OR IGNORE / OR REPLACE."""
+        if re.search(
+            r"ON\s+CONFLICT\b.*?DO\s+NOTHING", query, re.IGNORECASE | re.DOTALL
+        ):
+            query = re.sub(
+                r"\bINSERT\b", "INSERT OR IGNORE", query, flags=re.IGNORECASE
+            )
+            query = re.sub(
+                r"\s+ON\s+CONFLICT\b.*?DO\s+NOTHING",
+                "",
+                query,
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+            return query
+
         query = re.sub(r"\bINSERT\b", "INSERT OR REPLACE", query, flags=re.IGNORECASE)
-
-        # Remove the entire ON CONFLICT clause
-        # Match from ON CONFLICT to the end of the statement or a semicolon
-        on_conflict_pattern = r"\s+ON\s+CONFLICT.*?($|;)"
-        query = re.sub(
-            on_conflict_pattern, r"\1", query, flags=re.IGNORECASE | re.DOTALL
-        )
-
+        on_conflict_pattern = r"\s+ON\s+CONFLICT\b.*?(?=;|$)"
+        query = re.sub(on_conflict_pattern, "", query, flags=re.IGNORECASE | re.DOTALL)
         return query
 
     async def executemany(self, query, args_list):
@@ -334,6 +341,7 @@ async def create_sqlite_schema(conn):
             group_id INTEGER,
             member_id INTEGER,
             approved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            moderation_event_count INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (group_id, member_id),
             FOREIGN KEY (group_id) REFERENCES groups(group_id)
         );
@@ -669,7 +677,9 @@ def mock_message_context_result():
     return result
 
 
-DEFAULT_SPAM_CONFIG = {"spam": {"high_confidence_threshold": 90}}
+DEFAULT_SPAM_CONFIG = {
+    "spam": {"high_confidence_threshold": 90, "probation_min_events": 3}
+}
 
 
 @pytest.fixture

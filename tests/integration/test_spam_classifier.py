@@ -365,6 +365,7 @@ async def test_spam_classifier_direct():
     except Exception as e:
         print(f"Spam classifier failed: {e}")
         import traceback
+
         traceback.print_exc()
 
 

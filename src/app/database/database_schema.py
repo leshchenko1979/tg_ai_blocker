@@ -85,6 +85,7 @@ async def create_schema(conn: asyncpg.Connection):
                 group_id BIGINT REFERENCES groups(group_id) ON DELETE CASCADE,
                 member_id BIGINT NOT NULL,
                 approved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                moderation_event_count INT NOT NULL DEFAULT 0,
                 PRIMARY KEY (group_id, member_id)
             );
 

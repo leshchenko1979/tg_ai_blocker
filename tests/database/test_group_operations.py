@@ -7,11 +7,15 @@ from app.database import (
     deduct_credits_from_admins,
     get_admin_group_ids,
     get_groups_with_no_rights_past_grace,
+    get_moderation_event_count,
     get_paying_admins,
+    increment_moderation_events,
     is_member_in_group,
     is_moderation_enabled,
+    is_trusted_member,
     remove_member_from_group,
     set_group_moderation,
+    set_moderation_events,
     set_no_rights_detected_at,
 )
 
@@ -92,12 +96,14 @@ async def test_add_group_member(patched_db_conn, clean_db):
             group_id,
         )
 
-        # Add a new member
-        await add_member(group_id, new_member_id)
+        inserted = await add_member(group_id, new_member_id)
+        assert inserted is True
+        assert await is_member_in_group(group_id, new_member_id) is True
+        assert await get_moderation_event_count(group_id, new_member_id) == 1
+        assert await is_trusted_member(group_id, new_member_id) is False
 
-        # Verify the member was added
-        is_member = await is_member_in_group(group_id, new_member_id)
-        assert is_member is True
+        inserted_again = await add_member(group_id, new_member_id)
+        assert inserted_again is False
 
 
 @pytest.mark.asyncio
@@ -269,57 +275,65 @@ async def test_get_groups_with_no_rights_past_grace(patched_db_conn, clean_db):
 
 
 @pytest.mark.asyncio
-async def test_set_no_rights_detected_at(patched_db_conn, clean_db):
-    """set_no_rights_detected_at sets timestamp only when NULL."""
+async def test_is_trusted_member_probation_states(patched_db_conn, clean_db):
+    """Trusted only when moderation_event_count >= probation_min_events."""
+    group_id = 555001
+    member_id = 777001
     async with clean_db.acquire() as conn:
-        await conn.execute("INSERT INTO groups (group_id) VALUES (100)")
+        await conn.execute("INSERT INTO groups (group_id) VALUES ($1)", group_id)
 
-    await set_no_rights_detected_at(100)
+    assert await is_trusted_member(group_id, member_id) is False
 
-    async with clean_db.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT no_rights_detected_at FROM groups WHERE group_id = 100"
-        )
-        assert row is not None
-        assert row["no_rights_detected_at"] is not None
+    await add_member(group_id, member_id)
+    assert await is_trusted_member(group_id, member_id) is False
 
-    # Second call should not update (only when NULL)
-    await set_no_rights_detected_at(100)
-    async with clean_db.acquire() as conn:
-        row2 = await conn.fetchrow(
-            "SELECT no_rights_detected_at FROM groups WHERE group_id = 100"
-        )
-        assert row2["no_rights_detected_at"] == row["no_rights_detected_at"]
+    await set_moderation_events(group_id, member_id, 2)
+    assert await is_trusted_member(group_id, member_id) is False
+
+    await set_moderation_events(group_id, member_id, 3)
+    assert await is_trusted_member(group_id, member_id) is True
 
 
 @pytest.mark.asyncio
-async def test_clear_no_rights_detected_at(patched_db_conn, clean_db):
-    """clear_no_rights_detected_at sets timestamp to NULL."""
+async def test_set_moderation_events_upsert_on_conflict(patched_db_conn, clean_db):
+    """set_moderation_events upserts when row already exists (admin instant trust)."""
+    group_id = 555002
+    member_id = 777002
     async with clean_db.acquire() as conn:
+        await conn.execute("INSERT INTO groups (group_id) VALUES ($1)", group_id)
         await conn.execute(
-            "INSERT INTO groups (group_id, no_rights_detected_at) VALUES (101, CURRENT_TIMESTAMP)"
+            """
+            INSERT INTO approved_members (group_id, member_id, moderation_event_count)
+            VALUES ($1, $2, 1)
+            """,
+            group_id,
+            member_id,
         )
 
-    await clear_no_rights_detected_at(101)
-
-    async with clean_db.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT no_rights_detected_at FROM groups WHERE group_id = 101"
-        )
-        assert row is not None
-        assert row["no_rights_detected_at"] is None
+    await set_moderation_events(group_id, member_id, 3)
+    assert await get_moderation_event_count(group_id, member_id) == 3
+    assert await is_trusted_member(group_id, member_id) is True
 
 
 @pytest.mark.asyncio
-async def test_get_groups_with_no_rights_past_grace(patched_db_conn, clean_db):
-    """get_groups_with_no_rights_past_grace returns groups past grace period."""
+async def test_increment_moderation_events(patched_db_conn, clean_db):
+    group_id = 555003
+    member_id = 777003
     async with clean_db.acquire() as conn:
-        await conn.execute(
-            "INSERT INTO groups (group_id, no_rights_detected_at) VALUES (201, datetime('now', '-8 days')), (202, datetime('now', '-3 days')), (203, NULL)"
-        )
+        await conn.execute("INSERT INTO groups (group_id) VALUES ($1)", group_id)
 
-    result = await get_groups_with_no_rights_past_grace(7)
+    await add_member(group_id, member_id)
+    await increment_moderation_events(group_id, member_id)
+    assert await get_moderation_event_count(group_id, member_id) == 2
 
-    assert 201 in result
-    assert 202 not in result
-    assert 203 not in result
+
+@pytest.mark.asyncio
+async def test_remove_member_clears_probation_counter(patched_db_conn, clean_db):
+    group_id = 555004
+    member_id = 777004
+    async with clean_db.acquire() as conn:
+        await conn.execute("INSERT INTO groups (group_id) VALUES ($1)", group_id)
+
+    await set_moderation_events(group_id, member_id, 3)
+    await remove_member_from_group(member_id, group_id)
+    assert await get_moderation_event_count(group_id, member_id) is None

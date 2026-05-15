@@ -12,6 +12,7 @@ import asyncpg
 from dotenv import load_dotenv
 
 load_dotenv()
+from src.app.common.utils import load_config
 from src.app.database import get_pool
 from src.app.database.database_schema import create_procedures, create_schema
 
@@ -630,6 +631,51 @@ async def run_no_rights_column_migration():
         await add_no_rights_column_migration(conn)
 
 
+async def add_moderation_event_count_migration(conn: Any) -> List[str]:
+    """
+    Add moderation_event_count to approved_members and grandfather existing rows
+    to probation_min_events so legacy members keep trusted skip on edits.
+    """
+    operations = []
+    min_events = int(load_config().get("spam", {}).get("probation_min_events", 3))
+    print(f"Starting moderation_event_count migration (grandfather to {min_events})...")
+
+    async with conn.transaction():
+        await conn.execute(
+            """
+            ALTER TABLE approved_members
+            ADD COLUMN IF NOT EXISTS moderation_event_count INT NOT NULL DEFAULT 0
+            """
+        )
+        operations.append("Added moderation_event_count column")
+        print("✓ Added moderation_event_count column")
+
+        result = await conn.execute(
+            """
+            UPDATE approved_members
+            SET moderation_event_count = $1
+            """,
+            min_events,
+        )
+        operations.append(f"Grandfathered approved_members ({result})")
+        print(f"✓ Grandfathered existing approved_members to count={min_events}")
+
+    print(f"Moderation event count migration completed. {len(operations)} operations.")
+    return operations
+
+
+async def run_moderation_event_count_migration():
+    """Run moderation_event_count column migration manually."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    print("Getting database pool...")
+    pool = await get_pool()
+    print("Running moderation_event_count migration...")
+    async with pool.acquire() as conn:
+        print("Acquired connection from pool")
+        await add_moderation_event_count_migration(conn)
+
+
 async def run_pending_spam_example_migration():
     """Run the pending spam example columns migration manually."""
     print("Creating database if it doesn't exist...")
@@ -664,6 +710,8 @@ async def main():
             await run_depletion_warning_flags_migration()
         elif sys.argv[1] == "--add-no-rights-column":
             await run_no_rights_column_migration()
+        elif sys.argv[1] == "--add-moderation-event-count":
+            await run_moderation_event_count_migration()
         else:
             raise ValueError(f"Unknown migration flag {sys.argv[1]!r}")
     else:

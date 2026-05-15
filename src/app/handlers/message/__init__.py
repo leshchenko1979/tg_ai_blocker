@@ -20,7 +20,6 @@ from .pipeline import (
     process_spam_or_approve,
 )
 from .validation import (
-    check_known_member,
     check_skip_channel_bot_message,
     fetch_linked_chat_id,
     get_and_check_group,
@@ -41,7 +40,6 @@ __all__ = [
     "handle_moderated_message",
     "process_spam_or_approve",
     # Validation
-    "check_known_member",
     "check_skip_channel_bot_message",
     "determine_effective_user_id",
     "fetch_linked_chat_id",

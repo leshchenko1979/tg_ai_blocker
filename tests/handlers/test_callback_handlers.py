@@ -39,6 +39,10 @@ async def test_handle_spam_ignore_callback_answer_error():
             "src.app.handlers.callback_handlers.add_member",
             new_callable=AsyncMock,
         ),
+        patch(
+            "src.app.handlers.callback_handlers.set_moderation_events",
+            new_callable=AsyncMock,
+        ),
     ):
         mock_confirm.return_value = {
             "chat_id": 456,

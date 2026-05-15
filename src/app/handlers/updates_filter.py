@@ -43,3 +43,31 @@ filter_handle_message = and_f(
         F.story,
     ),
 )
+
+# Edited messages in groups: same content rules as new messages; admin check is in validation
+filter_handle_edited_message = and_f(
+    F.chat.type.in_(["group", "supergroup"]),
+    ~F.new_chat_member,
+    ~F.new_chat_members,
+    ~F.left_chat_member,
+    ~F.new_chat_title,
+    ~F.new_chat_photo,
+    ~F.delete_chat_photo,
+    ~F.group_chat_created,
+    ~F.supergroup_chat_created,
+    ~F.channel_chat_created,
+    ~F.message_auto_delete_timer_changed,
+    ~F.pinned_message,
+    or_f(
+        F.text,
+        F.photo,
+        F.video,
+        F.document,
+        F.sticker,
+        F.voice,
+        F.video_note,
+        F.animation,
+        F.audio,
+        F.story,
+    ),
+)

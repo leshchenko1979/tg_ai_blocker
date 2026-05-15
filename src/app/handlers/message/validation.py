@@ -6,7 +6,8 @@ from typing import Optional, Tuple
 from aiogram import types
 
 from ...common.bot import bot
-from ...database import get_group, is_member_in_group
+from ...database import get_group
+from ...database.group_operations import is_trusted_member
 from ...database.models import Group
 
 logger = logging.getLogger(__name__)
@@ -42,9 +43,9 @@ async def validate_group_and_check_early_exits(
     if user_id in group.admin_ids:
         return group, "message_from_admin_skipped"
 
-    # Check if sender is approved
-    if await check_known_member(chat_id, user_id):
-        return group, "message_known_member_skipped"
+    # Trusted members (probation complete) skip full pipeline
+    if await is_trusted_member(chat_id, user_id):
+        return group, "message_trusted_member_skipped"
 
     return group, ""
 
@@ -194,17 +195,3 @@ async def get_and_check_group(chat_id: int) -> Tuple[Optional[Group], str]:
         return None, "message_moderation_disabled"
 
     return group, ""
-
-
-async def check_known_member(chat_id: int, user_id: int) -> bool:
-    """
-    Check if user is already approved/known in the group.
-
-    Args:
-        chat_id: The chat ID
-        user_id: The user ID to check
-
-    Returns:
-        True if user is approved, False otherwise
-    """
-    return await is_member_in_group(chat_id, user_id)

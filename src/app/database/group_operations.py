@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, cast
 from aiogram.exceptions import TelegramBadRequest
 
 from ..common.bot import bot
+from ..common.utils import load_config
 from . import admin_operations
 from .models import Group
 from .postgres_connection import get_pool
@@ -301,6 +302,65 @@ async def get_admin_groups(admin_id: int) -> List[Dict]:
         return groups
 
 
+def get_probation_min_events() -> int:
+    """Minimum moderated events before a member is trusted (skip LLM)."""
+    return int(load_config().get("spam", {}).get("probation_min_events", 3))
+
+
+async def get_moderation_event_count(group_id: int, member_id: int) -> Optional[int]:
+    """Return moderation_event_count if member is approved, else None."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            """
+            SELECT moderation_event_count FROM approved_members
+            WHERE group_id = $1 AND member_id = $2
+            """,
+            group_id,
+            member_id,
+        )
+
+
+async def is_trusted_member(group_id: int, member_id: int) -> bool:
+    """True if member is approved and has completed probation."""
+    count = await get_moderation_event_count(group_id, member_id)
+    if count is None:
+        return False
+    return count >= get_probation_min_events()
+
+
+async def increment_moderation_events(group_id: int, member_id: int) -> None:
+    """Increment moderation event counter for an approved member."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE approved_members
+            SET moderation_event_count = moderation_event_count + 1
+            WHERE group_id = $1 AND member_id = $2
+            """,
+            group_id,
+            member_id,
+        )
+
+
+async def set_moderation_events(group_id: int, member_id: int, count: int) -> None:
+    """Set moderation event count (upsert for admin instant trust)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO approved_members (group_id, member_id, moderation_event_count)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (group_id, member_id) DO UPDATE
+            SET moderation_event_count = EXCLUDED.moderation_event_count
+            """,
+            group_id,
+            member_id,
+            count,
+        )
+
+
 async def is_member_in_group(group_id: int, member_id: int) -> bool:
     """Check if member is in group"""
     pool = await get_pool()
@@ -318,19 +378,21 @@ async def is_member_in_group(group_id: int, member_id: int) -> bool:
         return bool(exists)
 
 
-async def add_member(group_id: int, member_id: int) -> None:
-    """Add unique member to group"""
+async def add_member(group_id: int, member_id: int) -> bool:
+    """Add unique member to group with moderation_event_count=1. Returns True if inserted."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
+        row = await conn.fetchrow(
             """
-            INSERT INTO approved_members (group_id, member_id)
-            VALUES ($1, $2)
+            INSERT INTO approved_members (group_id, member_id, moderation_event_count)
+            VALUES ($1, $2, 1)
             ON CONFLICT DO NOTHING
+            RETURNING member_id
         """,
             group_id,
             member_id,
         )
+        return row is not None
 
 
 async def remove_member_from_group(

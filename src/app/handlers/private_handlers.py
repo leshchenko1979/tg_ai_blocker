@@ -558,7 +558,7 @@ async def _fill_lookup_context_if_needed(
         admin_group_ids=admin_group_ids,
     )
     if not lookup_result:
-        logger.info(
+        logger.error(
             "No matching message found in message_lookup_cache",
             extra={
                 "message_lookup": "miss",

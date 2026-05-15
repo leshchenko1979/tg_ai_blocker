@@ -3,7 +3,7 @@
 - **Target Users**: Telegram administrators managing active groups or channel discussions who need proactive, automated spam control without constant manual oversight.
 - **Core Value Proposition**: Deliver immediate protection against spam and scam activity by combining:
   - **LLM-based classification** for nuanced text analysis.
-  - **Deep Context Analysis**: Inspection of linked channels and **User Stories** to catch "Trojan horse" spam (benign message, toxic profile).
+  - **Deep Context Analysis**: Inspection of linked channels and **User Stories** to catch "Trojan horse" spam (benign message, toxic profile). **Probation period** re-checks edits from recently approved members before they become trusted.
   - **Custom spam examples** for community-specific tuning.
   - **Automated enforcement** actions (delete, ban).
   - **Proactive Outreach**: When blocking spam sent by channels or human spammers with linked channels, the bot automatically notifies the spammers or spamming channel administrators via direct MTProto messages, increasing reach and conversion opportunities among active channel promoters.

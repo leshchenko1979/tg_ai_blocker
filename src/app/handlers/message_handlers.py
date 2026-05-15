@@ -8,7 +8,7 @@ to the specialized message processing modules.
 from aiogram import types
 
 from .dp import dp
-from .updates_filter import filter_handle_message
+from .updates_filter import filter_handle_edited_message, filter_handle_message
 
 
 # =============================================================================
@@ -27,6 +27,14 @@ async def handle_moderated_message(message: types.Message) -> str:
     from .message.pipeline import handle_moderated_message as pipeline_handler
 
     return await pipeline_handler(message)
+
+
+@dp.edited_message(filter_handle_edited_message)
+async def handle_moderated_edited_message(message: types.Message) -> str:
+    """Re-moderate edited group messages (probation members and first-time posters)."""
+    from .message.pipeline import handle_moderated_message as pipeline_handler
+
+    return await pipeline_handler(message, source="edit")
 
 
 @dp.channel_post()

@@ -89,7 +89,7 @@ help:
     Examples are used when checking messages <b>in your groups</b>.
 
     <b>1. When the AI is unsure</b>
-    On <b>low confidence</b> (both borderline spam and borderline legitimate) I'll DM you a notification with context and <b>Delete</b> / <b>Not spam</b> buttons. Your choice is saved as a training example for future checks. <b>No need to forward</b> the message — data already comes from group moderation. If every admin has auto-delete on and the message was already removed, you'll only see <b>"Not spam"</b> to fix a false positive.
+    On <b>low confidence</b> (both borderline spam and borderline legitimate) I'll DM you a notification with context and <b>Delete</b> / <b>Not spam</b> buttons. Your choice is saved as a training example for future checks. Tapping <b>Not spam</b> also marks the user <b>trusted</b> — their later messages won't use stars. <b>No need to forward</b> the message — data already comes from group moderation. If every admin has auto-delete on and the message was already removed, you'll only see <b>"Not spam"</b> to fix a false positive.
 
     <b>2. Manually from chat</b>
 
@@ -118,11 +118,13 @@ help:
     • Forwarded messages
     • Auto-blocks forwarded stories
     • Deletes join/leave messages
+    • Edited messages from members still on probation (first checks after approval)
 
     <b>❌ Not moderated:</b>
     • Administrator messages
     • System notifications (except join/leave)
-    • Edited messages
+    • Messages from trusted members (whitelist) — no repeat LLM charge
+    • Edited messages from trusted members
     • Group name/photo changes
 
     <b>🤖 How AI works:</b>
@@ -178,7 +180,8 @@ help:
 
     <b>📊 Star usage:</b>
     • New members: 1 star per check — whether we approve or block
-    • Approved members: chat for free 💚
+    • After approval: a short probation — a few more checks (including edits) may use stars
+    • Trusted members (probation complete): further messages are free 💚
     • When stars run out: moderation stops
 
     <b>📈 Usage stats:</b>

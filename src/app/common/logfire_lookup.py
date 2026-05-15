@@ -45,7 +45,7 @@ async def get_weekly_stats(chat_ids: Sequence[int]) -> Dict[int, Dict[str, int]]
     spam_tags = {"spam_auto_deleted", "spam_admins_notified"}
     processed_tags = {
         "message_user_approved",
-        "message_known_member_skipped",
+        "message_trusted_member_skipped",
         "message_insufficient_credits",
         "message_spam_check_failed",
         "message_from_group_admin_skipped",

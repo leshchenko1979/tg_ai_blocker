@@ -57,6 +57,16 @@ The project defines spam not just as unsolicited advertising, but as **any conte
 *   **Phase 4 (The Drain)**: Small "earn" wins (allowed 1-2 times) -> Malicious link/transaction drains the whole wallet.
 *   **Phase 5 (Extortion)**: Revealing the scam -> Demanding more money to "unlock" the wallet -> Threats about "illegal financing" (e.g., AFU) and reporting to FSB/police.
 
+### 10. Benign-Then-Edit ("Same message_id" spam)
+*   **Method**: Send a **short, harmless line** (e.g. «Привет», «Спасибо», «Интересно»), pass moderation or human glance, then **edit the same message** into a full spam payload (vacancies, phones, crypto, links).
+*   **Why it works**:
+    *   Many bots only handle **`message`** updates and **ignore `edited_message`**, so the spam body **never goes through classification** again.
+    *   Systems that cache `(chat_id, message_id, text)` for admin workflows (e.g. forwarded spam examples, auto-delete) keep the **original** text — lookup by forwarded spam text **misses**, so cleanup targets are lost.
+    *   **Forward metadata** shows the spam text and sender, but **no “new post” event** fires for the toxic revision.
+*   **Weakness / detection hints**: Same `message_id` with **`edit_date`** present; abrupt jump from trivial text to ads; pattern repeatable across accounts.
+*   **Confirmed case (2026-05)**: Account in a real-estate discussion supergroup — message **17037** first «Привет», minutes later edited to helper-recruitment spam with phone `+79293619175`; production traces showed initial text processed via `handle_moderated_message`, spam revision delivered only as **`edited_message`** (filtered out by `updates_filter`: `~F.edited_message`).
+*   **Mitigation (2026-05)**: **Probation period** — new approvals stay on full pipeline (including `edited_message` handler) until `moderation_event_count >= probation_min_events`. Lookup cache updated on classify/edit paths. **Caveat**: members grandfathered at deploy keep trusted edit skip; tactic 10 can still affect them until trusted-user edit moderation is built.
+
 ## Mostly Used Spam Tactics
 
 Based on current trends, the most frequent tactics are:
@@ -66,6 +76,8 @@ Based on current trends, the most frequent tactics are:
 4.  **Knowledge Sharing Bait**: Offering free PDFs or courses to start a private conversation.
 5.  **Native Ad Imitation**: Starting a conversation about a specific niche (real estate, crypto) to eventually drop a "recommendation".
 
+**Emerging (monitor)**: **Benign-then-edit** (tactic 10) — partially mitigated for new probation members; monitor grandfathered trusted users on edits.
+
 ## Confirmed Spam Examples from Database
 
 Полный выгруз 127 подтверждённых примеров спама (score=100, confirmed=true) с контекстом — в файле **memory-bank/confirmedSpamExamples.md**.
@@ -73,6 +85,7 @@ Based on current trends, the most frequent tactics are:
 Источник: PostgreSQL `spam_examples` (2026-03-14). Каждый пример содержит: text, name, bio, linked_channel_fragment, stories_context, reply_context, account_signals_context.
 
 ## Key Indicators for Detection
+*   **Edits**: Telegram supplies **`edit_date`** on messages; a trivial first revision replaced by high-risk content is suspicious (especially combined with phones/links).
 *   **Account Age**: New accounts are significantly more likely to be spam.
 *   **Profile Richness**: Lack of bio, username, or stories (though some advanced bots now use these).
 *   **Context Relevance**: Does the message actually address the specific points in the original post?
