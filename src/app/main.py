@@ -30,8 +30,6 @@ from .common.trace_context import set_root_span
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from .common.mcp_client import close_mcp_http_client
 from .common.utils import get_dotted_path, get_webhook_timeout, validate_llm_config
-from .common.webhook_errors import RetryableWebhookError
-from .common.webhook_deadline import set_webhook_deadline
 from .database.postgres_connection import close_pool
 from .handlers.dp import dp
 from .logging_setup import get_telegram_handler, register_telegram_logging_loop
@@ -69,7 +67,6 @@ async def handle_update(request: web.Request) -> web.Response:
         )
 
     start_time = time.time()
-    set_webhook_deadline(time.monotonic() + WEBHOOK_TIMEOUT)
 
     with logfire.span(extract_chat_or_user(json), update=json) as span:
         set_root_span(span)
@@ -96,10 +93,6 @@ async def handle_update(request: web.Request) -> web.Response:
             elapsed = time.time() - start_time
             remaining = WEBHOOK_TIMEOUT - elapsed
             return await handle_temporary_error(span, e, elapsed, remaining)
-
-        except RetryableWebhookError as e:
-            elapsed = time.time() - start_time
-            return await handle_retryable_webhook_error(span, e, elapsed)
 
         except Exception as e:
             return await handle_unhandled_exception(span, e, json)
@@ -211,22 +204,6 @@ app.on_startup.append(_on_startup_setup_bot)
 app.on_startup.append(_on_startup_scheduled_jobs)
 app.on_startup.append(_on_startup_log_server_started)
 app.on_shutdown.append(_shutdown)
-
-
-async def handle_retryable_webhook_error(
-    span: logfire.LogfireSpan, e: RetryableWebhookError, elapsed: float
-) -> web.Response:
-    """LLM/moderation incomplete (time budget, all providers failed, etc.)."""
-    logger.warning(
-        "Retryable webhook error after %.2fs: %s",
-        elapsed,
-        e,
-    )
-    span.tags = ["retryable_webhook_error"]
-    return web.json_response(
-        {"error": str(e), "retry": True},
-        status=503,
-    )
 
 
 async def handle_timeout(
