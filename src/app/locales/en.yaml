@@ -77,7 +77,7 @@ help:
     4. Done!
 
     <b>For channels with comments:</b>
-    Use the same link: <a href="{add_to_group_url}">Add to group</a> — when the group selection appears, choose your channel's <b>discussion group</b> (not the channel itself!). The bot will get the right permissions automatically.
+    Use the same link: <a href="{add_to_group_url}">Add to group</a> — when the group selection appears, choose your channel's <b>discussion group</b> (not the channel itself!). Bots cannot moderate channel comments directly; they work in the group where comments are actually posted.
 
     <b>Detailed guide:</b>
     https://t.me/ai_antispam/14
@@ -91,7 +91,10 @@ help:
     <b>1. When the AI is unsure</b>
     On <b>low confidence</b> (both borderline spam and borderline legitimate) I'll DM you a notification with context and <b>Delete</b> / <b>Not spam</b> buttons. Your choice is saved as a training example for future checks. Tapping <b>Not spam</b> also marks the user <b>trusted</b> — their later messages won't use stars. <b>No need to forward</b> the message — data already comes from group moderation.
 
-    If you use <b>silent delete</b> mode (<code>/mode</code>), auto-removed spam does not send a per-message DM. For a false positive, <b>forward the message to me in private</b> and choose <b>Not spam</b> when asked. In normal delete mode, after auto-removal you get a DM with a <b>Not spam</b> button only.
+    <b>2. Auto-delete and Silent mode</b>
+    If you use <b>Auto-delete</b> mode, I'll remove high-confidence spam immediately.
+    • In <b>normal mode</b>, you'll still get a DM with a <b>Not spam</b> button to fix false positives.
+    • In <b>silent mode</b> (<code>/mode</code>), no DM is sent. This mode is recommended for active groups where you trust the AI to work autonomously.
 
     <b>2. Manually from chat</b>
 
@@ -221,7 +224,7 @@ stats:
 
 mode:
   delete_enabled: "🗑 <b>Auto-delete</b> enabled\n\nI will delete high-confidence spam and DM you after each removal (with a <b>Not spam</b> button)."
-  delete_silent_enabled: "🔇 <b>Silent auto-delete</b> enabled\n\nI will delete high-confidence spam without a DM per removal. If I make a mistake, <b>forward the message to me in private</b> to mark it as not spam."
+  delete_silent_enabled: "🔇 <b>Silent auto-delete</b> enabled\n\nI will delete high-confidence spam without sending you any notifications."
   notify_enabled: "🔔 <b>Notify only</b> enabled\n\nI will notify you about spam and wait for your confirmation before deleting."
   error: "An error occurred while changing mode."
 
@@ -263,7 +266,7 @@ spam:
   destroyed_channel: "<b>Malicious message destroyed, channel banned.</b>"
   destroyed_user: "<b>Malicious message destroyed, user banned.</b>"
   message_link: "<a href=\"{link}\">Link to message</a>\n\n"
-  mode_tip: "<b>💡 Tip:</b> Use /mode to switch to automatic spam deletion."
+  mode_tip: "<b>💡 Tip:</b> Use /mode to switch to auto-delete or silent mode."
   spam_guide_link: "ℹ️ Learn how spam detection works</a>"
   error_no_user: "Error: message without user info"
   permission_delete: "Delete messages"

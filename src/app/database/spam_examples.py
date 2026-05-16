@@ -131,6 +131,23 @@ async def confirm_pending_example_as_spam(
         return result != "UPDATE 0"
 
 
+async def get_pending_example_by_message(
+    chat_id: int, message_id: int
+) -> Optional[int]:
+    """Find pending spam example ID by chat and message ID."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            """
+            SELECT id FROM spam_examples
+            WHERE chat_id = $1 AND message_id = $2 AND confirmed = false
+            LIMIT 1
+            """,
+            chat_id,
+            message_id,
+        )
+
+
 def _get_examples_config() -> tuple[int, float, float]:
     """Return (limit, ham_ratio, spam_ratio) from config. spam_ratio = 1 - ham_ratio."""
     spam_cfg = load_config().get("spam", {})

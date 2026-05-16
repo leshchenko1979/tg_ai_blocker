@@ -1,6 +1,6 @@
 ## Progress
 
-- **Silent auto-delete mode (2026-05)**: ✅ **Implemented** — `ModerationMode` enum, `/mode` 3-step cycle, `notify_admins` filters `delete_silent` (no group fallback when all silent), dual-write `delete_spam` during phase 2, migrations `--add-moderation-mode` / `--drop-delete-spam`, locales + help updated, unit tests (162 pass). **Pending ops**: phase 1 migration on VDS, deploy, channel post + admin broadcast (see `docs/channel_post_silent_mode.md`, `docs/broadcast_silent_mode.md`), phase 3 drop column.
+- **Silent auto-delete mode (2026-05)**: ✅ **Implemented** — `ModerationMode` enum, `/mode` 3-step cycle, `notify_admins` filters `delete_silent` (no group fallback when all silent), dual-write `delete_spam` during phase 2, migrations `--add-moderation-mode` / `--drop-delete-spam`, locales + help updated and reviewed for clarity, unit tests (162 pass). **Pending ops**: phase 1 migration on VDS, deploy, channel post + admin broadcast (see `docs/channel_post_silent_mode.md`, `docs/broadcast_silent_mode.md`), phase 3 drop column.
 
 - **GitHub Actions CI Pipeline (2026-04-21)**: ✅ **Complete** — Migrated from manual `deploy.sh` to GitHub Actions. Workflow: push to main → build Docker image → push to GHCR → SSH deploy. Secrets in GitHub: `SSH_HOST`, `SSH_USER`, `SSH_PORT`, `SSH_PRIVATE_KEY`, `BOT_TOKEN`, `GHCR_PULL_TOKEN`, `GHCR_PULL_USER`. Unit tests run in CI (integration tests excluded). Sync script: `scripts/sync-remote-config.sh` for initial server bootstrap.
 
