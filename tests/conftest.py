@@ -66,6 +66,7 @@ from app.database import (
     drop_and_create_database,
     postgres_connection,
 )
+from app.database.models import ModerationMode
 
 # Test database settings - use SQLite for fast local testing
 USE_SQLITE = os.getenv("USE_SQLITE_TESTS", "true").lower() == "true"
@@ -310,7 +311,7 @@ async def create_sqlite_schema(conn):
             admin_id INTEGER PRIMARY KEY,
             username TEXT,
             credits INTEGER DEFAULT 0 CHECK (credits >= 0),
-            delete_spam BOOLEAN DEFAULT 1,
+            moderation_mode TEXT NOT NULL DEFAULT 'notify',
             is_active BOOLEAN DEFAULT 1,
             language_code TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -695,7 +696,7 @@ def sample_user():
         admin_id=123456,
         username="testuser",
         credits=50,
-        delete_spam=False,
+        moderation_mode=ModerationMode.NOTIFY,
         is_active=True,
         language_code="en",
         created_at=datetime.now(),

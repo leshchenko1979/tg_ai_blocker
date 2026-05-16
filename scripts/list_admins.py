@@ -36,7 +36,7 @@ async def main():
                 print(f"Username: {admin.username or 'Not set'}")
                 print(f"Full Name: {full_name or 'Not available'}")
                 print(f"Credits: {admin.credits}")
-                print(f"Delete Spam: {admin.delete_spam}")
+                print(f"Moderation mode: {admin.moderation_mode.value}")
                 print(f"Created: {admin.created_at}")
                 print(f"Last Active: {admin.last_updated}")
             except Exception:
@@ -44,7 +44,7 @@ async def main():
                 print(f"Username: {admin.username or 'Not set'}")
                 print("Full Name: Unable to fetch (User may have blocked the bot)")
                 print(f"Credits: {admin.credits}")
-                print(f"Delete Spam: {admin.delete_spam}")
+                print(f"Moderation mode: {admin.moderation_mode.value}")
                 print(f"Created: {admin.created_at}")
                 print(f"Last Active: {admin.last_updated}")
             print("-------------------")

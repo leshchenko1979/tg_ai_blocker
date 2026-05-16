@@ -1,34 +1,31 @@
 import pytest
 
 from app.database import (
+    cycle_moderation_mode,
     get_admin,
     get_admin_credits,
     get_admin_stats,
-    get_spam_deletion_state,
+    get_moderation_mode,
     get_spent_credits_last_week,
     initialize_new_admin,
     save_admin,
-    toggle_spam_deletion,
 )
 from app.database.constants import INITIAL_CREDITS
+from app.database.models import ModerationMode
 
 
 @pytest.mark.asyncio
 async def test_save_and_get_user(patched_db_conn, clean_db, sample_user):
     """Test saving and retrieving a user"""
     async with clean_db.acquire() as conn:
-        # Save the user
         await save_admin(sample_user)
-
-        # Retrieve the user
         retrieved_user = await get_admin(sample_user.admin_id)
 
-    # Assertions
     assert retrieved_user is not None
     assert retrieved_user.admin_id == sample_user.admin_id
     assert retrieved_user.username == sample_user.username
     assert retrieved_user.credits == sample_user.credits
-    assert retrieved_user.delete_spam == sample_user.delete_spam
+    assert retrieved_user.moderation_mode == sample_user.moderation_mode
 
 
 @pytest.mark.asyncio
@@ -37,107 +34,103 @@ async def test_initialize_new_user(patched_db_conn, clean_db):
     user_id = 789012
 
     async with clean_db.acquire() as conn:
-        # Initialize new user
         result = await initialize_new_admin(user_id)
 
-        # Assertions
         assert result is True
 
-        # Verify the user was created with initial credits
         user = await get_admin(user_id)
         assert user is not None
         assert user.credits == INITIAL_CREDITS
-        assert user.delete_spam is False
+        assert user.moderation_mode == ModerationMode.NOTIFY
 
 
 @pytest.mark.asyncio
-async def test_toggle_spam_deletion(patched_db_conn, clean_db, sample_user):
-    """Test toggling spam deletion setting"""
+async def test_cycle_moderation_mode(patched_db_conn, clean_db, sample_user):
+    """Test cycling moderation mode notify → delete → delete_silent → notify"""
     async with clean_db.acquire() as conn:
-        # Save the user first
         await save_admin(sample_user)
 
-        # Initial state should be False (new default)
-        initial_state = await get_spam_deletion_state(sample_user.admin_id)
-        assert initial_state is False
+        assert await get_moderation_mode(sample_user.admin_id) == ModerationMode.NOTIFY
 
-        # Toggle to True
-        new_state = await toggle_spam_deletion(sample_user.admin_id)
-        assert new_state is True
+        assert await cycle_moderation_mode(sample_user.admin_id) == ModerationMode.DELETE
+        assert await get_moderation_mode(sample_user.admin_id) == ModerationMode.DELETE
 
-        # Verify state is True
-        current_state = await get_spam_deletion_state(sample_user.admin_id)
-        assert current_state is True
+        assert (
+            await cycle_moderation_mode(sample_user.admin_id)
+            == ModerationMode.DELETE_SILENT
+        )
+        assert (
+            await get_moderation_mode(sample_user.admin_id)
+            == ModerationMode.DELETE_SILENT
+        )
 
-        # Toggle back to False
-        new_state = await toggle_spam_deletion(sample_user.admin_id)
-        assert new_state is False
-
-        # Verify state is False again
-        current_state = await get_spam_deletion_state(sample_user.admin_id)
-        assert current_state is False
+        assert await cycle_moderation_mode(sample_user.admin_id) == ModerationMode.NOTIFY
+        assert await get_moderation_mode(sample_user.admin_id) == ModerationMode.NOTIFY
 
 
 @pytest.mark.asyncio
-async def test_get_spam_deletion_state_default(patched_db_conn, clean_db):
-    """Test getting spam deletion state for non-existent user"""
+async def test_cycle_moderation_mode_non_existent_admin(patched_db_conn, clean_db):
     async with clean_db.acquire() as conn:
-        # Should return True (default) for non-existent user
-        state = await get_spam_deletion_state(999999)
-        assert state is True
+        new_mode = await cycle_moderation_mode(999999)
+        assert new_mode is None
 
 
 @pytest.mark.asyncio
-async def test_get_spam_deletion_state(patched_db_conn, clean_db, sample_user):
-    """Test getting spam deletion state"""
+async def test_get_moderation_mode_default(patched_db_conn, clean_db):
+    """Unknown admin defaults to notify."""
     async with clean_db.acquire() as conn:
-        # Save user with delete_spam=False
-        sample_user.delete_spam = False
+        assert await get_moderation_mode(999999) == ModerationMode.NOTIFY
+
+
+@pytest.mark.asyncio
+async def test_dual_write_syncs_delete_spam(patched_db_conn, clean_db, sample_user):
+    """When delete_spam column exists, cycle updates legacy boolean."""
+    import app.database.admin_operations as admin_ops
+
+    admin_ops._delete_spam_column_exists = None
+
+    async with clean_db.acquire() as conn:
+        await conn.execute(
+            "ALTER TABLE administrators ADD COLUMN delete_spam BOOLEAN DEFAULT 0"
+        )
+        admin_ops._delete_spam_column_exists = None
         await save_admin(sample_user)
 
-        # Get state
-        state = await get_spam_deletion_state(sample_user.admin_id)
-        assert state is False
+        await cycle_moderation_mode(sample_user.admin_id)
+        row = await conn.fetchrow(
+            "SELECT moderation_mode, delete_spam FROM administrators WHERE admin_id = $1",
+            sample_user.admin_id,
+        )
+        assert row["moderation_mode"] == "delete"
+        assert bool(row["delete_spam"])
 
-
-@pytest.mark.asyncio
-async def test_toggle_spam_deletion_non_existent_admin(patched_db_conn, clean_db):
-    """Test toggling spam deletion setting for non-existent admin""" ""
-    async with clean_db.acquire() as conn:
-        admin_id = 999999
-
-        # Toggle spam deletion for non-existent admin
-        new_state = await toggle_spam_deletion(admin_id)
-
-        assert new_state is None
+        await cycle_moderation_mode(sample_user.admin_id)
+        row = await conn.fetchrow(
+            "SELECT moderation_mode, delete_spam FROM administrators WHERE admin_id = $1",
+            sample_user.admin_id,
+        )
+        assert row["moderation_mode"] == "delete_silent"
+        assert bool(row["delete_spam"])
 
 
 @pytest.mark.asyncio
 async def test_get_user_credits(patched_db_conn, clean_db, sample_user):
-    """Test retrieving user credits"""
     async with clean_db.acquire() as conn:
-        # Save the user first
         await save_admin(sample_user)
-
-        # Retrieve user credits
         credits = await get_admin_credits(sample_user.admin_id)
-
-        # Assertions
         assert credits == sample_user.credits
 
 
 @pytest.mark.asyncio
 async def test_get_spent_credits_last_week(patched_db_conn, clean_db):
-    """Test tracking spent credits over the last week"""
     admin_id = 12345
     group_id = 98765
 
     async with clean_db.acquire() as conn:
-        # Create test admin and group
         await conn.execute(
             """
-            INSERT INTO administrators (admin_id, credits)
-            VALUES ($1, $2)
+            INSERT INTO administrators (admin_id, credits, moderation_mode)
+            VALUES ($1, $2, 'notify')
             """,
             admin_id,
             100,
@@ -160,8 +153,6 @@ async def test_get_spent_credits_last_week(patched_db_conn, clean_db):
             admin_id,
         )
 
-        # Add some transactions with different scenarios
-        # Use separate INSERT statements for SQLite compatibility
         transactions = [
             (admin_id, -10, "deduct", "Group moderation credit deduction", "NOW()"),
             (
@@ -201,38 +192,27 @@ async def test_get_spent_credits_last_week(patched_db_conn, clean_db):
                 tx[3],
             )
 
-    # Test the function
     spent_credits = await get_spent_credits_last_week(admin_id)
-
-    # Should sum up only transactions with negative amounts from last 7 days
     assert spent_credits == 55
 
 
 @pytest.mark.asyncio
 async def test_get_admin_stats_no_groups(patched_db_conn, clean_db):
-    """Test get_admin_stats for admin with no groups includes spam_examples key"""
     admin_id = 123456
 
     async with clean_db.acquire() as conn:
-        # Initialize admin
         await initialize_new_admin(admin_id)
-
-        # Get stats for admin with no groups
         stats = await get_admin_stats(admin_id)
 
-    # Verify structure
     assert "global" in stats
     assert "groups" in stats
     assert stats["groups"] == []
 
-    # Verify global stats includes spam_examples key (the bug we fixed)
     global_stats = stats["global"]
     assert "processed" in global_stats
     assert "spam" in global_stats
     assert "approved" in global_stats
-    assert "spam_examples" in global_stats  # This key was missing before the fix
-
-    # Verify values for admin with no groups
+    assert "spam_examples" in global_stats
     assert global_stats["processed"] == 0
     assert global_stats["spam"] == 0
     assert global_stats["approved"] == 0

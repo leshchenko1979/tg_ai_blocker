@@ -492,7 +492,7 @@ async def update_group_admins(
                         admin_id=admin_id,
                         username=username,
                         credits=admin_operations.INITIAL_CREDITS,
-                        delete_spam=False,
+                        moderation_mode=admin_operations.ModerationMode.NOTIFY,
                     )
                 elif admin.username is None and username is not None:
                     admin.username = username

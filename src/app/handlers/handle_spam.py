@@ -22,6 +22,7 @@ from ..common.utils import (
     spam_notify_spammers_via_mcp_enabled,
 )
 from ..database import get_admin, get_admins_map
+from ..database.models import Administrator
 from ..i18n import normalize_lang, resolve_lang, t
 from ..database.group_operations import (
     remove_member_from_group,
@@ -103,16 +104,28 @@ async def handle_spam(
 
 
 async def check_admin_delete_preferences(admin_ids: list[int]) -> bool:
-    """Return True if all admins have delete_spam enabled."""
+    """Return True if all admins have auto-delete enabled (delete or delete_silent)."""
     if not admin_ids:
         return False
 
     admins_map = await get_admins_map(admin_ids)
     for admin_id in admin_ids:
         admin_user = admins_map.get(admin_id)
-        if not admin_user or not admin_user.delete_spam:
+        if not admin_user or not admin_user.auto_deletes_spam:
             return False
     return True
+
+
+def filter_admins_for_auto_delete_notification(
+    admin_ids: list[int],
+    admins_map: dict[int, Administrator],
+) -> list[int]:
+    """Drop delete_silent admins from auto-delete confirmation DMs."""
+    return [
+        aid
+        for aid in admin_ids
+        if not (admins_map.get(aid) and admins_map[aid].skips_auto_delete_notification)
+    ]
 
 
 def create_admin_notification_keyboard(
@@ -330,6 +343,15 @@ async def notify_admins(
 
     context = MessageNotificationContext.from_message(message)
 
+    recipient_ids = admin_ids
+    if all_admins_delete:
+        admins_map = await get_admins_map(admin_ids)
+        recipient_ids = filter_admins_for_auto_delete_notification(
+            admin_ids, admins_map
+        )
+        if not recipient_ids:
+            return False
+
     # When confirmation needed, hide mode_tip for admins already in delete mode
     if all_admins_delete:
         private_message = format_admin_notification_message(
@@ -345,7 +367,7 @@ async def notify_admins(
 
         def message_for_admin(admin_id: int) -> str:
             admin = admins_map.get(admin_id)
-            include_mode_tip = not (admin and admin.delete_spam)
+            include_mode_tip = not (admin and admin.auto_deletes_spam)
             return format_admin_notification_message(
                 context,
                 all_admins_delete,
@@ -359,7 +381,7 @@ async def notify_admins(
         private_message = message_for_admin
 
     pending_id = None
-    if context.effective_user_id is not None:
+    if context.effective_user_id is not None and recipient_ids:
         text = "[MEDIA_MESSAGE]"
         name = None
         bio = None
@@ -399,7 +421,7 @@ async def notify_admins(
     )
     result = await notify_admins_with_fallback_and_cleanup(
         bot,
-        admin_ids,
+        recipient_ids,
         message.chat.id,
         private_message,
         group_message_template=t(lang, "spam.group_message_template"),

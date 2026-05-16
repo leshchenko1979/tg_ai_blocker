@@ -17,7 +17,7 @@ bot_commands:
   help: "Show help and capabilities"
   buy: "Buy stars for moderation"
   stats: "Show balance and group status"
-  mode: "Switch mode (delete/notify)"
+  mode: "Cycle mode: notify / delete / silent"
   ref: "How to get referral link"
   lang: "Change language"
 
@@ -89,7 +89,9 @@ help:
     Examples are used when checking messages <b>in your groups</b>.
 
     <b>1. When the AI is unsure</b>
-    On <b>low confidence</b> (both borderline spam and borderline legitimate) I'll DM you a notification with context and <b>Delete</b> / <b>Not spam</b> buttons. Your choice is saved as a training example for future checks. Tapping <b>Not spam</b> also marks the user <b>trusted</b> — their later messages won't use stars. <b>No need to forward</b> the message — data already comes from group moderation. If every admin has auto-delete on and the message was already removed, you'll only see <b>"Not spam"</b> to fix a false positive.
+    On <b>low confidence</b> (both borderline spam and borderline legitimate) I'll DM you a notification with context and <b>Delete</b> / <b>Not spam</b> buttons. Your choice is saved as a training example for future checks. Tapping <b>Not spam</b> also marks the user <b>trusted</b> — their later messages won't use stars. <b>No need to forward</b> the message — data already comes from group moderation.
+
+    If you use <b>silent delete</b> mode (<code>/mode</code>), auto-removed spam does not send a per-message DM. For a false positive, <b>forward the message to me in private</b> and choose <b>Not spam</b> when asked. In normal delete mode, after auto-removal you get a DM with a <b>Not spam</b> button only.
 
     <b>2. Manually from chat</b>
 
@@ -136,7 +138,7 @@ help:
     /help - this help
     /buy - buy stars for payment
     /stats - balance and group status
-    /mode - toggle mode (delete/notify)
+    /mode - cycle mode: notify → auto-delete → silent delete
     /ref - get referral link
     /lang - change language
 
@@ -211,14 +213,16 @@ stats:
   spam_examples: "📝 Spam examples saved: <b>{count}</b>"
   by_groups_header: "<b>By groups:</b>"
   no_groups: "You have no groups where you're an administrator."
-  mode_delete: "🗑 Delete mode"
-  mode_notify: "🔔 Notify mode"
+  mode_delete: "🗑 Auto-delete"
+  mode_notify: "🔔 Notify only"
+  mode_delete_silent: "🔇 Silent auto-delete"
   current_mode: "Current mode: <b>{mode}</b>"
   error: "An error occurred while fetching statistics."
 
 mode:
-  delete_enabled: "🗑 <b>Delete mode</b> enabled\n\nI will automatically delete messages classified as spam in your groups."
-  notify_enabled: "🔔 <b>Notify mode</b> enabled\n\nI will only notify about messages classified as spam, but won't delete them."
+  delete_enabled: "🗑 <b>Auto-delete</b> enabled\n\nI will delete high-confidence spam and DM you after each removal (with a <b>Not spam</b> button)."
+  delete_silent_enabled: "🔇 <b>Silent auto-delete</b> enabled\n\nI will delete high-confidence spam without a DM per removal. If I make a mistake, <b>forward the message to me in private</b> to mark it as not spam."
+  notify_enabled: "🔔 <b>Notify only</b> enabled\n\nI will notify you about spam and wait for your confirmation before deleting."
   error: "An error occurred while changing mode."
 
 ref:

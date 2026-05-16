@@ -47,12 +47,20 @@ async def create_schema(conn: asyncpg.Connection):
             -- Cleanup legacy stats table
             DROP TABLE IF EXISTS stats;
 
+            DO $$ BEGIN
+                CREATE TYPE moderation_mode AS ENUM (
+                    'notify', 'delete', 'delete_silent'
+                );
+            EXCEPTION
+                WHEN duplicate_object THEN null;
+            END $$;
+
             -- Administrators table
             CREATE TABLE IF NOT EXISTS administrators (
                 admin_id BIGINT PRIMARY KEY,
                 username VARCHAR(255),
                 credits INTEGER DEFAULT 0 CHECK (credits >= 0),
-                delete_spam BOOLEAN DEFAULT false,
+                moderation_mode moderation_mode NOT NULL DEFAULT 'notify',
                 is_active BOOLEAN DEFAULT true,
                 language_code VARCHAR(10),
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

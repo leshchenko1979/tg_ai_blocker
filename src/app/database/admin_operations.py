@@ -1,36 +1,108 @@
 from typing import Any, Dict, List, Optional
 
 from .constants import INITIAL_CREDITS
-from .models import Administrator
+from .models import Administrator, ModerationMode
 from .postgres_connection import get_pool
+
+_MODE_CYCLE = (
+    ModerationMode.NOTIFY,
+    ModerationMode.DELETE,
+    ModerationMode.DELETE_SILENT,
+)
+
+
+def _next_moderation_mode(current: ModerationMode) -> ModerationMode:
+    idx = _MODE_CYCLE.index(current)
+    return _MODE_CYCLE[(idx + 1) % len(_MODE_CYCLE)]
+
+
+def _parse_moderation_mode(value: Any) -> ModerationMode:
+    if isinstance(value, ModerationMode):
+        return value
+    return ModerationMode(str(value))
+
+
+def _legacy_delete_spam(mode: ModerationMode) -> bool:
+    """Phase-2 dual-write: maps enum to legacy delete_spam boolean."""
+    return mode in (ModerationMode.DELETE, ModerationMode.DELETE_SILENT)
+
+
+_delete_spam_column_exists: bool | None = None
+
+
+async def _has_delete_spam_column(conn) -> bool:
+    global _delete_spam_column_exists
+    if _delete_spam_column_exists is not None:
+        return _delete_spam_column_exists
+    try:
+        val = await conn.fetchval(
+            """
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'administrators'
+              AND column_name = 'delete_spam'
+            """
+        )
+    except Exception:
+        rows = await conn.fetch("PRAGMA table_info(administrators)")
+        val = next((1 for r in rows if r["name"] == "delete_spam"), None)
+    _delete_spam_column_exists = val is not None
+    return _delete_spam_column_exists
 
 
 async def save_admin(admin: Administrator) -> None:
     """Save administrator to PostgreSQL"""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            INSERT INTO administrators (
-                admin_id, username, credits, delete_spam, is_active, language_code, created_at, last_active
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            ON CONFLICT (admin_id) DO UPDATE SET
-                username = EXCLUDED.username,
-                credits = EXCLUDED.credits,
-                delete_spam = EXCLUDED.delete_spam,
-                is_active = EXCLUDED.is_active,
-                language_code = EXCLUDED.language_code,
-                last_active = EXCLUDED.last_active
-        """,
-            admin.admin_id,
-            admin.username,
-            admin.credits,
-            admin.delete_spam,
-            admin.is_active,
-            admin.language_code,
-            admin.created_at,
-            admin.last_updated,
-        )
+        if await _has_delete_spam_column(conn):
+            await conn.execute(
+                """
+                INSERT INTO administrators (
+                    admin_id, username, credits, moderation_mode, delete_spam,
+                    is_active, language_code, created_at, last_active
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (admin_id) DO UPDATE SET
+                    username = EXCLUDED.username,
+                    credits = EXCLUDED.credits,
+                    moderation_mode = EXCLUDED.moderation_mode,
+                    delete_spam = EXCLUDED.delete_spam,
+                    is_active = EXCLUDED.is_active,
+                    language_code = EXCLUDED.language_code,
+                    last_active = EXCLUDED.last_active
+            """,
+                admin.admin_id,
+                admin.username,
+                admin.credits,
+                admin.moderation_mode.value,
+                _legacy_delete_spam(admin.moderation_mode),
+                admin.is_active,
+                admin.language_code,
+                admin.created_at,
+                admin.last_updated,
+            )
+        else:
+            await conn.execute(
+                """
+                INSERT INTO administrators (
+                    admin_id, username, credits, moderation_mode,
+                    is_active, language_code, created_at, last_active
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                ON CONFLICT (admin_id) DO UPDATE SET
+                    username = EXCLUDED.username,
+                    credits = EXCLUDED.credits,
+                    moderation_mode = EXCLUDED.moderation_mode,
+                    is_active = EXCLUDED.is_active,
+                    language_code = EXCLUDED.language_code,
+                    last_active = EXCLUDED.last_active
+            """,
+                admin.admin_id,
+                admin.username,
+                admin.credits,
+                admin.moderation_mode.value,
+                admin.is_active,
+                admin.language_code,
+                admin.created_at,
+                admin.last_updated,
+            )
 
 
 async def update_admin_language(admin_id: int, language_code: str) -> None:
@@ -69,6 +141,30 @@ async def record_successful_payment(admin_id: int, stars_amount: int) -> None:
         )
 
 
+def _admin_from_row(row) -> Administrator:
+    keys = row.keys()
+    is_active_column = row["is_active"] if "is_active" in keys else True
+    language_code = row["language_code"] if "language_code" in keys else None
+    mode_raw = row["moderation_mode"] if "moderation_mode" in keys else None
+    if mode_raw is not None:
+        moderation_mode = _parse_moderation_mode(mode_raw)
+    elif "delete_spam" in keys and row["delete_spam"]:
+        moderation_mode = ModerationMode.DELETE
+    else:
+        moderation_mode = ModerationMode.NOTIFY
+
+    return Administrator(
+        admin_id=row["admin_id"],
+        username=row["username"],
+        credits=row["credits"],
+        is_active=is_active_column,
+        moderation_mode=moderation_mode,
+        language_code=language_code,
+        created_at=row["created_at"],
+        last_updated=row["last_active"],
+    )
+
+
 async def get_admin(admin_id: int) -> Optional[Administrator]:
     """Retrieve administrator information from PostgreSQL"""
     pool = await get_pool()
@@ -83,19 +179,7 @@ async def get_admin(admin_id: int) -> Optional[Administrator]:
         if not row:
             return None
 
-        is_active_column = row["is_active"] if "is_active" in row.keys() else True
-        language_code = row["language_code"] if "language_code" in row.keys() else None
-
-        return Administrator(
-            admin_id=row["admin_id"],
-            username=row["username"],
-            credits=row["credits"],
-            is_active=is_active_column,
-            delete_spam=row["delete_spam"],
-            language_code=language_code,
-            created_at=row["created_at"],
-            last_updated=row["last_active"],
-        )
+        return _admin_from_row(row)
 
 
 async def get_admins_map(admin_ids: list[int]) -> dict[int, Administrator]:
@@ -112,21 +196,7 @@ async def get_admins_map(admin_ids: list[int]) -> dict[int, Administrator]:
             admin_ids,
         )
 
-        return {
-            row["admin_id"]: Administrator(
-                admin_id=row["admin_id"],
-                username=row["username"],
-                credits=row["credits"],
-                is_active=row["is_active"] if "is_active" in row.keys() else True,
-                delete_spam=row["delete_spam"],
-                language_code=(
-                    row["language_code"] if "language_code" in row.keys() else None
-                ),
-                created_at=row["created_at"],
-                last_updated=row["last_active"],
-            )
-            for row in rows
-        }
+        return {row["admin_id"]: _admin_from_row(row) for row in rows}
 
 
 async def get_admin_credits(admin_id: int) -> int:
@@ -151,7 +221,6 @@ async def initialize_new_admin(
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            # Check if user exists
             exists = await conn.fetchval(
                 """
                 SELECT EXISTS(SELECT 1 FROM administrators WHERE admin_id = $1)
@@ -162,19 +231,31 @@ async def initialize_new_admin(
             if exists:
                 return False
 
-            # Create new user
-            await conn.execute(
-                """
-                INSERT INTO administrators (
-                    admin_id, credits, delete_spam, is_active, language_code, created_at, last_active
-                ) VALUES ($1, $2, false, TRUE, $3, NOW(), NOW())
-            """,
-                admin_id,
-                INITIAL_CREDITS,
-                language_code,
-            )
+            if await _has_delete_spam_column(conn):
+                await conn.execute(
+                    """
+                    INSERT INTO administrators (
+                        admin_id, credits, moderation_mode, delete_spam,
+                        is_active, language_code, created_at, last_active
+                    ) VALUES ($1, $2, 'notify', false, TRUE, $3, NOW(), NOW())
+                """,
+                    admin_id,
+                    INITIAL_CREDITS,
+                    language_code,
+                )
+            else:
+                await conn.execute(
+                    """
+                    INSERT INTO administrators (
+                        admin_id, credits, moderation_mode,
+                        is_active, language_code, created_at, last_active
+                    ) VALUES ($1, $2, 'notify', TRUE, $3, NOW(), NOW())
+                """,
+                    admin_id,
+                    INITIAL_CREDITS,
+                    language_code,
+                )
 
-            # Record initial credit transaction
             await conn.execute(
                 """
                 INSERT INTO transactions (admin_id, amount, type, description)
@@ -187,52 +268,57 @@ async def initialize_new_admin(
             return True
 
 
-async def toggle_spam_deletion(admin_id: int) -> bool | None:
-    """Toggle spam deletion setting for administrator. Returns new state"""
+async def cycle_moderation_mode(admin_id: int) -> ModerationMode | None:
+    """Cycle notify → delete → delete_silent → notify. Returns new mode."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            # Get current state
-            current_state = await conn.fetchval(
+            row = await conn.fetchrow(
                 """
-                SELECT delete_spam FROM administrators WHERE admin_id = $1
+                SELECT * FROM administrators WHERE admin_id = $1
             """,
                 admin_id,
             )
 
-            if current_state is None:
+            if row is None:
                 return None
 
-            # Toggle state
-            new_state = not current_state
+            current = _admin_from_row(row).moderation_mode
+            new_mode = _next_moderation_mode(current)
 
-            # Update state
-            await conn.execute(
-                """
-                UPDATE administrators
-                SET delete_spam = $1, last_active = NOW()
-                WHERE admin_id = $2
-            """,
-                new_state,
-                admin_id,
-            )
+            if await _has_delete_spam_column(conn):
+                await conn.execute(
+                    """
+                    UPDATE administrators
+                    SET moderation_mode = $1,
+                        delete_spam = $2,
+                        last_active = NOW()
+                    WHERE admin_id = $3
+                """,
+                    new_mode.value,
+                    _legacy_delete_spam(new_mode),
+                    admin_id,
+                )
+            else:
+                await conn.execute(
+                    """
+                    UPDATE administrators
+                    SET moderation_mode = $1, last_active = NOW()
+                    WHERE admin_id = $2
+                """,
+                    new_mode.value,
+                    admin_id,
+                )
 
-            return new_state
+            return new_mode
 
 
-async def get_spam_deletion_state(admin_id: int) -> bool:
-    """Get current spam deletion state for administrator"""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        state = await conn.fetchval(
-            """
-            SELECT delete_spam FROM administrators WHERE admin_id = $1
-        """,
-            admin_id,
-        )
-        return (
-            bool(state) if state is not None else True
-        )  # Default to True if not found
+async def get_moderation_mode(admin_id: int) -> ModerationMode:
+    """Get current moderation mode; defaults to notify if admin not found."""
+    admin = await get_admin(admin_id)
+    if admin is None:
+        return ModerationMode.NOTIFY
+    return admin.moderation_mode
 
 
 async def get_spent_credits_last_week(admin_id: int) -> int:
@@ -263,21 +349,7 @@ async def get_all_admins() -> List[Administrator]:
             """
         )
 
-    return [
-        Administrator(
-            admin_id=row["admin_id"],
-            username=row["username"],
-            credits=row["credits"],
-            is_active=row.get("is_active", True),
-            delete_spam=row["delete_spam"],
-            language_code=(
-                row["language_code"] if "language_code" in row.keys() else None
-            ),
-            created_at=row["created_at"],
-            last_updated=row["last_active"],
-        )
-        for row in rows
-    ]
+    return [_admin_from_row(row) for row in rows]
 
 
 async def deactivate_admin(admin_id: int) -> bool:
@@ -439,7 +511,6 @@ async def remove_admin(admin_id: int) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            # Remove from administrators (all related records will be deleted automatically)
             await conn.execute(
                 """
                 DELETE FROM administrators
@@ -457,11 +528,9 @@ async def get_admin_stats(admin_id: int) -> Dict[str, Any]:
     from ..common.logfire_lookup import get_weekly_stats
     from .group_operations import get_admin_groups
 
-    # Get groups managed by admin
     groups = await get_admin_groups(admin_id)
 
     if not groups:
-        # Fetch spam examples count for this admin even when they have no groups
         pool = await get_pool()
         async with pool.acquire() as conn:
             spam_examples_count = await conn.fetchval(
@@ -484,10 +553,8 @@ async def get_admin_stats(admin_id: int) -> Dict[str, Any]:
 
     group_ids = [g["id"] for g in groups]
 
-    # Fetch Logfire weekly stats
     weekly_stats = await get_weekly_stats(group_ids)
 
-    # Fetch approved members count for each group
     pool = await get_pool()
     async with pool.acquire() as conn:
         approved_counts = await conn.fetch(
@@ -500,7 +567,6 @@ async def get_admin_stats(admin_id: int) -> Dict[str, Any]:
             group_ids,
         )
 
-        # Fetch spam examples count for this admin
         spam_examples_count = await conn.fetchval(
             """
             SELECT COUNT(*)
@@ -512,7 +578,6 @@ async def get_admin_stats(admin_id: int) -> Dict[str, Any]:
 
     approved_map = {row["group_id"]: row["count"] for row in approved_counts}
 
-    # Aggregate data
     global_processed = 0
     global_spam = 0
     global_approved = sum(approved_map.values())

@@ -19,12 +19,13 @@ from ..database import (
     get_admin,
     get_admin_credits,
     get_admin_stats,
-    get_spam_deletion_state,
+    cycle_moderation_mode,
+    get_moderation_mode,
     get_spent_credits_last_week,
     initialize_new_admin,
-    toggle_spam_deletion,
     update_admin_username_if_needed,
 )
+from ..database.models import ModerationMode
 from ..i18n import normalize_lang, resolve_lang, t
 from ..spam.user_profile import collect_user_context, collect_channel_summary_by_id
 from ..spam.linked_channel_mention import extract_first_channel_mention
@@ -361,12 +362,13 @@ async def handle_stats_command(message: types.Message) -> str:
         else:
             message_text += t(lang, "stats.no_groups")
 
-        delete_spam = await get_spam_deletion_state(user_id)
-        mode = (
-            t(lang, "stats.mode_delete")
-            if delete_spam
-            else t(lang, "stats.mode_notify")
-        )
+        moderation_mode = await get_moderation_mode(user_id)
+        mode_key = {
+            ModerationMode.NOTIFY: "stats.mode_notify",
+            ModerationMode.DELETE: "stats.mode_delete",
+            ModerationMode.DELETE_SILENT: "stats.mode_delete_silent",
+        }[moderation_mode]
+        mode = t(lang, mode_key)
         message_text += "\n\n" + t(lang, "stats.current_mode", mode=mode)
 
         await message.reply(message_text, parse_mode="HTML")
@@ -393,19 +395,23 @@ async def handle_mode_command(message: types.Message) -> str:
     lang = resolve_lang(message, admin)
 
     try:
-        delete_spam = await toggle_spam_deletion(user_id)
+        new_mode = await cycle_moderation_mode(user_id)
 
-        if delete_spam:
-            message_text = t(lang, "mode.delete_enabled")
-        else:
-            message_text = t(lang, "mode.notify_enabled")
+        if new_mode is None:
+            await message.reply(t(lang, "mode.error"), parse_mode="HTML")
+            return "command_mode_error"
 
-        await message.reply(message_text, parse_mode="HTML")
-        return (
-            "command_mode_changed_to_deletion"
-            if delete_spam
-            else "command_mode_changed_to_notification"
-        )
+        mode_messages = {
+            ModerationMode.NOTIFY: ("mode.notify_enabled", "command_mode_changed_to_notification"),
+            ModerationMode.DELETE: ("mode.delete_enabled", "command_mode_changed_to_deletion"),
+            ModerationMode.DELETE_SILENT: (
+                "mode.delete_silent_enabled",
+                "command_mode_changed_to_delete_silent",
+            ),
+        }
+        message_key, return_value = mode_messages[new_mode]
+        await message.reply(t(lang, message_key), parse_mode="HTML")
+        return return_value
 
     except Exception as e:
         logger.error(f"Error handling mode command: {e}", exc_info=True)

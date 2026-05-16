@@ -631,6 +631,115 @@ async def run_no_rights_column_migration():
         await add_no_rights_column_migration(conn)
 
 
+async def add_moderation_mode_migration(conn: Any) -> List[str]:
+    """
+    Phase 1: CREATE TYPE moderation_mode, add column, backfill from delete_spam.
+    Keeps delete_spam for rollback / old image compatibility.
+    """
+    operations: List[str] = []
+    print("Starting moderation_mode migration (phase 1)...")
+
+    async with conn.transaction():
+        try:
+            await conn.execute(
+                """
+                CREATE TYPE moderation_mode AS ENUM (
+                    'notify', 'delete', 'delete_silent'
+                )
+                """
+            )
+            operations.append("Created moderation_mode enum type")
+            print("✓ Created moderation_mode enum type")
+        except asyncpg.DuplicateObjectError:
+            print("✓ moderation_mode enum type already exists")
+
+        col_exists = await conn.fetchval(
+            """
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'administrators'
+              AND column_name = 'moderation_mode'
+            """
+        )
+        if not col_exists:
+            await conn.execute(
+                """
+                ALTER TABLE administrators
+                ADD COLUMN moderation_mode moderation_mode NOT NULL DEFAULT 'notify'
+                """
+            )
+            operations.append("Added moderation_mode column")
+            print("✓ Added moderation_mode column")
+
+        await conn.execute(
+            """
+            UPDATE administrators
+            SET moderation_mode = (
+                CASE WHEN delete_spam THEN 'delete'::moderation_mode
+                     ELSE 'notify'::moderation_mode END
+            )
+            WHERE moderation_mode IS DISTINCT FROM (
+                CASE WHEN delete_spam THEN 'delete'::moderation_mode
+                     ELSE 'notify'::moderation_mode END
+            )
+            """
+        )
+        operations.append("Backfilled moderation_mode from delete_spam")
+        print("✓ Backfilled moderation_mode from delete_spam")
+
+    print(
+        f"moderation_mode migration completed. {len(operations)} operation(s) performed."
+    )
+    return operations
+
+
+async def drop_delete_spam_migration(conn: Any) -> List[str]:
+    """Phase 3: drop legacy delete_spam column (moderation_mode remains)."""
+    operations: List[str] = []
+    print("Starting drop delete_spam migration (phase 3)...")
+
+    async with conn.transaction():
+        col_exists = await conn.fetchval(
+            """
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'administrators'
+              AND column_name = 'delete_spam'
+            """
+        )
+        if col_exists:
+            await conn.execute(
+                "ALTER TABLE administrators DROP COLUMN delete_spam"
+            )
+            operations.append("Dropped delete_spam column")
+            print("✓ Dropped delete_spam column")
+        else:
+            print("✓ delete_spam column already absent")
+
+    print(
+        f"drop delete_spam migration completed. {len(operations)} operation(s) performed."
+    )
+    return operations
+
+
+async def run_moderation_mode_migration():
+    """Run moderation_mode phase-1 migration manually."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    pool = await get_pool()
+    print("Running moderation_mode migration...")
+    async with pool.acquire() as conn:
+        await add_moderation_mode_migration(conn)
+
+
+async def run_drop_delete_spam_migration():
+    """Run drop delete_spam phase-3 migration manually."""
+    print("Creating database if it doesn't exist...")
+    await create_database()
+    pool = await get_pool()
+    print("Running drop delete_spam migration...")
+    async with pool.acquire() as conn:
+        await drop_delete_spam_migration(conn)
+
+
 async def add_moderation_event_count_migration(conn: Any) -> List[str]:
     """
     Add moderation_event_count to approved_members and grandfather existing rows
@@ -712,6 +821,10 @@ async def main():
             await run_no_rights_column_migration()
         elif sys.argv[1] == "--add-moderation-event-count":
             await run_moderation_event_count_migration()
+        elif sys.argv[1] == "--add-moderation-mode":
+            await run_moderation_mode_migration()
+        elif sys.argv[1] == "--drop-delete-spam":
+            await run_drop_delete_spam_migration()
         else:
             raise ValueError(f"Unknown migration flag {sys.argv[1]!r}")
     else:

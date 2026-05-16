@@ -1,10 +1,13 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from src.app.database.models import Administrator, ModerationMode
 from src.app.handlers.handle_spam import (
+    check_admin_delete_preferences,
     format_admin_notification_message,
     handle_spam,
     handle_spam_message_deletion,
+    notify_admins,
     notify_spam_contacts_via_mcp,
 )
 from src.app.spam.message_context import collect_message_context
@@ -916,3 +919,138 @@ class TestFormatAdminNotificationMessage:
             lang="en",
         )
         assert "Confirm" in result
+
+
+class TestSilentAutoDeleteNotifications:
+    """Tests for delete_silent moderation mode notification filtering."""
+
+    @pytest.mark.asyncio
+    async def test_all_silent_auto_delete_no_group_fallback_no_pending(
+        self, mock_message
+    ):
+        silent_admin = Administrator(
+            admin_id=111,
+            moderation_mode=ModerationMode.DELETE_SILENT,
+        )
+        with (
+            patch(
+                "src.app.handlers.handle_spam.get_admins_map",
+                new_callable=AsyncMock,
+                return_value={111: silent_admin},
+            ),
+            patch(
+                "src.app.handlers.handle_spam.insert_pending_spam_example",
+                new_callable=AsyncMock,
+            ) as mock_pending,
+            patch(
+                "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup",
+                new_callable=AsyncMock,
+            ) as mock_notify,
+            patch(
+                "src.app.handlers.handle_spam._get_notification_lang",
+                new_callable=AsyncMock,
+                return_value="en",
+            ),
+        ):
+            result = await notify_admins(
+                mock_message,
+                all_admins_delete=True,
+                admin_ids=[111],
+                reason="spam",
+            )
+
+            assert result is False
+            mock_pending.assert_not_called()
+            mock_notify.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_notify_admins_mixed_silent(self, mock_message):
+        silent = Administrator(
+            admin_id=111, moderation_mode=ModerationMode.DELETE_SILENT
+        )
+        normal = Administrator(admin_id=222, moderation_mode=ModerationMode.DELETE)
+        with (
+            patch(
+                "src.app.handlers.handle_spam.get_admins_map",
+                new_callable=AsyncMock,
+                return_value={111: silent, 222: normal},
+            ),
+            patch(
+                "src.app.handlers.handle_spam.insert_pending_spam_example",
+                new_callable=AsyncMock,
+                return_value=42,
+            ),
+            patch(
+                "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup",
+                new_callable=AsyncMock,
+                return_value={"notified_private": [222], "group_notified": False},
+            ) as mock_notify,
+            patch(
+                "src.app.handlers.handle_spam._get_notification_lang",
+                new_callable=AsyncMock,
+                return_value="en",
+            ),
+        ):
+            result = await notify_admins(
+                mock_message,
+                all_admins_delete=True,
+                admin_ids=[111, 222],
+                reason="spam",
+            )
+
+            assert result is True
+            assert mock_notify.call_args[0][1] == [222]
+
+    @pytest.mark.asyncio
+    async def test_notify_admins_low_confidence_notifies_delete_silent_admin(
+        self, mock_message
+    ):
+        silent = Administrator(
+            admin_id=111, moderation_mode=ModerationMode.DELETE_SILENT
+        )
+        with (
+            patch(
+                "src.app.handlers.handle_spam.get_admins_map",
+                new_callable=AsyncMock,
+                return_value={111: silent},
+            ),
+            patch(
+                "src.app.handlers.handle_spam.insert_pending_spam_example",
+                new_callable=AsyncMock,
+                return_value=7,
+            ),
+            patch(
+                "src.app.handlers.handle_spam.notify_admins_with_fallback_and_cleanup",
+                new_callable=AsyncMock,
+                return_value={"notified_private": [111], "group_notified": False},
+            ) as mock_notify,
+            patch(
+                "src.app.handlers.handle_spam._get_notification_lang",
+                new_callable=AsyncMock,
+                return_value="en",
+            ),
+        ):
+            result = await notify_admins(
+                mock_message,
+                all_admins_delete=False,
+                admin_ids=[111],
+                reason="maybe spam",
+                is_low_confidence_not_spam=False,
+                confidence=50,
+            )
+
+            assert result is True
+            assert mock_notify.call_args[0][1] == [111]
+
+    @pytest.mark.asyncio
+    async def test_check_admin_delete_preferences_silent_counts(self):
+        admins = {
+            1: Administrator(admin_id=1, moderation_mode=ModerationMode.DELETE_SILENT),
+            2: Administrator(admin_id=2, moderation_mode=ModerationMode.DELETE_SILENT),
+        }
+        with patch(
+            "src.app.handlers.handle_spam.get_admins_map",
+            new_callable=AsyncMock,
+            return_value=admins,
+        ):
+            assert await check_admin_delete_preferences([1, 2]) is True
