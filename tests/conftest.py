@@ -37,6 +37,13 @@ def pytest_collection_finish(session: pytest.Session) -> None:
         setup_logging(environment="testing")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _validate_llm_config_for_test_session() -> None:
+    from app.common.utils import validate_llm_config
+
+    validate_llm_config()
+
+
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     global _session_has_integration
     _session_has_integration = False

@@ -23,6 +23,18 @@ cache:
 # High-confidence spam: may auto-delete (if admins allow). Low-confidence: notify only, admin confirms.
 # High-confidence not-spam: auto-approve. Low-confidence not-spam: send for review.
 # Examples: limit and ham share for prompt (prefer most recent within each category).
+# LLM routing — keep in sync with gateway route "ai-antispam" (OpenRouter fallback steps).
+llm:
+  route_timeout_seconds: 30       # gateway route_timeout; per agent.run (gateway + OpenRouter)
+  http_client_timeout_seconds: 60 # httpx client total (retries / transport)
+  openrouter_models:
+    - meta-llama/llama-3.3-70b-instruct:free
+    - qwen/qwen3-next-80b-a3b-instruct:free
+    - deepseek/deepseek-v4-flash:free
+    - openai/gpt-oss-120b:free
+    - google/gemma-4-31b-it:free
+    - google/gemma-4-26b-a4b-it:free
+
 spam:
   high_confidence_threshold: 90
   probation_min_events: 3  # Approved members need this many moderated events before trusted skip

@@ -13,7 +13,13 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
 from tenacity import stop_after_attempt
 
+from .common.utils import get_llm_http_client_timeout, get_openrouter_models
+
 logger = logging.getLogger(__name__)
+
+
+def _openrouter_agent_name(prefix: str, model_name: str) -> str:
+    return f"{prefix}-{model_name.replace('/', '-')}"
 
 
 class SpamClassification(BaseModel):
@@ -26,13 +32,6 @@ class SpamClassification(BaseModel):
     )
 
 
-# Models list for OpenRouter (same as original llms.py)
-OPENROUTER_MODELS = [
-    "openai/gpt-oss-120b:free",
-    "google/gemma-4-31b-it:free",
-    "google/gemma-4-26b-a4b-it:free",
-]
-
 # Gateway configuration
 GATEWAY_API_BASE = os.getenv("API_BASE")
 GATEWAY_API_KEY = os.getenv("CUSTOM_GATEWAY_API_KEY")
@@ -43,8 +42,12 @@ OPENROUTER_API_BASE = "https://openrouter.ai/api/v1"
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 
-def _create_retrying_client(timeout: float = 60.0) -> httpx.AsyncClient:
+def _create_retrying_client(
+    timeout: float | None = None,
+) -> httpx.AsyncClient:
     """Create httpx client with retry logic for gateway."""
+    if timeout is None:
+        timeout = get_llm_http_client_timeout()
 
     def should_retry_status(response: httpx.Response) -> None:
         if response.status_code in (429, 502, 503, 504):
@@ -74,7 +77,7 @@ def _create_gateway_model() -> OpenAIChatModel:
     if not GATEWAY_MODEL:
         raise ValueError("CUSTOM_GATEWAY_MODEL environment variable is required")
 
-    client = _create_retrying_client(timeout=60.0)
+    client = _create_retrying_client()
     openai_client = AsyncOpenAI(
         base_url=f"{GATEWAY_API_BASE.rstrip('/')}",
         api_key=GATEWAY_API_KEY,
@@ -92,7 +95,7 @@ def _create_openrouter_model(model_name: str) -> OpenAIChatModel:
     if not OPENROUTER_API_KEY:
         raise ValueError("OPENROUTER_API_KEY environment variable is required")
 
-    client = _create_retrying_client(timeout=60.0)
+    client = _create_retrying_client()
     openai_client = AsyncOpenAI(
         base_url=f"{OPENROUTER_API_BASE.rstrip('/')}",
         api_key=OPENROUTER_API_KEY,
@@ -143,9 +146,9 @@ def _get_openrouter_agents() -> Any:
             Agent(
                 _create_openrouter_model(model_name),
                 output_type=SpamClassification,
-                name=f"openrouter-spam-{model_name.split('/')[1]}",
+                name=_openrouter_agent_name("openrouter-spam", model_name),
             )
-            for model_name in OPENROUTER_MODELS
+            for model_name in get_openrouter_models()
         ]
     return _openrouter_agents
 
@@ -176,9 +179,9 @@ def _get_openrouter_chat_agents() -> Any:
             Agent(
                 _create_openrouter_model(model_name),
                 output_type=str,
-                name=f"openrouter-chat-{model_name.split('/')[1]}",
+                name=_openrouter_agent_name("openrouter-chat", model_name),
             )
-            for model_name in OPENROUTER_MODELS
+            for model_name in get_openrouter_models()
         ]
     return _openrouter_chat_agents
 

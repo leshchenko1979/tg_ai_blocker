@@ -29,7 +29,9 @@ from .common.bot import bot
 from .common.trace_context import set_root_span
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from .common.mcp_client import close_mcp_http_client
-from .common.utils import get_dotted_path
+from .common.utils import get_dotted_path, get_webhook_timeout, validate_llm_config
+from .common.webhook_errors import RetryableWebhookError
+from .common.webhook_deadline import set_webhook_deadline
 from .database.postgres_connection import close_pool
 from .handlers.dp import dp
 from .logging_setup import get_telegram_handler, register_telegram_logging_loop
@@ -37,9 +39,8 @@ from .logging_setup import get_telegram_handler, register_telegram_logging_loop
 routes = web.RouteTableDef()
 app = web.Application()
 
-# Telegram webhook timeout is 60 seconds
-# We'll use 55 seconds as our timeout to have some buffer
-WEBHOOK_TIMEOUT = 55
+# Telegram allows up to 60s; value comes from config.yaml system.webhook_timeout
+WEBHOOK_TIMEOUT = get_webhook_timeout()
 
 # Create histogram metric once at module level
 serve_time_histogram = logfire.metric_histogram("serve_time", unit="s")
@@ -68,6 +69,7 @@ async def handle_update(request: web.Request) -> web.Response:
         )
 
     start_time = time.time()
+    set_webhook_deadline(time.monotonic() + WEBHOOK_TIMEOUT)
 
     with logfire.span(extract_chat_or_user(json), update=json) as span:
         set_root_span(span)
@@ -90,14 +92,14 @@ async def handle_update(request: web.Request) -> web.Response:
             elapsed = time.time() - start_time
             return await handle_timeout(span, json, elapsed)
 
-        except TimeoutError:
-            elapsed = time.time() - start_time
-            return await handle_timeout(span, json, elapsed)
-
         except ModelAPIError as e:
             elapsed = time.time() - start_time
             remaining = WEBHOOK_TIMEOUT - elapsed
             return await handle_temporary_error(span, e, elapsed, remaining)
+
+        except RetryableWebhookError as e:
+            elapsed = time.time() - start_time
+            return await handle_retryable_webhook_error(span, e, elapsed)
 
         except Exception as e:
             return await handle_unhandled_exception(span, e, json)
@@ -141,6 +143,11 @@ def extract_chat_or_user(json: dict) -> str:
 
 
 app.add_routes(routes)
+
+
+async def _on_startup_validate_config(app: web.Application) -> None:
+    validate_llm_config()
+    logger.info("LLM config validated")
 
 
 async def _on_startup_setup_bot(app: web.Application) -> None:
@@ -199,10 +206,27 @@ async def _shutdown(app: web.Application) -> None:
         tg.create_task(close_mcp_http_client())
 
 
+app.on_startup.append(_on_startup_validate_config)
 app.on_startup.append(_on_startup_setup_bot)
 app.on_startup.append(_on_startup_scheduled_jobs)
 app.on_startup.append(_on_startup_log_server_started)
 app.on_shutdown.append(_shutdown)
+
+
+async def handle_retryable_webhook_error(
+    span: logfire.LogfireSpan, e: RetryableWebhookError, elapsed: float
+) -> web.Response:
+    """LLM/moderation incomplete (time budget, all providers failed, etc.)."""
+    logger.warning(
+        "Retryable webhook error after %.2fs: %s",
+        elapsed,
+        e,
+    )
+    span.tags = ["retryable_webhook_error"]
+    return web.json_response(
+        {"error": str(e), "retry": True},
+        status=503,
+    )
 
 
 async def handle_timeout(

@@ -21,7 +21,7 @@ from ..agents import (
     _get_openrouter_chat_agents,
     _next_openrouter_chat_agent,
 )
-from ..common.utils import sanitize_llm_html
+from ..common.utils import get_llm_route_timeout, sanitize_llm_html
 from ..database import (
     add_spam_example,
     find_message_by_text_and_user,
@@ -166,6 +166,8 @@ async def handle_private_message(message: types.Message) -> str:
         # Get response from chat agent with retry logic for HTML parsing errors
         max_retries = 3
         last_error = None
+        llm_timeout = get_llm_route_timeout()
+        model_settings = ModelSettings(timeout=llm_timeout)
 
         # Try gateway first
         try:
@@ -174,7 +176,7 @@ async def handle_private_message(message: types.Message) -> str:
                 result = await chat_agent.run(
                     user_message_text,
                     instructions=system_prompt,
-                    model_settings=ModelSettings(timeout=15.0),
+                    model_settings=model_settings,
                 )
                 response = result.output
 
@@ -231,7 +233,7 @@ async def handle_private_message(message: types.Message) -> str:
                     result = await chat_agent.run(
                         user_message_text,
                         instructions=system_prompt,
-                        model_settings=ModelSettings(timeout=15.0),
+                        model_settings=model_settings,
                     )
                     response = result.output
 

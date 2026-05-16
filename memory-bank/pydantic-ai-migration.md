@@ -9,9 +9,10 @@ Replaced raw aiohttp/httpx LLM integration with pydantic-ai agents for both spam
 ### New: `src/app/agents.py`
 - `SpamClassification` Pydantic model (structured output: `is_spam`, `confidence`, `reason`)
 - Gateway spam agent: `get_gateway_spam_agent()` — custom AI Gateway, single model
-- OpenRouter spam agent pool: `get_openrouter_spam_agent()` — round-robin across 4 free models
+- OpenRouter spam agent pool: `get_openrouter_spam_agent()` — round-robin across 6 models from `config.yaml` `llm.openrouter_models` (mirrors gateway route ai-antispam)
 - Chat agent: `get_chat_agent()` — gateway first, plain text output
-- Retry via `AsyncTenacityTransport` with 5 attempts, `wait_retry_after`, timeout 15s
+- Retry via `AsyncTenacityTransport` with 5 attempts, `wait_retry_after`; timeouts from `llm.route_timeout_seconds` (30) and `llm.http_client_timeout_seconds` (60)
+- Webhook LLM fallback: `has_time_for_llm_attempt` (min 3s to start) + `effective_llm_request_timeout` (cap per call to remaining − 2s buffer)
 - **Bug fixed**: base URLs already include `/v1`, so code used `.rstrip('/')` (NOT `+ '/v1'`) to avoid double `/v1/v1`
 
 ### `src/app/spam/spam_classifier.py`

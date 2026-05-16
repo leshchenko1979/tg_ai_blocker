@@ -13,6 +13,7 @@ from ..agents import (
     _get_openrouter_agents,
     _next_openrouter_agent,
 )
+from ..common.utils import get_llm_route_timeout
 from ..database import get_admin
 from ..i18n import normalize_lang
 from ..types import SpamClassificationContext
@@ -49,6 +50,8 @@ async def is_spam(
         "Analyze this message and respond with JSON spam classification "
         "including is_spam, confidence, and reason."
     )
+    llm_timeout = get_llm_route_timeout()
+    model_settings = ModelSettings(timeout=llm_timeout)
 
     # Try gateway first
     try:
@@ -57,7 +60,7 @@ async def is_spam(
             result = await agent.run(
                 user_message,
                 instructions=system_prompt,
-                model_settings=ModelSettings(timeout=15.0),
+                model_settings=model_settings,
             )
         is_spam_result = result.output.is_spam
         confidence_result = result.output.confidence
@@ -86,7 +89,7 @@ async def is_spam(
                     result = await agent.run(
                         user_message,
                         instructions=system_prompt,
-                        model_settings=ModelSettings(timeout=15.0),
+                        model_settings=model_settings,
                     )
                 is_spam_result = result.output.is_spam
                 confidence_result = result.output.confidence

@@ -18,6 +18,7 @@ from ...database import (
 from ..handle_spam import handle_spam
 from ..try_deduct_credits import try_deduct_credits
 from ...common.utils import determine_effective_user_id, load_config
+from ...common.webhook_errors import RetryableWebhookError
 from .validation import (
     check_skip_channel_bot_message,
     validate_group_and_check_early_exits,
@@ -132,6 +133,8 @@ async def handle_moderated_message(
                     admin_ids=group.admin_ids,
                     context=message_context_result.context,
                 )
+        except RetryableWebhookError:
+            raise
         except Exception as e:
             logger.warning(f"Failed to get spam classification: {e}")
             return "message_spam_check_failed"
