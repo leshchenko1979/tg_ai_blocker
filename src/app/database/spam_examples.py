@@ -41,6 +41,18 @@ async def insert_pending_spam_example(
                     confirmed, chat_id, message_id, effective_user_id
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10, $11)
+                ON CONFLICT (chat_id, message_id) WHERE confirmed = false
+                DO UPDATE SET
+                    text = EXCLUDED.text,
+                    name = EXCLUDED.name,
+                    bio = EXCLUDED.bio,
+                    score = EXCLUDED.score,
+                    linked_channel_fragment = EXCLUDED.linked_channel_fragment,
+                    stories_context = EXCLUDED.stories_context,
+                    reply_context = EXCLUDED.reply_context,
+                    account_signals_context = EXCLUDED.account_signals_context,
+                    effective_user_id = EXCLUDED.effective_user_id,
+                    created_at = NOW()
                 RETURNING id
                 """,
                 text,
