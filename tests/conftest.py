@@ -223,7 +223,17 @@ class SQLiteConnectionAdapter:
         return None
 
     def _convert_on_conflict_to_sqlite(self, query):
-        """Convert PostgreSQL ON CONFLICT to SQLite INSERT OR IGNORE / OR REPLACE."""
+        """Convert PostgreSQL ON CONFLICT to SQLite INSERT OR IGNORE / OR REPLACE if needed,
+        but prefer keeping ON CONFLICT if it has DO UPDATE and RETURNING."""
+        # If the query has RETURNING, we must be careful not to strip it.
+        # SQLite 3.24+ supports ON CONFLICT DO UPDATE, and 3.35+ supports RETURNING.
+        # We only convert if it's a simple DO NOTHING or if we really want INSERT OR REPLACE.
+
+        if "RETURNING" in query.upper() and "DO UPDATE" in query.upper():
+            # Keep the query as is, but maybe strip the WHERE clause in ON CONFLICT if it's too complex
+            # Actually, SQLite supports WHERE in ON CONFLICT target.
+            return query
+
         if re.search(
             r"ON\s+CONFLICT\b.*?DO\s+NOTHING", query, re.IGNORECASE | re.DOTALL
         ):
@@ -239,7 +249,7 @@ class SQLiteConnectionAdapter:
             return query
 
         query = re.sub(r"\bINSERT\b", "INSERT OR REPLACE", query, flags=re.IGNORECASE)
-        on_conflict_pattern = r"\s+ON\s+CONFLICT\b.*?(?=;|$)"
+        on_conflict_pattern = r"\s+ON\s+CONFLICT\b.*?(?=RETURNING|;|$)"
         query = re.sub(on_conflict_pattern, "", query, flags=re.IGNORECASE | re.DOTALL)
         return query
 
@@ -385,6 +395,11 @@ async def create_sqlite_schema(conn):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (admin_id) REFERENCES administrators(admin_id)
         );
+    """)
+
+    await conn.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_spam_examples_pending_lookup
+        ON spam_examples (chat_id, message_id) WHERE confirmed = 0;
     """)
 
     await conn.execute("""

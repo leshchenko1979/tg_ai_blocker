@@ -1,6 +1,7 @@
 ## Progress
 
 - **Silent auto-delete mode (2026-05)**: ✅ **Implemented** — `ModerationMode` enum, `/mode` 3-step cycle, `notify_admins` filters `delete_silent` (no group fallback when all silent), dual-write `delete_spam` during phase 2, migrations `--add-moderation-mode` / `--drop-delete-spam`, locales + help updated. **Ops**: channel post https://t.me/ai_antispam/43; admin broadcast 2026-05-16 — 252/262 DMs sent (10 deactivated accounts). **Pending**: phase 3 `--drop-delete-spam` after stable prod.
+- **Test Infrastructure Fix (2026-05-16)**: ✅ **Complete** — Fixed SQLite adapter stripping `RETURNING` clause and added missing unique index for pending spam examples. All 162 unit tests pass.
 - **Copy Polish (2026-05-16)**: ✅ **Complete** — Replaced "DM" with "private message" / "личное сообщение" in locales and clarified the purpose of the "Not spam" button (fixing false positives) based on user feedback. Updated `opsPlaybook.md` with these copy rules.
 
 - **GitHub Actions CI Pipeline (2026-04-21)**: ✅ **Complete** — Migrated from manual `deploy.sh` to GitHub Actions. Workflow: push to main → build Docker image → push to GHCR → SSH deploy. Secrets in GitHub: `SSH_HOST`, `SSH_USER`, `SSH_PORT`, `SSH_PRIVATE_KEY`, `BOT_TOKEN`, `GHCR_PULL_TOKEN`, `GHCR_PULL_USER`. Unit tests run in CI (integration tests excluded). Sync script: `scripts/sync-remote-config.sh` for initial server bootstrap.

@@ -140,7 +140,7 @@ async def add_pending_spam_example_columns_migration(conn: Any) -> List[str]:
         await conn.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS idx_spam_examples_pending_lookup
-                ON spam_examples (chat_id, message_id) WHERE chat_id IS NOT NULL AND message_id IS NOT NULL
+                ON spam_examples (chat_id, message_id) WHERE confirmed = false
             """
         )
         operations.append("Created idx_spam_examples_pending_lookup")
@@ -706,9 +706,7 @@ async def drop_delete_spam_migration(conn: Any) -> List[str]:
             """
         )
         if col_exists:
-            await conn.execute(
-                "ALTER TABLE administrators DROP COLUMN delete_spam"
-            )
+            await conn.execute("ALTER TABLE administrators DROP COLUMN delete_spam")
             operations.append("Dropped delete_spam column")
             print("✓ Dropped delete_spam column")
         else:

@@ -174,7 +174,7 @@ async def create_schema(conn: asyncpg.Connection):
             CREATE INDEX IF NOT EXISTS idx_spam_examples_text ON spam_examples(text);
             CREATE INDEX IF NOT EXISTS idx_spam_examples_score ON spam_examples(score);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_spam_examples_pending_lookup
-                ON spam_examples (chat_id, message_id) WHERE chat_id IS NOT NULL AND message_id IS NOT NULL;
+                ON spam_examples (chat_id, message_id) WHERE confirmed = false;
             CREATE INDEX IF NOT EXISTS idx_spam_examples_confirmed
                 ON spam_examples (confirmed) WHERE confirmed = true;
 
