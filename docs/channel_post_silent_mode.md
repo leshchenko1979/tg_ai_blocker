@@ -1,7 +1,7 @@
 # Channel post draft — silent auto-delete mode
 
-**Channel:** @ai_antispam  
-**Publish manually** (not via broadcast script). Save permalink after publish: `https://t.me/ai_antispam/{message_id}`
+**Channel:** @ai_antispam
+**Published:** 2026-05-16 — https://t.me/ai_antispam/43
 
 ---
 
@@ -13,32 +13,15 @@
 
 **Что это:** бот по-прежнему удаляет спам с высокой уверенностью, но **не присылает личное сообщение на каждое удаление**. Удобно для активных групп, где уведомления отвлекают.
 
-**Как включить:** откройте бота в личке → команда `/mode` → нажимайте, пока не появится подтверждение **тихого автоудаления**.
+**Напоминаем, как работают режимы:**
+1. 🔔 **Только уведомления** — бот присылает вам сообщение о спаме и ждет нажатия кнопки «Удалить».
+2. 🗑 **Автоудаление** — бот удаляет спам сам и присылает вам отчет с кнопкой «Не спам» (на случай ошибки).
+3. 🔇 **Тихое автоудаление** — бот удаляет спам молча, не отвлекая вас уведомлениями.
 
-**Режимы по кругу:** уведомления → автоудаление → тихое автоудаление → снова уведомления.
+**Как переключить:** откройте бота в личке → команда `/mode` → нажимайте, пока не выберете нужный режим.
 
-**Ошибочное удаление:** перешлите сообщение боту в личку и отметьте «не спам» — в тихом режиме кнопки «Не спам» в DM после удаления нет.
+**Когда бот сомневается:** если искусственный интеллект не уверен полностью, что сообщение является спамом, он не будет удалять его автоматически. В таких спорных ситуациях вы всё равно получите уведомление с кнопками «Удалить» или «Не спам», чтобы принять окончательное решение. Это работает во всех режимах и помогает избежать случайного удаления важных сообщений.
 
-**Низкая уверенность ИИ** и предупреждения о правах бота — как раньше, в личку приходят.
+Предупреждения о нехватке прав у бота (например, если вы забыли разрешить удаление сообщений) также продолжат приходить в личку.
 
 Добавить бота в группу: [ai-antispam.ru](https://ai-antispam.ru)
-
----
-
-## EN (optional second post or edit)
-
-**Silent auto-delete for spam**
-
-[@ai_spam_blocker_bot](https://t.me/ai_spam_blocker_bot) now has a third moderation mode: **silent auto-delete**.
-
-High-confidence spam is still removed, but you **won't get a private DM for every deletion** — useful in busy groups.
-
-Enable: open the bot in private chat → `/mode` → tap until you see the **silent auto-delete** confirmation.
-
-Cycle: notify → auto-delete → silent auto-delete → notify.
-
-False positive? **Forward the message to the bot in private** and mark it as not spam.
-
-Low-confidence reviews and permission warnings are unchanged.
-
-Add the bot: [ai-antispam.ru](https://ai-antispam.ru)

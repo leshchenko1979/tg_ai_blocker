@@ -335,6 +335,15 @@ def _validate_exit(
     summary: dict[str, list[int]], total: int, min_sent: int | None
 ) -> None:
     sent_count = len(summary["sent"])
+    skipped_resume = len(summary.get("skipped_resume", []))
+    if total > 20 and skipped_resume > sent_count and sent_count < max(10, total // 10):
+        print(
+            "ERROR: Most recipients were skipped via resume file "
+            f"({skipped_resume} skipped, {sent_count} sent of {total}). "
+            "Start a new campaign with --clear-resume or run_broadcast_on_vds.sh --new-campaign.",
+            flush=True,
+        )
+        sys.exit(1)
     if total > 0 and sent_count == 0:
         print(
             "ERROR: No messages were sent (0 successes). Check logs and resume file.",

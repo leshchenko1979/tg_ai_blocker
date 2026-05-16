@@ -1,9 +1,10 @@
 # Admin broadcast draft — silent auto-delete mode
 
-**Run after** channel post is published on @ai_antispam. Replace `CHANNEL_POST_URL` with the real permalink.
+**Run after** channel post is published on @ai_antispam. Channel post: https://t.me/ai_antispam/43
 
-**Format:** HTML (`--parse-mode HTML`)  
-**Audience:** active admins (~268), via `scripts/run_broadcast_on_vds.sh`
+**Format:** HTML (`--parse-mode HTML`)
+**Audience:** active admins (~262), via `scripts/run_broadcast_on_vds.sh --new-campaign`
+**Runbook:** `memory-bank/opsPlaybook.md` (resume pitfalls, `--new-campaign`, export IDs)
 
 ---
 
@@ -13,27 +14,26 @@
 <b>Новый режим: тихое автоудаление спама</b>
 
 Команда <code>/mode</code> теперь переключает <b>три</b> режима:
-1. Только уведомления
-2. Автоудаление (с DM после каждого удаления)
-3. <b>Тихое автоудаление</b> — удаляет спам без личного сообщения на каждое срабатывание
+1. 🔔 Только уведомления — бот ждёт вашей кнопки «Удалить»
+2. 🗑 Автоудаление — удаляет спам сам и присылает отчёт с кнопкой «Не спам»
+3. 🔇 <b>Тихое автоудаление</b> — удаляет спам без личного сообщения на каждое удаление
 
 <b>Ваш текущий режим не меняется</b>, пока вы сами не нажмёте <code>/mode</code>.
 
 <b>Как включить тихий режим:</b> откройте бота в личке → <code>/mode</code> → нажимайте, пока не увидите подтверждение тихого автоудаления.
 
-<b>Если удалили не спам:</b> перешлите сообщение боту в личку — в тихом режиме кнопки «Не спам» после автоудаления нет.
+Если бот не уверен, что сообщение — спам, он не удаляет его сам: пришлёт уведомление с кнопками «Удалить» и «Не спам». Так во всех режимах.
 
-Подробнее в канале: <a href="CHANNEL_POST_URL">@ai_antispam</a>
+Подробнее: <a href="https://t.me/ai_antispam/43">пост в канале @ai_antispam</a>
 ```
 
 ---
 
 ## Ops checklist
 
-1. Publish [`docs/channel_post_silent_mode.md`](channel_post_silent_mode.md) to @ai_antispam
-2. Paste permalink into `CHANNEL_POST_URL` above
-3. Copy HTML body → `scripts/broadcast_message.txt` (gitignored)
-4. Export admin IDs → `scripts/admin_ids.txt`
-5. Dry-run: `scripts/run_broadcast_on_vds.sh`
-6. Live with `--parse-mode HTML`, resume `scripts/broadcast_sent.ids`, `--min-sent 1`
-7. Log recipient count + channel URL in `memory-bank/progress.md`
+1. ~~Publish channel post~~ — https://t.me/ai_antispam/43
+2. ~~Copy HTML body~~ → `scripts/broadcast_message.txt`
+3. ~~Export admin IDs~~ → `scripts/admin_ids.txt` (262 active)
+4. ~~Dry-run~~ — 262 recipients
+5. ~~Live broadcast (2026-05-16)~~ — **252 sent**, 10 unreachable (deactivated Telegram accounts)
+6. ~~Log in memory-bank~~ — see `progress.md`

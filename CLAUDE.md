@@ -65,6 +65,7 @@ At start of dialog, read relevant memory-bank files:
 - `memory-bank/confirmedSpamExamples.md` — labeled spam examples
 - `memory-bank/progress.md` — recent work log
 - `memory-bank/techContext.md` — technical details
+- `memory-bank/opsPlaybook.md` — deploy/broadcast/migration pitfalls for agents
 
 ## Docker
 

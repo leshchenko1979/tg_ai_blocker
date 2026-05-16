@@ -89,12 +89,12 @@ help:
     Examples are used when checking messages <b>in your groups</b>.
 
     <b>1. When the AI is unsure</b>
-    On <b>low confidence</b> (both borderline spam and borderline legitimate) I'll DM you a notification with context and <b>Delete</b> / <b>Not spam</b> buttons. Your choice is saved as a training example for future checks. Tapping <b>Not spam</b> also marks the user <b>trusted</b> — their later messages won't use stars. <b>No need to forward</b> the message — data already comes from group moderation.
+    On <b>low confidence</b> (both borderline spam and borderline legitimate) I'll send you a private message with context and <b>Delete</b> / <b>Not spam</b> buttons. Your choice is saved as a training example for future checks. Tapping <b>Not spam</b> also marks the user <b>trusted</b> — their later messages won't use stars. <b>No need to forward</b> the message — data already comes from group moderation.
 
     <b>2. Auto-delete and Silent mode</b>
     If you use <b>Auto-delete</b> mode, I'll remove high-confidence spam immediately.
-    • In <b>normal mode</b>, you'll still get a DM with a <b>Not spam</b> button to fix false positives.
-    • In <b>silent mode</b> (<code>/mode</code>), no DM is sent. This mode is recommended for active groups where you trust the AI to work autonomously.
+    • In <b>normal mode</b>, you'll still get a private message with a <b>Not spam</b> button to fix possible false positives.
+    • In <b>silent mode</b> (<code>/mode</code>), no notification is sent. This mode is recommended for active groups where you trust the AI to work autonomously.
 
     <b>2. Manually from chat</b>
 
@@ -223,7 +223,7 @@ stats:
   error: "An error occurred while fetching statistics."
 
 mode:
-  delete_enabled: "🗑 <b>Auto-delete</b> enabled\n\nI will delete high-confidence spam and DM you after each removal (with a <b>Not spam</b> button)."
+  delete_enabled: "🗑 <b>Auto-delete</b> enabled\n\nI will delete high-confidence spam and send you a private message after each removal (with a <b>Not spam</b> button to fix false positives)."
   delete_silent_enabled: "🔇 <b>Silent auto-delete</b> enabled\n\nI will delete high-confidence spam without sending you any notifications."
   notify_enabled: "🔔 <b>Notify only</b> enabled\n\nI will notify you about spam and wait for your confirmation before deleting."
   error: "An error occurred while changing mode."
